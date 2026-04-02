@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PORTS } from './types';
-import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData } from './types';
+import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover } from './types';
 import { fetchAllWeather, fetchPortData } from './api';
 import { PortCard } from './components/PortCard';
 import { Header } from './components/Header';
@@ -19,6 +19,7 @@ export default function App() {
   const [shipVisits, setShipVisits] = useState<ShipVisit[]>([]);
   const [ferryData, setFerryData] = useState<FerryData[]>([]);
   const [cargoData, setCargoData] = useState<CargoData[]>([]);
+  const [cargoTurnover, setCargoTurnover] = useState<CargoTurnover[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -30,12 +31,13 @@ export default function App() {
       try {
         const [weather, govData] = await Promise.all([
           fetchAllWeather(),
-          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], fetchedAt: '' })),
+          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], fetchedAt: '' })),
         ]);
         setPortData(weather);
         setShipVisits(govData.shipVisits);
         setFerryData(govData.ferryData);
         setCargoData(govData.cargoData);
+        setCargoTurnover(govData.cargoTurnover ?? []);
         setLastUpdated(new Date());
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load data');
@@ -79,7 +81,7 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
               <ShipVisitsPanel visits={shipVisits} />
               <FerryPanel data={ferryData} />
-              <CargoPanel data={cargoData} />
+              <CargoPanel data={cargoData} turnover={cargoTurnover} />
             </div>
 
             {/* Data sources footer */}

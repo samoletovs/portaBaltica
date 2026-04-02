@@ -28,6 +28,10 @@ var FERRY_IDS = [
 var CARGO_IDS = [
   { id: '040ff4d5-6b05-4190-a882-069f4515104d', date: '2026-03-01' },
 ];
+// Cargo turnover by type with actual weight in tonnes
+var CARGO_WEIGHT_IDS = [
+  { id: '08d62528-e7c1-4bfe-a46e-387ed3eca6a8', date: '2026-03-01' },
+];
 
 async function query(resourceId, limit) {
   try {
@@ -83,6 +87,18 @@ module.exports = async function (context) {
     }
   }
 
+  // Cargo turnover with weight data
+  var cargoTurnover = [];
+  for (var i = 0; i < CARGO_WEIGHT_IDS.length; i++) {
+    var recs = await query(CARGO_WEIGHT_IDS[i].id, 200);
+    for (var j = 0; j < recs.length; j++) {
+      cargoTurnover.push({
+        cargoTypeCode: recs[j]['Kravas veids'] || '',
+        weight: recs[j]['(Svars)'] || 0
+      });
+    }
+  }
+
   context.res = {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
@@ -90,6 +106,7 @@ module.exports = async function (context) {
       shipVisits: shipVisits,
       ferryData: ferryData,
       cargoData: cargoData,
+      cargoTurnover: cargoTurnover,
       fetchedAt: new Date().toISOString()
     })
   };
