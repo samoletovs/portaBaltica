@@ -1,22 +1,24 @@
 import { useState, useEffect } from 'react';
 import { PORTS } from './types';
-import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData } from './types';
-import { fetchAllWeather, fetchShipVisits, fetchFerryData } from './api';
+import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData } from './types';
+import { fetchAllWeather, fetchPortData } from './api';
 import { PortCard } from './components/PortCard';
 import { Header } from './components/Header';
 import { ShipVisitsPanel } from './components/ShipVisitsPanel';
 import { FerryPanel } from './components/FerryPanel';
+import { CargoPanel } from './components/CargoPanel';
 
-interface PortData {
+interface PortWeatherData {
   port: typeof PORTS[0];
   marine: MarineWeatherForecast;
   weather: PortWeather;
 }
 
 export default function App() {
-  const [portData, setPortData] = useState<PortData[]>([]);
+  const [portData, setPortData] = useState<PortWeatherData[]>([]);
   const [shipVisits, setShipVisits] = useState<ShipVisit[]>([]);
   const [ferryData, setFerryData] = useState<FerryData[]>([]);
+  const [cargoData, setCargoData] = useState<CargoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -26,14 +28,14 @@ export default function App() {
       setLoading(true);
       setError(null);
       try {
-        const [weather, visits, ferry] = await Promise.all([
+        const [weather, govData] = await Promise.all([
           fetchAllWeather(),
-          fetchShipVisits().catch(() => []),
-          fetchFerryData().catch(() => []),
+          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], fetchedAt: '' })),
         ]);
         setPortData(weather);
-        setShipVisits(visits);
-        setFerryData(ferry);
+        setShipVisits(govData.shipVisits);
+        setFerryData(govData.ferryData);
+        setCargoData(govData.cargoData);
         setLastUpdated(new Date());
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load data');
@@ -73,10 +75,11 @@ export default function App() {
               ))}
             </section>
 
-            {/* Ship visits & ferry data */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Ship visits, ferry & cargo data */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
               <ShipVisitsPanel visits={shipVisits} />
               <FerryPanel data={ferryData} />
+              <CargoPanel data={cargoData} />
             </div>
 
             {/* Data sources footer */}

@@ -50,6 +50,7 @@ export interface ShipVisit {
   ship: string;             // "IMO / MMSI / SHIP_NAME"
   visitDate: string;        // ISO date
   type: 'cancelled' | 'rejected' | 'completed';
+  snapshotDate?: string;
 }
 
 /** Ferry passenger data (data.gov.lv) */
@@ -59,15 +60,25 @@ export interface FerryData {
   flagCode: string;
   flagName: string;
   passengers: number;
-  date: string;
+  snapshotDate?: string;
 }
 
-/** Cargo transport mode shares */
-export interface CargoShare {
+/** Loaded cargo by group (data.gov.lv) */
+export interface CargoData {
   year: string;
-  road: number;       // percentage
-  rail: number;       // percentage
-  shipToShip: number; // percentage
+  portCode: string;
+  portName: string;
+  direction: 'IN' | 'OUT';
+  cargoGroupCode: number;
+  cargoGroupName: string;
+}
+
+/** Combined port data from the API proxy */
+export interface PortDataResponse {
+  shipVisits: ShipVisit[];
+  ferryData: FerryData[];
+  cargoData: CargoData[];
+  fetchedAt: string;
 }
 
 /** Sea state classification */
