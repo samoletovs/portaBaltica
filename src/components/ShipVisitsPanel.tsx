@@ -38,12 +38,10 @@ export function ShipVisitsPanel({ visits }: ShipVisitsPanelProps) {
   }, {});
 
   // Date range
-  const dates = visits.map(v => v.snapshotDate).filter(Boolean).sort();
+  const dates = visits.map(v => v.snapshotDate).filter((d): d is string => Boolean(d)).sort();
   const dateRange = dates.length > 0
     ? `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`
     : '';
-
-  const totalShown = expanded ? uniqueVisits.length : Math.min(uniqueVisits.length, 10);
 
   return (
     <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
