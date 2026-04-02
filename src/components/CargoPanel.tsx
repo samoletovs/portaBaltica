@@ -1,7 +1,10 @@
-import type { CargoData } from '../types';
+import { useState } from 'react';
+import type { CargoData, CargoTurnover } from '../types';
+import { CARGO_TYPE_NAMES } from '../types';
 
 interface CargoPanelProps {
   data: CargoData[];
+  turnover: CargoTurnover[];
 }
 
 const PORT_NAMES: Record<string, string> = {
@@ -10,16 +13,125 @@ const PORT_NAMES: Record<string, string> = {
   LVLPX: 'Liepāja',
 };
 
-export function CargoPanel({ data }: CargoPanelProps) {
-  if (data.length === 0) {
+type ViewMode = 'turnover' | 'categories';
+
+export function CargoPanel({ data, turnover }: CargoPanelProps) {
+  const [view, setView] = useState<ViewMode>('turnover');
+
+  if (data.length === 0 && turnover.length === 0) {
     return (
       <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
         <h3 className="text-lg font-bold text-white mb-4">📦 Port Cargo</h3>
-        <p className="text-ocean-400 text-sm">No cargo data available. Published biweekly by the Ministry of Transport.</p>
+        <p className="text-ocean-400 text-sm">No cargo data available.</p>
       </section>
     );
   }
 
+  return (
+    <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-white">📦 Port Cargo</h3>
+        <div className="flex gap-1 bg-ocean-800/60 rounded-lg p-0.5">
+          <button
+            onClick={() => setView('turnover')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'turnover' ? 'bg-ocean-600 text-white' : 'text-ocean-400 hover:text-ocean-200'}`}
+          >
+            Tonnage
+          </button>
+          <button
+            onClick={() => setView('categories')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${view === 'categories' ? 'bg-ocean-600 text-white' : 'text-ocean-400 hover:text-ocean-200'}`}
+          >
+            Categories
+          </button>
+        </div>
+      </div>
+
+      {view === 'turnover' ? (
+        <TurnoverChart turnover={turnover} />
+      ) : (
+        <CategoriesView data={data} />
+      )}
+    </section>
+  );
+}
+
+function TurnoverChart({ turnover }: { turnover: CargoTurnover[] }) {
+  if (turnover.length === 0) {
+    return <p className="text-ocean-400 text-sm">No tonnage data available.</p>;
+  }
+
+  // Aggregate by cargo type code
+  const byType = turnover.reduce<Record<string, number>>((acc, t) => {
+    acc[t.cargoTypeCode] = (acc[t.cargoTypeCode] || 0) + t.weight;
+    return acc;
+  }, {});
+
+  // Sort by weight descending
+  const sorted = Object.entries(byType)
+    .map(([code, weight]) => ({
+      code,
+      name: CARGO_TYPE_NAMES[code] || `Type ${code}`,
+      weight,
+    }))
+    .sort((a, b) => b.weight - a.weight);
+
+  const maxWeight = sorted[0]?.weight || 1;
+  const totalWeight = sorted.reduce((s, t) => s + t.weight, 0);
+
+  // Color gradient based on position
+  const barColors = [
+    'bg-ocean-400', 'bg-ocean-400', 'bg-ocean-500',
+    'bg-cyan-500', 'bg-cyan-500', 'bg-teal-500',
+    'bg-teal-500', 'bg-emerald-600', 'bg-emerald-600',
+    'bg-green-600',
+  ];
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 mb-4">
+        <span className="text-2xl font-bold text-white font-mono">
+          {formatWeight(totalWeight)}
+        </span>
+        <span className="text-sm text-ocean-400">total tonnes</span>
+      </div>
+
+      <div className="space-y-2">
+        {sorted.map((item, idx) => {
+          const pct = (item.weight / maxWeight) * 100;
+          const share = ((item.weight / totalWeight) * 100).toFixed(1);
+          return (
+            <div key={item.code}>
+              <div className="flex items-center justify-between text-xs mb-0.5">
+                <span className="text-ocean-200 truncate max-w-[60%]" title={item.name}>
+                  {item.name}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-ocean-400">{share}%</span>
+                  <span className="text-white font-mono font-medium w-16 text-right">
+                    {formatWeight(item.weight)}
+                  </span>
+                </div>
+              </div>
+              <div className="h-3 bg-ocean-800/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${barColors[Math.min(idx, barColors.length - 1)]}`}
+                  style={{ width: `${Math.max(pct, 1)}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-ocean-500 mt-4">
+        {sorted.length} cargo categories · Latest biweekly snapshot
+      </p>
+    </div>
+  );
+}
+
+function CategoriesView({ data }: { data: CargoData[] }) {
   // Group by port and direction
   const byPort = data.reduce<Record<string, { imports: CargoData[]; exports: CargoData[] }>>((acc, d) => {
     const key = d.portCode;
@@ -29,13 +141,11 @@ export function CargoPanel({ data }: CargoPanelProps) {
     return acc;
   }, {});
 
-  const totalGroups = data.length;
   const importCount = data.filter(d => d.direction === 'IN').length;
   const exportCount = data.filter(d => d.direction === 'OUT').length;
 
   return (
-    <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
-      <h3 className="text-lg font-bold text-white mb-2">📦 Port Cargo</h3>
+    <div>
       <div className="flex gap-4 mb-4">
         <div className="text-sm">
           <span className="text-emerald-400 font-bold">{importCount}</span>
@@ -57,14 +167,11 @@ export function CargoPanel({ data }: CargoPanelProps) {
             <div className="mb-2">
               <p className="text-xs text-emerald-400 mb-1">↓ Imports</p>
               <div className="flex flex-wrap gap-1">
-                {imports.slice(0, 8).map((c, i) => (
-                  <span key={i} className="inline-block bg-emerald-900/40 text-emerald-300 text-xs px-2 py-0.5 rounded-full border border-emerald-700/30">
-                    {truncateCargoName(c.cargoGroupName)}
+                {imports.map((c, i) => (
+                  <span key={i} className="inline-block bg-emerald-900/40 text-emerald-300 text-xs px-2 py-0.5 rounded-full border border-emerald-700/30" title={c.cargoGroupName}>
+                    {truncate(c.cargoGroupName, 22)}
                   </span>
                 ))}
-                {imports.length > 8 && (
-                  <span className="text-xs text-ocean-500">+{imports.length - 8} more</span>
-                )}
               </div>
             </div>
           )}
@@ -73,29 +180,33 @@ export function CargoPanel({ data }: CargoPanelProps) {
             <div>
               <p className="text-xs text-orange-400 mb-1">↑ Exports</p>
               <div className="flex flex-wrap gap-1">
-                {exports.slice(0, 8).map((c, i) => (
-                  <span key={i} className="inline-block bg-orange-900/40 text-orange-300 text-xs px-2 py-0.5 rounded-full border border-orange-700/30">
-                    {truncateCargoName(c.cargoGroupName)}
+                {exports.map((c, i) => (
+                  <span key={i} className="inline-block bg-orange-900/40 text-orange-300 text-xs px-2 py-0.5 rounded-full border border-orange-700/30" title={c.cargoGroupName}>
+                    {truncate(c.cargoGroupName, 22)}
                   </span>
                 ))}
-                {exports.length > 8 && (
-                  <span className="text-xs text-ocean-500">+{exports.length - 8} more</span>
-                )}
               </div>
             </div>
           )}
         </div>
       ))}
 
-      <p className="text-xs text-ocean-500 mt-3">{totalGroups} cargo groups across {Object.keys(byPort).length} ports ({data[0]?.year})</p>
-    </section>
+      <p className="text-xs text-ocean-500 mt-3">
+        {data.length} cargo groups across {Object.keys(byPort).length} port{Object.keys(byPort).length > 1 ? 's' : ''} ({data[0]?.year})
+      </p>
+    </div>
   );
 }
 
-function truncateCargoName(name: string): string {
-  // Shorten long cargo group names
-  if (name.length <= 25) return name;
-  const semi = name.indexOf(';');
-  if (semi > 0 && semi < 30) return name.slice(0, semi);
-  return name.slice(0, 23) + '…';
+function formatWeight(tonnes: number): string {
+  if (tonnes >= 1_000_000) return (tonnes / 1_000_000).toFixed(1) + 'M';
+  if (tonnes >= 1_000) return (tonnes / 1_000).toFixed(0) + 'K';
+  return tonnes.toFixed(0);
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const semi = s.indexOf(';');
+  if (semi > 0 && semi < max) return s.slice(0, semi);
+  return s.slice(0, max - 1) + '…';
 }

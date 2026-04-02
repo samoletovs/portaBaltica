@@ -73,11 +73,42 @@ export interface CargoData {
   cargoGroupName: string;
 }
 
+/** Cargo turnover with weight in tonnes (data.gov.lv) */
+export interface CargoTurnover {
+  cargoTypeCode: string;
+  weight: number;
+}
+
+/** Standard cargo type code → name mapping (NST 2007) */
+export const CARGO_TYPE_NAMES: Record<string, string> = {
+  '01': 'Agriculture & Forestry',
+  '02': 'Coal & Lignite',
+  '03': 'Petroleum & Natural Gas',
+  '04': 'Metal Ores & Mining',
+  '05': 'Food, Beverages & Tobacco',
+  '06': 'Textiles & Leather',
+  '07': 'Wood & Paper Products',
+  '08': 'Chemicals & Plastics',
+  '09': 'Non-metallic Minerals',
+  '10': 'Basic Metals & Fabricated Products',
+  '11': 'Machinery & Equipment',
+  '12': 'Transport Equipment',
+  '13': 'Furniture & Other Manufactured',
+  '14': 'Secondary Raw Materials & Waste',
+  '15': 'Mail & Parcels',
+  '16': 'Equipment for Transport',
+  '17': 'Goods In Group Transport',
+  '18': 'Unidentifiable Goods',
+  '19': 'Other Goods n.e.c.',
+  '20': 'Grouped Goods',
+};
+
 /** Combined port data from the API proxy */
 export interface PortDataResponse {
   shipVisits: ShipVisit[];
   ferryData: FerryData[];
   cargoData: CargoData[];
+  cargoTurnover: CargoTurnover[];
   fetchedAt: string;
 }
 
