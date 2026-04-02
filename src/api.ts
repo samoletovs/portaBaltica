@@ -74,9 +74,32 @@ export async function fetchAllWeather() {
   return results;
 }
 
-/** Fetch all port data (ship visits, ferry, cargo) via SWA API proxy to bypass CORS */
+const PORT_DATA_CACHE_KEY = 'portabaltica_port_data';
+const PORT_DATA_CACHE_TTL = 60 * 60 * 1000; // 1 hour — data.gov.lv updates biweekly
+
+/** Fetch all port data (ship visits, ferry, cargo) via SWA API proxy to bypass CORS.
+ *  Caches in localStorage for 1 hour to reduce API calls. */
 export async function fetchPortData(): Promise<PortDataResponse> {
+  // Check cache
+  try {
+    const cached = localStorage.getItem(PORT_DATA_CACHE_KEY);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < PORT_DATA_CACHE_TTL) {
+        console.log('Using cached port data');
+        return data;
+      }
+    }
+  } catch { /* ignore cache errors */ }
+
   const res = await fetch('/api/port-data');
   if (!res.ok) throw new Error(`Port data API failed: ${res.status}`);
-  return res.json();
+  const data: PortDataResponse = await res.json();
+
+  // Save to cache
+  try {
+    localStorage.setItem(PORT_DATA_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch { /* ignore storage errors */ }
+
+  return data;
 }
