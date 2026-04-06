@@ -37,7 +37,7 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <h1 className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              portaBaltica
+              porta<span style={{ color: '#0ea5e9' }}>Baltica</span>
             </h1>
             <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic data intelligence</span>
           </div>
