@@ -15,6 +15,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      // Prevent theme flash: set data-theme before CSS applies
+      (function(){var t=localStorage.getItem('pb-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
+    </script>
   </head>
   <body>
     <div id="root"></div>
