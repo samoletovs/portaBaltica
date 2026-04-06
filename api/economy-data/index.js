@@ -19,7 +19,7 @@ function jsonGet(url) {
 }
 
 const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
-const ECB_RATES_URL = 'https://www.bank.lv/vk/ecb.xml';
+const ECB_RATES_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 const ELERING_URL = 'https://dashboard.elering.ee/api/nps/price';
 
 async function fetchECBRates() {
@@ -32,7 +32,7 @@ async function fetchECBRates() {
       JPY: 'Japanese Yen', CZK: 'Czech Koruna', DKK: 'Danish Krone',
     };
     for (const code of Object.keys(currencyNames)) {
-      const regex = new RegExp('currency="' + code + '" rate="([\\d.]+)"');
+      const regex = new RegExp("currency='" + code + "' rate='([\\d.]+)'");
       const match = xml.match(regex);
       if (match) {
         rates.push({ currency: code, rate: parseFloat(match[1]), name: currencyNames[code] });

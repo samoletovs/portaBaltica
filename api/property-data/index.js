@@ -36,7 +36,7 @@ async function fetchDatastoreRecords(resourceId, limit) {
 }
 
 async function fetchConstructionPermits() {
-  const resource = await getLatestActiveResource('bvkb-buvniecibas-lietas');
+  const resource = await getLatestActiveResource('bis_jlyakg7hgslonjnwyrwc6w');
   if (!resource) return { permits: [], total: 0 };
   const records = await fetchDatastoreRecords(resource.id, 500);
   var byMunicipality = {};
@@ -53,7 +53,7 @@ async function fetchConstructionPermits() {
 }
 
 async function fetchEnergyCerts() {
-  const resource = await getLatestActiveResource('eku-energosertifikati');
+  const resource = await getLatestActiveResource('bis_ygdi8jmgg-bneuijz7wiwq');
   if (!resource) return { certs: [], total: 0 };
   const records = await fetchDatastoreRecords(resource.id, 500);
   var byRating = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0 };
