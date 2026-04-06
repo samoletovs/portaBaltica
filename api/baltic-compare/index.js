@@ -65,10 +65,10 @@ var DATASETS = {
     unit: 'balance',
   },
   salary: {
-    dataset: 'earn_mw_avgr2',
-    params: 'freq=A',
-    title: 'Average salary',
-    unit: 'EUR/month',
+    dataset: 'lc_lci_lev',
+    params: 'freq=A&lcstruct=D1_D4_MD5&unit=EUR',
+    title: 'Hourly labour cost',
+    unit: 'EUR/hour',
   },
   retail: {
     dataset: 'sts_trtu_m',
@@ -134,13 +134,13 @@ var DATASETS = {
     dataset: 'lc_lci_r2_q',
     params: 'freq=Q&nace_r2=C&unit=I20&s_adj=SCA',
     title: 'Labour cost: manufacturing',
-    unit: 'index',
+    unit: 'index (2020=100)',
   },
   wages_it: {
     dataset: 'lc_lci_r2_q',
     params: 'freq=Q&nace_r2=J&unit=I20&s_adj=SCA',
     title: 'Labour cost: IT sector',
-    unit: 'index',
+    unit: 'index (2020=100)',
   },
   job_vacancy: {
     dataset: 'jvs_q_nace2',
