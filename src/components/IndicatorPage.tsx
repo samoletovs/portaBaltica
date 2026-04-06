@@ -1,5 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { IndicatorChart } from './IndicatorCard';
+import { BalticCompareChart } from './BalticCompareChart';
+
+// Map indicators to their Eurostat equivalent (if available)
+const EUROSTAT_MAP: Record<string, string> = {
+  gdp: 'gdp',
+  unemployment: 'unemployment',
+  cpi: 'inflation',
+  house_prices: 'house_prices',
+};
 
 const INDICATOR_INFO: Record<string, { title: string; description: string; related: string[] }> = {
   gdp: {
@@ -78,9 +87,17 @@ export function IndicatorPage() {
         <p className="text-ocean-300 text-sm mb-6 max-w-2xl">{info.description}</p>
 
         {/* Main chart */}
-        <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6 mb-8">
+        <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6 mb-6">
           <IndicatorChart id={id} />
         </div>
+
+        {/* Baltic comparison */}
+        {EUROSTAT_MAP[id] && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-white mb-3">Baltic Comparison</h2>
+            <BalticCompareChart indicator={EUROSTAT_MAP[id]} title={`${info.title} — Latvia vs Estonia vs Lithuania`} />
+          </div>
+        )}
 
         {/* Related indicators */}
         {info.related.length > 0 && (
