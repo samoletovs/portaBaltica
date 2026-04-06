@@ -128,7 +128,7 @@ var INDICATORS = {
   tourist_arrivals: {
     path: '/NOZ/TU/TUV/TUV020c',
     query: [
-      { code: 'INDICATOR', selection: { filter: 'item', values: ['ARR'] } },
+      { code: 'ACCOMMODATION', selection: { filter: 'item', values: ['I551-I553'] } },
       { code: 'ContentsCode', selection: { filter: 'item', values: ['TUV020c'] } },
     ],
     transform: null,
@@ -139,8 +139,8 @@ var INDICATORS = {
   gov_revenue: {
     path: '/VEK/VF/VFV/VFV010c',
     query: [
-      { code: 'INDICATOR', selection: { filter: 'item', values: ['OTR'] } },
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV010c'] } },
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['P11_P12_P131'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV010c1'] } },
     ],
     transform: null,
     unit: 'M EUR',
@@ -150,8 +150,9 @@ var INDICATORS = {
   gov_debt: {
     path: '/VEK/VF/VFV/VFV020c',
     query: [
-      { code: 'GG_SECTOR', selection: { filter: 'item', values: ['S13'] } },
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV020c'] } },
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'SECTOR', selection: { filter: 'item', values: ['S13'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV020c1'] } },
     ],
     transform: null,
     unit: 'M EUR',
