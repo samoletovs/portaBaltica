@@ -9,6 +9,9 @@ import { PropertyTile } from './components/PropertyTile';
 import { EnvironmentTile } from './components/EnvironmentTile';
 import { MaritimeTile } from './components/MaritimeTile';
 import { BusinessTile } from './components/BusinessTile';
+import { SystemStatusFooter } from './components/SystemStatusFooter';
+
+import { useParams, useNavigate } from 'react-router-dom';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -16,8 +19,17 @@ interface PortWeatherData {
   weather: PortWeather;
 }
 
+const VALID_SECTIONS = new Set(['economy', 'property', 'environment', 'business', 'maritime']);
+
 export default function App() {
-  const [activeSection, setActiveSection] = useState<DashboardSection | 'all'>('all');
+  const { section } = useParams<{ section?: string }>();
+  const navigate = useNavigate();
+  const activeSection: DashboardSection | 'all' =
+    section && VALID_SECTIONS.has(section) ? section as DashboardSection : 'all';
+
+  function setActiveSection(s: DashboardSection | 'all') {
+    navigate(s === 'all' ? '/' : `/${s}`, { replace: true });
+  }
 
   // Maritime data (existing)
   const [portData, setPortData] = useState<PortWeatherData[]>([]);
@@ -167,6 +179,9 @@ export default function App() {
             />
           )}
         </div>
+
+        {/* System Status */}
+        <SystemStatusFooter />
 
         {/* Data sources footer */}
         <footer className="mt-16 pt-8 border-t border-ocean-800/50 text-sm text-ocean-400">

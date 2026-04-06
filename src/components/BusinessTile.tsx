@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { BusinessSearchResult, EUFundsData } from '../types';
-import { searchBusinessOwners } from '../api';
+import type { BusinessSearchResult, EUFundsData, AddressSearchResult } from '../types';
+import { searchBusinessOwners, searchAddress } from '../api';
 
 interface BusinessTileProps {
   euFunds: EUFundsData | null;
@@ -12,6 +12,11 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
   const [searchResult, setSearchResult] = useState<BusinessSearchResult | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Address search state
+  const [addrQuery, setAddrQuery] = useState('');
+  const [addrResult, setAddrResult] = useState<AddressSearchResult | null>(null);
+  const [addrSearching, setAddrSearching] = useState(false);
 
   async function handleSearch() {
     if (query.length < 3) return;
@@ -27,13 +32,24 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
     }
   }
 
+  async function handleAddrSearch() {
+    if (addrQuery.length < 3) return;
+    setAddrSearching(true);
+    try {
+      const result = await searchAddress(addrQuery);
+      setAddrResult(result);
+    } catch { /* ignore */ } finally {
+      setAddrSearching(false);
+    }
+  }
+
   return (
     <section>
       <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
         <span className="text-ocean-400">🔍</span> Business Intelligence
       </h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* UBO Search */}
         <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-5">
           <p className="text-xs text-ocean-400 mb-2">Who Owns This Company?</p>
@@ -144,6 +160,64 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
           {!euFunds && !euLoading && (
             <p className="text-ocean-400 text-sm">No EU fund data available.</p>
+          )}
+        </div>
+
+        {/* Address Search */}
+        <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-5">
+          <p className="text-xs text-ocean-400 mb-2">Address Lookup</p>
+          <p className="text-xs text-ocean-500 mb-3">Search 608K+ Latvian addresses with GPS coordinates</p>
+
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={addrQuery}
+              onChange={(e) => setAddrQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
+              placeholder="Street, city, or postal code..."
+              className="flex-1 bg-ocean-800/60 border border-ocean-700/30 rounded-lg px-3 py-2 text-sm text-white placeholder-ocean-500 focus:outline-none focus:border-ocean-500"
+              aria-label="Search Latvian addresses"
+            />
+            <button
+              onClick={handleAddrSearch}
+              disabled={addrSearching || addrQuery.length < 3}
+              className="bg-ocean-600 hover:bg-ocean-500 disabled:bg-ocean-800 disabled:text-ocean-600 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+              aria-label="Search addresses"
+            >
+              {addrSearching ? '...' : '📍'}
+            </button>
+          </div>
+
+          {addrResult && (
+            <div className="space-y-1.5 max-h-52 overflow-y-auto">
+              {addrResult.addresses.slice(0, 8).map((addr) => (
+                <div key={addr.code} className="bg-ocean-800/40 rounded-lg p-2">
+                  <p className="text-xs text-white leading-snug">{addr.fullAddress}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {addr.postalCode && (
+                      <span className="text-xs text-ocean-400 bg-ocean-800/60 px-1.5 py-0.5 rounded">{addr.postalCode}</span>
+                    )}
+                    {addr.lat && addr.lon && (
+                      <a
+                        href={`https://www.google.com/maps?q=${addr.lat},${addr.lon}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-ocean-400 hover:text-ocean-200 underline"
+                      >
+                        📍 Map
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-ocean-600">{addrResult.total.toLocaleString()} total matches</p>
+            </div>
+          )}
+
+          {!addrResult && !addrSearching && (
+            <p className="text-xs text-ocean-500">
+              Try: <button onClick={() => { setAddrQuery('Brīvības iela'); }} className="text-ocean-400 underline">Brīvības iela</button> or <button onClick={() => { setAddrQuery('LV-1010'); }} className="text-ocean-400 underline">LV-1010</button>
+            </p>
           )}
         </div>
       </div>

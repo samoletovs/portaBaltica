@@ -1,4 +1,4 @@
-import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData } from './types';
+import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus } from './types';
 import { PORTS } from './types';
 
 const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
@@ -159,4 +159,18 @@ export async function searchBusinessOwners(query: string): Promise<BusinessSearc
 
 export async function fetchEUFunds(): Promise<EUFundsData> {
   return cachedFetch<EUFundsData>('eu-funds', '/api/eu-funds');
+}
+
+// ─── Phase 3: Geospatial + System ───
+
+export async function searchAddress(query: string): Promise<AddressSearchResult> {
+  const res = await fetch(`/api/address-search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`Address search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSystemStatus(): Promise<SystemStatus> {
+  const res = await fetch('/api/system-status');
+  if (!res.ok) throw new Error(`Status failed: ${res.status}`);
+  return res.json();
 }
