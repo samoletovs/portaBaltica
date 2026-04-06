@@ -1,27 +1,43 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { IndicatorChart } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
+import { useCountry } from '../CountryContext';
 
-// Map indicators to their Eurostat equivalent (if available)
+// Map indicators to their Eurostat equivalent for Baltic comparison
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp',
   unemployment: 'unemployment',
   cpi: 'inflation',
+  salary: 'salary',
   house_prices: 'house_prices',
+  retail_sales: 'retail',
+  industrial: 'industrial',
+  population: 'population',
+  tourist_arrivals: 'tourism',
+  hotel_occupancy: 'tourism',
   construction_output: 'construction',
   biz_confidence: 'consumer_confidence',
   gov_debt: 'gov_debt_gdp',
+  gov_revenue: 'gov_revenue',
+  exports: 'exports',
+  imports: 'imports',
+  trade_balance: 'trade_balance',
+  new_vehicles: 'vehicles',
+  renewable_share: 'renewables',
+  wages_industry: 'wages_mfg',
+  wages_it: 'wages_it',
+  ppi: 'ppi',
 };
 
 const INDICATOR_INFO: Record<string, { title: string; description: string; related: string[] }> = {
   gdp: {
     title: 'GDP Growth Rate',
-    description: 'Gross Domestic Product quarterly growth rate, seasonally adjusted, compared to corresponding period of previous year. GDP measures the total economic output of Latvia.',
+    description: 'Gross Domestic Product quarterly growth rate, seasonally adjusted. GDP measures the total economic output and is the broadest measure of economic activity.',
     related: ['salary', 'unemployment', 'industrial', 'retail_sales'],
   },
   salary: {
-    title: 'Average Gross Salary',
-    description: 'Average monthly gross wages and salaries across all sectors. Reflects the overall compensation level in the Latvian economy.',
+    title: 'Hourly Labour Cost',
+    description: 'Average hourly labour cost across all sectors (Eurostat lc_lci_lev). Covers compensation of employees plus taxes minus subsidies, business economy excluding public administration.',
     related: ['gdp', 'cpi', 'unemployment'],
   },
   cpi: {
@@ -51,17 +67,17 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
   },
   population: {
     title: 'Population',
-    description: 'Total population of Latvia. Latvia has been experiencing population decline due to emigration and low birth rates.',
+    description: 'Total population. All three Baltic states have experienced population decline due to emigration and low birth rates since EU accession.',
     related: ['unemployment', 'salary', 'gdp'],
   },
   exports: {
     title: 'Exports',
-    description: 'Total value of goods exported from Latvia, seasonally adjusted. Key indicator of trade competitiveness and external demand.',
+    description: 'Total value of goods and services exported, seasonally adjusted. Key indicator of trade competitiveness and external demand.',
     related: ['imports', 'gdp', 'industrial'],
   },
   imports: {
     title: 'Imports',
-    description: 'Total value of goods imported to Latvia, seasonally adjusted. Reflects domestic demand and trade dependency.',
+    description: 'Total value of goods and services imported, seasonally adjusted. Reflects domestic demand and trade dependency.',
     related: ['exports', 'gdp', 'retail_sales'],
   },
   hotel_occupancy: {
@@ -105,13 +121,13 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
     related: ['retail_sales', 'salary', 'biz_confidence'],
   },
   wages_industry: {
-    title: 'Manufacturing wages',
-    description: 'Average gross monthly salary in the manufacturing sector (NACE C). Reflects industrial competitiveness.',
+    title: 'Manufacturing Wages',
+    description: 'Labour cost index for the manufacturing sector (NACE C), base year 2020=100. Tracks how industrial labour costs evolve over time.',
     related: ['salary', 'wages_it', 'industrial'],
   },
   wages_it: {
-    title: 'IT sector wages',
-    description: 'Average gross monthly salary in the IT and communication sector (NACE J). Latvia\'s fastest-growing wage sector.',
+    title: 'IT Sector Wages',
+    description: 'Labour cost index for the information and communication sector (NACE J), base year 2020=100. The Baltics\' fastest-growing wage sector.',
     related: ['salary', 'wages_industry'],
   },
   energy_price_gas: {
@@ -120,8 +136,8 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
     related: ['cpi', 'renewable_share'],
   },
   renewable_share: {
-    title: 'Renewable energy share',
-    description: 'Share of renewable energy in total energy consumption. Latvia has one of the highest shares in the EU thanks to hydropower.',
+    title: 'Renewable Energy Share',
+    description: 'Share of renewable energy in total energy consumption. The Baltics have above-EU-average shares thanks to hydropower (Latvia), biomass, and wind expansion.',
     related: ['energy_price_gas'],
   },
   ppi: {
@@ -139,6 +155,7 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
 export function IndicatorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { countryLabel, flag } = useCountry();
   const info = id ? INDICATOR_INFO[id] : null;
 
   if (!id || !info) {
@@ -167,7 +184,8 @@ export function IndicatorPage() {
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>
           {info.title}
         </h1>
-        <p className="text-slate-300 text-sm mb-6 max-w-2xl">{info.description}</p>
+        <p className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{flag} {countryLabel}</p>
+        <p className="text-sm mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{info.description}</p>
 
         {/* Main chart */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 mb-6">

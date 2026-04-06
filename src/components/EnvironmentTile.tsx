@@ -25,11 +25,14 @@ const WEATHER_ICONS: Record<string, string> = {
 };
 
 export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
-  const { countryLabel, flag } = useCountry();
+  const { countryLabel, flag, country, timezone } = useCountry();
   if (loading) return <TileSkeleton />;
   if (!data) return null;
 
   const aqiStyle = AQI_STYLES[data.airQuality.status] ?? AQI_STYLES.good;
+  const capitals: Record<string, string> = { LV: 'Riga', EE: 'Tallinn', LT: 'Vilnius' };
+  const capital = capitals[country] || 'Riga';
+  const popSources: Record<string, string> = { LV: 'opendata.riga.lv', EE: 'Statistics Estonia', LT: 'Lithuanian Statistics' };
 
   return (
     <section>
@@ -52,14 +55,14 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-500 mt-3">Open-Meteo API · Europe/Riga timezone</p>
+          <p className="text-xs text-slate-500 mt-3">Open-Meteo API · {timezone}</p>
         </div>
 
         {/* Air quality + Population */}
         <div className="space-y-4">
           {/* Air quality */}
           <div className={`${aqiStyle.bg} backdrop-blur-sm border ${aqiStyle.ring}/30 rounded-xl p-5`}>
-            <p className="text-xs text-slate-400 mb-2">Air Quality · Riga</p>
+            <p className="text-xs text-slate-400 mb-2">Air Quality · {capital}</p>
             <div className="flex items-center gap-3 mb-2">
               <div className={`w-12 h-12 rounded-full border-3 ${aqiStyle.ring} flex items-center justify-center`}>
                 <span className={`text-sm font-bold ${aqiStyle.text}`}>
@@ -85,11 +88,11 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
           {/* Population */}
           <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
-            <p className="text-xs text-slate-400 mb-1">Riga Population</p>
+            <p className="text-xs text-slate-400 mb-1">{capital} Population</p>
             <p className="text-2xl font-bold text-white font-mono">
               {data.rigaPopulation.toLocaleString()}
             </p>
-            <p className="text-xs text-slate-500 mt-1">Declared residents · opendata.riga.lv</p>
+            <p className="text-xs text-slate-500 mt-1">Declared residents · {popSources[country]}</p>
           </div>
         </div>
       </div>

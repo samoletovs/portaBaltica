@@ -52,7 +52,11 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
   }
 
   if (!data || !data.countries || Object.keys(data.countries).length === 0) {
-    return null;
+    return (
+      <div className={`rounded-xl p-4 flex items-center justify-center ${compact ? 'h-40' : 'h-64'}`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No data available{title ? ` for ${title}` : ''}</p>
+      </div>
+    );
   }
 
   // Merge all country series into chart-friendly format
