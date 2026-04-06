@@ -54,20 +54,20 @@ export function DataTicker() {
 
   return (
     <div className="overflow-hidden" style={{ borderBottom: '1px solid var(--border-card)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center gap-6 py-1.5 overflow-x-auto scrollbar-hide whitespace-nowrap">
-          {items.map((item, i) => (
-            <span key={i} className="flex items-center gap-1.5 text-xs font-mono shrink-0">
-              <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.value}</span>
-              {item.change && (
-                <span style={{ color: item.positive ? '#059669' : '#dc2626', fontSize: '10px' }}>
-                  {item.change}
-                </span>
-              )}
-            </span>
-          ))}
-        </div>
+      <div className="ticker-track flex items-center gap-8 py-1.5 whitespace-nowrap">
+        {/* Duplicate items for seamless loop */}
+        {[...items, ...items].map((item, i) => (
+          <span key={i} className="flex items-center gap-1.5 text-xs font-mono shrink-0">
+            <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.value}</span>
+            {item.change && (
+              <span style={{ color: item.positive ? '#059669' : '#dc2626', fontSize: '10px' }}>
+                {item.change}
+              </span>
+            )}
+            <span style={{ color: 'var(--border-card)', margin: '0 4px' }}>·</span>
+          </span>
+        ))}
       </div>
     </div>
   );
