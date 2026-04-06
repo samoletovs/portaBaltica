@@ -8,6 +8,9 @@ const EUROSTAT_MAP: Record<string, string> = {
   unemployment: 'unemployment',
   cpi: 'inflation',
   house_prices: 'house_prices',
+  construction_output: 'construction',
+  biz_confidence: 'consumer_confidence',
+  gov_debt: 'gov_debt_gdp',
 };
 
 const INDICATOR_INFO: Record<string, { title: string; description: string; related: string[] }> = {
@@ -85,6 +88,41 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
     title: 'Economic sentiment',
     description: 'Composite economic sentiment indicator (long-term average = 100). A leading indicator combining business and consumer surveys.',
     related: ['gdp', 'retail_sales', 'unemployment'],
+  },
+  construction_output: {
+    title: 'Construction output',
+    description: 'Volume index of construction production (2021=100, seasonally adjusted). Tracks the health of the building sector.',
+    related: ['building_permits', 'gdp', 'house_prices'],
+  },
+  building_permits: {
+    title: 'Building permits issued',
+    description: 'Number of building permits issued per quarter. A leading indicator for future construction activity.',
+    related: ['construction_output', 'house_prices'],
+  },
+  new_vehicles: {
+    title: 'New car registrations',
+    description: 'New passenger car registrations per quarter. A proxy for consumer confidence and economic health.',
+    related: ['retail_sales', 'salary', 'biz_confidence'],
+  },
+  wages_industry: {
+    title: 'Manufacturing wages',
+    description: 'Average gross monthly salary in the manufacturing sector (NACE C). Reflects industrial competitiveness.',
+    related: ['salary', 'wages_it', 'industrial'],
+  },
+  wages_it: {
+    title: 'IT sector wages',
+    description: 'Average gross monthly salary in the IT and communication sector (NACE J). Latvia\'s fastest-growing wage sector.',
+    related: ['salary', 'wages_industry'],
+  },
+  energy_price_gas: {
+    title: 'Gas price (households)',
+    description: 'Average natural gas price for household consumers in EUR per gigajoule. A key cost-of-living indicator.',
+    related: ['cpi', 'renewable_share'],
+  },
+  renewable_share: {
+    title: 'Renewable energy share',
+    description: 'Share of renewable energy in total energy consumption. Latvia has one of the highest shares in the EU thanks to hydropower.',
+    related: ['energy_price_gas'],
   },
 };
 

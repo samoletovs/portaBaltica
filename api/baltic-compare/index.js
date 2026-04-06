@@ -40,6 +40,30 @@ var DATASETS = {
     title: 'House Price Change',
     unit: '% YoY',
   },
+  interest_rate: {
+    dataset: 'irt_lt_mcby_m',
+    params: 'freq=M',
+    title: 'Long-term interest rate',
+    unit: '%',
+  },
+  gov_debt_gdp: {
+    dataset: 'gov_10dd_edpt1',
+    params: 'na_item=GD&unit=PC_GDP&freq=A',
+    title: 'Government debt / GDP',
+    unit: '% GDP',
+  },
+  construction: {
+    dataset: 'sts_copr_m',
+    params: 'nace_r2=F&s_adj=SCA&unit=PCH_SM&freq=M',
+    title: 'Construction output',
+    unit: '% MoM',
+  },
+  consumer_confidence: {
+    dataset: 'ei_bsco_m',
+    params: 'indic=BS-CSMCI-BAL&s_adj=SA&freq=M',
+    title: 'Consumer confidence',
+    unit: 'balance',
+  },
 };
 
 function parseJsonStat(data, countries) {
