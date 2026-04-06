@@ -10,6 +10,13 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   unemployment: 'unemployment',
   cpi: 'inflation',
   house_prices: 'house_prices',
+  salary: 'salary',
+  retail_sales: 'retail',
+  population: 'population',
+  tourist_arrivals: 'tourism',
+  hotel_occupancy: 'tourism',
+  construction_output: 'construction',
+  biz_confidence: 'consumer_confidence',
 };
 
 interface TimeSeriesPoint {
