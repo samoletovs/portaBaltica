@@ -30,7 +30,7 @@ export function IndicatorTable() {
     Promise.all(
       INDICATORS.map((id) => {
         const eurostatId = EUROSTAT_MAP[id];
-        if (country !== 'LV' && eurostatId) {
+        if (eurostatId) {
           return fetch(`/api/baltic-compare?indicator=${eurostatId}&years=3`)
             .then((r) => r.ok ? r.json() : null)
             .then((d) => {
@@ -44,10 +44,13 @@ export function IndicatorTable() {
             })
             .catch(() => null);
         }
-        return fetch(`/api/historical-data?indicator=${id}&years=3`)
-          .then((r) => r.ok ? r.json() : null)
-          .then((d) => d ? { id, title: d.title, unit: d.unit, series: d.series, summary: d.summary } as IndicatorRow : null)
-          .catch(() => null);
+        if (country === 'LV') {
+          return fetch(`/api/historical-data?indicator=${id}&years=3`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((d) => d ? { id, title: d.title, unit: d.unit, series: d.series, summary: d.summary } as IndicatorRow : null)
+            .catch(() => null);
+        }
+        return Promise.resolve(null);
       })
     ).then((results) => {
       setRows(results.filter((r): r is IndicatorRow => r !== null));

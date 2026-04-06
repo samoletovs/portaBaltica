@@ -92,9 +92,9 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     if (externalLoading) return;
     setLoading(true);
 
-    // For EE/LT, try Eurostat baltic-compare data if available
+    // Use Eurostat for ALL countries (unified data source)
     const eurostatId = EUROSTAT_FALLBACK[id];
-    if (country !== 'LV' && eurostatId) {
+    if (eurostatId) {
       fetch(`/api/baltic-compare?indicator=${eurostatId}&years=5`)
         .then((r) => r.ok ? r.json() : null)
         .then((d) => {
@@ -127,12 +127,17 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         .catch(() => setData(null))
         .finally(() => setLoading(false));
     } else {
-      // Latvia: use PxWeb historical-data
-      fetch(`/api/historical-data?indicator=${id}&years=5`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => setData(d))
-        .catch(() => {})
-        .finally(() => setLoading(false));
+      // No Eurostat mapping — use Latvia PxWeb (only for LV, show null for EE/LT)
+      if (country === 'LV') {
+        fetch(`/api/historical-data?indicator=${id}&years=5`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => setData(d))
+          .catch(() => setData(null))
+          .finally(() => setLoading(false));
+      } else {
+        setData(null);
+        setLoading(false);
+      }
     }
   }, [id, externalLoading, country]);
 
