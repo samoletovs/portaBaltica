@@ -25,6 +25,9 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   imports: 'imports',
   new_vehicles: 'vehicles',
   renewable_share: 'renewables',
+  wages_industry: 'wages_mfg',
+  wages_it: 'wages_it',
+  trade_balance: 'exports', // approximate with exports data
 };
 
 interface TimeSeriesPoint {

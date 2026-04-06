@@ -130,6 +130,48 @@ var DATASETS = {
     title: 'Renewable energy share',
     unit: '%',
   },
+  wages_mfg: {
+    dataset: 'lc_lci_r2_q',
+    params: 'freq=Q&nace_r2=C&unit=I20&s_adj=SCA',
+    title: 'Labour cost: manufacturing',
+    unit: 'index',
+  },
+  wages_it: {
+    dataset: 'lc_lci_r2_q',
+    params: 'freq=Q&nace_r2=J&unit=I20&s_adj=SCA',
+    title: 'Labour cost: IT sector',
+    unit: 'index',
+  },
+  job_vacancy: {
+    dataset: 'jvs_q_nace2',
+    params: 'freq=Q&nace_r2=B-S&s_adj=SA&sizeclas=TOTAL&indic_em=JOBRATE',
+    title: 'Job vacancy rate',
+    unit: '%',
+  },
+  current_account: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=CA&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1',
+    title: 'Current account balance',
+    unit: 'M EUR',
+  },
+  elec_production: {
+    dataset: 'nrg_cb_em',
+    params: 'freq=M&siec=TOTAL&nrg_bal=GEP',
+    title: 'Electricity production',
+    unit: 'GWh',
+  },
+  gdp_per_capita: {
+    dataset: 'sdg_08_10',
+    params: 'freq=A&unit=CLV10_EUR_HAB',
+    title: 'GDP per capita',
+    unit: 'EUR',
+  },
+  inequality: {
+    dataset: 'tipsii20',
+    params: 'freq=A',
+    title: 'Income inequality (Gini)',
+    unit: 'index',
+  },
 };
 
 function parseJsonStat(data, countries) {

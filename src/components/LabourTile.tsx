@@ -1,6 +1,7 @@
 import { IndicatorCard }
 from './IndicatorCard';
 import { useCountry } from '../CountryContext';
+import { BalticCompareChart } from './BalticCompareChart';
 
 export function LabourTile() {
   const { countryLabel, flag } = useCountry();
@@ -16,6 +17,11 @@ export function LabourTile() {
         <IndicatorCard id="unemployment" title="Unemployment" unit="%" />
         <IndicatorCard id="wages_industry" title="Manufacturing wages" unit="EUR/month" />
         <IndicatorCard id="wages_it" title="IT sector wages" unit="EUR/month" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BalticCompareChart indicator="job_vacancy" title="Job vacancy rate" compact />
+        <BalticCompareChart indicator="gdp_per_capita" title="GDP per capita" compact />
       </div>
     </section>
   );

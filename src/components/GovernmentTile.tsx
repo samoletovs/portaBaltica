@@ -22,6 +22,8 @@ export function GovernmentTile() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BalticCompareChart indicator="gov_debt_gdp" title="Government debt / GDP" compact />
         <BalticCompareChart indicator="consumer_confidence" title="Consumer confidence" compact />
+        <BalticCompareChart indicator="current_account" title="Current account balance" compact />
+        <BalticCompareChart indicator="inequality" title="Income inequality (Gini)" compact />
       </div>
     </section>
   );
