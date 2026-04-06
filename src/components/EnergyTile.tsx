@@ -22,6 +22,8 @@ export function EnergyTile() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BalticCompareChart indicator="construction" title="Construction output" compact />
         <BalticCompareChart indicator="interest_rate" title="Long-term interest rate" compact />
+        <BalticCompareChart indicator="elec_production" title="Electricity production" compact />
+        <BalticCompareChart indicator="renewables" title="Renewable energy share" compact />
       </div>
     </section>
   );
