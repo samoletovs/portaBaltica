@@ -42,7 +42,9 @@ async function fetchConstructionPermits() {
   var byMunicipality = {};
   for (var i = 0; i < records.length; i++) {
     var rec = records[i];
-    var municipality = rec['Pašvaldība'] || rec['Municipality'] || 'Unknown';
+    var municipality = rec['Atbildigas_iestades_nosaukums'] || 'Unknown';
+    // Clean up: remove "būvvalde" suffix for shorter labels
+    municipality = municipality.replace(/ būvvalde$/i, '').replace(/ novada$/i, ' nov.').trim();
     byMunicipality[municipality] = (byMunicipality[municipality] || 0) + 1;
   }
   var permits = Object.entries(byMunicipality)
@@ -53,20 +55,21 @@ async function fetchConstructionPermits() {
 }
 
 async function fetchEnergyCerts() {
-  const resource = await getLatestActiveResource('bis_ygdi8jmgg-bneuijz7wiwq');
+  // Use energy usage dataset (has 42K records with energy carriers per building)
+  // Group by energy carrier type to show Latvia's building energy profile
+  const resource = await getLatestActiveResource('bis_yjv2q8uzi-oidtg81mkifg');
   if (!resource) return { certs: [], total: 0 };
   const records = await fetchDatastoreRecords(resource.id, 500);
-  var byRating = { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, G: 0 };
+  var byCarrier = {};
   for (var i = 0; i < records.length; i++) {
     var rec = records[i];
-    var rating = (rec['Energoefektivitātes klase'] || rec['Klase'] || '').toUpperCase().charAt(0);
-    if (rating in byRating) {
-      byRating[rating]++;
-    }
+    var carrier = rec['Energonesejs'] || 'Unknown';
+    byCarrier[carrier] = (byCarrier[carrier] || 0) + 1;
   }
-  var certs = Object.entries(byRating)
+  var certs = Object.entries(byCarrier)
     .map(function (e) { return { rating: e[0], count: e[1] }; })
-    .filter(function (c) { return c.count > 0; });
+    .sort(function (a, b) { return b.count - a.count; })
+    .slice(0, 8);
   return { certs: certs, total: records.length };
 }
 

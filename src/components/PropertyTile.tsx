@@ -5,16 +5,6 @@ interface PropertyTileProps {
   loading: boolean;
 }
 
-const RATING_COLORS: Record<string, string> = {
-  A: 'bg-emerald-500',
-  B: 'bg-green-500',
-  C: 'bg-lime-500',
-  D: 'bg-yellow-500',
-  E: 'bg-orange-500',
-  F: 'bg-red-500',
-  G: 'bg-red-700',
-};
-
 export function PropertyTile({ data, loading }: PropertyTileProps) {
   if (loading) return <TileSkeleton />;
   if (!data) return null;
@@ -54,31 +44,33 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
           <p className="text-xs text-ocean-500 mt-2">BVKB via data.gov.lv</p>
         </div>
 
-        {/* Energy certificates */}
+        {/* Energy profile by carrier */}
         <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-5">
           <div className="flex items-baseline justify-between mb-3">
-            <p className="text-xs text-ocean-400">Building Energy Ratings</p>
+            <p className="text-xs text-ocean-400">Building Energy Profile</p>
             <p className="text-xl font-bold text-white font-mono">{data.totalCerts.toLocaleString()}</p>
           </div>
-          <div className="space-y-2">
-            {data.energyCerts.map((cert) => (
-              <div key={cert.rating} className="flex items-center gap-3">
-                <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm font-bold text-white ${RATING_COLORS[cert.rating] ?? 'bg-ocean-600'}`}>
-                  {cert.rating}
-                </span>
-                <div className="flex-1">
-                  <div className="h-2 bg-ocean-800/60 rounded-full overflow-hidden">
+          {data.energyCerts.length > 0 ? (
+            <div className="space-y-2">
+              {data.energyCerts.map((cert) => (
+                <div key={cert.rating}>
+                  <div className="flex items-center justify-between text-xs mb-0.5">
+                    <span className="text-ocean-200 truncate max-w-[65%]">{cert.rating}</span>
+                    <span className="text-white font-mono">{cert.count}</span>
+                  </div>
+                  <div className="h-1.5 bg-ocean-800/60 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${RATING_COLORS[cert.rating] ?? 'bg-ocean-500'}`}
+                      className="h-full rounded-full bg-teal-500"
                       style={{ width: `${(cert.count / maxCerts) * 100}%` }}
                     />
                   </div>
                 </div>
-                <span className="text-xs text-white font-mono w-8 text-right">{cert.count}</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-ocean-500 mt-2">Energy performance certificates · data.gov.lv</p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-ocean-500">Awaiting energy data...</p>
+          )}
+          <p className="text-xs text-ocean-500 mt-2">Energy carrier distribution · data.gov.lv</p>
         </div>
       </div>
     </section>

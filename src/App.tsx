@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { PORTS } from './types';
-import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover, DashboardSection, EconomyData, PropertyData, EnvironmentData } from './types';
-import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData } from './api';
+import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
+import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { Header } from './components/Header';
 import { InsightsBanner, generateSampleInsights } from './components/InsightsBanner';
 import { EconomyTile } from './components/EconomyTile';
 import { PropertyTile } from './components/PropertyTile';
 import { EnvironmentTile } from './components/EnvironmentTile';
 import { MaritimeTile } from './components/MaritimeTile';
+import { BusinessTile } from './components/BusinessTile';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -33,6 +34,10 @@ export default function App() {
   const [economyLoading, setEconomyLoading] = useState(true);
   const [propertyLoading, setPropertyLoading] = useState(true);
   const [environmentLoading, setEnvironmentLoading] = useState(true);
+
+  // Phase 2: Business Intelligence
+  const [euFunds, setEuFunds] = useState<EUFundsData | null>(null);
+  const [euLoading, setEuLoading] = useState(true);
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,10 +98,22 @@ export default function App() {
       }
     }
 
+    // Phase 2: EU Funds
+    async function loadEUFunds() {
+      setEuLoading(true);
+      try {
+        const data = await fetchEUFunds();
+        setEuFunds(data);
+      } catch { /* non-critical */ } finally {
+        setEuLoading(false);
+      }
+    }
+
     loadMaritime();
     loadEconomy();
     loadProperty();
     loadEnvironment();
+    loadEUFunds();
   }, []);
 
   const insights = generateSampleInsights();
@@ -128,6 +145,10 @@ export default function App() {
 
           {show('environment') && (
             <EnvironmentTile data={environmentData} loading={environmentLoading} />
+          )}
+
+          {show('business') && (
+            <BusinessTile euFunds={euFunds} euLoading={euLoading} />
           )}
 
           {show('maritime') && (

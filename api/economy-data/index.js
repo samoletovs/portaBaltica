@@ -81,24 +81,143 @@ async function fetchCKANCount(datasetId) {
   }
 }
 
+// CSP PxWeb API queries for live economic indicators
+const PXWEB = 'https://data.stat.gov.lv/api/v1/en/OSP_PUB';
+
+function httpsPost(url, body) {
+  return new Promise(function (resolve, reject) {
+    var parsed = new URL(url);
+    var postData = JSON.stringify(body);
+    var opts = {
+      hostname: parsed.hostname,
+      path: parsed.pathname,
+      method: 'POST',
+      timeout: 12000,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+    };
+    var req = https.request(opts, function (res) {
+      var data = '';
+      res.on('data', function (chunk) { data += chunk; });
+      res.on('end', function () {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('PxWeb parse failed')); }
+      });
+    });
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function fetchPxWebIndicators() {
+  var indicators = [];
+  try {
+    // GDP quarterly growth (latest quarter, % vs previous year)
+    var gdpData = await httpsPost(PXWEB + '/VEK/IS/ISI/ISI010c', {
+      query: [
+        { code: 'SESON', selection: { filter: 'item', values: ['10'] } },
+        { code: 'INDICATOR', selection: { filter: 'item', values: ['TOTAL'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['ISI010c_V02'] } },
+      ],
+      response: { format: 'json-stat2' },
+    });
+    if (gdpData && gdpData.value) {
+      var vals = gdpData.value.filter(function (v) { return v !== null; });
+      var latest = vals[vals.length - 1];
+      var prev = vals.length > 4 ? vals[vals.length - 5] : null;
+      indicators.push({
+        label: 'GDP Growth',
+        value: (latest != null ? latest.toFixed(1) + '%' : 'N/A'),
+        unit: 'QoQ',
+        change: prev != null ? ((latest - prev) >= 0 ? '+' : '') + (latest - prev).toFixed(1) + '%' : '',
+      });
+    }
+  } catch (e) { indicators.push({ label: 'GDP Growth', value: 'N/A', unit: '', change: '' }); }
+
+  try {
+    // Average salary (latest quarter)
+    var salData = await httpsPost(PXWEB + '/EMP/DS/DSV/DSV010c', {
+      query: [
+        { code: 'Vai01', selection: { filter: 'item', values: ['TOTAL'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV010c_V01'] } },
+      ],
+      response: { format: 'json-stat2' },
+    });
+    if (salData && salData.value) {
+      var salVals = salData.value.filter(function (v) { return v !== null; });
+      var latestSal = salVals[salVals.length - 1];
+      var prevSal = salVals.length > 4 ? salVals[salVals.length - 5] : null;
+      var change = prevSal ? (((latestSal - prevSal) / prevSal) * 100) : 0;
+      indicators.push({
+        label: 'Avg Salary',
+        value: '€' + Math.round(latestSal).toLocaleString(),
+        unit: '/month',
+        change: prevSal ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '',
+      });
+    }
+  } catch (e) { indicators.push({ label: 'Avg Salary', value: 'N/A', unit: '', change: '' }); }
+
+  try {
+    // CPI monthly (latest month, % vs same month prev year)
+    var cpiData = await httpsPost(PXWEB + '/VEK/PC/PCI/PCI021m', {
+      query: [
+        { code: 'ECOICOP2', selection: { filter: 'item', values: ['TOTAL'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['PCI021m_V03'] } },
+      ],
+      response: { format: 'json-stat2' },
+    });
+    if (cpiData && cpiData.value) {
+      var cpiVals = cpiData.value.filter(function (v) { return v !== null; });
+      var latestCpi = cpiVals[cpiVals.length - 1];
+      var prevCpi = cpiVals.length > 12 ? cpiVals[cpiVals.length - 13] : null;
+      indicators.push({
+        label: 'CPI Inflation',
+        value: latestCpi != null ? latestCpi.toFixed(1) + '%' : 'N/A',
+        unit: 'YoY',
+        change: prevCpi != null ? ((latestCpi - prevCpi) >= 0 ? '+' : '') + (latestCpi - prevCpi).toFixed(1) + 'pp' : '',
+      });
+    }
+  } catch (e) { indicators.push({ label: 'CPI Inflation', value: 'N/A', unit: '', change: '' }); }
+
+  // Unemployment — from same labour market category
+  try {
+    var unemData = await httpsPost(PXWEB + '/EMP/NBBA/NBBA020/NBBA020c', {
+      query: [],
+      response: { format: 'json-stat2' },
+    });
+    if (unemData && unemData.value) {
+      var uVals = unemData.value.filter(function (v) { return v !== null; });
+      var latestU = uVals[uVals.length - 1];
+      indicators.push({
+        label: 'Unemployment',
+        value: latestU != null ? latestU.toFixed(1) + '%' : 'N/A',
+        unit: '',
+        change: '',
+      });
+    }
+  } catch (e) { indicators.push({ label: 'Unemployment', value: 'N/A', unit: '', change: '' }); }
+
+  return indicators;
+}
+
 module.exports = async function (context, req) {
   try {
-    const [exchangeRates, electricity, vatCount, suspendedCount] = await Promise.all([
+    const [exchangeRates, electricity, vatCount, suspendedCount, indicators] = await Promise.all([
       fetchECBRates(),
       fetchElectricityPrices(),
       fetchCKANCount('pvn-maksataji'),
       fetchCKANCount('saimnieciskas-darbibas-apstiprinasana-atjaunosana'),
+      fetchPxWebIndicators(),
     ]);
 
     const result = {
       exchangeRates: exchangeRates,
       electricityPrices: electricity.prices,
       electricityCurrent: electricity.current,
-      indicators: [
-        { label: 'GDP Growth', value: '2.1%', unit: 'YoY', change: '+0.3%' },
-        { label: 'Avg Salary', value: '€1,680', unit: '/month', change: '+5.2%' },
-        { label: 'CPI Inflation', value: '3.4%', unit: 'YoY', change: '-0.2%' },
-        { label: 'Unemployment', value: '6.1%', unit: '', change: '-0.4%' },
+      indicators: indicators.length > 0 ? indicators : [
+        { label: 'GDP Growth', value: 'N/A', unit: '', change: '' },
+        { label: 'Avg Salary', value: 'N/A', unit: '', change: '' },
+        { label: 'CPI Inflation', value: 'N/A', unit: '', change: '' },
+        { label: 'Unemployment', value: 'N/A', unit: '', change: '' },
       ],
       businessPulse: {
         newVatRegistrations: vatCount,

@@ -1,4 +1,4 @@
-import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData } from './types';
+import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData } from './types';
 import { PORTS } from './types';
 
 const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
@@ -147,4 +147,16 @@ export async function fetchPropertyData(): Promise<PropertyData> {
 
 export async function fetchEnvironmentData(): Promise<EnvironmentData> {
   return cachedFetch<EnvironmentData>('environment', '/api/environment-data');
+}
+
+// ─── Phase 2: Business Intelligence ───
+
+export async function searchBusinessOwners(query: string): Promise<BusinessSearchResult> {
+  const res = await fetch(`/api/business-search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEUFunds(): Promise<EUFundsData> {
+  return cachedFetch<EUFundsData>('eu-funds', '/api/eu-funds');
 }
