@@ -22,17 +22,69 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* ─── Theme variables ─── */
+:root {
+  --bg-page: #0a0f1a;
+  --bg-card: rgba(15, 23, 42, 0.5);
+  --bg-card-hover: rgba(30, 41, 59, 0.4);
+  --bg-input: rgba(30, 41, 59, 0.5);
+  --border-card: rgba(30, 41, 59, 0.4);
+  --border-subtle: rgba(30, 41, 59, 0.6);
+  --text-primary: #ffffff;
+  --text-body: #c8d1dc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-muted: #475569;
+  --chart-grid: #1e293b;
+  --chart-axis: #94a3b8;
+  --chart-tooltip-bg: #0f172a;
+  --chart-tooltip-border: #1e293b;
+  --scrollbar-thumb: #1e293b;
+  --scrollbar-hover: #334155;
+}
+
+[data-theme="light"] {
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f1f5f9;
+  --border-card: #e2e8f0;
+  --border-subtle: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-body: #334155;
+  --text-secondary: #64748b;
+  --text-tertiary: #94a3b8;
+  --text-muted: #cbd5e1;
+  --chart-grid: #e2e8f0;
+  --chart-axis: #64748b;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+}
+
 body {
   font-family: var(--font-body);
-  background: #0a0f1a;
-  color: #c8d1dc;
+  background: var(--bg-page);
+  color: var(--text-body);
   min-height: 100vh;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* ─── Theme-aware utility classes ─── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 0.75rem;
+}
+.card:hover {
+  border-color: var(--border-subtle);
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #334155; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }

@@ -4,14 +4,17 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 import { IndicatorPage } from './components/IndicatorPage.tsx'
+import { ThemeProvider } from './ThemeContext.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/indicator/:id" element={<IndicatorPage />} />
-        <Route path="/:section?" element={<App />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/indicator/:id" element={<IndicatorPage />} />
+          <Route path="/:section?" element={<App />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   </StrictMode>,
 )
