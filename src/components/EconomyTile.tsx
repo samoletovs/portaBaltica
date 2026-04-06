@@ -1,6 +1,8 @@
 import { BarChart, Bar, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import type { EconomyData } from '../types';
 import { IndicatorCard } from './IndicatorCard';
+import { BalticCompareChart } from './BalticCompareChart';
+import { IndicatorTable } from './IndicatorTable';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -99,6 +101,19 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
           ))}
         </div>
       )}
+
+      {/* Baltic comparison charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+        <BalticCompareChart indicator="gdp" title="GDP Growth — Baltics" compact />
+        <BalticCompareChart indicator="unemployment" title="Unemployment — Baltics" compact />
+        <BalticCompareChart indicator="inflation" title="Inflation (HICP) — Baltics" compact />
+        <BalticCompareChart indicator="house_prices" title="House Prices — Baltics" compact />
+      </div>
+
+      {/* Full indicator table */}
+      <div className="mt-4">
+        <IndicatorTable />
+      </div>
     </section>
   );
 }
