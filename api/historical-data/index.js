@@ -115,6 +115,85 @@ var INDICATORS = {
     title: 'Population',
     source: 'CSP Latvia (PxWeb)',
   },
+  hotel_occupancy: {
+    path: '/NOZ/TU/TUV/TUV010m',
+    query: [
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['TUV010m'] } },
+    ],
+    transform: null,
+    unit: '%',
+    title: 'Hotel occupancy rate',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  tourist_arrivals: {
+    path: '/NOZ/TU/TUV/TUV020c',
+    query: [
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['ARR'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['TUV020c'] } },
+    ],
+    transform: null,
+    unit: 'thousands',
+    title: 'Tourist arrivals',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  gov_revenue: {
+    path: '/VEK/VF/VFV/VFV010c',
+    query: [
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['OTR'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV010c'] } },
+    ],
+    transform: null,
+    unit: 'M EUR',
+    title: 'Government revenue',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  gov_debt: {
+    path: '/VEK/VF/VFV/VFV020c',
+    query: [
+      { code: 'GG_SECTOR', selection: { filter: 'item', values: ['S13'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['VFV020c'] } },
+    ],
+    transform: null,
+    unit: 'M EUR',
+    title: 'Government debt',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  exports: {
+    path: '/TIR/AT/ATD/ATD110m',
+    query: [
+      { code: 'SESON', selection: { filter: 'item', values: ['SCA'] } },
+      { code: 'FLOW', selection: { filter: 'item', values: ['EXP'] } },
+      { code: 'COUNTRY_GROUP', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['ATD110m'] } },
+    ],
+    transform: null,
+    unit: 'M EUR',
+    title: 'Exports (seasonally adjusted)',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  imports: {
+    path: '/TIR/AT/ATD/ATD110m',
+    query: [
+      { code: 'SESON', selection: { filter: 'item', values: ['SCA'] } },
+      { code: 'FLOW', selection: { filter: 'item', values: ['IMP'] } },
+      { code: 'COUNTRY_GROUP', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['ATD110m'] } },
+    ],
+    transform: null,
+    unit: 'M EUR',
+    title: 'Imports (seasonally adjusted)',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  biz_confidence: {
+    path: '/VEK/KR/KRE/KRE010m',
+    query: [
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['KRE010m'] } },
+    ],
+    transform: null,
+    unit: 'index',
+    title: 'Economic sentiment',
+    source: 'CSP Latvia (PxWeb)',
+  },
 };
 
 /**

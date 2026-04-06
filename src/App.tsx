@@ -3,8 +3,11 @@ import { PORTS } from './types';
 import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { Header } from './components/Header';
+import { DataTicker } from './components/DataTicker';
 import { InsightsBanner, generateSampleInsights } from './components/InsightsBanner';
 import { EconomyTile } from './components/EconomyTile';
+import { TradeTile } from './components/TradeTile';
+import { GovernmentTile } from './components/GovernmentTile';
 import { PropertyTile } from './components/PropertyTile';
 import { EnvironmentTile } from './components/EnvironmentTile';
 import { MaritimeTile } from './components/MaritimeTile';
@@ -19,7 +22,7 @@ interface PortWeatherData {
   weather: PortWeather;
 }
 
-const VALID_SECTIONS = new Set(['economy', 'property', 'environment', 'business', 'maritime']);
+const VALID_SECTIONS = new Set(['economy', 'trade', 'government', 'property', 'environment', 'business', 'maritime']);
 
 export default function App() {
   const { section } = useParams<{ section?: string }>();
@@ -139,6 +142,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Header lastUpdated={lastUpdated} activeSection={activeSection} onSectionChange={setActiveSection} />
+      <DataTicker />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-16">
         {error && (
@@ -154,6 +158,14 @@ export default function App() {
         <div className="space-y-8">
           {show('economy') && (
             <EconomyTile data={economyData} loading={economyLoading} />
+          )}
+
+          {show('trade') && (
+            <TradeTile />
+          )}
+
+          {show('government') && (
+            <GovernmentTile />
           )}
 
           {show('property') && (
