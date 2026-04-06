@@ -195,6 +195,84 @@ var INDICATORS = {
     title: 'Economic sentiment',
     source: 'CSP Latvia (PxWeb)',
   },
+  construction_output: {
+    path: '/NOZ/BU/BUP/BUP010c',
+    query: [
+      { code: 'NACE', selection: { filter: 'item', values: ['F'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['BUP010c'] } },
+    ],
+    transform: null,
+    unit: 'index',
+    title: 'Construction output',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  new_vehicles: {
+    path: '/NOZ/TR/TRC/TRC010c',
+    query: [
+      { code: 'VEHICLE', selection: { filter: 'item', values: ['CAR'] } },
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['VEH_REG_1ST_NEW'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['TRC010c'] } },
+    ],
+    transform: null,
+    unit: 'vehicles',
+    title: 'New car registrations',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  wages_industry: {
+    path: '/EMP/DS/DSV/DSV030',
+    query: [
+      { code: 'ECONOMIC_ACTIV', selection: { filter: 'item', values: ['C'] } },
+      { code: 'GRS_NET', selection: { filter: 'item', values: ['GRS'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV030'] } },
+    ],
+    transform: null,
+    unit: 'EUR/month',
+    title: 'Wages: manufacturing',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  wages_it: {
+    path: '/EMP/DS/DSV/DSV030',
+    query: [
+      { code: 'ECONOMIC_ACTIV', selection: { filter: 'item', values: ['J'] } },
+      { code: 'GRS_NET', selection: { filter: 'item', values: ['GRS'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV030'] } },
+    ],
+    transform: null,
+    unit: 'EUR/month',
+    title: 'Wages: IT sector',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  energy_price_gas: {
+    path: '/NOZ/EN/ENC/ENC020',
+    query: [
+      { code: 'CONSUMER_GRP', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['ENC020'] } },
+    ],
+    transform: null,
+    unit: 'EUR/GJ',
+    title: 'Gas price (households)',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  building_permits: {
+    path: '/NOZ/BU/BUE/BUE010c',
+    query: [
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['BUE010c'] } },
+    ],
+    transform: null,
+    unit: 'permits',
+    title: 'Building permits issued',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  renewable_share: {
+    path: '/NOZ/EN/ENA/ENA010',
+    query: [
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['ENA010'] } },
+    ],
+    transform: null,
+    unit: '%',
+    title: 'Renewable energy share',
+    source: 'CSP Latvia (PxWeb)',
+  },
 };
 
 /**

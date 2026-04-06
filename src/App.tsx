@@ -8,6 +8,8 @@ import { InsightsBanner, generateSampleInsights } from './components/InsightsBan
 import { EconomyTile } from './components/EconomyTile';
 import { TradeTile } from './components/TradeTile';
 import { GovernmentTile } from './components/GovernmentTile';
+import { LabourTile } from './components/LabourTile';
+import { EnergyTile } from './components/EnergyTile';
 import { PropertyTile } from './components/PropertyTile';
 import { EnvironmentTile } from './components/EnvironmentTile';
 import { MaritimeTile } from './components/MaritimeTile';
@@ -22,7 +24,7 @@ interface PortWeatherData {
   weather: PortWeather;
 }
 
-const VALID_SECTIONS = new Set(['economy', 'trade', 'government', 'property', 'environment', 'business', 'maritime']);
+const VALID_SECTIONS = new Set(['economy', 'trade', 'government', 'labour', 'energy', 'property', 'environment', 'business', 'maritime']);
 
 export default function App() {
   const { section } = useParams<{ section?: string }>();
@@ -166,6 +168,14 @@ export default function App() {
 
           {show('government') && (
             <GovernmentTile />
+          )}
+
+          {show('labour') && (
+            <LabourTile />
+          )}
+
+          {show('energy') && (
+            <EnergyTile />
           )}
 
           {show('property') && (

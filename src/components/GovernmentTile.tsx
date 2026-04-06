@@ -1,4 +1,5 @@
 import { IndicatorCard } from './IndicatorCard';
+import { BalticCompareChart } from './BalticCompareChart';
 
 export function GovernmentTile() {
   return (
@@ -12,7 +13,12 @@ export function GovernmentTile() {
         <IndicatorCard id="gov_revenue" title="Government revenue" unit="M EUR" />
         <IndicatorCard id="gov_debt" title="Government debt" unit="M EUR" />
         <IndicatorCard id="biz_confidence" title="Economic sentiment" unit="index" />
-        <IndicatorCard id="population" title="Population" unit="persons" />
+        <IndicatorCard id="energy_price_gas" title="Gas price" unit="EUR/GJ" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BalticCompareChart indicator="gov_debt_gdp" title="Government debt / GDP" compact />
+        <BalticCompareChart indicator="consumer_confidence" title="Consumer confidence" compact />
       </div>
     </section>
   );
