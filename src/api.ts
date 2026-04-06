@@ -1,4 +1,4 @@
-import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse } from './types';
+import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData } from './types';
 import { PORTS } from './types';
 
 const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
@@ -102,4 +102,49 @@ export async function fetchPortData(): Promise<PortDataResponse> {
   } catch { /* ignore storage errors */ }
 
   return data;
+}
+
+// ─── Cached fetch helper ───
+
+const CACHE_TTL: Record<string, number> = {
+  economy: 30 * 60 * 1000,    // 30 min — electricity updates hourly
+  property: 60 * 60 * 1000,   // 1 hour — daily data
+  environment: 15 * 60 * 1000, // 15 min — weather updates frequently
+};
+
+async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
+  const cacheKey = `portabaltica_${key}`;
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < (CACHE_TTL[key] ?? 60 * 60 * 1000)) {
+        return data as T;
+      }
+    }
+  } catch { /* ignore */ }
+
+  const res = await fetch(endpoint);
+  if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
+  const data: T = await res.json();
+
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch { /* ignore */ }
+
+  return data;
+}
+
+// ─── New data endpoints ───
+
+export async function fetchEconomyData(): Promise<EconomyData> {
+  return cachedFetch<EconomyData>('economy', '/api/economy-data');
+}
+
+export async function fetchPropertyData(): Promise<PropertyData> {
+  return cachedFetch<PropertyData>('property', '/api/property-data');
+}
+
+export async function fetchEnvironmentData(): Promise<EnvironmentData> {
+  return cachedFetch<EnvironmentData>('environment', '/api/environment-data');
 }
