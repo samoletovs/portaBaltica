@@ -1,6 +1,30 @@
 {
+  "routes": [
+    { "route": "/.auth/login/github", "statusCode": 404 },
+    { "route": "/.auth/login/twitter", "statusCode": 404 },
+    { "route": "/.auth/login/aad", "statusCode": 404 },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/*",
+      "allowedRoles": ["authenticated"]
+    }
+  ],
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/google?post_login_redirect_uri=/",
+      "statusCode": 302
+    }
+  },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["*.json", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "/api/*"]
+    "exclude": ["*.json", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "/api/*", "/.auth/*"]
+  },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
   }
 }
