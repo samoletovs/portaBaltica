@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
 interface IndicatorRow {
@@ -47,7 +47,16 @@ export function IndicatorTable() {
     if (v === null) return '—';
     if (unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
     if (unit === 'persons') return (v / 1_000_000).toFixed(2) + 'M';
-    return v.toFixed(1) + (unit.startsWith('%') ? '%' : '');
+    if (unit === 'M EUR') {
+      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
+      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
+      return `€${Math.round(v).toLocaleString()}`;
+    }
+    if (unit === 'thousands') return Math.round(v).toLocaleString();
+    if (unit === 'index') return v.toFixed(1);
+    if (unit.startsWith('%')) return `${v.toFixed(1)}%`;
+    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
+    return v.toFixed(1);
   }
 
   return (
@@ -92,7 +101,7 @@ export function IndicatorTable() {
             </span>
             <span className={`text-sm text-right font-mono ${changeColor}`}>
               {row.summary.change !== null
-                ? `${isUp ? '▲' : '▼'} ${Math.abs(row.summary.change).toFixed(1)}`
+                ? `${isUp ? '▲' : '▼'} ${formatValue(Math.abs(row.summary.change), row.unit)}`
                 : '—'}
             </span>
             <div className="h-6 w-full">
@@ -104,6 +113,7 @@ export function IndicatorTable() {
                       <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
+                  <XAxis dataKey="period" hide />
                   <Area type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1} fill={`url(#tbl-${row.id})`} dot={false} isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
