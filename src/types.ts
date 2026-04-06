@@ -98,6 +98,7 @@ export interface EnvironmentData {
   weather: WeatherCondition[];
   airQuality: AirQualityData;
   capitalPopulation: number;
+  rigaPopulation?: number; // backward compat with cached API responses
   fetchedAt: string;
 }
 
