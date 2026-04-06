@@ -144,6 +144,56 @@ export interface EUFundsData {
   fetchedAt: string;
 }
 
+// ─── Geospatial types (Phase 3) ───
+
+export interface AddressResult {
+  code: number;
+  fullAddress: string;
+  name: string;
+  postalCode: string;
+  lat: number | null;
+  lon: number | null;
+}
+
+export interface AddressSearchResult {
+  query: string;
+  total: number;
+  addresses: AddressResult[];
+  source: string;
+  fetchedAt: string;
+}
+
+// ─── System status types (Phase 3) ───
+
+export interface DataSourceCheck {
+  name: string;
+  status: 'healthy' | 'unhealthy';
+  latency: number;
+  error?: string;
+}
+
+export interface SystemStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  version: string;
+  phase: string;
+  dataSources: {
+    healthy: number;
+    total: number;
+    checks: DataSourceCheck[];
+  };
+  apis: {
+    total: number;
+    endpoints: string[];
+  };
+  selfSustaining: {
+    monthlyInfrastructureCost: string;
+    revenue: string;
+    status: string;
+  };
+  respondedIn: string;
+  fetchedAt: string;
+}
+
 // ─── Maritime types (existing) ───
 
 /** Port definitions for Latvia's 3 major ports */
