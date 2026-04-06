@@ -66,7 +66,7 @@ var DATASETS = {
   },
   salary: {
     dataset: 'lc_lci_lev',
-    params: 'freq=A&lcstruct=D1_D4_MD5&unit=EUR',
+    params: 'freq=A&lcstruct=D1_D4_MD5&unit=EUR&nace_r2=B-S_X_O',
     title: 'Hourly labour cost',
     unit: 'EUR/hour',
   },
