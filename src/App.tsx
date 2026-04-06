@@ -140,10 +140,10 @@ export default function App() {
     <div className="min-h-screen">
       <Header lastUpdated={lastUpdated} activeSection={activeSection} onSectionChange={setActiveSection} />
 
-      <main className="max-w-7xl mx-auto px-4 pb-16">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-16">
         {error && (
-          <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-4 mb-6" role="alert">
-            <p className="text-red-300 text-sm">{error}</p>
+          <div className="bg-red-950/50 border border-red-900/40 rounded-lg p-3 mb-6" role="alert">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
@@ -151,7 +151,7 @@ export default function App() {
         <InsightsBanner insights={insights} />
 
         {/* Dashboard sections */}
-        <div className="space-y-10">
+        <div className="space-y-8">
           {show('economy') && (
             <EconomyTile data={economyData} loading={economyLoading} />
           )}
@@ -183,17 +183,15 @@ export default function App() {
         {/* System Status */}
         <SystemStatusFooter />
 
-        {/* Data sources footer */}
-        <footer className="mt-16 pt-8 border-t border-ocean-800/50 text-sm text-ocean-400">
-          <p className="mb-2 font-medium text-ocean-300">Data sources</p>
+        {/* Footer */}
+        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-xs text-slate-500">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-            <p>Economy — <a href="https://www.bank.lv/vk/ecb.xml" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">ECB/Latvijas Banka</a>, <a href="https://dashboard.elering.ee/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">Elering/NordPool</a>, <a href="https://data.stat.gov.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">CSP Latvia</a></p>
-            <p>Business — <a href="https://data.gov.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID VAT & Business Registries, CC0)</p>
-            <p>Property — <a href="https://data.gov.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">BVKB Construction</a>, <a href="https://data.gov.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">Energy Certificates</a></p>
-            <p>Environment — <a href="https://open-meteo.com/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
-            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://data.gov.lv/" className="underline hover:text-ocean-200" target="_blank" rel="noopener noreferrer">SKLOIS/data.gov.lv</a></p>
+            <p>Economy — <a href="https://data.stat.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
+            <p>Business — <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>
+            <p>Environment — <a href="https://open-meteo.com/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
+            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">SKLOIS</a></p>
           </div>
-          <p className="mt-4 text-ocean-500">Built by <a href="https://naurolabs.com" className="underline hover:text-ocean-300">NauroLabs</a> · <a href="https://github.com/samoletovs/portaBaltica" className="underline hover:text-ocean-300">GitHub</a></p>
+          <p className="mt-4 text-slate-600">Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a></p>
         </footer>
       </main>
     </div>

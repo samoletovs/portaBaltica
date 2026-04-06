@@ -14,13 +14,11 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <span className="text-ocean-400">🏗️</span> Property & Energy
-      </h2>
+      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Property & energy</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Construction permits */}
-        <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-5">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-xs text-ocean-400">Construction Permits</p>
             <p className="text-xl font-bold text-white font-mono">{data.totalPermits.toLocaleString()}</p>

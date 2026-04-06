@@ -79,11 +79,11 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
   }
 
   return (
-    <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-4">
+    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-sm font-medium text-white">{title ?? data.title}</p>
-          <p className="text-xs text-ocean-400">Latvia vs Estonia vs Lithuania · {data.unit}</p>
+          <p className="text-xs text-slate-500">LV vs EE vs LT · {data.unit}</p>
         </div>
         <div className="flex items-center gap-3">
           {Object.entries(COUNTRY_COLORS).map(([geo, info]) => (

@@ -51,10 +51,10 @@ export function IndicatorTable() {
   }
 
   return (
-    <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-ocean-700/30">
-        <h3 className="text-sm font-bold text-white">Latvia Key Indicators</h3>
-        <p className="text-xs text-ocean-400">Click any row for full analysis</p>
+    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-800/40">
+        <h3 className="text-sm font-medium text-white">Latvia key indicators</h3>
+        <p className="text-xs text-slate-500">Click any row for analysis</p>
       </div>
 
       {/* Header row */}

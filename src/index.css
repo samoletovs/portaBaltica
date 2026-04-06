@@ -17,14 +17,22 @@
   --color-port-green: #10b981;
   --color-port-red: #ef4444;
 
-  --font-display: "Playfair Display", serif;
-  --font-body: "Inter", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-display: "Inter", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 body {
   font-family: var(--font-body);
-  background: linear-gradient(135deg, var(--color-ocean-950) 0%, #0f172a 50%, var(--color-ocean-900) 100%);
-  color: #e2e8f0;
+  background: #0a0f1a;
+  color: #c8d1dc;
   min-height: 100vh;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #334155; }
