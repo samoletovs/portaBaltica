@@ -53,8 +53,8 @@ export function DataTicker() {
   if (items.length === 0) return null;
 
   return (
-    <div style={{ borderBottom: '1px solid var(--border-card)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden">
+    <div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 overflow-hidden" style={{ borderBottom: '1px solid var(--border-card)' }}>
         <div className="ticker-track flex items-center gap-8 py-1.5 whitespace-nowrap">
           {[...items, ...items].map((item, i) => (
             <span key={i} className="flex items-center gap-1.5 text-xs font-mono shrink-0">
