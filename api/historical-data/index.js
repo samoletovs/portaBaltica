@@ -221,8 +221,9 @@ var INDICATORS = {
   wages_industry: {
     path: '/EMP/DS/DSV/DSV030',
     query: [
-      { code: 'ECONOMIC_ACTIV', selection: { filter: 'item', values: ['C'] } },
       { code: 'GRS_NET', selection: { filter: 'item', values: ['GRS'] } },
+      { code: 'SECTOR', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'NACE', selection: { filter: 'item', values: ['C'] } },
       { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV030'] } },
     ],
     transform: null,
@@ -233,8 +234,9 @@ var INDICATORS = {
   wages_it: {
     path: '/EMP/DS/DSV/DSV030',
     query: [
-      { code: 'ECONOMIC_ACTIV', selection: { filter: 'item', values: ['J'] } },
       { code: 'GRS_NET', selection: { filter: 'item', values: ['GRS'] } },
+      { code: 'SECTOR', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'NACE', selection: { filter: 'item', values: ['J'] } },
       { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV030'] } },
     ],
     transform: null,
@@ -245,7 +247,8 @@ var INDICATORS = {
   energy_price_gas: {
     path: '/NOZ/EN/ENC/ENC020',
     query: [
-      { code: 'CONSUMER_GRP', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'NG_CONS', selection: { filter: 'item', values: ['4141902'] } },
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['I_TAX'] } },
       { code: 'ContentsCode', selection: { filter: 'item', values: ['ENC020'] } },
     ],
     transform: null,
@@ -254,13 +257,15 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   building_permits: {
-    path: '/NOZ/BU/BUE/BUE010c',
+    path: '/NOZ/BU/BUE/BUP040c',
     query: [
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['BUE010c'] } },
+      { code: 'BUILDING', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'SESON', selection: { filter: 'item', values: ['SA'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['BUP040c'] } },
     ],
     transform: null,
-    unit: 'permits',
-    title: 'Building permits issued',
+    unit: 'index',
+    title: 'New buildings started',
     source: 'CSP Latvia (PxWeb)',
   },
   renewable_share: {
