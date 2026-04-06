@@ -9,12 +9,11 @@ export function InsightsBanner({ insights }: InsightsBannerProps) {
   if (insights.length === 0) return null;
 
   return (
-    <section className="mb-8">
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-ocean-400 text-sm">✨</span>
-        <h2 className="text-sm font-semibold text-ocean-300">AI Insights</h2>
-        <span className="text-xs text-ocean-500 bg-ocean-800/40 px-2 py-0.5 rounded-full">
-          Updated today
+    <section className="mb-6">
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="text-xs text-slate-400 font-medium uppercase tracking-wider">Insights</h2>
+        <span className="text-xs text-slate-600 bg-slate-800/40 px-2 py-0.5 rounded">
+          Today
         </span>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -23,11 +22,11 @@ export function InsightsBanner({ insights }: InsightsBannerProps) {
           return (
             <div
               key={i}
-              className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 hover:border-ocean-500/50 transition-colors"
+              className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0"
             >
               <div className="flex items-center gap-2 mb-2">
-                <span>{badge.emoji}</span>
-                <span className={`text-xs font-semibold ${badge.color}`}>{badge.label}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${badge.color === 'text-emerald-400' ? 'bg-emerald-400' : badge.color === 'text-yellow-400' ? 'bg-yellow-400' : 'bg-red-400'}`} />
+                <span className={`text-xs font-medium ${badge.color}`}>{badge.label}</span>
               </div>
               <p className="text-sm font-semibold text-white mb-1">{insight.headline}</p>
               <p className="text-xs text-ocean-300 leading-relaxed">{insight.description}</p>

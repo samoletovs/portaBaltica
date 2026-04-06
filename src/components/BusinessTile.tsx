@@ -45,11 +45,9 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <span className="text-ocean-400">🔍</span> Business Intelligence
-      </h2>
+      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Business intelligence</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* UBO Search */}
         <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-5">
           <p className="text-xs text-ocean-400 mb-2">Who Owns This Company?</p>

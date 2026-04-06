@@ -50,10 +50,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
   if (loading || externalLoading) {
     return (
-      <div className="bg-ocean-900/40 border border-ocean-700/30 rounded-2xl p-4 animate-pulse">
-        <div className="h-3 bg-ocean-700/40 rounded w-1/3 mb-3" />
-        <div className="h-7 bg-ocean-700/40 rounded w-1/2 mb-2" />
-        <div className="h-16 bg-ocean-700/40 rounded" />
+      <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse">
+        <div className="h-3 bg-slate-800/60 rounded w-1/3 mb-3" />
+        <div className="h-6 bg-slate-800/60 rounded w-1/2 mb-2" />
+        <div className="h-20 bg-slate-800/40 rounded" />
       </div>
     );
   }
@@ -76,32 +76,31 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   return (
     <button
       onClick={() => navigate(`/indicator/${id}`)}
-      className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-4 text-left hover:border-ocean-500/50 transition-all group w-full"
+      className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 text-left hover:border-slate-600/60 transition-all group w-full"
       aria-label={`View ${title} details`}
     >
       <div className="flex items-start justify-between mb-1">
-        <p className="text-xs text-ocean-400 group-hover:text-ocean-300 transition-colors">{title}</p>
-        <span className="text-xs text-ocean-600 opacity-0 group-hover:opacity-100 transition-opacity">→ details</span>
+        <p className="text-xs text-slate-400 font-medium">{title}</p>
+        <span className="text-xs text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
       </div>
 
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-2xl font-bold text-white font-mono">
+      <div className="flex items-baseline gap-2 mb-3">
+        <span className="text-xl font-semibold text-white font-mono">
           {formatValue(summary.latest)}
         </span>
         {summary.change !== null && (
-          <span className={`text-sm font-mono ${changeColor}`}>
-            {isPositiveChange ? '▲' : '▼'} {Math.abs(summary.change).toFixed(1)}
+          <span className={`text-xs font-mono ${changeColor}`}>
+            {isPositiveChange ? '▲' : '▼'}{Math.abs(summary.change).toFixed(1)}
           </span>
         )}
-        <span className="text-xs text-ocean-500">{unit}</span>
       </div>
 
-      <div className="h-14">
+      <div className="h-20">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={areaColor} stopOpacity={0.3} />
+                <stop offset="0%" stopColor={areaColor} stopOpacity={0.2} />
                 <stop offset="100%" stopColor={areaColor} stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -115,8 +114,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               isAnimationActive={false}
             />
             <Tooltip
-              contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '11px' }}
-              labelStyle={{ color: '#7dd3fc' }}
+              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
+              labelStyle={{ color: '#94a3b8' }}
               formatter={(v) => [formatValue(v as number), '']}
               labelFormatter={(l) => String(l)}
             />
@@ -124,12 +123,12 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-xs text-ocean-600">
-          {chartData[0]?.period} — {chartData[chartData.length - 1]?.period}
+      <div className="flex items-center justify-between mt-1.5">
+        <span className="text-xs text-slate-600 font-mono">
+          {chartData[0]?.period}
         </span>
-        <span className="text-xs text-ocean-600">
-          min {formatValue(summary.min)} · max {formatValue(summary.max)}
+        <span className="text-xs text-slate-600 font-mono">
+          {chartData[chartData.length - 1]?.period}
         </span>
       </div>
     </button>

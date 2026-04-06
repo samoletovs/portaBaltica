@@ -25,12 +25,10 @@ export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargo
 
   return (
     <section>
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <span className="text-ocean-400">⚓</span> Maritime
-      </h2>
+      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Maritime</h2>
 
       {/* Port overview cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         {portData.map(({ port, marine, weather }) => (
           <PortCard key={port.code} port={port} marine={marine} weather={weather} />
         ))}
