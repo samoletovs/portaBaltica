@@ -27,7 +27,7 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   renewable_share: 'renewables',
   wages_industry: 'wages_mfg',
   wages_it: 'wages_it',
-  trade_balance: 'exports', // approximate with exports data
+  trade_balance: 'trade_balance',
 };
 
 interface TimeSeriesPoint {
@@ -178,7 +178,9 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     if (displayUnit.startsWith('index')) return v.toFixed(1);
     if (displayUnit === 'per 1000') return Math.round(v).toLocaleString();
     if (displayUnit === 'EUR') return `€${Math.round(v).toLocaleString()}`;
+    if (displayUnit === 'EUR/kWh') return `€${v.toFixed(4)}`;
     if (displayUnit === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
+    if (displayUnit === 'years') return v.toFixed(1);
     if (displayUnit.startsWith('%')) return `${v.toFixed(1)}%`;
     if (displayUnit === 'balance') return v.toFixed(1);
     // Fallback
@@ -190,16 +192,17 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   return (
     <button
       onClick={() => navigate(`/indicator/${id}`)}
-      className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 text-left hover:border-slate-600/60 transition-all group w-full"
+      className="rounded-xl p-4 text-left transition-all group w-full"
+      style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
       aria-label={`View ${title} details`}
     >
       <div className="flex items-start justify-between mb-1">
-        <p className="text-xs text-slate-400 font-medium">{title}</p>
-        <span className="text-xs text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">→</span>
+        <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
+        <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>→</span>
       </div>
 
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-xl font-semibold text-white font-mono">
+        <span className="text-xl font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
           {formatValue(summary.latest)}
         </span>
         {summary.change !== null && (
@@ -239,10 +242,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       </div>
 
       <div className="flex items-center justify-between mt-1.5">
-        <span className="text-xs text-slate-600 font-mono">
+        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
           {formatPeriod(chartData[0]?.period ?? '')}
         </span>
-        <span className="text-xs text-slate-600 font-mono">
+        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
           {formatPeriod(chartData[chartData.length - 1]?.period ?? '')}
         </span>
       </div>
@@ -308,7 +311,9 @@ export function IndicatorChart({ id }: { id: string }) {
     if (u.startsWith('index')) return v.toFixed(1);
     if (u === 'per 1000') return Math.round(v).toLocaleString();
     if (u === 'EUR') return `€${Math.round(v).toLocaleString()}`;
+    if (u === 'EUR/kWh') return `€${v.toFixed(4)}`;
     if (u === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
+    if (u === 'years') return v.toFixed(1);
     if (u.startsWith('%')) return `${v.toFixed(1)}%`;
     if (u === 'balance') return v.toFixed(1);
     if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;

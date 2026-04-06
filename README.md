@@ -1,33 +1,54 @@
 # portaBaltica
 
-Live maritime dashboard for Latvia's three major ports — Riga, Ventspils, and Liepaja.
+Baltic data intelligence platform — real-time economic, trade, labour, energy, and environmental indicators for Latvia, Estonia, and Lithuania.
+
+**Live:** [portabaltica.naurolabs.com](https://portabaltica.naurolabs.com)
 
 ## What it does
 
-Combines free government open data with real-time marine weather to show what's happening at Baltic ports right now:
+A Bloomberg-style dashboard aggregating 30+ indicators from government open data across three Baltic countries. Cross-country comparison, time series charts, and live operational feeds.
 
-- **Marine weather** — wave height, sea surface temperature, wind, swell (Open-Meteo Marine API)
-- **Ship visits** — vessel arrivals and departures from SKLOIS (Latvia Maritime Single Window)
-- **Ferry traffic** — passenger counts on Baltic ferry routes
-- **Cargo data** — transport mode shares and volume trends
+### Coverage by section
+
+| Section | Indicators | Countries | Source |
+|---------|-----------|-----------|--------|
+| **Economy** | GDP, salary, CPI, unemployment, house prices, retail, industrial output, population, electricity | LV, EE, LT | Eurostat, NordPool, ECB |
+| **Trade** | Exports, imports, trade balance, PPI, hotel occupancy, tourist arrivals | LV, EE, LT | Eurostat |
+| **Government** | Revenue, debt, debt/GDP, deficit/surplus, consumer confidence, current account, inequality | LV, EE, LT | Eurostat |
+| **Labour** | Hourly labour cost, unemployment, manufacturing wages, IT wages, youth unemployment, job vacancy, GDP per capita, life expectancy | LV, EE, LT | Eurostat |
+| **Energy** | Construction output, building permits, vehicles, renewables, electricity production, household electricity price, interest rate | LV, EE, LT | Eurostat |
+| **Property** | Construction permits, building energy profiles | LV | data.gov.lv |
+| **Environment** | Weather (4 cities), air quality, population | LV, EE, LT | Open-Meteo |
+| **Business** | UBO registry (195K+), address search (608K+), EU Recovery Fund (955 projects) | LV | data.gov.lv |
+| **Maritime** | Marine weather, ship visits, ferry traffic, cargo | LV (3 ports) | SKLOIS, Open-Meteo |
+
+### Features
+
+- Country selector (LV / EE / LT) with country-specific timezone
+- Dark / light theme with flash-free switching
+- AI-generated insights from live data feeds
+- Baltic comparison charts (LV vs EE vs LT)
+- Drill-down indicator detail pages with time range selector
+- Scrolling data ticker with exchange rates and electricity prices
+- API documentation with pricing tiers
+- System health monitoring
 
 ## Data Sources
 
-| Source | Data | Refresh | Auth |
-|--------|------|---------|------|
-| Open-Meteo Marine API | Waves, SST, currents | Hourly | None |
-| Open-Meteo Weather API | Temp, wind, clouds | Hourly | None |
-| data.gov.lv SKLOIS | Ship visits (CNCVESLS/REJVESLS) | Biweekly | None |
-| data.gov.lv Ferry Stats | Passenger counts | Biweekly | None |
-| data.gov.lv Port Ops | Cargo shares, access data | Annual | None |
-
-All government data is CC0 licensed.
+| Source | Data | Refresh |
+|--------|------|---------|
+| Eurostat REST API | 32 datasets for cross-country comparison | 1 hour |
+| NordPool (Elering) | Electricity prices per zone | Hourly |
+| ECB XML | Exchange rates (8 currencies) | Daily |
+| Open-Meteo | Weather + air quality | 15 min |
+| data.gov.lv CKAN | Property, business, maritime | 1 hour |
+| CSP PxWeb | Latvia-only indicators (gas price, building permits) | 1 hour |
 
 ## Tech Stack
 
-- React + TypeScript + Vite
-- Tailwind CSS
-- Azure Static Web Apps
+- React 19 + TypeScript 5.9 + Vite 8
+- Tailwind CSS 4.2 + recharts 3.8
+- Azure Static Web Apps (managed functions, Node.js)
 
 ## Development
 
@@ -36,17 +57,9 @@ npm install
 npm run dev
 ```
 
-## Ports Covered
+## Deployment
 
-| Port | UN/LOCODE | Lat | Lon |
-|------|-----------|-----|-----|
-| Riga | LVRIX | 57.05 | 24.10 |
-| Ventspils | LVVNT | 57.40 | 21.55 |
-| Liepaja | LVLPX | 56.52 | 20.97 |
-
-## Future Plans
-
-- Estonia and Lithuania port expansion
-- Paid AIS vessel tracking integration (Datalastic)
-- Cargo volume trend charts
-- Marine weather map overlay
+```powershell
+$token = az staticwebapp secrets list --name portabaltica-swa --query "properties.apiKey" -o tsv
+npx swa deploy --app-location ./dist --api-location ./api --deployment-token $token --env production
+```

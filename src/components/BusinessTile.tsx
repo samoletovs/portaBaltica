@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BusinessSearchResult, EUFundsData, AddressSearchResult } from '../types';
 import { searchBusinessOwners, searchAddress } from '../api';
+import { useCountry } from '../CountryContext';
 
 interface BusinessTileProps {
   euFunds: EUFundsData | null;
@@ -8,6 +9,7 @@ interface BusinessTileProps {
 }
 
 export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
+  const { country } = useCountry();
   const [query, setQuery] = useState('');
   const [searchResult, setSearchResult] = useState<BusinessSearchResult | null>(null);
   const [searching, setSearching] = useState(false);
@@ -46,6 +48,11 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
   return (
     <section>
       <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Business intelligence</h2>
+      {country !== 'LV' && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
+          🇱🇻 This section shows Latvia data only. Estonia and Lithuania business registries coming soon.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* UBO Search */}

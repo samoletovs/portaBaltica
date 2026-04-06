@@ -7,12 +7,14 @@ interface CountryContextValue {
   setCountry: (c: Country) => void;
   countryLabel: string;
   flag: string;
+  timezone: string;
+  tzAbbr: string;
 }
 
-const COUNTRY_INFO: Record<Country, { label: string; flag: string }> = {
-  LV: { label: 'Latvia', flag: '🇱🇻' },
-  EE: { label: 'Estonia', flag: '🇪🇪' },
-  LT: { label: 'Lithuania', flag: '🇱🇹' },
+const COUNTRY_INFO: Record<Country, { label: string; flag: string; timezone: string; tzAbbr: string }> = {
+  LV: { label: 'Latvia', flag: '🇱🇻', timezone: 'Europe/Riga', tzAbbr: 'EET' },
+  EE: { label: 'Estonia', flag: '🇪🇪', timezone: 'Europe/Tallinn', tzAbbr: 'EET' },
+  LT: { label: 'Lithuania', flag: '🇱🇹', timezone: 'Europe/Vilnius', tzAbbr: 'EET' },
 };
 
 const CountryContext = createContext<CountryContextValue>({
@@ -20,6 +22,8 @@ const CountryContext = createContext<CountryContextValue>({
   setCountry: () => {},
   countryLabel: 'Latvia',
   flag: '🇱🇻',
+  timezone: 'Europe/Riga',
+  tzAbbr: 'EET',
 });
 
 export function useCountry() {
@@ -31,7 +35,7 @@ export function CountryProvider({ children }: { children: ReactNode }) {
   const info = COUNTRY_INFO[country];
 
   return (
-    <CountryContext.Provider value={{ country, setCountry, countryLabel: info.label, flag: info.flag }}>
+    <CountryContext.Provider value={{ country, setCountry, countryLabel: info.label, flag: info.flag, timezone: info.timezone, tzAbbr: info.tzAbbr }}>
       {children}
     </CountryContext.Provider>
   );
