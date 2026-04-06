@@ -62,8 +62,8 @@ export function IndicatorPage() {
     return (
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-4 py-12">
-          <p className="text-ocean-400">Unknown indicator.</p>
-          <button onClick={() => navigate('/')} className="text-ocean-300 underline mt-2 text-sm">← Back to dashboard</button>
+          <p className="text-slate-400">Unknown indicator.</p>
+          <button onClick={() => navigate('/')} className="text-slate-300 underline mt-2 text-sm">← Back to dashboard</button>
         </div>
       </div>
     );
@@ -75,7 +75,7 @@ export function IndicatorPage() {
         {/* Breadcrumb */}
         <button
           onClick={() => navigate('/')}
-          className="text-sm text-ocean-400 hover:text-ocean-200 mb-4 inline-flex items-center gap-1"
+          className="text-sm text-slate-400 hover:text-slate-200 mb-4 inline-flex items-center gap-1"
         >
           ← Back to dashboard
         </button>
@@ -84,10 +84,10 @@ export function IndicatorPage() {
         <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>
           {info.title}
         </h1>
-        <p className="text-ocean-300 text-sm mb-6 max-w-2xl">{info.description}</p>
+        <p className="text-slate-300 text-sm mb-6 max-w-2xl">{info.description}</p>
 
         {/* Main chart */}
-        <div className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6 mb-6">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 mb-6">
           <IndicatorChart id={id} />
         </div>
 
@@ -111,10 +111,10 @@ export function IndicatorPage() {
                   <button
                     key={relId}
                     onClick={() => navigate(`/indicator/${relId}`)}
-                    className="bg-ocean-900/40 border border-ocean-700/30 rounded-xl p-3 text-left hover:border-ocean-500/50 transition-colors"
+                    className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left hover:border-slate-600/60 transition-colors"
                   >
                     <p className="text-sm font-medium text-white">{rel.title}</p>
-                    <p className="text-xs text-ocean-400 mt-0.5">Click to explore →</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Click to explore →</p>
                   </button>
                 );
               })}
@@ -123,7 +123,7 @@ export function IndicatorPage() {
         )}
 
         {/* Footer */}
-        <p className="text-xs text-ocean-500 mt-8">
+        <p className="text-xs text-slate-500 mt-8">
           Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.
           All data is publicly available under open license.
         </p>

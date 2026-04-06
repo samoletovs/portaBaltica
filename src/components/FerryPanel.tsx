@@ -7,9 +7,9 @@ interface FerryPanelProps {
 export function FerryPanel({ data }: FerryPanelProps) {
   if (data.length === 0) {
     return (
-      <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
+      <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
         <h3 className="text-lg font-bold text-white mb-4">🛳️ Ferry Traffic</h3>
-        <p className="text-ocean-400 text-sm">No recent ferry data available. Published biweekly by the Ministry of Transport.</p>
+        <p className="text-slate-400 text-sm">No recent ferry data available. Published biweekly by the Ministry of Transport.</p>
       </section>
     );
   }
@@ -25,10 +25,10 @@ export function FerryPanel({ data }: FerryPanelProps) {
   }, {});
 
   return (
-    <section className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-6">
+    <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
       <h3 className="text-lg font-bold text-white mb-2">🛳️ Ferry Traffic</h3>
-      <p className="text-2xl font-bold text-ocean-300 mb-4">
-        {totalPassengers.toLocaleString()} <span className="text-sm font-normal text-ocean-400">passengers (latest period)</span>
+      <p className="text-2xl font-bold text-slate-300 mb-4">
+        {totalPassengers.toLocaleString()} <span className="text-sm font-normal text-slate-400">passengers (latest period)</span>
       </p>
 
       <div className="space-y-2">
@@ -39,16 +39,16 @@ export function FerryPanel({ data }: FerryPanelProps) {
             return (
               <div key={route}>
                 <div className="flex items-center justify-between text-sm mb-1">
-                  <span className="text-ocean-200">{route}</span>
+                  <span className="text-slate-200">{route}</span>
                   <span className="text-white font-mono">{info.passengers.toLocaleString()}</span>
                 </div>
-                <div className="h-2 bg-ocean-800/60 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-800/50 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-ocean-400 rounded-full transition-all"
+                    className="h-full bg-slate-400 rounded-full transition-all"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-ocean-500 mt-0.5">Flag: {info.flag}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Flag: {info.flag}</p>
               </div>
             );
           })}

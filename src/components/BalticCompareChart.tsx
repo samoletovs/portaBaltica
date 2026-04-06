@@ -42,9 +42,9 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
 
   if (loading) {
     return (
-      <div className={`bg-ocean-900/40 border border-ocean-700/30 rounded-2xl p-4 animate-pulse ${compact ? 'h-40' : 'h-64'}`}>
-        <div className="h-3 bg-ocean-700/40 rounded w-1/3 mb-4" />
-        <div className="h-full bg-ocean-700/20 rounded" />
+      <div className={`bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse ${compact ? 'h-40' : 'h-64'}`}>
+        <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-4" />
+        <div className="h-full bg-slate-800/20 rounded" />
       </div>
     );
   }
@@ -89,7 +89,7 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
           {Object.entries(COUNTRY_COLORS).map(([geo, info]) => (
             <div key={geo} className="flex items-center gap-1 text-xs">
               <span>{info.flag}</span>
-              <span className="text-ocean-300">{latestValues[geo] !== null ? latestValues[geo]?.toFixed(1) : '—'}</span>
+              <span className="text-slate-300">{latestValues[geo] !== null ? latestValues[geo]?.toFixed(1) : '—'}</span>
             </div>
           ))}
         </div>
@@ -98,25 +98,25 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
       <div className={compact ? 'h-32' : 'h-52'}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#0c4a6e" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: '#7dd3fc', fontSize: 9 }}
+              tick={{ fill: '#94a3b8', fontSize: 9 }}
               tickLine={false}
-              axisLine={{ stroke: '#075985' }}
+              axisLine={{ stroke: '#1e293b' }}
               interval={Math.max(0, Math.floor(chartData.length / 6))}
             />
             {!compact && (
               <YAxis
-                tick={{ fill: '#7dd3fc', fontSize: 9 }}
+                tick={{ fill: '#94a3b8', fontSize: 9 }}
                 tickLine={false}
-                axisLine={{ stroke: '#075985' }}
+                axisLine={{ stroke: '#1e293b' }}
                 width={40}
               />
             )}
             <Tooltip
-              contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '11px' }}
-              labelStyle={{ color: '#7dd3fc', fontWeight: 600 }}
+              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
+              labelStyle={{ color: '#e2e8f0', fontWeight: 500 }}
               formatter={(v, name) => {
                 const info = COUNTRY_COLORS[name as string];
                 const val = v as number | null;
@@ -139,7 +139,7 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
         </ResponsiveContainer>
       </div>
 
-      <p className="text-xs text-ocean-600 mt-2">Source: {data.source}</p>
+      <p className="text-xs text-slate-600 mt-2">Source: {data.source}</p>
     </div>
   );
 }
