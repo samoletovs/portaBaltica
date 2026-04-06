@@ -1,7 +1,7 @@
 // ─── Dashboard-wide types ───
 
 /** Active dashboard section */
-export type DashboardSection = 'economy' | 'property' | 'environment' | 'maritime';
+export type DashboardSection = 'economy' | 'property' | 'environment' | 'maritime' | 'business';
 
 /** AI insight significance level */
 export type InsightLevel = 'routine' | 'notable' | 'significant';
@@ -98,6 +98,49 @@ export interface EnvironmentData {
   weather: WeatherCondition[];
   airQuality: AirQualityData;
   rigaPopulation: number;
+  fetchedAt: string;
+}
+
+// ─── Business Intelligence types (Phase 2) ───
+
+export interface UBOOwner {
+  forename: string;
+  surname: string;
+  nationality: string;
+  residence: string;
+  registeredOn: string;
+}
+
+export interface UBOCompany {
+  registrationNumber: string;
+  owners: UBOOwner[];
+}
+
+export interface BusinessSearchResult {
+  query: string;
+  totalMatches: number;
+  companies: UBOCompany[];
+  source: string;
+  fetchedAt: string;
+}
+
+export interface EUFundProject {
+  number: string;
+  version: string;
+  date: string;
+  status: string;
+}
+
+export interface EUFundStatusSummary {
+  status: string;
+  count: number;
+}
+
+export interface EUFundsData {
+  projects: EUFundProject[];
+  statusSummary: EUFundStatusSummary[];
+  total: number;
+  source: string;
   fetchedAt: string;
 }
 

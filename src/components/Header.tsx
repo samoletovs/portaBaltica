@@ -12,6 +12,7 @@ const SECTIONS: { id: DashboardSection | 'all'; label: string; icon: string }[] 
   { id: 'economy', label: 'Economy', icon: '📊' },
   { id: 'property', label: 'Property', icon: '🏗️' },
   { id: 'environment', label: 'Environment', icon: '🌤️' },
+  { id: 'business', label: 'Business Intel', icon: '🔍' },
   { id: 'maritime', label: 'Maritime', icon: '⚓' },
 ];
 
