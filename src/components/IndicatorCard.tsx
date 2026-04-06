@@ -84,7 +84,17 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     if (v === null) return 'N/A';
     if (unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
     if (unit === 'persons') return v.toLocaleString();
-    return `${v.toFixed(1)}${unit.startsWith('%') ? '%' : ''}`;
+    if (unit === 'M EUR') {
+      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
+      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
+      return `€${Math.round(v).toLocaleString()}`;
+    }
+    if (unit === 'thousands') return Math.round(v).toLocaleString();
+    if (unit === 'index') return v.toFixed(1);
+    if (unit.startsWith('%')) return `${v.toFixed(1)}%`;
+    // Fallback: format large numbers with separators
+    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
+    return v.toFixed(1);
   }
 
   return (
@@ -104,7 +114,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         </span>
         {summary.change !== null && (
           <span className={`text-xs font-mono ${changeColor}`}>
-            {isPositiveChange ? '▲' : '▼'}{Math.abs(summary.change).toFixed(1)}
+            {isPositiveChange ? '▲' : '▼'}{formatValue(Math.abs(summary.change))}
           </span>
         )}
       </div>
@@ -118,6 +128,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
                 <stop offset="100%" stopColor={areaColor} stopOpacity={0} />
               </linearGradient>
             </defs>
+            <XAxis dataKey="period" hide />
             <Area
               type="monotone"
               dataKey="value"
@@ -192,7 +203,16 @@ export function IndicatorChart({ id }: { id: string }) {
     if (v === null || !data) return 'N/A';
     if (data.unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
     if (data.unit === 'persons') return v.toLocaleString();
-    return `${v.toFixed(1)}${data.unit.startsWith('%') ? '%' : ''}`;
+    if (data.unit === 'M EUR') {
+      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
+      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
+      return `€${Math.round(v).toLocaleString()}`;
+    }
+    if (data.unit === 'thousands') return Math.round(v).toLocaleString();
+    if (data.unit === 'index') return v.toFixed(1);
+    if (data.unit.startsWith('%')) return `${v.toFixed(1)}%`;
+    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
+    return v.toFixed(1);
   }
 
   return (
