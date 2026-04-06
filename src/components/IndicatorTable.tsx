@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useCountry } from '../CountryContext';
+import { formatValue } from '../utils/formatValue';
 
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
@@ -23,7 +24,7 @@ export function IndicatorTable() {
   const [rows, setRows] = useState<IndicatorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { country } = useCountry();
+  const { country, countryLabel } = useCountry();
 
   useEffect(() => {
     setLoading(true);
@@ -69,38 +70,10 @@ export function IndicatorTable() {
     );
   }
 
-  function formatValue(v: number | null, unit: string): string {
-    if (v === null) return '—';
-    if (unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
-    if (unit === 'EUR/hour') return `€${v.toFixed(1)}/h`;
-    if (unit === 'persons') {
-      if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
-      return Math.round(v).toLocaleString();
-    }
-    if (unit === 'M EUR') {
-      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
-      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
-      return `€${Math.round(v).toLocaleString()}`;
-    }
-    if (unit === 'MIO_EUR') return `€${Math.round(v).toLocaleString()}M`;
-    if (unit === 'thousands') return Math.round(v).toLocaleString();
-    if (unit.startsWith('index')) return v.toFixed(1);
-    if (unit === 'per 1000') return Math.round(v).toLocaleString();
-    if (unit === 'EUR') return `€${Math.round(v).toLocaleString()}`;
-    if (unit === 'EUR/kWh') return `€${v.toFixed(4)}`;
-    if (unit === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
-    if (unit === 'years') return v.toFixed(1);
-    if (unit.startsWith('%')) return `${v.toFixed(1)}%`;
-    if (unit === 'balance') return v.toFixed(1);
-    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
-    return v.toFixed(1);
-  }
-
   return (
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-800/40">
-        <h3 className="text-sm font-medium text-white">Latvia key indicators</h3>
+        <h3 className="text-sm font-medium text-white">{countryLabel} key indicators</h3>
         <p className="text-xs text-slate-500">Click any row for analysis</p>
       </div>
 

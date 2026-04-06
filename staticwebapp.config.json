@@ -19,6 +19,8 @@
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Referrer-Policy": "strict-origin-when-cross-origin"
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ec.europa.eu https://api.open-meteo.com https://air-quality-api.open-meteo.com https://data.stat.gov.lv https://data.gov.lv https://opendata.riga.lv https://marine-api.open-meteo.com https://dashboard.elering.ee https://www.ecb.europa.eu; img-src 'self' data:; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'"
   }
 }

@@ -224,8 +224,11 @@ export function IndicatorPage() {
         )}
 
         {/* Footer */}
-        <p className="text-xs text-slate-500 mt-8">
-          Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.
+        <p className="text-xs mt-8" style={{ color: 'var(--text-muted)' }}>
+          {EUROSTAT_MAP[id]
+            ? 'Data from Eurostat. Updated according to Eurostat publication calendar.'
+            : `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`
+          }{' '}
           All data is publicly available under open license.
         </p>
       </div>
