@@ -84,10 +84,9 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   retail_sales: {
-    path: '/TIR/TM/TMA/TMA020m',
+    path: '/TIR/TI/TIT/TIT010m',
     query: [
-      { code: 'NACE02', selection: { filter: 'item', values: ['G47'] } },
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['TMA020m1'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['TIT010m'] } },
     ],
     transform: null,
     unit: '% YoY',
@@ -95,11 +94,10 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   industrial: {
-    path: '/NOZ/RP/RPA/RPA011m',
+    path: '/NOZ/RU/RUI/RUI020m',
     query: [
-      { code: 'NACE02', selection: { filter: 'item', values: ['B-D'] } },
-      { code: 'SESON', selection: { filter: 'item', values: ['NSA'] } },
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['RPA011m1'] } },
+      { code: 'NACE_MIG', selection: { filter: 'item', values: ['MIG_ING'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['RUI020m4'] } },
     ],
     transform: null,
     unit: '% YoY',
@@ -107,10 +105,10 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   population: {
-    path: '/POP/IR/IRE/IRE010',
+    path: '/POP/IR/IRS/IRS010',
     query: [
-      { code: 'SEX', selection: { filter: 'item', values: ['T'] } },
-      { code: 'ContentsCode', selection: { filter: 'item', values: ['IRE010'] } },
+      { code: 'INDICATOR', selection: { filter: 'item', values: ['POP_SY'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['IRS010'] } },
     ],
     transform: null,
     unit: 'persons',
