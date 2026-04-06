@@ -130,6 +130,77 @@ body {
   border-color: #2563eb !important;
 }
 
+/* ─── Light-theme-specific overrides ─── */
+/* These fix remaining dark-only patterns that CSS variables alone don't catch */
+
+[data-theme="light"] .text-slate-200 {
+  color: #1e293b !important;
+}
+
+/* Colored status backgrounds — swap dark tints for light tints */
+[data-theme="light"] .bg-emerald-900\/30 {
+  background: #ecfdf5 !important;
+}
+[data-theme="light"] .bg-yellow-900\/30 {
+  background: #fefce8 !important;
+}
+[data-theme="light"] .bg-red-900\/30 {
+  background: #fef2f2 !important;
+}
+[data-theme="light"] .bg-red-950\/50 {
+  background: #fef2f2 !important;
+}
+[data-theme="light"] .bg-yellow-400\/10 {
+  background: #fef9c3 !important;
+}
+
+/* Colored text — ensure readability on white backgrounds */
+[data-theme="light"] .text-emerald-400 {
+  color: #059669 !important;
+}
+[data-theme="light"] .text-red-400 {
+  color: #dc2626 !important;
+}
+[data-theme="light"] .text-yellow-400 {
+  color: #d97706 !important;
+}
+[data-theme="light"] .text-amber-400 {
+  color: #d97706 !important;
+}
+
+/* Border colors for ring-style elements */
+[data-theme="light"] .border-emerald-500 {
+  border-color: #10b981 !important;
+}
+[data-theme="light"] .border-emerald-500\/30 {
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Colored chart bars — keep visible but lighter */
+[data-theme="light"] .bg-cyan-500 {
+  background: #0891b2 !important;
+}
+[data-theme="light"] .bg-teal-500 {
+  background: #0d9488 !important;
+}
+
+/* Font mono in white context */
+[data-theme="light"] .font-mono.text-white,
+[data-theme="light"] .font-mono.text-slate-300 {
+  color: #0f172a !important;
+}
+
+/* Insight badge dots */
+[data-theme="light"] .bg-emerald-400 {
+  background: #059669 !important;
+}
+
+/* Card shadows for depth in light mode */
+[data-theme="light"] .bg-slate-900\/50,
+[data-theme="light"] [class*="bg-slate-900"] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
