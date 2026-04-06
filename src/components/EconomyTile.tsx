@@ -14,7 +14,7 @@ interface EconomyTileProps {
 
 export function EconomyTile({ data, loading }: EconomyTileProps) {
   const { chartColors } = useTheme();
-  const { countryLabel, flag } = useCountry();
+  const { countryLabel, flag, country } = useCountry();
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -115,8 +115,8 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         </div>
       </div>
 
-      {/* Business pulse */}
-      {data && (
+      {/* Business pulse — Latvia only (CKAN data) */}
+      {data && country === 'LV' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
           <StatCard label="VAT Businesses" value={data.businessPulse.newVatRegistrations.toLocaleString()} />
           <StatCard label="Suspended" value={data.businessPulse.suspendedBusinesses.toLocaleString()} color="amber" />
