@@ -44,25 +44,44 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               </p>
             )}
           </div>
-          {data && data.electricityPrices.length > 0 ? (
-            <div className="h-24">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.electricityPrices.map((p) => ({
-                  hour: new Date(p.timestamp).getHours() + ':00',
-                  price: p.price,
-                  isCurrent: new Date(p.timestamp).getHours() === new Date().getHours(),
-                }))}>
-                  <XAxis dataKey="hour" tick={{ fill: '#7dd3fc', fontSize: 9 }} tickLine={false} axisLine={false} interval={3} />
-                  <Tooltip
-                    contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '11px' }}
-                    formatter={(v) => [`€${(v as number).toFixed(2)}/MWh`, 'Price']}
-                  />
-                  <Bar dataKey="price" fill="#38bdf8" radius={[2, 2, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-24 animate-pulse bg-ocean-700/20 rounded" />
+          {data && data.electricityPrices.length > 0 ? (() => {
+            // Show only today's 24 hours
+            const today = new Date().toISOString().slice(0, 10);
+            const todayPrices = data.electricityPrices.filter((p) => p.timestamp.startsWith(today));
+            const prices = todayPrices.length > 0 ? todayPrices : data.electricityPrices.slice(0, 24);
+            const now = new Date().getHours();
+            const minPrice = Math.min(...prices.map((p) => p.price));
+            const maxPrice = Math.max(...prices.map((p) => p.price));
+
+            return (
+              <>
+                <div className="flex items-center gap-3 mb-2 text-xs">
+                  <span className="text-emerald-400">Low €{minPrice.toFixed(2)}</span>
+                  <span className="text-red-400">High €{maxPrice.toFixed(2)}</span>
+                  {data.electricityCurrent < 0 && (
+                    <span className="text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">Negative price</span>
+                  )}
+                </div>
+                <div className="h-28">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={prices.map((p) => {
+                      const h = new Date(p.timestamp).getHours();
+                      return { hour: `${h}:00`, price: p.price, isCurrent: h === now };
+                    })}>
+                      <XAxis dataKey="hour" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} axisLine={false} interval={5} />
+                      <Tooltip
+                        contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
+                        formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}
+                        labelFormatter={(label) => `Today ${label}`}
+                      />
+                      <Bar dataKey="price" fill="#38bdf8" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            );
+          })() : (
+            <div className="h-28 animate-pulse bg-slate-800/30 rounded" />
           )}
           <p className="text-xs text-slate-600 mt-1">NordPool day-ahead · Elering API</p>
         </div>
@@ -84,7 +103,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             </div>
           ) : (
             <div className="space-y-2 animate-pulse">
-              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 bg-ocean-700/40 rounded" />)}
+              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 bg-slate-700/30 rounded" />)}
             </div>
           )}
           <p className="text-xs text-slate-600 mt-2">ECB official rates · Updated daily 16:00 CET</p>
@@ -122,11 +141,11 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 function StatCard({ label, value, change, color }: { label: string; value: string; change?: string; color?: string }) {
   const textColor = color === 'amber' ? 'text-amber-400' : 'text-white';
   return (
-    <div className="bg-ocean-900/40 border border-ocean-700/30 rounded-xl p-3 text-center">
-      <p className={`text-lg font-bold font-mono ${textColor}`}>{value}</p>
-      <p className="text-xs text-ocean-400">{label}</p>
+    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center">
+      <p className={`text-lg font-semibold font-mono ${textColor}`}>{value}</p>
+      <p className="text-xs text-slate-400">{label}</p>
       {change && (
-        <p className={`text-xs font-mono ${change.startsWith('+') ? 'text-emerald-400' : change.startsWith('-') ? 'text-red-400' : 'text-ocean-400'}`}>
+        <p className={`text-xs font-mono ${change.startsWith('+') ? 'text-emerald-400' : change.startsWith('-') ? 'text-red-400' : 'text-slate-400'}`}>
           {change}
         </p>
       )}

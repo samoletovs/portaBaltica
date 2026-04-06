@@ -29,7 +29,7 @@ export function InsightsBanner({ insights }: InsightsBannerProps) {
                 <span className={`text-xs font-medium ${badge.color}`}>{badge.label}</span>
               </div>
               <p className="text-sm font-semibold text-white mb-1">{insight.headline}</p>
-              <p className="text-xs text-ocean-300 leading-relaxed">{insight.description}</p>
+              <p className="text-xs text-slate-300 leading-relaxed">{insight.description}</p>
             </div>
           );
         })}

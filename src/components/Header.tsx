@@ -56,7 +56,7 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
               onClick={() => onSectionChange(s.id)}
               className={`px-4 py-2.5 text-sm whitespace-nowrap transition-colors border-b-2 ${
                 activeSection === s.id
-                  ? 'border-ocean-400 text-white font-medium'
+                  ? 'border-slate-400 text-white font-medium'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-600'
               }`}
               aria-current={activeSection === s.id ? 'page' : undefined}

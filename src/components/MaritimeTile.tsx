@@ -48,18 +48,18 @@ function TileSkeleton() {
   return (
     <section>
       <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-        <span className="text-ocean-400">⚓</span> Maritime
+        <span className="text-slate-400">⚓</span> Maritime
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-ocean-900/40 border border-ocean-700/30 rounded-2xl p-6 animate-pulse">
-            <div className="h-5 bg-ocean-700/40 rounded w-1/3 mb-4" />
+          <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
+            <div className="h-5 bg-slate-700/30 rounded w-1/3 mb-4" />
             <div className="grid grid-cols-2 gap-3 mb-4">
               {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="h-12 bg-ocean-700/40 rounded-lg" />
+                <div key={j} className="h-12 bg-slate-700/30 rounded-lg" />
               ))}
             </div>
-            <div className="h-12 bg-ocean-700/40 rounded" />
+            <div className="h-12 bg-slate-700/30 rounded" />
           </div>
         ))}
       </div>

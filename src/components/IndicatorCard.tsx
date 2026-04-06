@@ -38,6 +38,18 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  function formatPeriod(p: string): string {
+    // "2025Q4" → "Q4 2025", "2025M12" → "Dec 2025", "2025" → "2025"
+    const qMatch = p.match(/^(\d{4})Q(\d)$/);
+    if (qMatch) return `Q${qMatch[2]} ${qMatch[1]}`;
+    const mMatch = p.match(/^(\d{4})M(\d{1,2})$/);
+    if (mMatch) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[parseInt(mMatch[2]) - 1] ?? mMatch[2]} ${mMatch[1]}`;
+    }
+    return p;
+  }
+
   useEffect(() => {
     if (externalLoading) return;
     setLoading(true);
@@ -116,8 +128,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
             <Tooltip
               contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
               labelStyle={{ color: '#94a3b8' }}
-              formatter={(v) => [formatValue(v as number), '']}
-              labelFormatter={(l) => String(l)}
+              formatter={(v) => [formatValue(v as number), title]}
+              labelFormatter={(l) => formatPeriod(String(l))}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -125,10 +137,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-xs text-slate-600 font-mono">
-          {chartData[0]?.period}
+          {formatPeriod(chartData[0]?.period ?? '')}
         </span>
         <span className="text-xs text-slate-600 font-mono">
-          {chartData[chartData.length - 1]?.period}
+          {formatPeriod(chartData[chartData.length - 1]?.period ?? '')}
         </span>
       </div>
     </button>
@@ -141,6 +153,17 @@ export function IndicatorChart({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(10);
 
+  function formatPeriod(p: string): string {
+    const qMatch = p.match(/^(\d{4})Q(\d)$/);
+    if (qMatch) return `Q${qMatch[2]} ${qMatch[1]}`;
+    const mMatch = p.match(/^(\d{4})M(\d{1,2})$/);
+    if (mMatch) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[parseInt(mMatch[2]) - 1] ?? mMatch[2]} ${mMatch[1]}`;
+    }
+    return p;
+  }
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/historical-data?indicator=${id}&years=${years}`)
@@ -151,10 +174,10 @@ export function IndicatorChart({ id }: { id: string }) {
   }, [id, years]);
 
   if (loading) {
-    return <div className="h-64 bg-ocean-900/40 rounded-2xl animate-pulse" />;
+    return <div className="h-64 bg-slate-900/50 rounded-xl animate-pulse" />;
   }
   if (!data || data.series.length === 0) {
-    return <p className="text-ocean-400">No historical data available for this indicator.</p>;
+    return <p className="text-slate-400">No historical data available for this indicator.</p>;
   }
 
   const chartData = data.series.filter((p) => p.value !== null);
@@ -178,7 +201,7 @@ export function IndicatorChart({ id }: { id: string }) {
             key={y}
             onClick={() => setYears(y)}
             className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-              years === y ? 'bg-ocean-600 text-white' : 'text-ocean-400 hover:text-ocean-200 bg-ocean-800/40'
+              years === y ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200 bg-slate-800/40'
             }`}
           >
             {y === 0 ? 'MAX' : `${y}Y`}
@@ -196,26 +219,27 @@ export function IndicatorChart({ id }: { id: string }) {
                 <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#0c4a6e" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: '#7dd3fc', fontSize: 10 }}
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: '#075985' }}
+              axisLine={{ stroke: '#1e293b' }}
               interval={Math.max(0, Math.floor(chartData.length / 8))}
+              tickFormatter={(v: string) => formatPeriod(v)}
             />
             <YAxis
-              tick={{ fill: '#7dd3fc', fontSize: 10 }}
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: '#075985' }}
+              axisLine={{ stroke: '#1e293b' }}
               width={60}
               tickFormatter={(v: number) => formatValue(v)}
             />
             <Tooltip
-              contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '12px' }}
-              labelStyle={{ color: '#7dd3fc', fontWeight: 600 }}
+              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '12px' }}
+              labelStyle={{ color: '#e2e8f0', fontWeight: 500 }}
               formatter={(v) => [formatValue(v as number), data?.title ?? '']}
-              labelFormatter={(l) => String(l)}
+              labelFormatter={(l) => formatPeriod(String(l))}
             />
             <Area
               type="monotone"
@@ -238,7 +262,7 @@ export function IndicatorChart({ id }: { id: string }) {
         <StatBox label="Max" value={formatValue(summary.max)} />
       </div>
 
-      <p className="text-xs text-ocean-500 mt-3">
+      <p className="text-xs text-slate-500 mt-3">
         Source: {data.source} · {summary.count} data points
       </p>
     </div>
@@ -248,9 +272,9 @@ export function IndicatorChart({ id }: { id: string }) {
 function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'red' }) {
   const textColor = highlight === 'green' ? 'text-emerald-400' : highlight === 'red' ? 'text-red-400' : 'text-white';
   return (
-    <div className="bg-ocean-800/40 rounded-lg p-3 text-center">
+    <div className="bg-slate-800/40 rounded-lg p-3 text-center">
       <p className={`text-sm font-bold font-mono ${textColor}`}>{value}</p>
-      <p className="text-xs text-ocean-400">{label}</p>
+      <p className="text-xs text-slate-400">{label}</p>
     </div>
   );
 }

@@ -34,10 +34,10 @@ export function IndicatorTable() {
 
   if (loading) {
     return (
-      <div className="bg-ocean-900/40 border border-ocean-700/30 rounded-2xl p-4 animate-pulse">
-        <div className="h-4 bg-ocean-700/40 rounded w-1/4 mb-4" />
+      <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse">
+        <div className="h-4 bg-slate-700/30 rounded w-1/4 mb-4" />
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-8 bg-ocean-700/20 rounded mb-2" />
+          <div key={i} className="h-8 bg-slate-800/20 rounded mb-2" />
         ))}
       </div>
     );
@@ -58,7 +58,7 @@ export function IndicatorTable() {
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-xs text-ocean-400 border-b border-ocean-800/30">
+      <div className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-xs text-slate-400 border-b border-slate-800/30">
         <span>Indicator</span>
         <span className="text-right">Latest</span>
         <span className="text-right">Previous</span>
@@ -70,24 +70,24 @@ export function IndicatorTable() {
       {rows.map((row) => {
         const chartData = row.series.filter((s) => s.value !== null).slice(-12);
         const isUp = row.summary.change !== null && row.summary.change >= 0;
-        const changeColor = row.summary.change === null ? 'text-ocean-400' : isUp ? 'text-emerald-400' : 'text-red-400';
+        const changeColor = row.summary.change === null ? 'text-slate-400' : isUp ? 'text-emerald-400' : 'text-red-400';
         const lineColor = isUp ? '#34d399' : '#f87171';
 
         return (
           <button
             key={row.id}
             onClick={() => navigate(`/indicator/${row.id}`)}
-            className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-ocean-800/30 transition-colors border-b border-ocean-800/20 last:border-0 group"
+            className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
             <div>
-              <span className="text-sm text-white group-hover:text-ocean-200 transition-colors">{row.title}</span>
-              <span className="text-xs text-ocean-500 ml-2">{row.unit}</span>
+              <span className="text-sm text-white group-hover:text-slate-200 transition-colors">{row.title}</span>
+              <span className="text-xs text-slate-500 ml-2">{row.unit}</span>
             </div>
             <span className="text-sm text-right text-white font-mono">
               {formatValue(row.summary.latest, row.unit)}
             </span>
-            <span className="text-sm text-right text-ocean-400 font-mono">
+            <span className="text-sm text-right text-slate-400 font-mono">
               {formatValue(row.summary.previous, row.unit)}
             </span>
             <span className={`text-sm text-right font-mono ${changeColor}`}>
