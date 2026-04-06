@@ -42,6 +42,11 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Track login
+  useEffect(() => {
+    fetch('/api/track-login', { method: 'POST' }).catch(() => {});
+  }, []);
+
   // Load all data in parallel
   useEffect(() => {
     // Maritime (existing flow)

@@ -111,12 +111,12 @@ function httpsPost(url, body) {
 async function fetchPxWebIndicators() {
   var indicators = [];
   try {
-    // GDP quarterly growth (latest quarter, % vs previous year)
+    // GDP quarterly growth (seasonally adjusted, % of corresponding period prev year)
     var gdpData = await httpsPost(PXWEB + '/VEK/IS/ISI/ISI010c', {
       query: [
-        { code: 'SESON', selection: { filter: 'item', values: ['10'] } },
-        { code: 'INDICATOR', selection: { filter: 'item', values: ['TOTAL'] } },
-        { code: 'ContentsCode', selection: { filter: 'item', values: ['ISI010c_V02'] } },
+        { code: 'SESON', selection: { filter: 'item', values: ['SA'] } },
+        { code: 'INDICATOR', selection: { filter: 'item', values: ['B1GQ'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['ISI010c1'] } },
       ],
       response: { format: 'json-stat2' },
     });
@@ -124,21 +124,24 @@ async function fetchPxWebIndicators() {
       var vals = gdpData.value.filter(function (v) { return v !== null; });
       var latest = vals[vals.length - 1];
       var prev = vals.length > 4 ? vals[vals.length - 5] : null;
+      var growthPct = latest ? (latest - 100).toFixed(1) : null;
       indicators.push({
         label: 'GDP Growth',
-        value: (latest != null ? latest.toFixed(1) + '%' : 'N/A'),
-        unit: 'QoQ',
-        change: prev != null ? ((latest - prev) >= 0 ? '+' : '') + (latest - prev).toFixed(1) + '%' : '',
+        value: growthPct != null ? growthPct + '%' : 'N/A',
+        unit: 'YoY',
+        change: prev != null ? ((latest - prev) >= 0 ? '+' : '') + (latest - prev).toFixed(1) + 'pp' : '',
       });
     }
   } catch (e) { indicators.push({ label: 'GDP Growth', value: 'N/A', unit: '', change: '' }); }
 
   try {
-    // Average salary (latest quarter)
+    // Average gross salary (quarterly, TOTAL sector)
     var salData = await httpsPost(PXWEB + '/EMP/DS/DSV/DSV010c', {
       query: [
-        { code: 'Vai01', selection: { filter: 'item', values: ['TOTAL'] } },
-        { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV010c_V01'] } },
+        { code: 'GRS_NET', selection: { filter: 'item', values: ['GRS'] } },
+        { code: 'SECTOR', selection: { filter: 'item', values: ['TOTAL'] } },
+        { code: 'INDICATOR', selection: { filter: 'item', values: ['AVWAG_M'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['DSV010c'] } },
       ],
       response: { format: 'json-stat2' },
     });
@@ -157,11 +160,11 @@ async function fetchPxWebIndicators() {
   } catch (e) { indicators.push({ label: 'Avg Salary', value: 'N/A', unit: '', change: '' }); }
 
   try {
-    // CPI monthly (latest month, % vs same month prev year)
+    // CPI inflation (monthly, 12-month average over prev 12-month average)
     var cpiData = await httpsPost(PXWEB + '/VEK/PC/PCI/PCI021m', {
       query: [
-        { code: 'ECOICOP2', selection: { filter: 'item', values: ['TOTAL'] } },
-        { code: 'ContentsCode', selection: { filter: 'item', values: ['PCI021m_V03'] } },
+        { code: 'ECOICOP_V2', selection: { filter: 'item', values: ['0'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['PCI021m4'] } },
       ],
       response: { format: 'json-stat2' },
     });
@@ -178,10 +181,14 @@ async function fetchPxWebIndicators() {
     }
   } catch (e) { indicators.push({ label: 'CPI Inflation', value: 'N/A', unit: '', change: '' }); }
 
-  // Unemployment — from same labour market category
+  // Unemployment rate (monthly, seasonally adjusted)
   try {
-    var unemData = await httpsPost(PXWEB + '/EMP/NBBA/NBBA020/NBBA020c', {
-      query: [],
+    var unemData = await httpsPost(PXWEB + '/EMP/NBBA/NBBB/NBB150m', {
+      query: [
+        { code: 'SEX', selection: { filter: 'item', values: ['T'] } },
+        { code: 'SESON', selection: { filter: 'item', values: ['SA'] } },
+        { code: 'ContentsCode', selection: { filter: 'item', values: ['NBB1501m'] } },
+      ],
       response: { format: 'json-stat2' },
     });
     if (unemData && unemData.value) {
