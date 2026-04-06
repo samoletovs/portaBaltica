@@ -17,6 +17,14 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   hotel_occupancy: 'tourism',
   construction_output: 'construction',
   biz_confidence: 'consumer_confidence',
+  industrial: 'industrial',
+  ppi: 'ppi',
+  gov_revenue: 'gov_revenue',
+  gov_debt: 'gov_debt_gdp',
+  exports: 'exports',
+  imports: 'imports',
+  new_vehicles: 'vehicles',
+  renewable_share: 'renewables',
 };
 
 interface TimeSeriesPoint {
