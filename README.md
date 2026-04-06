@@ -1,4 +1,4 @@
-# Porta Baltica
+# portaBaltica
 
 Live maritime dashboard for Latvia's three major ports — Riga, Ventspils, and Liepaja.
 

@@ -31,13 +31,13 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
   }, []);
 
   return (
-    <header style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+    <header>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         {/* Top bar */}
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
             <h1 className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              Porta Baltica
+              portaBaltica
             </h1>
             <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic data intelligence</span>
           </div>
