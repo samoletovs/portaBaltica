@@ -3,6 +3,7 @@ import type { EconomyData } from '../types';
 import { IndicatorCard } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
 import { IndicatorTable } from './IndicatorTable';
+import { useTheme } from '../ThemeContext';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -10,6 +11,7 @@ interface EconomyTileProps {
 }
 
 export function EconomyTile({ data, loading }: EconomyTileProps) {
+  const { chartColors } = useTheme();
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -68,9 +70,9 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                       const h = new Date(p.timestamp).getHours();
                       return { hour: `${h}:00`, price: p.price, isCurrent: h === now };
                     })}>
-                      <XAxis dataKey="hour" tick={{ fill: '#94a3b8', fontSize: 9 }} tickLine={false} axisLine={false} interval={5} />
+                      <XAxis dataKey="hour" tick={{ fill: chartColors.axis, fontSize: 9 }} tickLine={false} axisLine={false} interval={5} />
                       <Tooltip
-                        contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
+                        contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
                         formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}
                         labelFormatter={(label) => `Today ${label}`}
                       />

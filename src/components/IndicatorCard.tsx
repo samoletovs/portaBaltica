@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../ThemeContext';
 
 interface TimeSeriesPoint {
   period: string;
@@ -37,6 +38,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { chartColors } = useTheme();
 
   function formatPeriod(p: string): string {
     // "2025Q4" → "Q4 2025", "2025M12" → "Dec 2025", "2025" → "2025"
@@ -126,8 +128,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               isAnimationActive={false}
             />
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
-              labelStyle={{ color: '#94a3b8' }}
+              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
+              labelStyle={{ color: chartColors.axis }}
               formatter={(v) => [formatValue(v as number), title]}
               labelFormatter={(l) => formatPeriod(String(l))}
             />
@@ -152,6 +154,7 @@ export function IndicatorChart({ id }: { id: string }) {
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(10);
+  const { chartColors } = useTheme();
 
   function formatPeriod(p: string): string {
     const qMatch = p.match(/^(\d{4})Q(\d)$/);
@@ -222,22 +225,22 @@ export function IndicatorChart({ id }: { id: string }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              tick={{ fill: chartColors.axis, fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: '#1e293b' }}
+              axisLine={{ stroke: chartColors.grid }}
               interval={Math.max(0, Math.floor(chartData.length / 8))}
               tickFormatter={(v: string) => formatPeriod(v)}
             />
             <YAxis
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              tick={{ fill: chartColors.axis, fontSize: 10 }}
               tickLine={false}
-              axisLine={{ stroke: '#1e293b' }}
+              axisLine={{ stroke: chartColors.grid }}
               width={60}
               tickFormatter={(v: number) => formatValue(v)}
             />
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '12px' }}
-              labelStyle={{ color: '#e2e8f0', fontWeight: 500 }}
+              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '12px' }}
+              labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
               formatter={(v) => [formatValue(v as number), data?.title ?? '']}
               labelFormatter={(l) => formatPeriod(String(l))}
             />

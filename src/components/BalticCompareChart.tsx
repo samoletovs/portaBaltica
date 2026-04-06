@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
+import { useTheme } from '../ThemeContext';
 
 interface CountrySeries {
   label: string;
@@ -30,6 +31,7 @@ interface BalticCompareChartProps {
 export function BalticCompareChart({ indicator, title, years = 5, compact = false }: BalticCompareChartProps) {
   const [data, setData] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { chartColors } = useTheme();
 
   useEffect(() => {
     setLoading(true);
@@ -101,22 +103,22 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: '#94a3b8', fontSize: 9 }}
+              tick={{ fill: chartColors.axis, fontSize: 9 }}
               tickLine={false}
-              axisLine={{ stroke: '#1e293b' }}
+              axisLine={{ stroke: chartColors.grid }}
               interval={Math.max(0, Math.floor(chartData.length / 6))}
             />
             {!compact && (
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 9 }}
+                tick={{ fill: chartColors.axis, fontSize: 9 }}
                 tickLine={false}
-                axisLine={{ stroke: '#1e293b' }}
+                axisLine={{ stroke: chartColors.grid }}
                 width={40}
               />
             )}
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '6px', fontSize: '11px' }}
-              labelStyle={{ color: '#e2e8f0', fontWeight: 500 }}
+              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
+              labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
               formatter={(v, name) => {
                 const info = COUNTRY_COLORS[name as string];
                 const val = v as number | null;
