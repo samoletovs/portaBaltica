@@ -74,13 +74,60 @@ body {
 }
 
 /* ─── Theme-aware utility classes ─── */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: 0.75rem;
+/* These override Tailwind's hardcoded colors to respond to the theme toggle */
+
+/* Card backgrounds */
+.bg-slate-900\/50, [class*="bg-slate-900"] {
+  background: var(--bg-card) !important;
 }
-.card:hover {
-  border-color: var(--border-subtle);
+.bg-slate-800\/50, .bg-slate-800\/40, .bg-slate-800\/30, .bg-slate-800\/20,
+[class*="bg-slate-800"] {
+  background: var(--bg-card-hover) !important;
+}
+
+/* Borders */
+[class*="border-slate-800"] {
+  border-color: var(--border-card) !important;
+}
+
+/* Text colors */
+.text-white {
+  color: var(--text-primary) !important;
+}
+.text-slate-300 {
+  color: var(--text-body) !important;
+}
+.text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+.text-slate-500 {
+  color: var(--text-tertiary) !important;
+}
+.text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+/* Hover text */
+.hover\:text-slate-200:hover, .hover\:text-slate-300:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Inputs */
+.bg-slate-600 {
+  background: var(--text-secondary) !important;
+}
+.hover\:bg-slate-500:hover {
+  background: var(--text-tertiary) !important;
+}
+
+/* Loading skeleton pulses */
+.bg-slate-700\/30 {
+  background: var(--border-card) !important;
+}
+
+/* Active tab / accent */
+.border-slate-400 {
+  border-color: #2563eb !important;
 }
 
 /* Scrollbar styling */
