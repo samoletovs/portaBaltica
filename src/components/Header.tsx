@@ -11,6 +11,8 @@ interface HeaderProps {
 const SECTIONS: { id: DashboardSection | 'all'; label: string }[] = [
   { id: 'all', label: 'Overview' },
   { id: 'economy', label: 'Economy' },
+  { id: 'trade', label: 'Trade' },
+  { id: 'government', label: 'Government' },
   { id: 'property', label: 'Property' },
   { id: 'environment', label: 'Environment' },
   { id: 'business', label: 'Business' },

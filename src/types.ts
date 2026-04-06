@@ -1,7 +1,7 @@
 // ─── Dashboard-wide types ───
 
 /** Active dashboard section */
-export type DashboardSection = 'economy' | 'property' | 'environment' | 'maritime' | 'business';
+export type DashboardSection = 'economy' | 'trade' | 'government' | 'property' | 'environment' | 'maritime' | 'business';
 
 /** AI insight significance level */
 export type InsightLevel = 'routine' | 'notable' | 'significant';

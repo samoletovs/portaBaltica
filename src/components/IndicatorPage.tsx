@@ -51,6 +51,41 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
     description: 'Total population of Latvia. Latvia has been experiencing population decline due to emigration and low birth rates.',
     related: ['unemployment', 'salary', 'gdp'],
   },
+  exports: {
+    title: 'Exports',
+    description: 'Total value of goods exported from Latvia, seasonally adjusted. Key indicator of trade competitiveness and external demand.',
+    related: ['imports', 'gdp', 'industrial'],
+  },
+  imports: {
+    title: 'Imports',
+    description: 'Total value of goods imported to Latvia, seasonally adjusted. Reflects domestic demand and trade dependency.',
+    related: ['exports', 'gdp', 'retail_sales'],
+  },
+  hotel_occupancy: {
+    title: 'Hotel occupancy rate',
+    description: 'Percentage of available hotel rooms occupied. A key indicator of tourism activity and service sector health.',
+    related: ['tourist_arrivals', 'gdp'],
+  },
+  tourist_arrivals: {
+    title: 'Tourist arrivals',
+    description: 'Number of tourists arriving at accommodation establishments. Tourism is a significant contributor to the Latvian economy.',
+    related: ['hotel_occupancy', 'gdp'],
+  },
+  gov_revenue: {
+    title: 'Government revenue',
+    description: 'Total general government revenue in million euros. Reflects tax collection effectiveness and economic activity.',
+    related: ['gov_debt', 'gdp', 'cpi'],
+  },
+  gov_debt: {
+    title: 'Government debt',
+    description: 'Total general government consolidated debt. A key metric for fiscal sustainability and credit risk assessment.',
+    related: ['gov_revenue', 'gdp'],
+  },
+  biz_confidence: {
+    title: 'Economic sentiment',
+    description: 'Composite economic sentiment indicator (long-term average = 100). A leading indicator combining business and consumer surveys.',
+    related: ['gdp', 'retail_sales', 'unemployment'],
+  },
 };
 
 export function IndicatorPage() {
