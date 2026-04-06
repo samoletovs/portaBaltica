@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
+import { useCountry } from '../CountryContext';
+
+// Mapping: PxWeb indicator → Eurostat baltic-compare indicator (for EE/LT)
+const EUROSTAT_FALLBACK: Record<string, string> = {
+  gdp: 'gdp',
+  unemployment: 'unemployment',
+  cpi: 'inflation',
+  house_prices: 'house_prices',
+};
 
 interface TimeSeriesPoint {
   period: string;
@@ -39,9 +48,9 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { chartColors } = useTheme();
+  const { country } = useCountry();
 
   function formatPeriod(p: string): string {
-    // "2025Q4" → "Q4 2025", "2025M12" → "Dec 2025", "2025" → "2025"
     const qMatch = p.match(/^(\d{4})Q(\d)$/);
     if (qMatch) return `Q${qMatch[2]} ${qMatch[1]}`;
     const mMatch = p.match(/^(\d{4})M(\d{1,2})$/);
@@ -49,18 +58,65 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       return `${months[parseInt(mMatch[2]) - 1] ?? mMatch[2]} ${mMatch[1]}`;
     }
+    // Handle "2021-Q1" format from Eurostat
+    const qMatch2 = p.match(/^(\d{4})-Q(\d)$/);
+    if (qMatch2) return `Q${qMatch2[2]} ${qMatch2[1]}`;
+    // Handle "2024-01" monthly format from Eurostat
+    const mMatch2 = p.match(/^(\d{4})-(\d{2})$/);
+    if (mMatch2) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[parseInt(mMatch2[2]) - 1] ?? mMatch2[2]} ${mMatch2[1]}`;
+    }
     return p;
   }
 
   useEffect(() => {
     if (externalLoading) return;
     setLoading(true);
-    fetch(`/api/historical-data?indicator=${id}&years=5`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id, externalLoading]);
+
+    // For EE/LT, try Eurostat baltic-compare data if available
+    const eurostatId = EUROSTAT_FALLBACK[id];
+    if (country !== 'LV' && eurostatId) {
+      fetch(`/api/baltic-compare?indicator=${eurostatId}&years=5`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.countries?.[country]) {
+            const cs = d.countries[country];
+            const series = cs.series.filter((s: { value: number | null }) => s.value !== null);
+            const values = series.map((s: { value: number }) => s.value);
+            const latest = values.length > 0 ? values[values.length - 1] : null;
+            const previous = values.length > 1 ? values[values.length - 2] : null;
+            setData({
+              indicator: id,
+              title: d.title,
+              unit: d.unit || unit,
+              source: d.source || 'Eurostat',
+              series: series,
+              summary: {
+                latest,
+                previous,
+                change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
+                min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
+                max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
+                avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
+                count: values.length,
+              },
+            });
+          } else {
+            setData(null);
+          }
+        })
+        .catch(() => setData(null))
+        .finally(() => setLoading(false));
+    } else {
+      // Latvia: use PxWeb historical-data
+      fetch(`/api/historical-data?indicator=${id}&years=5`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => setData(d))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [id, externalLoading, country]);
 
   if (loading || externalLoading) {
     return (

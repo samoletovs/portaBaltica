@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useCountry } from '../CountryContext';
+
+const EUROSTAT_MAP: Record<string, string> = {
+  gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
+};
 
 interface IndicatorRow {
   id: string;
@@ -16,21 +21,37 @@ export function IndicatorTable() {
   const [rows, setRows] = useState<IndicatorRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { country } = useCountry();
 
   useEffect(() => {
     setLoading(true);
     Promise.all(
-      INDICATORS.map((id) =>
-        fetch(`/api/historical-data?indicator=${id}&years=3`)
+      INDICATORS.map((id) => {
+        const eurostatId = EUROSTAT_MAP[id];
+        if (country !== 'LV' && eurostatId) {
+          return fetch(`/api/baltic-compare?indicator=${eurostatId}&years=3`)
+            .then((r) => r.ok ? r.json() : null)
+            .then((d) => {
+              if (!d?.countries?.[country]) return null;
+              const cs = d.countries[country];
+              const series = cs.series.filter((s: { value: number | null }) => s.value !== null);
+              const values = series.map((s: { value: number }) => s.value);
+              const latest = values.length > 0 ? values[values.length - 1] : null;
+              const previous = values.length > 1 ? values[values.length - 2] : null;
+              return { id, title: d.title, unit: d.unit || '', series, summary: { latest, previous, change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null } } as IndicatorRow;
+            })
+            .catch(() => null);
+        }
+        return fetch(`/api/historical-data?indicator=${id}&years=3`)
           .then((r) => r.ok ? r.json() : null)
           .then((d) => d ? { id, title: d.title, unit: d.unit, series: d.series, summary: d.summary } as IndicatorRow : null)
-          .catch(() => null)
-      )
+          .catch(() => null);
+      })
     ).then((results) => {
       setRows(results.filter((r): r is IndicatorRow => r !== null));
       setLoading(false);
     });
-  }, []);
+  }, [country]);
 
   if (loading) {
     return (
