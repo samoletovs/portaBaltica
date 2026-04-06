@@ -15,130 +15,85 @@ function jsonGet(url) {
 /**
  * GET /api/ai-insights
  *
- * Generates real-time AI insights by analyzing actual data from the dashboard APIs.
- * Collects key metrics, identifies significant changes, and formats them as insights.
+ * Generates real-time AI insights by fetching data directly from external sources.
  */
+
+var ELERING_URL = 'https://dashboard.elering.ee/api/nps/price';
+var OPEN_METEO_AQ = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+var OPEN_METEO_WX = 'https://api.open-meteo.com/v1/forecast';
+var ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
+
+function httpGetText(url) {
+  return new Promise(function (resolve, reject) {
+    https.get(url, { timeout: 10000 }, function (res) {
+      var data = '';
+      res.on('data', function (c) { data += c; });
+      res.on('end', function () { resolve(data); });
+    }).on('error', reject);
+  });
+}
+
 module.exports = async function (context, req) {
   try {
-    // Fetch live data from our own APIs in parallel
-    var baseUrl = 'https://' + (req.headers.host || 'portabaltica.naurolabs.com');
-    var [economy, environment] = await Promise.all([
-      jsonGet(baseUrl + '/api/economy-data').catch(function () { return null; }),
-      jsonGet(baseUrl + '/api/environment-data').catch(function () { return null; }),
-    ]);
-
     var insights = [];
 
-    // Electricity insight
-    if (economy && economy.electricityPrices && economy.electricityPrices.length > 0) {
-      var prices = economy.electricityPrices;
-      var today = new Date().toISOString().slice(0, 10);
-      var todayPrices = prices.filter(function (p) { return p.timestamp && p.timestamp.startsWith(today); });
-      var relevantPrices = todayPrices.length > 0 ? todayPrices : prices.slice(0, 24);
-      var avg = relevantPrices.reduce(function (s, p) { return s + p.price; }, 0) / (relevantPrices.length || 1);
-      var min = Math.min.apply(null, relevantPrices.map(function (p) { return p.price; }));
-      var max = Math.max.apply(null, relevantPrices.map(function (p) { return p.price; }));
-      var current = economy.electricityCurrent;
+    // 1. Electricity prices from Elering
+    try {
+      var now = new Date();
+      var start = new Date(now); start.setUTCHours(0, 0, 0, 0);
+      var end = new Date(start); end.setDate(end.getDate() + 1);
+      var elData = await jsonGet(ELERING_URL + '?start=' + start.toISOString() + '&end=' + end.toISOString());
+      var lvPrices = (elData.data && elData.data.lv) || [];
+      if (lvPrices.length > 0) {
+        var avg = lvPrices.reduce(function (s, p) { return s + p.price; }, 0) / lvPrices.length;
+        var minP = Math.min.apply(null, lvPrices.map(function (p) { return p.price; }));
+        var maxP = Math.max.apply(null, lvPrices.map(function (p) { return p.price; }));
+        var curHour = now.getHours();
+        var curEntry = lvPrices.find(function (p) { return new Date(p.timestamp * 1000).getHours() === curHour; });
+        var current = curEntry ? curEntry.price : avg;
 
-      var level = 'routine';
-      var headline, description;
-      if (current < 0) {
-        level = 'significant';
-        headline = 'Negative electricity prices today';
-        description = 'Current price is €' + current.toFixed(2) + '/MWh. Negative prices occur when wind/solar generation exceeds demand. Industrial users benefit from flexible scheduling.';
-      } else if (max > 100) {
-        level = 'significant';
-        headline = 'Electricity price spike detected';
-        description = 'Peak price today reached €' + max.toFixed(0) + '/MWh (avg €' + avg.toFixed(0) + '). This is significantly above normal Baltic market levels.';
-      } else if (avg < 30) {
-        level = 'routine';
-        headline = 'Low electricity prices today';
-        description = 'Average day-ahead price €' + avg.toFixed(0) + '/MWh (range €' + min.toFixed(0) + '–€' + max.toFixed(0) + '). Favorable conditions for energy-intensive operations.';
-      } else {
-        level = 'routine';
-        headline = 'Electricity market within normal range';
-        description = 'Average €' + avg.toFixed(0) + '/MWh today (range €' + min.toFixed(0) + '–€' + max.toFixed(0) + '). Current spot: €' + current.toFixed(2) + '/MWh.';
-      }
-      insights.push({ headline: headline, description: description, level: level, category: 'economy', timestamp: new Date().toISOString() });
-    }
-
-    // Exchange rate insight
-    if (economy && economy.exchangeRates && economy.exchangeRates.length > 0) {
-      var usd = economy.exchangeRates.find(function (r) { return r.currency === 'USD'; });
-      if (usd) {
-        var usdLevel = usd.rate > 1.15 ? 'notable' : usd.rate < 1.05 ? 'notable' : 'routine';
-        insights.push({
-          headline: 'EUR/USD at ' + usd.rate.toFixed(4),
-          description: usd.rate > 1.12 ? 'Euro strengthening against the dollar. Favorable for Baltic importers of US goods.' : 'Euro stable against the dollar. Exchange rate within historical norms.',
-          level: usdLevel,
-          category: 'economy',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-
-    // Business pulse insight
-    if (economy && economy.businessPulse) {
-      var bp = economy.businessPulse;
-      if (bp.suspendedBusinesses > 0) {
-        insights.push({
-          headline: bp.newVatRegistrations.toLocaleString() + ' VAT-registered businesses',
-          description: bp.suspendedBusinesses.toLocaleString() + ' businesses currently suspended. The business registry is a key indicator of economic activity and regulatory enforcement.',
-          level: 'routine',
-          category: 'business',
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-
-    // Air quality insight
-    if (environment && environment.airQuality) {
-      var aq = environment.airQuality;
-      var aqLevel = aq.status === 'unhealthy' ? 'significant' : aq.status === 'moderate' ? 'notable' : 'routine';
-      insights.push({
-        headline: 'Air quality: ' + aq.label,
-        description: 'PM2.5: ' + aq.pm25.toFixed(1) + ' µg/m³, NO₂: ' + aq.no2.toFixed(1) + ' µg/m³. ' +
-          (aq.status === 'good' ? 'Well below WHO guidelines. Good conditions for outdoor activities.' :
-           aq.status === 'moderate' ? 'Moderate levels. Sensitive groups should limit prolonged outdoor exposure.' :
-           'Unhealthy levels. Consider limiting outdoor activities.'),
-        level: aqLevel,
-        category: 'environment',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // Weather insight
-    if (environment && environment.weather && environment.weather.length > 0) {
-      var w = environment.weather[0]; // Capital city
-      insights.push({
-        headline: w.city + ': ' + w.temperature.toFixed(0) + '°C, ' + w.description.toLowerCase(),
-        description: 'Wind ' + w.windSpeed.toFixed(0) + ' km/h, humidity ' + w.humidity + '%. ' +
-          (w.temperature < 0 ? 'Below freezing — monitor heating costs and transport disruptions.' :
-           w.temperature > 25 ? 'Warm conditions may increase electricity demand for cooling.' :
-           'Current conditions within seasonal norms.'),
-        level: 'routine',
-        category: 'environment',
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    // GDP/salary from live indicators if available
-    if (economy && economy.indicators) {
-      economy.indicators.forEach(function (ind) {
-        if (ind.label === 'GDP Growth' && ind.value !== 'N/A') {
-          insights.push({
-            headline: 'GDP growth at ' + ind.value,
-            description: 'Latvia\'s economy ' + (ind.change ? 'changed ' + ind.change + ' vs previous period. ' : '') +
-              'GDP growth reflects overall economic health and drives investment decisions.',
-            level: ind.value.includes('-') ? 'significant' : 'routine',
-            category: 'economy',
-            timestamp: new Date().toISOString(),
-          });
+        if (current < 0) {
+          insights.push({ headline: 'Negative electricity price: €' + current.toFixed(2) + '/MWh', description: 'Wind/solar overproduction drives prices below zero. Industrial consumers benefit from flexible scheduling. Range: €' + minP.toFixed(0) + ' to €' + maxP.toFixed(0) + '.', level: 'significant', category: 'economy', timestamp: now.toISOString() });
+        } else if (maxP > 100) {
+          insights.push({ headline: 'Electricity price spike: peak €' + maxP.toFixed(0) + '/MWh', description: 'Today\'s peak is significantly above normal. Average €' + avg.toFixed(0) + '/MWh. Consider shifting energy-intensive tasks to off-peak hours.', level: 'significant', category: 'economy', timestamp: now.toISOString() });
+        } else {
+          insights.push({ headline: 'Electricity: €' + current.toFixed(2) + '/MWh (avg €' + avg.toFixed(0) + ')', description: 'Day-ahead prices range €' + minP.toFixed(0) + '–€' + maxP.toFixed(0) + '/MWh. ' + (avg < 30 ? 'Below seasonal average — favorable for operations.' : 'Within normal Baltic market range.'), level: 'routine', category: 'economy', timestamp: now.toISOString() });
         }
-      });
-    }
+      }
+    } catch (e) { /* skip */ }
 
-    // Limit to 5 most relevant insights
+    // 2. ECB exchange rates
+    try {
+      var xml = await httpGetText(ECB_URL);
+      var usdMatch = xml.match(/currency='USD' rate='([\d.]+)'/);
+      if (usdMatch) {
+        var usdRate = parseFloat(usdMatch[1]);
+        insights.push({ headline: 'EUR/USD: ' + usdRate.toFixed(4), description: usdRate > 1.12 ? 'Euro strengthening against the dollar — favorable for Baltic importers.' : usdRate < 1.05 ? 'Euro weakening — Baltic exporters benefit from cheaper euro-denominated goods.' : 'Exchange rate within normal range. ECB rates updated daily at 16:00 CET.', level: usdRate > 1.15 || usdRate < 1.03 ? 'notable' : 'routine', category: 'economy', timestamp: new Date().toISOString() });
+      }
+    } catch (e) { /* skip */ }
+
+    // 3. Air quality
+    try {
+      var aqData = await jsonGet(OPEN_METEO_AQ + '?latitude=56.95&longitude=24.11&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=Europe/Riga');
+      var aqCurrent = aqData.current || {};
+      var aqi = aqCurrent.european_aqi || 0;
+      var pm25 = aqCurrent.pm2_5 || 0;
+      var aqStatus = aqi > 100 ? 'unhealthy' : aqi > 50 ? 'moderate' : 'good';
+      insights.push({ headline: 'Air quality: ' + (aqStatus === 'good' ? 'Good' : aqStatus === 'moderate' ? 'Moderate' : 'Unhealthy'), description: 'PM2.5: ' + pm25.toFixed(1) + ' µg/m³. ' + (aqStatus === 'good' ? 'Well below WHO guidelines. Outdoor activities recommended.' : aqStatus === 'moderate' ? 'Sensitive groups should limit prolonged outdoor exposure.' : 'Consider limiting outdoor activities. Monitor WHO advisories.'), level: aqStatus === 'good' ? 'routine' : aqStatus === 'moderate' ? 'notable' : 'significant', category: 'environment', timestamp: new Date().toISOString() });
+    } catch (e) { /* skip */ }
+
+    // 4. Weather
+    try {
+      var wxData = await jsonGet(OPEN_METEO_WX + '?latitude=56.95&longitude=24.11&current=temperature_2m,wind_speed_10m,weather_code&timezone=Europe/Riga');
+      var wxCurrent = wxData.current || {};
+      var temp = wxCurrent.temperature_2m || 0;
+      var wind = wxCurrent.wind_speed_10m || 0;
+      var codes = { 0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 51: 'drizzle', 61: 'rain', 71: 'snow', 80: 'rain showers', 95: 'thunderstorm' };
+      var desc = codes[wxCurrent.weather_code] || 'variable';
+      insights.push({ headline: 'Riga: ' + temp.toFixed(0) + '°C, ' + desc, description: 'Wind ' + wind.toFixed(0) + ' km/h. ' + (temp < -10 ? 'Severe cold — expect elevated heating demand.' : temp < 0 ? 'Below freezing — monitor transport and energy costs.' : temp > 30 ? 'Heat wave — increased cooling demand.' : 'Conditions within seasonal range.'), level: temp < -10 || temp > 35 || wind > 80 ? 'significant' : 'routine', category: 'environment', timestamp: new Date().toISOString() });
+    } catch (e) { /* skip */ }
+
+    // Limit to 5
     insights = insights.slice(0, 5);
 
     context.res = {
