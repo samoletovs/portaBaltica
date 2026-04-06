@@ -4,7 +4,7 @@ import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoDat
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { Header } from './components/Header';
 import { DataTicker } from './components/DataTicker';
-import { InsightsBanner, generateSampleInsights } from './components/InsightsBanner';
+import { InsightsBanner } from './components/InsightsBanner';
 import { EconomyTile } from './components/EconomyTile';
 import { TradeTile } from './components/TradeTile';
 import { GovernmentTile } from './components/GovernmentTile';
@@ -140,7 +140,6 @@ export default function App() {
     loadEUFunds();
   }, [country]);
 
-  const insights = generateSampleInsights();
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;
 
   return (
@@ -157,7 +156,7 @@ export default function App() {
         )}
 
         {/* AI Insights */}
-        <InsightsBanner insights={insights} />
+        <InsightsBanner />
 
         {/* Dashboard sections */}
         <div className="space-y-8">
@@ -216,7 +215,11 @@ export default function App() {
             <p>Environment — <a href="https://open-meteo.com/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
             <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">SKLOIS</a></p>
           </div>
-          <p className="mt-4 text-slate-600">Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a></p>
+          <p className="mt-4 text-slate-600">
+            Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a>
+            {' · '}
+            <a href="/api-docs" className="hover:text-slate-400">API docs & pricing</a>
+          </p>
         </footer>
       </main>
       </div>
