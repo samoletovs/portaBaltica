@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
 import type { Insight } from '../types';
 import { INSIGHT_BADGES } from '../types';
+import { useCountry } from '../CountryContext';
 
 export function InsightsBanner() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
+  const { country } = useCountry();
 
   useEffect(() => {
-    fetch('/api/ai-insights')
+    setLoading(true);
+    fetch(`/api/ai-insights?country=${country.toLowerCase()}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.insights) setInsights(d.insights); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [country]);
 
   if (loading) {
     return (

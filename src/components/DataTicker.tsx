@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useCountry } from '../CountryContext';
 
 interface TickerItem {
   label: string;
@@ -9,10 +10,11 @@ interface TickerItem {
 
 export function DataTicker() {
   const [items, setItems] = useState<TickerItem[]>([]);
+  const { country } = useCountry();
 
   useEffect(() => {
     // Fetch economy data for ticker values
-    fetch('/api/economy-data')
+    fetch(`/api/economy-data?country=${country.toLowerCase()}`)
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (!d) return;
@@ -48,7 +50,7 @@ export function DataTicker() {
         setItems(tickers);
       })
       .catch(() => {});
-  }, []);
+  }, [country]);
 
   if (items.length === 0) return null;
 

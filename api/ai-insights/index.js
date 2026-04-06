@@ -36,6 +36,15 @@ function httpGetText(url) {
 module.exports = async function (context, req) {
   try {
     var insights = [];
+    var country = (req.query && req.query.country) || 'lv';
+    var zoneMap = { lv: 'lv', ee: 'ee', lt: 'lt' };
+    var zone = zoneMap[country] || 'lv';
+    var capitalCoords = {
+      lv: { lat: 56.95, lon: 24.11, name: 'Riga', tz: 'Europe/Riga' },
+      ee: { lat: 59.44, lon: 24.75, name: 'Tallinn', tz: 'Europe/Tallinn' },
+      lt: { lat: 54.69, lon: 25.28, name: 'Vilnius', tz: 'Europe/Vilnius' },
+    };
+    var capital = capitalCoords[country] || capitalCoords.lv;
 
     // 1. Electricity prices from Elering
     try {
@@ -43,13 +52,13 @@ module.exports = async function (context, req) {
       var start = new Date(now); start.setUTCHours(0, 0, 0, 0);
       var end = new Date(start); end.setDate(end.getDate() + 1);
       var elData = await jsonGet(ELERING_URL + '?start=' + start.toISOString() + '&end=' + end.toISOString());
-      var lvPrices = (elData.data && elData.data.lv) || [];
-      if (lvPrices.length > 0) {
-        var avg = lvPrices.reduce(function (s, p) { return s + p.price; }, 0) / lvPrices.length;
-        var minP = Math.min.apply(null, lvPrices.map(function (p) { return p.price; }));
-        var maxP = Math.max.apply(null, lvPrices.map(function (p) { return p.price; }));
+      var prices = (elData.data && elData.data[zone]) || [];
+      if (prices.length > 0) {
+        var avg = prices.reduce(function (s, p) { return s + p.price; }, 0) / prices.length;
+        var minP = Math.min.apply(null, prices.map(function (p) { return p.price; }));
+        var maxP = Math.max.apply(null, prices.map(function (p) { return p.price; }));
         var curHour = now.getHours();
-        var curEntry = lvPrices.find(function (p) { return new Date(p.timestamp * 1000).getHours() === curHour; });
+        var curEntry = prices.find(function (p) { return new Date(p.timestamp * 1000).getHours() === curHour; });
         var current = curEntry ? curEntry.price : avg;
 
         if (current < 0) {
@@ -74,23 +83,23 @@ module.exports = async function (context, req) {
 
     // 3. Air quality
     try {
-      var aqData = await jsonGet(OPEN_METEO_AQ + '?latitude=56.95&longitude=24.11&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=Europe/Riga');
+      var aqData = await jsonGet(OPEN_METEO_AQ + '?latitude=' + capital.lat + '&longitude=' + capital.lon + '&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=' + capital.tz);
       var aqCurrent = aqData.current || {};
       var aqi = aqCurrent.european_aqi || 0;
       var pm25 = aqCurrent.pm2_5 || 0;
       var aqStatus = aqi > 100 ? 'unhealthy' : aqi > 50 ? 'moderate' : 'good';
-      insights.push({ headline: 'Air quality: ' + (aqStatus === 'good' ? 'Good' : aqStatus === 'moderate' ? 'Moderate' : 'Unhealthy'), description: 'PM2.5: ' + pm25.toFixed(1) + ' µg/m³. ' + (aqStatus === 'good' ? 'Well below WHO guidelines. Outdoor activities recommended.' : aqStatus === 'moderate' ? 'Sensitive groups should limit prolonged outdoor exposure.' : 'Consider limiting outdoor activities. Monitor WHO advisories.'), level: aqStatus === 'good' ? 'routine' : aqStatus === 'moderate' ? 'notable' : 'significant', category: 'environment', timestamp: new Date().toISOString() });
+      insights.push({ headline: capital.name + ' air quality: ' + (aqStatus === 'good' ? 'Good' : aqStatus === 'moderate' ? 'Moderate' : 'Unhealthy'), description: 'PM2.5: ' + pm25.toFixed(1) + ' µg/m³. ' + (aqStatus === 'good' ? 'Well below WHO guidelines. Outdoor activities recommended.' : aqStatus === 'moderate' ? 'Sensitive groups should limit prolonged outdoor exposure.' : 'Consider limiting outdoor activities. Monitor WHO advisories.'), level: aqStatus === 'good' ? 'routine' : aqStatus === 'moderate' ? 'notable' : 'significant', category: 'environment', timestamp: new Date().toISOString() });
     } catch (e) { /* skip */ }
 
     // 4. Weather
     try {
-      var wxData = await jsonGet(OPEN_METEO_WX + '?latitude=56.95&longitude=24.11&current=temperature_2m,wind_speed_10m,weather_code&timezone=Europe/Riga');
+      var wxData = await jsonGet(OPEN_METEO_WX + '?latitude=' + capital.lat + '&longitude=' + capital.lon + '&current=temperature_2m,wind_speed_10m,weather_code&timezone=' + capital.tz);
       var wxCurrent = wxData.current || {};
       var temp = wxCurrent.temperature_2m || 0;
       var wind = wxCurrent.wind_speed_10m || 0;
       var codes = { 0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 51: 'drizzle', 61: 'rain', 71: 'snow', 80: 'rain showers', 95: 'thunderstorm' };
       var desc = codes[wxCurrent.weather_code] || 'variable';
-      insights.push({ headline: 'Riga: ' + temp.toFixed(0) + '°C, ' + desc, description: 'Wind ' + wind.toFixed(0) + ' km/h. ' + (temp < -10 ? 'Severe cold — expect elevated heating demand.' : temp < 0 ? 'Below freezing — monitor transport and energy costs.' : temp > 30 ? 'Heat wave — increased cooling demand.' : 'Conditions within seasonal range.'), level: temp < -10 || temp > 35 || wind > 80 ? 'significant' : 'routine', category: 'environment', timestamp: new Date().toISOString() });
+      insights.push({ headline: capital.name + ': ' + temp.toFixed(0) + '°C, ' + desc, description: 'Wind ' + wind.toFixed(0) + ' km/h. ' + (temp < -10 ? 'Severe cold — expect elevated heating demand.' : temp < 0 ? 'Below freezing — monitor transport and energy costs.' : temp > 30 ? 'Heat wave — increased cooling demand.' : 'Conditions within seasonal range.'), level: temp < -10 || temp > 35 || wind > 80 ? 'significant' : 'routine', category: 'environment', timestamp: new Date().toISOString() });
     } catch (e) { /* skip */ }
 
     // Limit to 5
