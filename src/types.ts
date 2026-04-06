@@ -97,7 +97,7 @@ export interface AirQualityData {
 export interface EnvironmentData {
   weather: WeatherCondition[];
   airQuality: AirQualityData;
-  rigaPopulation: number;
+  capitalPopulation: number;
   fetchedAt: string;
 }
 
