@@ -88,6 +88,48 @@ var DATASETS = {
     title: 'Tourist arrivals',
     unit: 'persons',
   },
+  industrial: {
+    dataset: 'sts_inpr_m',
+    params: 'nace_r2=B-D36&s_adj=SCA&unit=PCH_PRE&freq=M',
+    title: 'Industrial production',
+    unit: '% MoM',
+  },
+  ppi: {
+    dataset: 'sts_inpp_m',
+    params: 'nace_r2=B-D&s_adj=NSA&unit=PCH_PRE&freq=M',
+    title: 'Producer prices',
+    unit: '% MoM',
+  },
+  gov_revenue: {
+    dataset: 'gov_10q_ggnfa',
+    params: 'na_item=TR&freq=Q&unit=MIO_EUR&sector=S13',
+    title: 'Government revenue',
+    unit: 'M EUR',
+  },
+  exports: {
+    dataset: 'ext_tec01',
+    params: 'stk_flow=EXP&partner=WORLD&freq=M&unit=MIO_EUR',
+    title: 'Exports',
+    unit: 'M EUR',
+  },
+  imports: {
+    dataset: 'ext_tec01',
+    params: 'stk_flow=IMP&partner=WORLD&freq=M&unit=MIO_EUR',
+    title: 'Imports',
+    unit: 'M EUR',
+  },
+  vehicles: {
+    dataset: 'road_eqs_carhab',
+    params: 'freq=A',
+    title: 'Passenger cars per 1000 inhabitants',
+    unit: 'per 1000',
+  },
+  renewables: {
+    dataset: 'nrg_ind_ren',
+    params: 'freq=A&nrg_bal=REN',
+    title: 'Renewable energy share',
+    unit: '%',
+  },
 };
 
 function parseJsonStat(data, countries) {
