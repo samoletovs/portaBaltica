@@ -1,4 +1,5 @@
 import type { EnvironmentData } from '../types';
+import { useCountry } from '../CountryContext';
 
 interface EnvironmentTileProps {
   data: EnvironmentData | null;
@@ -24,6 +25,7 @@ const WEATHER_ICONS: Record<string, string> = {
 };
 
 export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
+  const { countryLabel, flag } = useCountry();
   if (loading) return <TileSkeleton />;
   if (!data) return null;
 
@@ -31,7 +33,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Environment</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-body)' }}>Environment <span className="font-normal normal-case" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel}</span></h2>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Weather */}

@@ -5,6 +5,8 @@ import { BalticCompareChart } from './BalticCompareChart';
 import { IndicatorTable } from './IndicatorTable';
 import { useTheme } from '../ThemeContext';
 
+import { useCountry } from '../CountryContext';
+
 interface EconomyTileProps {
   data: EconomyData | null;
   loading: boolean;
@@ -12,11 +14,12 @@ interface EconomyTileProps {
 
 export function EconomyTile({ data, loading }: EconomyTileProps) {
   const { chartColors } = useTheme();
+  const { countryLabel, flag } = useCountry();
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Economy & markets</h2>
-        <span className="text-xs text-slate-500">Latvia · Live data</span>
+        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-body)' }}>Economy & markets</h2>
+        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Live data</span>
       </div>
 
       {/* Key macro indicators */}
