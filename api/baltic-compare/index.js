@@ -179,9 +179,9 @@ var DATASETS = {
     unit: '%',
   },
   trade_balance: {
-    dataset: 'ext_tec01',
-    params: 'stk_flow=BAL&partner=WORLD&freq=M&unit=MIO_EUR',
-    title: 'Trade balance',
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=GS&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    title: 'Trade balance (goods & services)',
     unit: 'M EUR',
   },
   gov_deficit: {
@@ -198,7 +198,7 @@ var DATASETS = {
   },
   elec_price_household: {
     dataset: 'nrg_pc_204',
-    params: 'freq=S&product=6000&consom=4161903&unit=KWH&tax=X_TAX&currency=EUR',
+    params: 'freq=S&nrg_cons=TOT_KWH&tax=I_TAX&currency=EUR',
     title: 'Electricity price (households)',
     unit: 'EUR/kWh',
   },
