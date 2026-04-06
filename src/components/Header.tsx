@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
+import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
 
 interface HeaderProps {
   lastUpdated: Date | null;
@@ -24,6 +25,7 @@ const SECTIONS: { id: DashboardSection | 'all'; label: string }[] = [
 export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderProps) {
   const [clock, setClock] = useState(new Date());
   const { theme, toggle } = useTheme();
+  const { country, setCountry } = useCountry();
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 60_000);
@@ -51,6 +53,24 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
                 Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
+            {/* Country selector */}
+            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }}>
+              {(Object.keys(COUNTRY_INFO) as Country[]).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCountry(c)}
+                  className="px-2 py-1 text-xs transition-colors"
+                  style={{
+                    background: country === c ? 'var(--text-secondary)' : 'var(--bg-card)',
+                    color: country === c ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: country === c ? 500 : 400,
+                  }}
+                  aria-label={`Switch to ${COUNTRY_INFO[c].label}`}
+                >
+                  {COUNTRY_INFO[c].flag} {c}
+                </button>
+              ))}
+            </div>
             <button
               onClick={toggle}
               className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"

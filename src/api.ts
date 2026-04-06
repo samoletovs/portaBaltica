@@ -137,16 +137,16 @@ async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
 
 // ─── New data endpoints ───
 
-export async function fetchEconomyData(): Promise<EconomyData> {
-  return cachedFetch<EconomyData>('economy', '/api/economy-data');
+export async function fetchEconomyData(country = 'lv'): Promise<EconomyData> {
+  return cachedFetch<EconomyData>(`economy-${country}`, `/api/economy-data?country=${country}`);
 }
 
 export async function fetchPropertyData(): Promise<PropertyData> {
   return cachedFetch<PropertyData>('property', '/api/property-data');
 }
 
-export async function fetchEnvironmentData(): Promise<EnvironmentData> {
-  return cachedFetch<EnvironmentData>('environment', '/api/environment-data');
+export async function fetchEnvironmentData(country = 'lv'): Promise<EnvironmentData> {
+  return cachedFetch<EnvironmentData>(`environment-${country}`, `/api/environment-data?country=${country}`);
 }
 
 // ─── Phase 2: Business Intelligence ───

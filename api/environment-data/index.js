@@ -19,12 +19,34 @@ var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 var AIR_QUALITY = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var RIGA_POP_URL = 'https://opendata.riga.lv/odata/service/DeclaredPersons';
 
-var CITIES = [
-  { name: 'Riga', lat: 56.95, lon: 24.11 },
-  { name: 'Liepāja', lat: 56.51, lon: 21.01 },
-  { name: 'Daugavpils', lat: 55.87, lon: 26.53 },
-  { name: 'Jūrmala', lat: 56.97, lon: 23.77 },
-];
+var CITIES_BY_COUNTRY = {
+  lv: [
+    { name: 'Riga', lat: 56.95, lon: 24.11 },
+    { name: 'Liepāja', lat: 56.51, lon: 21.01 },
+    { name: 'Daugavpils', lat: 55.87, lon: 26.53 },
+    { name: 'Jūrmala', lat: 56.97, lon: 23.77 },
+  ],
+  ee: [
+    { name: 'Tallinn', lat: 59.44, lon: 24.75 },
+    { name: 'Tartu', lat: 58.38, lon: 26.72 },
+    { name: 'Pärnu', lat: 58.39, lon: 24.50 },
+    { name: 'Narva', lat: 59.38, lon: 28.19 },
+  ],
+  lt: [
+    { name: 'Vilnius', lat: 54.69, lon: 25.28 },
+    { name: 'Kaunas', lat: 54.90, lon: 23.89 },
+    { name: 'Klaipėda', lat: 55.71, lon: 21.13 },
+    { name: 'Šiauliai', lat: 55.93, lon: 23.31 },
+  ],
+};
+
+var AQ_COORDS = {
+  lv: { lat: 56.95, lon: 24.11 },
+  ee: { lat: 59.44, lon: 24.75 },
+  lt: { lat: 54.69, lon: 25.28 },
+};
+
+var POP_DATA = { lv: 605802, ee: 456000, lt: 294000 };
 
 function describeWeather(code) {
   if (code === 0) return 'Clear sky';
@@ -39,11 +61,12 @@ function describeWeather(code) {
   return 'Unknown';
 }
 
-async function fetchWeather() {
+async function fetchWeather(country) {
+  var cities = CITIES_BY_COUNTRY[country] || CITIES_BY_COUNTRY.lv;
   var results = [];
-  for (var i = 0; i < CITIES.length; i++) {
+  for (var i = 0; i < cities.length; i++) {
     try {
-      var city = CITIES[i];
+      var city = cities[i];
       var url = OPEN_METEO +
         '?latitude=' + city.lat +
         '&longitude=' + city.lon +
@@ -65,12 +88,14 @@ async function fetchWeather() {
   return results;
 }
 
-async function fetchAirQuality() {
+async function fetchAirQuality(country) {
   try {
+    var coords = AQ_COORDS[country] || AQ_COORDS.lv;
+    var tz = country === 'ee' ? 'Europe/Tallinn' : country === 'lt' ? 'Europe/Vilnius' : 'Europe/Riga';
     var url = AIR_QUALITY +
-      '?latitude=56.95&longitude=24.11' +
+      '?latitude=' + coords.lat + '&longitude=' + coords.lon +
       '&current=pm2_5,nitrogen_dioxide,european_aqi' +
-      '&timezone=Europe/Riga';
+      '&timezone=' + tz;
     var data = await httpGet(url);
     var current = data.current || {};
     var aqi = current.european_aqi || 0;
@@ -89,7 +114,8 @@ async function fetchAirQuality() {
   }
 }
 
-async function fetchRigaPopulation() {
+async function fetchRigaPopulation(country) {
+  if (country !== 'lv') return POP_DATA[country] || 0;
   try {
     var data = await httpGet(RIGA_POP_URL);
     var records = (data.value || (data.d && data.d.results)) || [];
@@ -105,10 +131,11 @@ async function fetchRigaPopulation() {
 
 module.exports = async function (context, req) {
   try {
+    var country = (req.query && req.query.country) || 'lv';
     const [weather, airQuality, rigaPopulation] = await Promise.all([
-      fetchWeather(),
-      fetchAirQuality(),
-      fetchRigaPopulation(),
+      fetchWeather(country),
+      fetchAirQuality(country),
+      fetchRigaPopulation(country),
     ]);
 
     context.res = {
