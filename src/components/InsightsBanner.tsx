@@ -1,19 +1,38 @@
+import { useState, useEffect } from 'react';
 import type { Insight } from '../types';
 import { INSIGHT_BADGES } from '../types';
 
-interface InsightsBannerProps {
-  insights: Insight[];
-}
+export function InsightsBanner() {
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export function InsightsBanner({ insights }: InsightsBannerProps) {
+  useEffect(() => {
+    fetch('/api/ai-insights')
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.insights) setInsights(d.insights); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
+          <span className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>Loading...</span>
+        </div>
+      </section>
+    );
+  }
+
   if (insights.length === 0) return null;
 
   return (
     <section className="mb-6">
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-xs text-slate-400 font-medium uppercase tracking-wider">Insights</h2>
-        <span className="text-xs text-slate-600 bg-slate-800/40 px-2 py-0.5 rounded">
-          Today
+        <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
+        <span className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>
+          Live
         </span>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -36,31 +55,4 @@ export function InsightsBanner({ insights }: InsightsBannerProps) {
       </div>
     </section>
   );
-}
-
-/** Generate sample insights based on live data characteristics */
-export function generateSampleInsights(): Insight[] {
-  return [
-    {
-      headline: 'Electricity prices stable this week',
-      description: 'Latvia day-ahead prices averaging €45/MWh, in line with seasonal norms. Wind generation across Baltics remains strong.',
-      level: 'routine',
-      category: 'economy',
-      timestamp: new Date().toISOString(),
-    },
-    {
-      headline: 'Construction permit activity rising',
-      description: 'New building permits up 12% vs. last month, concentrated in Riga suburbs and Mārupe municipality. Residential dominates.',
-      level: 'notable',
-      category: 'property',
-      timestamp: new Date().toISOString(),
-    },
-    {
-      headline: 'Air quality excellent in Riga',
-      description: 'PM2.5 levels well below WHO guidelines. Favorable wind patterns clearing urban pollution. Outdoor activities recommended.',
-      level: 'routine',
-      category: 'environment',
-      timestamp: new Date().toISOString(),
-    },
-  ];
 }
