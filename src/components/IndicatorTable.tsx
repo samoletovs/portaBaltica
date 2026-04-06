@@ -87,7 +87,9 @@ export function IndicatorTable() {
     if (unit.startsWith('index')) return v.toFixed(1);
     if (unit === 'per 1000') return Math.round(v).toLocaleString();
     if (unit === 'EUR') return `€${Math.round(v).toLocaleString()}`;
+    if (unit === 'EUR/kWh') return `€${v.toFixed(4)}`;
     if (unit === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
+    if (unit === 'years') return v.toFixed(1);
     if (unit.startsWith('%')) return `${v.toFixed(1)}%`;
     if (unit === 'balance') return v.toFixed(1);
     if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;

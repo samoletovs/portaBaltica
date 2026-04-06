@@ -19,13 +19,13 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-body)' }}>Economy & markets</h2>
-        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Live data</span>
+        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat + live feeds</span>
       </div>
 
       {/* Key macro indicators */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <IndicatorCard id="gdp" title="GDP growth" unit="% YoY" loading={loading} />
-        <IndicatorCard id="salary" title="Average salary" unit="EUR/month" loading={loading} />
+        <IndicatorCard id="salary" title="Hourly labour cost" unit="EUR/hour" loading={loading} />
         <IndicatorCard id="cpi" title="Consumer prices" unit="% YoY" loading={loading} />
         <IndicatorCard id="unemployment" title="Unemployment" unit="%" loading={loading} />
       </div>

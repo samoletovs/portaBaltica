@@ -4,6 +4,7 @@ import { PortCard } from './PortCard';
 import { ShipVisitsPanel } from './ShipVisitsPanel';
 import { FerryPanel } from './FerryPanel';
 import { CargoPanel } from './CargoPanel';
+import { useCountry } from '../CountryContext';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -21,11 +22,17 @@ interface MaritimeTileProps {
 }
 
 export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargoTurnover, loading }: MaritimeTileProps) {
+  const { country } = useCountry();
   if (loading) return <TileSkeleton />;
 
   return (
     <section>
       <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Maritime</h2>
+      {country !== 'LV' && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
+          🇱🇻 This section shows Latvia ports only (Riga, Ventspils, Liepāja). Baltic port expansion planned.
+        </div>
+      )}
 
       {/* Port overview cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">

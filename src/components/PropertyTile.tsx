@@ -1,4 +1,5 @@
 import type { PropertyData } from '../types';
+import { useCountry } from '../CountryContext';
 
 interface PropertyTileProps {
   data: PropertyData | null;
@@ -6,6 +7,7 @@ interface PropertyTileProps {
 }
 
 export function PropertyTile({ data, loading }: PropertyTileProps) {
+  const { country } = useCountry();
   if (loading) return <TileSkeleton />;
   if (!data) return null;
 
@@ -15,6 +17,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
   return (
     <section>
       <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Property & energy</h2>
+      {country !== 'LV' && <LvOnlyNotice />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Construction permits */}
@@ -72,6 +75,14 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+function LvOnlyNotice() {
+  return (
+    <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
+      🇱🇻 This section shows Latvia data only. Estonia and Lithuania property data coming soon.
+    </div>
   );
 }
 

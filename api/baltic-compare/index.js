@@ -172,6 +172,36 @@ var DATASETS = {
     title: 'Income inequality (Gini)',
     unit: 'index',
   },
+  youth_unemployment: {
+    dataset: 'une_rt_m',
+    params: 'unit=PC_ACT&s_adj=SA&age=Y_LT25&sex=T&freq=M',
+    title: 'Youth unemployment (under 25)',
+    unit: '%',
+  },
+  trade_balance: {
+    dataset: 'ext_tec01',
+    params: 'stk_flow=BAL&partner=WORLD&freq=M&unit=MIO_EUR',
+    title: 'Trade balance',
+    unit: 'M EUR',
+  },
+  gov_deficit: {
+    dataset: 'gov_10q_ggnfa',
+    params: 'na_item=B9&freq=Q&unit=MIO_EUR&sector=S13',
+    title: 'Government net lending/borrowing',
+    unit: 'M EUR',
+  },
+  life_expectancy: {
+    dataset: 'demo_mlexpec',
+    params: 'freq=A&sex=T&age=Y1',
+    title: 'Life expectancy at birth',
+    unit: 'years',
+  },
+  elec_price_household: {
+    dataset: 'nrg_pc_204',
+    params: 'freq=S&product=6000&consom=4161903&unit=KWH&tax=X_TAX&currency=EUR',
+    title: 'Electricity price (households)',
+    unit: 'EUR/kWh',
+  },
 };
 
 function parseJsonStat(data, countries) {

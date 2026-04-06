@@ -8,7 +8,7 @@ export function TradeTile() {
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-body)' }}>Trade & tourism</h2>
-        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · CSP data</span>
+        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

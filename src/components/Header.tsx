@@ -25,7 +25,7 @@ const SECTIONS: { id: DashboardSection | 'all'; label: string }[] = [
 export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderProps) {
   const [clock, setClock] = useState(new Date());
   const { theme, toggle } = useTheme();
-  const { country, setCountry } = useCountry();
+  const { country, setCountry, timezone, tzAbbr } = useCountry();
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 60_000);
@@ -45,8 +45,8 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-              {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Riga' })}
-              <span style={{ color: 'var(--text-muted)' }} className="ml-1">EET</span>
+              {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
+              <span style={{ color: 'var(--text-muted)' }} className="ml-1">{tzAbbr}</span>
             </span>
             {lastUpdated && (
               <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-tertiary)' }}>
