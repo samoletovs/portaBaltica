@@ -3,6 +3,7 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
+import { formatValue } from '../utils/formatValue';
 
 // Mapping: PxWeb indicator → Eurostat baltic-compare indicator (for EE/LT)
 const EUROSTAT_FALLBACK: Record<string, string> = {
@@ -159,35 +160,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const changeColor = isPositiveChange ? 'text-emerald-400' : 'text-red-400';
   const areaColor = isPositiveChange ? '#34d399' : '#f87171';
   const displayUnit = data.unit || unit; // prefer API-returned unit
-
-  function formatValue(v: number | null): string {
-    if (v === null) return 'N/A';
-    if (displayUnit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
-    if (displayUnit === 'EUR/hour') return `€${v.toFixed(1)}/h`;
-    if (displayUnit === 'persons') {
-      if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
-      return Math.round(v).toLocaleString();
-    }
-    if (displayUnit === 'M EUR') {
-      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
-      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
-      return `€${Math.round(v).toLocaleString()}`;
-    }
-    if (displayUnit === 'MIO_EUR' || displayUnit === 'M EUR') return `€${Math.round(v).toLocaleString()}M`;
-    if (displayUnit === 'thousands') return Math.round(v).toLocaleString();
-    if (displayUnit.startsWith('index')) return v.toFixed(1);
-    if (displayUnit === 'per 1000') return Math.round(v).toLocaleString();
-    if (displayUnit === 'EUR') return `€${Math.round(v).toLocaleString()}`;
-    if (displayUnit === 'EUR/kWh') return `€${v.toFixed(4)}`;
-    if (displayUnit === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
-    if (displayUnit === 'years') return v.toFixed(1);
-    if (displayUnit.startsWith('%')) return `${v.toFixed(1)}%`;
-    if (displayUnit === 'balance') return v.toFixed(1);
-    // Fallback
-    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
-    return v.toFixed(1);
-  }
+  const fmt = (v: number | null) => formatValue(v, displayUnit);
 
   return (
     <button
@@ -203,11 +176,11 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
       <div className="flex items-baseline gap-2 mb-3">
         <span className="text-xl font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
-          {formatValue(summary.latest)}
+          {fmt(summary.latest)}
         </span>
         {summary.change !== null && (
           <span className={`text-xs font-mono ${changeColor}`}>
-            {isPositiveChange ? '▲' : '▼'}{formatValue(Math.abs(summary.change))}
+            {isPositiveChange ? '▲' : '▼'}{fmt(Math.abs(summary.change))}
           </span>
         )}
       </div>
@@ -234,7 +207,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
             <Tooltip
               contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
               labelStyle={{ color: chartColors.axis }}
-              formatter={(v) => [formatValue(v as number), title]}
+              formatter={(v) => [fmt(v as number), title]}
               labelFormatter={(l) => formatPeriod(String(l))}
             />
           </AreaChart>
@@ -259,6 +232,7 @@ export function IndicatorChart({ id }: { id: string }) {
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(10);
   const { chartColors } = useTheme();
+  const { country } = useCountry();
 
   function formatPeriod(p: string): string {
     const qMatch = p.match(/^(\d{4})Q(\d)$/);
@@ -268,58 +242,82 @@ export function IndicatorChart({ id }: { id: string }) {
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       return `${months[parseInt(mMatch[2]) - 1] ?? mMatch[2]} ${mMatch[1]}`;
     }
+    const qMatch2 = p.match(/^(\d{4})-Q(\d)$/);
+    if (qMatch2) return `Q${qMatch2[2]} ${qMatch2[1]}`;
+    const mMatch2 = p.match(/^(\d{4})-(\d{2})$/);
+    if (mMatch2) {
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[parseInt(mMatch2[2]) - 1] ?? mMatch2[2]} ${mMatch2[1]}`;
+    }
     return p;
   }
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/historical-data?indicator=${id}&years=${years}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id, years]);
+    // Try Eurostat first (works for all countries)
+    const eurostatId = EUROSTAT_FALLBACK[id];
+    if (eurostatId) {
+      fetch(`/api/baltic-compare?indicator=${eurostatId}&years=${years}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => {
+          if (d?.countries?.[country]) {
+            const cs = d.countries[country];
+            const series = cs.series.filter((s: { value: number | null }) => s.value !== null);
+            const values = series.map((s: { value: number }) => s.value);
+            const latest = values.length > 0 ? values[values.length - 1] : null;
+            const previous = values.length > 1 ? values[values.length - 2] : null;
+            setData({
+              indicator: id,
+              title: d.title,
+              unit: d.unit || '',
+              source: d.source || 'Eurostat',
+              series,
+              summary: {
+                latest, previous,
+                change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
+                min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
+                max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
+                avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
+                count: values.length,
+              },
+            });
+          } else {
+            setData(null);
+          }
+        })
+        .catch(() => setData(null))
+        .finally(() => setLoading(false));
+    } else if (country === 'LV') {
+      // Latvia-only indicators via PxWeb
+      fetch(`/api/historical-data?indicator=${id}&years=${years}`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((d) => setData(d))
+        .catch(() => setData(null))
+        .finally(() => setLoading(false));
+    } else {
+      setData(null);
+      setLoading(false);
+    }
+  }, [id, years, country]);
 
   if (loading) {
     return <div className="h-64 bg-slate-900/50 rounded-xl animate-pulse" />;
   }
   if (!data || data.series.length === 0) {
-    return <p className="text-slate-400">No historical data available for this indicator.</p>;
+    return (
+      <p style={{ color: 'var(--text-secondary)' }}>
+        {country !== 'LV'
+          ? 'This indicator is only available for Latvia via PxWeb. See the Baltic Comparison chart below for cross-country data.'
+          : 'No historical data available for this indicator.'}
+      </p>
+    );
   }
 
   const chartData = data.series.filter((p) => p.value !== null);
   const { summary } = data;
   const isUp = summary.change !== null && summary.change >= 0;
   const color = isUp ? '#34d399' : '#f87171';
-
-  function formatValue(v: number | null): string {
-    if (v === null || !data) return 'N/A';
-    const u = data.unit;
-    if (u === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
-    if (u === 'EUR/hour') return `€${v.toFixed(1)}/h`;
-    if (u === 'persons') {
-      if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
-      return Math.round(v).toLocaleString();
-    }
-    if (u === 'M EUR') {
-      if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
-      if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
-      return `€${Math.round(v).toLocaleString()}`;
-    }
-    if (u === 'MIO_EUR') return `€${Math.round(v).toLocaleString()}M`;
-    if (u === 'thousands') return Math.round(v).toLocaleString();
-    if (u.startsWith('index')) return v.toFixed(1);
-    if (u === 'per 1000') return Math.round(v).toLocaleString();
-    if (u === 'EUR') return `€${Math.round(v).toLocaleString()}`;
-    if (u === 'EUR/kWh') return `€${v.toFixed(4)}`;
-    if (u === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
-    if (u === 'years') return v.toFixed(1);
-    if (u.startsWith('%')) return `${v.toFixed(1)}%`;
-    if (u === 'balance') return v.toFixed(1);
-    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
-    return v.toFixed(1);
-  }
+  const fmt = (v: number | null) => formatValue(v, data.unit);
 
   return (
     <div>
@@ -362,12 +360,12 @@ export function IndicatorChart({ id }: { id: string }) {
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               width={60}
-              tickFormatter={(v: number) => formatValue(v)}
+              tickFormatter={(v: number) => fmt(v)}
             />
             <Tooltip
               contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '12px' }}
               labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
-              formatter={(v) => [formatValue(v as number), data?.title ?? '']}
+              formatter={(v) => [fmt(v as number), data?.title ?? '']}
               labelFormatter={(l) => formatPeriod(String(l))}
             />
             <Area
@@ -384,11 +382,11 @@ export function IndicatorChart({ id }: { id: string }) {
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatBox label="Latest" value={formatValue(summary.latest)} />
-        <StatBox label="Previous" value={formatValue(summary.previous)} />
+        <StatBox label="Latest" value={fmt(summary.latest)} />
+        <StatBox label="Previous" value={fmt(summary.previous)} />
         <StatBox label="Change" value={summary.change !== null ? `${summary.change >= 0 ? '+' : ''}${summary.change.toFixed(2)}` : 'N/A'} highlight={isUp ? 'green' : 'red'} />
-        <StatBox label="Min" value={formatValue(summary.min)} />
-        <StatBox label="Max" value={formatValue(summary.max)} />
+        <StatBox label="Min" value={fmt(summary.min)} />
+        <StatBox label="Max" value={fmt(summary.max)} />
       </div>
 
       <p className="text-xs text-slate-500 mt-3">
