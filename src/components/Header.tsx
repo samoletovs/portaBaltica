@@ -32,7 +32,7 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
 
   return (
     <header>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+      <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         {/* Top bar */}
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
