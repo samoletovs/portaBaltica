@@ -111,7 +111,7 @@ module.exports = async function (context, req) {
   var years = parseInt(req.query && req.query.years, 10) || 5;
   var sinceYear = new Date().getFullYear() - years;
   var freq = def.params.includes('freq=M') ? 'M' : 'Q';
-  var sincePeriod = freq === 'M' ? sinceYear + 'M01' : sinceYear + '-Q1';
+  var sincePeriod = freq === 'M' ? sinceYear + '-01' : sinceYear + '-Q1';
 
   try {
     var url = EUROSTAT + '/' + def.dataset + '?geo=LV&geo=EE&geo=LT&' + def.params + '&sinceTimePeriod=' + sincePeriod;
