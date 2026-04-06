@@ -64,6 +64,30 @@ var DATASETS = {
     title: 'Consumer confidence',
     unit: 'balance',
   },
+  salary: {
+    dataset: 'earn_mw_avgr2',
+    params: 'freq=A',
+    title: 'Average salary',
+    unit: 'EUR/month',
+  },
+  retail: {
+    dataset: 'sts_trtu_m',
+    params: 'nace_r2=G47&s_adj=CA&unit=PCH_SM&freq=M',
+    title: 'Retail sales growth',
+    unit: '% MoM',
+  },
+  population: {
+    dataset: 'demo_pjan',
+    params: 'sex=T&age=TOTAL&freq=A',
+    title: 'Population',
+    unit: 'persons',
+  },
+  tourism: {
+    dataset: 'tour_occ_nim',
+    params: 'nace_r2=I551-I553&unit=NR&c_resid=TOTAL&freq=M',
+    title: 'Tourist arrivals',
+    unit: 'persons',
+  },
 };
 
 function parseJsonStat(data, countries) {

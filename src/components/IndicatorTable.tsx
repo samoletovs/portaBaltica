@@ -5,6 +5,7 @@ import { useCountry } from '../CountryContext';
 
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
+  salary: 'salary', retail_sales: 'retail', population: 'population',
 };
 
 interface IndicatorRow {
