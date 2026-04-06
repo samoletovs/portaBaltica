@@ -1,0 +1,257 @@
+import { useState, useEffect } from 'react';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { useNavigate } from 'react-router-dom';
+
+interface TimeSeriesPoint {
+  period: string;
+  value: number | null;
+}
+
+interface IndicatorSummary {
+  latest: number | null;
+  previous: number | null;
+  change: number | null;
+  min: number | null;
+  max: number | null;
+  avg: number | null;
+  count: number;
+}
+
+interface IndicatorCardProps {
+  id: string;
+  title: string;
+  unit: string;
+  loading?: boolean;
+}
+
+interface IndicatorData {
+  indicator: string;
+  title: string;
+  unit: string;
+  source: string;
+  series: TimeSeriesPoint[];
+  summary: IndicatorSummary;
+}
+
+export function IndicatorCard({ id, title, unit, loading: externalLoading }: IndicatorCardProps) {
+  const [data, setData] = useState<IndicatorData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (externalLoading) return;
+    setLoading(true);
+    fetch(`/api/historical-data?indicator=${id}&years=5`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setData(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id, externalLoading]);
+
+  if (loading || externalLoading) {
+    return (
+      <div className="bg-ocean-900/40 border border-ocean-700/30 rounded-2xl p-4 animate-pulse">
+        <div className="h-3 bg-ocean-700/40 rounded w-1/3 mb-3" />
+        <div className="h-7 bg-ocean-700/40 rounded w-1/2 mb-2" />
+        <div className="h-16 bg-ocean-700/40 rounded" />
+      </div>
+    );
+  }
+
+  if (!data || data.series.length === 0) return null;
+
+  const { summary } = data;
+  const chartData = data.series.filter((p) => p.value !== null).slice(-20);
+  const isPositiveChange = summary.change !== null && summary.change >= 0;
+  const changeColor = isPositiveChange ? 'text-emerald-400' : 'text-red-400';
+  const areaColor = isPositiveChange ? '#34d399' : '#f87171';
+
+  function formatValue(v: number | null): string {
+    if (v === null) return 'N/A';
+    if (unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
+    if (unit === 'persons') return v.toLocaleString();
+    return `${v.toFixed(1)}${unit.startsWith('%') ? '%' : ''}`;
+  }
+
+  return (
+    <button
+      onClick={() => navigate(`/indicator/${id}`)}
+      className="bg-ocean-900/40 backdrop-blur-sm border border-ocean-700/30 rounded-2xl p-4 text-left hover:border-ocean-500/50 transition-all group w-full"
+      aria-label={`View ${title} details`}
+    >
+      <div className="flex items-start justify-between mb-1">
+        <p className="text-xs text-ocean-400 group-hover:text-ocean-300 transition-colors">{title}</p>
+        <span className="text-xs text-ocean-600 opacity-0 group-hover:opacity-100 transition-opacity">→ details</span>
+      </div>
+
+      <div className="flex items-baseline gap-2 mb-2">
+        <span className="text-2xl font-bold text-white font-mono">
+          {formatValue(summary.latest)}
+        </span>
+        {summary.change !== null && (
+          <span className={`text-sm font-mono ${changeColor}`}>
+            {isPositiveChange ? '▲' : '▼'} {Math.abs(summary.change).toFixed(1)}
+          </span>
+        )}
+        <span className="text-xs text-ocean-500">{unit}</span>
+      </div>
+
+      <div className="h-14">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={areaColor} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={areaColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={areaColor}
+              strokeWidth={1.5}
+              fill={`url(#grad-${id})`}
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Tooltip
+              contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '11px' }}
+              labelStyle={{ color: '#7dd3fc' }}
+              formatter={(v) => [formatValue(v as number), '']}
+              labelFormatter={(l) => String(l)}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-xs text-ocean-600">
+          {chartData[0]?.period} — {chartData[chartData.length - 1]?.period}
+        </span>
+        <span className="text-xs text-ocean-600">
+          min {formatValue(summary.min)} · max {formatValue(summary.max)}
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// Full chart for indicator detail pages
+export function IndicatorChart({ id }: { id: string }) {
+  const [data, setData] = useState<IndicatorData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [years, setYears] = useState(10);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/historical-data?indicator=${id}&years=${years}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setData(d))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id, years]);
+
+  if (loading) {
+    return <div className="h-64 bg-ocean-900/40 rounded-2xl animate-pulse" />;
+  }
+  if (!data || data.series.length === 0) {
+    return <p className="text-ocean-400">No historical data available for this indicator.</p>;
+  }
+
+  const chartData = data.series.filter((p) => p.value !== null);
+  const { summary } = data;
+  const isUp = summary.change !== null && summary.change >= 0;
+  const color = isUp ? '#34d399' : '#f87171';
+
+  function formatValue(v: number | null): string {
+    if (v === null || !data) return 'N/A';
+    if (data.unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
+    if (data.unit === 'persons') return v.toLocaleString();
+    return `${v.toFixed(1)}${data.unit.startsWith('%') ? '%' : ''}`;
+  }
+
+  return (
+    <div>
+      {/* Time range selector */}
+      <div className="flex items-center gap-2 mb-4">
+        {[1, 3, 5, 10, 0].map((y) => (
+          <button
+            key={y}
+            onClick={() => setYears(y)}
+            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              years === y ? 'bg-ocean-600 text-white' : 'text-ocean-400 hover:text-ocean-200 bg-ocean-800/40'
+            }`}
+          >
+            {y === 0 ? 'MAX' : `${y}Y`}
+          </button>
+        ))}
+      </div>
+
+      {/* Main chart */}
+      <div className="h-72 mb-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id={`detail-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#0c4a6e" />
+            <XAxis
+              dataKey="period"
+              tick={{ fill: '#7dd3fc', fontSize: 10 }}
+              tickLine={false}
+              axisLine={{ stroke: '#075985' }}
+              interval={Math.max(0, Math.floor(chartData.length / 8))}
+            />
+            <YAxis
+              tick={{ fill: '#7dd3fc', fontSize: 10 }}
+              tickLine={false}
+              axisLine={{ stroke: '#075985' }}
+              width={60}
+              tickFormatter={(v: number) => formatValue(v)}
+            />
+            <Tooltip
+              contentStyle={{ background: '#0c4a6e', border: '1px solid #075985', borderRadius: '8px', fontSize: '12px' }}
+              labelStyle={{ color: '#7dd3fc', fontWeight: 600 }}
+              formatter={(v) => [formatValue(v as number), data?.title ?? '']}
+              labelFormatter={(l) => String(l)}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={color}
+              strokeWidth={2}
+              fill={`url(#detail-grad-${id})`}
+              dot={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatBox label="Latest" value={formatValue(summary.latest)} />
+        <StatBox label="Previous" value={formatValue(summary.previous)} />
+        <StatBox label="Change" value={summary.change !== null ? `${summary.change >= 0 ? '+' : ''}${summary.change.toFixed(2)}` : 'N/A'} highlight={isUp ? 'green' : 'red'} />
+        <StatBox label="Min" value={formatValue(summary.min)} />
+        <StatBox label="Max" value={formatValue(summary.max)} />
+      </div>
+
+      <p className="text-xs text-ocean-500 mt-3">
+        Source: {data.source} · {summary.count} data points
+      </p>
+    </div>
+  );
+}
+
+function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'red' }) {
+  const textColor = highlight === 'green' ? 'text-emerald-400' : highlight === 'red' ? 'text-red-400' : 'text-white';
+  return (
+    <div className="bg-ocean-800/40 rounded-lg p-3 text-center">
+      <p className={`text-sm font-bold font-mono ${textColor}`}>{value}</p>
+      <p className="text-xs text-ocean-400">{label}</p>
+    </div>
+  );
+}
