@@ -5,19 +5,13 @@
     { "route": "/.auth/login/aad", "statusCode": 404 },
     {
       "route": "/api/*",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     },
     {
       "route": "/*",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["anonymous"]
     }
   ],
-  "responseOverrides": {
-    "401": {
-      "redirect": "/.auth/login/google?post_login_redirect_uri=/",
-      "statusCode": 302
-    }
-  },
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["*.json", "*.css", "*.js", "*.png", "*.jpg", "*.svg", "*.ico", "/api/*", "/.auth/*"]

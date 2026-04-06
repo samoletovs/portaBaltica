@@ -1,3 +1,108 @@
+// ─── Dashboard-wide types ───
+
+/** Active dashboard section */
+export type DashboardSection = 'economy' | 'property' | 'environment' | 'maritime';
+
+/** AI insight significance level */
+export type InsightLevel = 'routine' | 'notable' | 'significant';
+
+export interface Insight {
+  headline: string;
+  description: string;
+  level: InsightLevel;
+  category: DashboardSection;
+  timestamp: string;
+}
+
+export const INSIGHT_BADGES: Record<InsightLevel, { label: string; color: string; emoji: string }> = {
+  routine: { label: 'Routine', color: 'text-emerald-400', emoji: '🟢' },
+  notable: { label: 'Notable', color: 'text-yellow-400', emoji: '🟡' },
+  significant: { label: 'Significant', color: 'text-red-400', emoji: '🔴' },
+};
+
+// ─── Economy & Business types ───
+
+export interface ExchangeRate {
+  currency: string;
+  rate: number;
+  name: string;
+}
+
+export interface ElectricityPrice {
+  timestamp: string;
+  price: number; // EUR/MWh
+}
+
+export interface EconomyIndicator {
+  label: string;
+  value: string;
+  change?: string;
+  unit?: string;
+}
+
+export interface BusinessPulse {
+  newVatRegistrations: number;
+  suspendedBusinesses: number;
+  suspendedChangePercent: number;
+  newCompanies: number;
+}
+
+export interface EconomyData {
+  exchangeRates: ExchangeRate[];
+  electricityPrices: ElectricityPrice[];
+  electricityCurrent: number;
+  indicators: EconomyIndicator[];
+  businessPulse: BusinessPulse;
+  fetchedAt: string;
+}
+
+// ─── Property & Energy types ───
+
+export interface ConstructionPermit {
+  municipality: string;
+  count: number;
+}
+
+export interface EnergyCertDistribution {
+  rating: string; // A, B, C, D, E, F, G
+  count: number;
+}
+
+export interface PropertyData {
+  constructionPermits: ConstructionPermit[];
+  totalPermits: number;
+  permitsTrend: number; // % change vs previous period
+  energyCerts: EnergyCertDistribution[];
+  totalCerts: number;
+  fetchedAt: string;
+}
+
+// ─── Environment & Daily Life types ───
+
+export interface WeatherCondition {
+  city: string;
+  temperature: number;
+  windSpeed: number;
+  humidity: number;
+  description: string;
+}
+
+export interface AirQualityData {
+  pm25: number;
+  no2: number;
+  status: 'good' | 'moderate' | 'unhealthy';
+  label: string;
+}
+
+export interface EnvironmentData {
+  weather: WeatherCondition[];
+  airQuality: AirQualityData;
+  rigaPopulation: number;
+  fetchedAt: string;
+}
+
+// ─── Maritime types (existing) ───
+
 /** Port definitions for Latvia's 3 major ports */
 export interface Port {
   code: string;        // UN/LOCODE e.g. "LVRIX"
