@@ -114,7 +114,7 @@ async function fetchAirQuality(country) {
   }
 }
 
-async function fetchRigaPopulation(country) {
+async function fetchCapitalPopulation(country) {
   if (country !== 'lv') return POP_DATA[country] || 0;
   try {
     var data = await httpGet(RIGA_POP_URL);
@@ -132,10 +132,10 @@ async function fetchRigaPopulation(country) {
 module.exports = async function (context, req) {
   try {
     var country = (req.query && req.query.country) || 'lv';
-    const [weather, airQuality, rigaPopulation] = await Promise.all([
+    const [weather, airQuality, capitalPopulation] = await Promise.all([
       fetchWeather(country),
       fetchAirQuality(country),
-      fetchRigaPopulation(country),
+      fetchCapitalPopulation(country),
     ]);
 
     context.res = {
@@ -144,7 +144,7 @@ module.exports = async function (context, req) {
       body: JSON.stringify({
         weather: weather,
         airQuality: airQuality,
-        rigaPopulation: rigaPopulation,
+        capitalPopulation: capitalPopulation,
         fetchedAt: new Date().toISOString(),
       }),
     };

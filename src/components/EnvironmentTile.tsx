@@ -90,7 +90,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
           <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
             <p className="text-xs text-slate-400 mb-1">{capital} Population</p>
             <p className="text-2xl font-bold text-white font-mono">
-              {data.rigaPopulation.toLocaleString()}
+              {data.capitalPopulation.toLocaleString()}
             </p>
             <p className="text-xs text-slate-500 mt-1">Declared residents · {popSources[country]}</p>
           </div>
