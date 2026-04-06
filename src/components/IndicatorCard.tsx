@@ -158,20 +158,31 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const isPositiveChange = summary.change !== null && summary.change >= 0;
   const changeColor = isPositiveChange ? 'text-emerald-400' : 'text-red-400';
   const areaColor = isPositiveChange ? '#34d399' : '#f87171';
+  const displayUnit = data.unit || unit; // prefer API-returned unit
 
   function formatValue(v: number | null): string {
     if (v === null) return 'N/A';
-    if (unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
-    if (unit === 'persons') return v.toLocaleString();
-    if (unit === 'M EUR') {
+    if (displayUnit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
+    if (displayUnit === 'EUR/hour') return `€${v.toFixed(1)}/h`;
+    if (displayUnit === 'persons') {
+      if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+      return Math.round(v).toLocaleString();
+    }
+    if (displayUnit === 'M EUR') {
       if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
       if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
       return `€${Math.round(v).toLocaleString()}`;
     }
-    if (unit === 'thousands') return Math.round(v).toLocaleString();
-    if (unit === 'index') return v.toFixed(1);
-    if (unit.startsWith('%')) return `${v.toFixed(1)}%`;
-    // Fallback: format large numbers with separators
+    if (displayUnit === 'MIO_EUR' || displayUnit === 'M EUR') return `€${Math.round(v).toLocaleString()}M`;
+    if (displayUnit === 'thousands') return Math.round(v).toLocaleString();
+    if (displayUnit.startsWith('index')) return v.toFixed(1);
+    if (displayUnit === 'per 1000') return Math.round(v).toLocaleString();
+    if (displayUnit === 'EUR') return `€${Math.round(v).toLocaleString()}`;
+    if (displayUnit === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
+    if (displayUnit.startsWith('%')) return `${v.toFixed(1)}%`;
+    if (displayUnit === 'balance') return v.toFixed(1);
+    // Fallback
+    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
     if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
     return v.toFixed(1);
   }
@@ -280,16 +291,27 @@ export function IndicatorChart({ id }: { id: string }) {
 
   function formatValue(v: number | null): string {
     if (v === null || !data) return 'N/A';
-    if (data.unit === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
-    if (data.unit === 'persons') return v.toLocaleString();
-    if (data.unit === 'M EUR') {
+    const u = data.unit;
+    if (u === 'EUR/month') return `€${Math.round(v).toLocaleString()}`;
+    if (u === 'EUR/hour') return `€${v.toFixed(1)}/h`;
+    if (u === 'persons') {
+      if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+      return Math.round(v).toLocaleString();
+    }
+    if (u === 'M EUR') {
       if (Math.abs(v) >= 1_000_000_000) return `€${(v / 1_000_000_000).toFixed(1)}B`;
       if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(0)}M`;
       return `€${Math.round(v).toLocaleString()}`;
     }
-    if (data.unit === 'thousands') return Math.round(v).toLocaleString();
-    if (data.unit === 'index') return v.toFixed(1);
-    if (data.unit.startsWith('%')) return `${v.toFixed(1)}%`;
+    if (u === 'MIO_EUR') return `€${Math.round(v).toLocaleString()}M`;
+    if (u === 'thousands') return Math.round(v).toLocaleString();
+    if (u.startsWith('index')) return v.toFixed(1);
+    if (u === 'per 1000') return Math.round(v).toLocaleString();
+    if (u === 'EUR') return `€${Math.round(v).toLocaleString()}`;
+    if (u === 'GWh') return `${Math.round(v).toLocaleString()} GWh`;
+    if (u.startsWith('%')) return `${v.toFixed(1)}%`;
+    if (u === 'balance') return v.toFixed(1);
+    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
     if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString();
     return v.toFixed(1);
   }
