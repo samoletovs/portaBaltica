@@ -68,6 +68,8 @@ export default function App() {
 
   // Load all data in parallel
   useEffect(() => {
+    let cancelled = false;
+
     // Maritime (existing flow)
     async function loadMaritime() {
       setMaritimeLoading(true);
@@ -76,16 +78,16 @@ export default function App() {
           fetchAllWeather(),
           fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], fetchedAt: '' })),
         ]);
+        if (cancelled) return;
         setPortData(weather);
         setShipVisits(govData.shipVisits);
         setFerryData(govData.ferryData);
         setCargoData(govData.cargoData);
         setCargoTurnover(govData.cargoTurnover ?? []);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load maritime data');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load maritime data');
       } finally {
-        setMaritimeLoading(false);
-        setLastUpdated(new Date());
+        if (!cancelled) { setMaritimeLoading(false); setLastUpdated(new Date()); }
       }
     }
 
@@ -94,9 +96,9 @@ export default function App() {
       setEconomyLoading(true);
       try {
         const data = await fetchEconomyData(country.toLowerCase());
-        setEconomyData(data);
+        if (!cancelled) setEconomyData(data);
       } catch { /* non-critical */ } finally {
-        setEconomyLoading(false);
+        if (!cancelled) setEconomyLoading(false);
       }
     }
 
@@ -105,9 +107,9 @@ export default function App() {
       setPropertyLoading(true);
       try {
         const data = await fetchPropertyData();
-        setPropertyData(data);
+        if (!cancelled) setPropertyData(data);
       } catch { /* non-critical */ } finally {
-        setPropertyLoading(false);
+        if (!cancelled) setPropertyLoading(false);
       }
     }
 
@@ -116,9 +118,9 @@ export default function App() {
       setEnvironmentLoading(true);
       try {
         const data = await fetchEnvironmentData(country.toLowerCase());
-        setEnvironmentData(data);
+        if (!cancelled) setEnvironmentData(data);
       } catch { /* non-critical */ } finally {
-        setEnvironmentLoading(false);
+        if (!cancelled) setEnvironmentLoading(false);
       }
     }
 
@@ -127,9 +129,9 @@ export default function App() {
       setEuLoading(true);
       try {
         const data = await fetchEUFunds();
-        setEuFunds(data);
+        if (!cancelled) setEuFunds(data);
       } catch { /* non-critical */ } finally {
-        setEuLoading(false);
+        if (!cancelled) setEuLoading(false);
       }
     }
 
@@ -138,6 +140,8 @@ export default function App() {
     loadProperty();
     loadEnvironment();
     loadEUFunds();
+
+    return () => { cancelled = true; };
   }, [country]);
 
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;

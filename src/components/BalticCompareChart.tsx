@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useTheme } from '../ThemeContext';
+import { formatValue } from '../utils/formatValue';
 
 interface CountrySeries {
   label: string;
@@ -95,7 +96,7 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
           {Object.entries(COUNTRY_COLORS).map(([geo, info]) => (
             <div key={geo} className="flex items-center gap-1 text-xs">
               <span>{info.flag}</span>
-              <span className="text-slate-300">{latestValues[geo] !== null ? latestValues[geo]?.toFixed(1) : '—'}</span>
+              <span className="text-slate-300">{latestValues[geo] !== null && latestValues[geo] !== undefined ? formatValue(latestValues[geo], data.unit) : '—'}</span>
             </div>
           ))}
         </div>
@@ -126,7 +127,7 @@ export function BalticCompareChart({ indicator, title, years = 5, compact = fals
               formatter={(v, name) => {
                 const info = COUNTRY_COLORS[name as string];
                 const val = v as number | null;
-                return [val !== null ? val.toFixed(1) + (data.unit.startsWith('%') ? '%' : '') : '—', info?.label ?? name];
+                return [val !== null ? formatValue(val, data.unit) : '—', info?.label ?? name];
               }}
             />
             {!compact && <Legend formatter={(v: string) => COUNTRY_COLORS[v]?.label ?? v} />}
