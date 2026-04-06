@@ -143,10 +143,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      <Header lastUpdated={lastUpdated} activeSection={activeSection} onSectionChange={setActiveSection} />
-      <DataTicker />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <Header lastUpdated={lastUpdated} activeSection={activeSection} onSectionChange={setActiveSection} />
+        <DataTicker />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 pb-16">
+        <main className="pt-6 pb-16">
         {error && (
           <div className="bg-red-950/50 border border-red-900/40 rounded-lg p-3 mb-6" role="alert">
             <p className="text-red-400 text-sm">{error}</p>
@@ -216,6 +217,7 @@ export default function App() {
           <p className="mt-4 text-slate-600">Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a></p>
         </footer>
       </main>
+      </div>
     </div>
   );
 }
