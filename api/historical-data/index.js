@@ -278,6 +278,31 @@ var INDICATORS = {
     title: 'Renewable energy share',
     source: 'CSP Latvia (PxWeb)',
   },
+  ppi: {
+    path: '/VEK/RC/RCI/RCI020m',
+    query: [
+      { code: 'SALES', selection: { filter: 'item', values: ['TOVT'] } },
+      { code: 'NACE_MIG', selection: { filter: 'item', values: ['MIG_ING'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['RCI020m2'] } },
+    ],
+    transform: null,
+    unit: '% YoY',
+    title: 'Producer prices (PPI)',
+    source: 'CSP Latvia (PxWeb)',
+  },
+  trade_balance: {
+    path: '/TIR/AT/ATD/ATD110m',
+    query: [
+      { code: 'SESON', selection: { filter: 'item', values: ['SCA'] } },
+      { code: 'FLOW', selection: { filter: 'item', values: ['BAL'] } },
+      { code: 'COUNTRY_GROUP', selection: { filter: 'item', values: ['TOTAL'] } },
+      { code: 'ContentsCode', selection: { filter: 'item', values: ['ATD110m'] } },
+    ],
+    transform: null,
+    unit: 'M EUR',
+    title: 'Trade balance',
+    source: 'CSP Latvia (PxWeb)',
+  },
 };
 
 /**

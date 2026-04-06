@@ -44,8 +44,9 @@ async function fetchECBRates() {
   }
 }
 
-async function fetchElectricityPrices() {
+async function fetchElectricityPrices(zone) {
   try {
+    var country = zone || 'lv';
     const now = new Date();
     const start = new Date(now);
     start.setUTCHours(0, 0, 0, 0);
@@ -53,12 +54,12 @@ async function fetchElectricityPrices() {
     end.setDate(end.getDate() + 1);
     const url = ELERING_URL + '?start=' + start.toISOString() + '&end=' + end.toISOString();
     const data = await jsonGet(url);
-    const lvPrices = (data.data && data.data.lv) || [];
-    const prices = lvPrices.map(function (p) {
+    const zonePrices = (data.data && data.data[country]) || [];
+    const prices = zonePrices.map(function (p) {
       return { timestamp: new Date(p.timestamp * 1000).toISOString(), price: p.price };
     });
     const currentHour = now.getHours();
-    const currentEntry = lvPrices.find(function (p) {
+    const currentEntry = zonePrices.find(function (p) {
       return new Date(p.timestamp * 1000).getHours() === currentHour;
     });
     return { prices: prices, current: currentEntry ? currentEntry.price : 0 };
@@ -208,9 +209,10 @@ async function fetchPxWebIndicators() {
 
 module.exports = async function (context, req) {
   try {
+    var zone = (req.query && req.query.country) || 'lv';
     const [exchangeRates, electricity, vatCount, suspendedCount, indicators] = await Promise.all([
       fetchECBRates(),
-      fetchElectricityPrices(),
+      fetchElectricityPrices(zone),
       fetchCKANCount('pvn-maksataji'),
       fetchCKANCount('saimnieciskas-darbibas-apstiprinasana-atjaunosana'),
       fetchPxWebIndicators(),

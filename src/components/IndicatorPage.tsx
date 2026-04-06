@@ -124,6 +124,16 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
     description: 'Share of renewable energy in total energy consumption. Latvia has one of the highest shares in the EU thanks to hydropower.',
     related: ['energy_price_gas'],
   },
+  ppi: {
+    title: 'Producer prices (PPI)',
+    description: 'Year-over-year change in producer prices for industrial products. A leading indicator for consumer inflation.',
+    related: ['cpi', 'industrial', 'exports'],
+  },
+  trade_balance: {
+    title: 'Trade balance',
+    description: 'Difference between exports and imports (seasonally adjusted). A negative balance means the country imports more than it exports.',
+    related: ['exports', 'imports', 'gdp'],
+  },
 };
 
 export function IndicatorPage() {

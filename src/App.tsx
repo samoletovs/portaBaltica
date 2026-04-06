@@ -17,6 +17,7 @@ import { BusinessTile } from './components/BusinessTile';
 import { SystemStatusFooter } from './components/SystemStatusFooter';
 
 import { useParams, useNavigate } from 'react-router-dom';
+import { useCountry } from './CountryContext';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -31,6 +32,7 @@ export default function App() {
   const navigate = useNavigate();
   const activeSection: DashboardSection | 'all' =
     section && VALID_SECTIONS.has(section) ? section as DashboardSection : 'all';
+  const { country } = useCountry();
 
   function setActiveSection(s: DashboardSection | 'all') {
     navigate(s === 'all' ? '/' : `/${s}`, { replace: true });
@@ -91,7 +93,7 @@ export default function App() {
     async function loadEconomy() {
       setEconomyLoading(true);
       try {
-        const data = await fetchEconomyData();
+        const data = await fetchEconomyData(country.toLowerCase());
         setEconomyData(data);
       } catch { /* non-critical */ } finally {
         setEconomyLoading(false);
@@ -113,7 +115,7 @@ export default function App() {
     async function loadEnvironment() {
       setEnvironmentLoading(true);
       try {
-        const data = await fetchEnvironmentData();
+        const data = await fetchEnvironmentData(country.toLowerCase());
         setEnvironmentData(data);
       } catch { /* non-critical */ } finally {
         setEnvironmentLoading(false);
@@ -136,7 +138,7 @@ export default function App() {
     loadProperty();
     loadEnvironment();
     loadEUFunds();
-  }, []);
+  }, [country]);
 
   const insights = generateSampleInsights();
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;
