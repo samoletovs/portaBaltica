@@ -60,9 +60,10 @@ export async function fetchPortWeather(port: Port): Promise<PortWeather> {
   };
 }
 
-/** Fetch all marine + regular weather for all 3 ports */
+/** Fetch all marine + regular weather for all 3 ports.
+ *  Uses allSettled so individual port failures don't break everything. */
 export async function fetchAllWeather() {
-  const results = await Promise.all(
+  const settled = await Promise.allSettled(
     PORTS.map(async (port) => {
       const [marine, weather] = await Promise.all([
         fetchMarineWeather(port),
@@ -71,7 +72,9 @@ export async function fetchAllWeather() {
       return { port, marine, weather };
     })
   );
-  return results;
+  return settled
+    .filter((r): r is PromiseFulfilledResult<{ port: Port; marine: MarineWeatherForecast; weather: PortWeather }> => r.status === 'fulfilled')
+    .map(r => r.value);
 }
 
 const PORT_DATA_CACHE_KEY = 'portabaltica_port_data';
