@@ -59,7 +59,6 @@ export default function App() {
   const [euLoading, setEuLoading] = useState(true);
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Track login
   useEffect(() => {
@@ -75,7 +74,7 @@ export default function App() {
       setMaritimeLoading(true);
       try {
         const [weather, govData] = await Promise.all([
-          fetchAllWeather(),
+          fetchAllWeather().catch(() => []),
           fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], fetchedAt: '' })),
         ]);
         if (cancelled) return;
@@ -84,9 +83,7 @@ export default function App() {
         setFerryData(govData.ferryData);
         setCargoData(govData.cargoData);
         setCargoTurnover(govData.cargoTurnover ?? []);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load maritime data');
-      } finally {
+      } catch { /* non-critical */ } finally {
         if (!cancelled) { setMaritimeLoading(false); setLastUpdated(new Date()); }
       }
     }
@@ -153,11 +150,6 @@ export default function App() {
         <DataTicker />
 
         <main className="pt-6 pb-16">
-        {error && (
-          <div className="bg-red-950/50 border border-red-900/40 rounded-lg p-3 mb-6" role="alert">
-            <p className="text-red-400 text-sm">{error}</p>
-          </div>
-        )}
 
         {/* AI Insights */}
         <InsightsBanner />
