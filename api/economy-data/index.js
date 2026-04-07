@@ -5,6 +5,10 @@ function httpGet(url) {
   const lib = url.startsWith('https') ? https : http;
   return new Promise(function (resolve, reject) {
     lib.get(url, { timeout: 12000 }, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       let data = '';
       res.on('data', function (chunk) { data += chunk; });
       res.on('end', function () { resolve(data); });
@@ -210,12 +214,15 @@ async function fetchPxWebIndicators() {
 module.exports = async function (context, req) {
   try {
     var zone = (req.query && req.query.country) || 'lv';
+    var isLatvia = zone === 'lv';
+
+    // ECB rates and electricity are country-aware; PxWeb/CKAN are Latvia-only
     const [exchangeRates, electricity, vatCount, suspendedCount, indicators] = await Promise.all([
       fetchECBRates(),
       fetchElectricityPrices(zone),
-      fetchCKANCount('pvn-maksataji'),
-      fetchCKANCount('saimnieciskas-darbibas-apstiprinasana-atjaunosana'),
-      fetchPxWebIndicators(),
+      isLatvia ? fetchCKANCount('pvn-maksataji') : Promise.resolve(0),
+      isLatvia ? fetchCKANCount('saimnieciskas-darbibas-apstiprinasana-atjaunosana') : Promise.resolve(0),
+      isLatvia ? fetchPxWebIndicators() : Promise.resolve([]),
     ]);
 
     const result = {

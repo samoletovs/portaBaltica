@@ -115,13 +115,18 @@ const CACHE_TTL: Record<string, number> = {
   environment: 15 * 60 * 1000, // 15 min — weather updates frequently
 };
 
+function getTTL(key: string): number {
+  const match = Object.entries(CACHE_TTL).find(([k]) => key.startsWith(k));
+  return match ? match[1] : 60 * 60 * 1000;
+}
+
 async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
   const cacheKey = `portabaltica_${key}`;
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < (CACHE_TTL[key] ?? 60 * 60 * 1000)) {
+      if (Date.now() - timestamp < getTTL(key)) {
         return data as T;
       }
     }
