@@ -5,6 +5,10 @@ function httpGet(url) {
   var lib = url.startsWith('https') ? https : http;
   return new Promise(function (resolve, reject) {
     lib.get(url, { timeout: 10000 }, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       let data = '';
       res.on('data', function (chunk) { data += chunk; });
       res.on('end', function () {

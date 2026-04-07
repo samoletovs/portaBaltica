@@ -26,6 +26,10 @@ var ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 function httpGetText(url) {
   return new Promise(function (resolve, reject) {
     https.get(url, { timeout: 10000 }, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       var data = '';
       res.on('data', function (c) { data += c; });
       res.on('end', function () { resolve(data); });

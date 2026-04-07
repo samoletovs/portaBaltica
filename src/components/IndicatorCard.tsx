@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
@@ -63,6 +63,7 @@ interface IndicatorData {
 }
 
 export function IndicatorCard({ id, title, unit, loading: externalLoading }: IndicatorCardProps) {
+  const gradientId = useId();
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -189,7 +190,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={areaColor} stopOpacity={0.2} />
                 <stop offset="100%" stopColor={areaColor} stopOpacity={0} />
               </linearGradient>
@@ -200,7 +201,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               dataKey="value"
               stroke={areaColor}
               strokeWidth={1.5}
-              fill={`url(#grad-${id})`}
+              fill={`url(#${gradientId})`}
               dot={false}
               isAnimationActive={false}
             />
