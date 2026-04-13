@@ -4,6 +4,24 @@ import { PORTS } from './types';
 const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
 const OPEN_METEO_WEATHER = 'https://api.open-meteo.com/v1/forecast';
 
+export interface BalticCompareSeriesPoint {
+  period: string;
+  value: number | null;
+}
+
+export interface BalticCompareCountrySeries {
+  label: string;
+  series: BalticCompareSeriesPoint[];
+}
+
+export interface BalticCompareData {
+  indicator: string;
+  title: string;
+  unit: string;
+  countries: Record<string, BalticCompareCountrySeries>;
+  source: string;
+}
+
 /** Fetch marine weather for a port from Open-Meteo */
 export async function fetchMarineWeather(port: Port): Promise<MarineWeatherForecast> {
   const params = new URLSearchParams({
@@ -113,6 +131,7 @@ const CACHE_TTL: Record<string, number> = {
   economy: 30 * 60 * 1000,    // 30 min — electricity updates hourly
   property: 60 * 60 * 1000,   // 1 hour — daily data
   environment: 15 * 60 * 1000, // 15 min — weather updates frequently
+  baltic_compare: 60 * 60 * 1000,
 };
 
 function getTTL(key: string): number {
@@ -141,6 +160,47 @@ async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
   } catch { /* ignore */ }
 
   return data;
+}
+
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+async function cachedFetchDeduped<T>(key: string, endpoint: string): Promise<T> {
+  const cacheKey = `portabaltica_${key}`;
+
+  try {
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < getTTL(key)) {
+        return data as T;
+      }
+    }
+  } catch {
+    // Ignore malformed cache and continue with live request.
+  }
+
+  const existing = inFlightRequests.get(cacheKey);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const request = fetch(endpoint)
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
+      const data = await res.json() as T;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
+      } catch {
+        // Ignore storage failures.
+      }
+      return data;
+    })
+    .finally(() => {
+      inFlightRequests.delete(cacheKey);
+    });
+
+  inFlightRequests.set(cacheKey, request as Promise<unknown>);
+  return request;
 }
 
 // ─── New data endpoints ───
@@ -181,4 +241,13 @@ export async function fetchSystemStatus(): Promise<SystemStatus> {
   const res = await fetch('/api/system-status');
   if (!res.ok) throw new Error(`Status failed: ${res.status}`);
   return res.json();
+}
+
+export async function fetchBalticCompare(indicator: string, years = 5): Promise<BalticCompareData | null> {
+  const normalizedYears = Number.isFinite(years) && years >= 0 ? years : 5;
+  const encodedIndicator = encodeURIComponent(indicator);
+  return cachedFetchDeduped<BalticCompareData | null>(
+    `baltic_compare-${encodedIndicator}-${normalizedYears}`,
+    `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`
+  );
 }

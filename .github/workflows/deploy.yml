@@ -1,0 +1,103 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+jobs:
+  # ── Quality Gate ────────────────────────────────────────────────────
+  quality:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc -b
+
+  # ── Build & Deploy ─────────────────────────────────────────────────
+  build_and_deploy:
+    needs: quality
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & build frontend
+        run: npm ci && npm run build
+
+      - name: Install & build API
+        run: cd api && npm ci && npm run build
+
+      - name: Deploy to Azure SWA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: dist
+          api_location: api
+          skip_app_build: true
+
+      - name: Notify Telegram (success)
+        if: success() && github.event_name == 'push'
+        env:
+          TELEGRAM_NOTIFY_URL: ${{ secrets.TELEGRAM_NOTIFY_URL }}
+        run: |
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          curl -sf -X POST "$TELEGRAM_NOTIFY_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"message\": \"✅ portaBaltica deployed\\n\\nBranch: ${{ github.ref_name }}\\nCommit: ${COMMIT_MSG}\\nSHA: ${{ github.sha }}\\nURL: https://portabaltica.naurolabs.com\"}" \
+            || echo "::warning::Telegram notification failed"
+
+      - name: Notify Telegram (failure)
+        if: failure() && github.event_name == 'push'
+        env:
+          TELEGRAM_NOTIFY_URL: ${{ secrets.TELEGRAM_NOTIFY_URL }}
+        run: |
+          COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
+          curl -sf -X POST "$TELEGRAM_NOTIFY_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"message\": \"❌ portaBaltica deploy FAILED\\n\\nBranch: ${{ github.ref_name }}\\nCommit: ${COMMIT_MSG}\\nCheck: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            || echo "::warning::Telegram notification failed"
+
+      - name: Sync landing page order
+        if: success() && github.event_name == 'push'
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/samoletovs/naurolabs/dispatches \
+            -d '{"event_type": "project-deployed", "client_payload": {"project": "portaBaltica"}}' \
+            || echo "::warning::Landing page sync dispatch failed"
+
+  # ── Close PR preview ───────────────────────────────────────────────
+  close_pull_request:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Pull Request
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_TOKEN }}
+          action: close
+          app_location: /

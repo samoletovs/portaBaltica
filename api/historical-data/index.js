@@ -9,12 +9,17 @@ function httpsPost(url, body) {
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
     };
     var req = https.request(opts, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       var data = '';
       res.on('data', function (c) { data += c; });
       res.on('end', function () {
         try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Parse failed')); }
       });
     });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);
     req.write(postData);
     req.end();

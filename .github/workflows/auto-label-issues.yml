@@ -1,0 +1,71 @@
+name: Auto-label and assign issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  label-and-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Label, prioritize, and assign
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title;
+            const body = issue.body || '';
+            const fullText = `${title} ${body}`.toLowerCase();
+            const labelsToAdd = [];
+
+            // ── Type detection from emoji prefix ──
+            const typeMap = [
+              { pattern: '🐛 Bug report', label: 'bug' },
+              { pattern: '💡 Feature idea', label: 'enhancement' },
+              { pattern: '🎨 UI/UX improvement', label: 'ui/ux' },
+            ];
+            const typeMatch = typeMap.find(m => title.includes(m.pattern));
+            if (typeMatch) labelsToAdd.push(typeMatch.label);
+
+            // ── Area detection ──
+            const areaRules = [
+              { label: 'area:frontend', keywords: ['component', 'button', 'page', 'css', 'style', 'layout', 'mobile', 'responsive', 'ui', 'ux', 'form', 'screen', 'chart', 'timer', 'workout'] },
+              { label: 'area:backend', keywords: ['api', 'endpoint', 'function', 'table storage', 'database', 'schedule', 'seed', 'program'] },
+              { label: 'area:training', keywords: ['exercise', 'progression', 'level', 'reps', 'sets', 'convict conditioning', 'calisthenics', 'dumbbell'] },
+              { label: 'area:infra', keywords: ['deploy', 'azure', 'ci/cd', 'pipeline', 'swa', 'infrastructure'] },
+            ];
+            for (const rule of areaRules) {
+              if (rule.keywords.some(kw => fullText.includes(kw))) { labelsToAdd.push(rule.label); break; }
+            }
+
+            // ── Priority ──
+            const highPriority = ['crash', 'cannot', 'broken', 'error', 'fail', 'block', 'security', 'urgent', 'critical', 'not working'];
+            const lowPriority = ['nice to have', 'minor', 'cosmetic', 'typo', 'suggestion'];
+            if (highPriority.some(kw => fullText.includes(kw))) labelsToAdd.push('priority:high');
+            else if (lowPriority.some(kw => fullText.includes(kw))) labelsToAdd.push('priority:low');
+            else labelsToAdd.push('priority:medium');
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, labels: labelsToAdd });
+            }
+
+            // ── Normalize in-app feedback ──
+            if (body.includes('Submitted via in-app feedback')) {
+              const pageMatch = body.match(/Page: `([^`]+)`/);
+              const page = pageMatch ? pageMatch[1] : 'unknown';
+              const msgMatch = body.match(/## .+\n\n([\s\S]*?)\n\n---/);
+              const userMessage = msgMatch ? msgMatch[1].trim() : body;
+              const sections = [`### Description`, userMessage, ``, `### Context`, `- **Page**: \`${page}\``, `- **Type**: ${typeMatch ? typeMatch.label : 'feedback'}`, `- **Priority**: ${labelsToAdd.find(l => l.startsWith('priority:')) || 'medium'}`, ``, `---`, `*Auto-formatted from in-app feedback*`].join('\n');
+              await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, body: sections });
+            }
+
+            // ── Auto-assign Copilot for small bugs ──
+            const isBug = labelsToAdd.includes('bug') || labelsToAdd.includes('ui/ux');
+            if (isBug && (issue.body || '').length < 500) {
+              try {
+                await github.rest.issues.addAssignees({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, assignees: ['copilot'] });
+                await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, labels: ['copilot'] });
+              } catch (e) { console.log(`Could not assign copilot: ${e.message}`); }
+            }

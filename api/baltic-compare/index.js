@@ -2,13 +2,19 @@ const https = require('https');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
-    https.get(url, { timeout: 20000 }, function (res) {
+    var req = https.get(url, { timeout: 20000 }, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       var data = '';
       res.on('data', function (c) { data += c; });
       res.on('end', function () {
         try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Parse failed')); }
       });
-    }).on('error', reject);
+    });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
+    req.on('error', reject);
   });
 }
 
