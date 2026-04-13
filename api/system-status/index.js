@@ -2,14 +2,20 @@ const https = require('https');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
-    https.get(url, { timeout: 8000 }, function (res) {
+    var req = https.get(url, { timeout: 8000 }, function (res) {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+      }
       let data = '';
       res.on('data', function (chunk) { data += chunk; });
       res.on('end', function () {
         try { resolve(JSON.parse(data)); }
         catch (e) { reject(new Error('JSON parse failed')); }
       });
-    }).on('error', reject);
+    });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
+    req.on('error', reject);
   });
 }
 
@@ -42,10 +48,12 @@ module.exports = async function (context, req) {
       if (check.type === 'xml') {
         // Simple HEAD-like check for XML
         await new Promise(function (resolve, reject) {
-          https.get(check.url, { timeout: 5000 }, function (res) {
+          var req = https.get(check.url, { timeout: 5000 }, function (res) {
             res.on('data', function () {}); // drain
             res.on('end', resolve);
-          }).on('error', reject);
+          });
+          req.on('timeout', function () { req.destroy(new Error('Timeout')); });
+          req.on('error', reject);
         });
       } else {
         await jsonGet(check.url);

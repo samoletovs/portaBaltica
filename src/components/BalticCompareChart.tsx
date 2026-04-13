@@ -2,19 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { formatValue } from '../utils/formatValue';
-
-interface CountrySeries {
-  label: string;
-  series: { period: string; value: number | null }[];
-}
-
-interface ComparisonData {
-  indicator: string;
-  title: string;
-  unit: string;
-  countries: Record<string, CountrySeries>;
-  source: string;
-}
+import { fetchBalticCompare, type BalticCompareData } from '../api';
 
 const COUNTRY_COLORS: Record<string, { color: string; label: string; flag: string }> = {
   LV: { color: '#38bdf8', label: 'Latvia', flag: '🇱🇻' },
@@ -30,17 +18,36 @@ interface BalticCompareChartProps {
 }
 
 export function BalticCompareChart({ indicator, title, years = 5, compact = false }: BalticCompareChartProps) {
-  const [data, setData] = useState<ComparisonData | null>(null);
+  const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
 
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/baltic-compare?indicator=${indicator}&years=${years}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      try {
+        const payload = await fetchBalticCompare(indicator, years);
+        if (!cancelled) {
+          setData(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [indicator, years]);
 
   if (loading) {

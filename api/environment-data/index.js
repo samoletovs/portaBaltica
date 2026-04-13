@@ -4,7 +4,7 @@ const http = require('http');
 function httpGet(url) {
   var lib = url.startsWith('https') ? https : http;
   return new Promise(function (resolve, reject) {
-    lib.get(url, { timeout: 10000 }, function (res) {
+    var req = lib.get(url, { timeout: 10000 }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
@@ -15,7 +15,9 @@ function httpGet(url) {
         try { resolve(JSON.parse(data)); }
         catch (e) { reject(new Error('JSON parse failed for ' + url)); }
       });
-    }).on('error', reject);
+    });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
+    req.on('error', reject);
   });
 }
 
@@ -67,29 +69,26 @@ function describeWeather(code) {
 
 async function fetchWeather(country) {
   var cities = CITIES_BY_COUNTRY[country] || CITIES_BY_COUNTRY.lv;
-  var results = [];
-  for (var i = 0; i < cities.length; i++) {
-    try {
-      var city = cities[i];
-      var url = OPEN_METEO +
-        '?latitude=' + city.lat +
-        '&longitude=' + city.lon +
-        '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code' +
-        '&timezone=Europe/Riga';
-      var data = await httpGet(url);
+  var settled = await Promise.allSettled(cities.map(function (city) {
+    var url = OPEN_METEO +
+      '?latitude=' + city.lat +
+      '&longitude=' + city.lon +
+      '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code' +
+      '&timezone=Europe/Riga';
+    return httpGet(url).then(function (data) {
       var current = data.current || {};
-      results.push({
+      return {
         city: city.name,
         temperature: current.temperature_2m || 0,
         windSpeed: current.wind_speed_10m || 0,
         humidity: current.relative_humidity_2m || 0,
         description: describeWeather(current.weather_code || 0),
-      });
-    } catch (e) {
-      // Skip failed city
-    }
-  }
-  return results;
+      };
+    });
+  }));
+  return settled
+    .filter(function (r) { return r.status === 'fulfilled'; })
+    .map(function (r) { return r.value; });
 }
 
 async function fetchAirQuality(country) {

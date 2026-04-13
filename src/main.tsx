@@ -1,19 +1,16 @@
-import { StrictMode, useEffect } from 'react'
+/* eslint-disable react-refresh/only-export-components */
+import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import App from './App.tsx'
-import { IndicatorPage } from './components/IndicatorPage.tsx'
-import { ApiDocsPage } from './components/ApiDocsPage.tsx'
+import { ScrollToTop } from './components/ScrollToTop.tsx'
 import { ThemeProvider } from './ThemeContext.tsx'
 import { CountryProvider } from './CountryContext.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
-  return null;
-}
+const App = lazy(() => import('./App.tsx'))
+const IndicatorPage = lazy(() => import('./components/IndicatorPage.tsx').then((module) => ({ default: module.IndicatorPage })))
+const ApiDocsPage = lazy(() => import('./components/ApiDocsPage.tsx').then((module) => ({ default: module.ApiDocsPage })))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -22,11 +19,13 @@ createRoot(document.getElementById('root')!).render(
         <CountryProvider>
           <BrowserRouter>
             <ScrollToTop />
-            <Routes>
-              <Route path="/indicator/:id" element={<IndicatorPage />} />
-              <Route path="/api-docs" element={<ApiDocsPage />} />
-              <Route path="/:section?" element={<App />} />
-            </Routes>
+            <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+              <Routes>
+                <Route path="/indicator/:id" element={<IndicatorPage />} />
+                <Route path="/api-docs" element={<ApiDocsPage />} />
+                <Route path="/:section?" element={<App />} />
+              </Routes>
+            </Suspense>
           </BrowserRouter>
         </CountryProvider>
       </ThemeProvider>

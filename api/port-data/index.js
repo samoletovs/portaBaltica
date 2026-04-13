@@ -2,7 +2,7 @@ const https = require('https');
 
 function httpsGet(url) {
   return new Promise(function(resolve, reject) {
-    https.get(url, function(res) {
+    var req = https.get(url, { timeout: 15000 }, function(res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode));
@@ -13,7 +13,9 @@ function httpsGet(url) {
         try { resolve(JSON.parse(data)); }
         catch(e) { reject(new Error('JSON parse failed')); }
       });
-    }).on('error', reject);
+    });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
+    req.on('error', reject);
   });
 }
 

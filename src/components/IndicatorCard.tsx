@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
 import { formatValue } from '../utils/formatValue';
+import { fetchBalticCompare } from '../api';
 
 // Mapping: PxWeb indicator → Eurostat baltic-compare indicator (for EE/LT)
 const EUROSTAT_FALLBACK: Record<string, string> = {
@@ -92,56 +93,85 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
   useEffect(() => {
     if (externalLoading) return;
-    setLoading(true);
 
-    // Use Eurostat for ALL countries (unified data source)
-    const eurostatId = EUROSTAT_FALLBACK[id];
-    if (eurostatId) {
-      fetch(`/api/baltic-compare?indicator=${eurostatId}&years=5`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => {
-          if (d?.countries?.[country]) {
-            const cs = d.countries[country];
-            const series = cs.series.filter((s: { value: number | null }) => s.value !== null);
-            const values = series.map((s: { value: number }) => s.value);
-            const latest = values.length > 0 ? values[values.length - 1] : null;
-            const previous = values.length > 1 ? values[values.length - 2] : null;
-            setData({
-              indicator: id,
-              title: d.title,
-              unit: d.unit || unit,
-              source: d.source || 'Eurostat',
-              series: series,
-              summary: {
-                latest,
-                previous,
-                change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
-                min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
-                max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
-                avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
-                count: values.length,
-              },
-            });
-          } else {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+
+      // Use Eurostat for ALL countries (unified data source)
+      const eurostatId = EUROSTAT_FALLBACK[id];
+      if (eurostatId) {
+        try {
+          const d = await fetchBalticCompare(eurostatId, 5);
+          if (!cancelled) {
+            if (d?.countries?.[country]) {
+              const cs = d.countries[country];
+              const series = cs.series.filter((s): s is { period: string; value: number } => s.value !== null);
+              const values = series.map((s) => s.value);
+              const latest = values.length > 0 ? values[values.length - 1] : null;
+              const previous = values.length > 1 ? values[values.length - 2] : null;
+              setData({
+                indicator: id,
+                title: d.title,
+                unit: d.unit || unit,
+                source: d.source || 'Eurostat',
+                series: series,
+                summary: {
+                  latest,
+                  previous,
+                  change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
+                  min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
+                  max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
+                  avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
+                  count: values.length,
+                },
+              });
+            } else {
+              setData(null);
+            }
+          }
+        } catch {
+          if (!cancelled) {
             setData(null);
           }
-        })
-        .catch(() => setData(null))
-        .finally(() => setLoading(false));
-    } else {
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
       // No Eurostat mapping — use Latvia PxWeb (only for LV, show null for EE/LT)
       if (country === 'LV') {
-        fetch(`/api/historical-data?indicator=${id}&years=5`)
-          .then((r) => r.ok ? r.json() : null)
-          .then((d) => setData(d))
-          .catch(() => setData(null))
-          .finally(() => setLoading(false));
-      } else {
+        try {
+          const response = await fetch(`/api/historical-data?indicator=${id}&years=5`);
+          const d = response.ok ? await response.json() : null;
+          if (!cancelled) {
+            setData(d);
+          }
+        } catch {
+          if (!cancelled) {
+            setData(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      } else if (!cancelled) {
         setData(null);
         setLoading(false);
       }
-    }
-  }, [id, externalLoading, country]);
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, externalLoading, country, unit]);
 
   if (loading || externalLoading) {
     return (
@@ -254,51 +284,82 @@ export function IndicatorChart({ id }: { id: string }) {
   }
 
   useEffect(() => {
-    setLoading(true);
-    // Try Eurostat first (works for all countries)
-    const eurostatId = EUROSTAT_FALLBACK[id];
-    if (eurostatId) {
-      fetch(`/api/baltic-compare?indicator=${eurostatId}&years=${years}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => {
-          if (d?.countries?.[country]) {
-            const cs = d.countries[country];
-            const series = cs.series.filter((s: { value: number | null }) => s.value !== null);
-            const values = series.map((s: { value: number }) => s.value);
-            const latest = values.length > 0 ? values[values.length - 1] : null;
-            const previous = values.length > 1 ? values[values.length - 2] : null;
-            setData({
-              indicator: id,
-              title: d.title,
-              unit: d.unit || '',
-              source: d.source || 'Eurostat',
-              series,
-              summary: {
-                latest, previous,
-                change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
-                min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
-                max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
-                avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
-                count: values.length,
-              },
-            });
-          } else {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+
+      // Try Eurostat first (works for all countries)
+      const eurostatId = EUROSTAT_FALLBACK[id];
+      if (eurostatId) {
+        try {
+          const d = await fetchBalticCompare(eurostatId, years);
+          if (!cancelled) {
+            if (d?.countries?.[country]) {
+              const cs = d.countries[country];
+              const series = cs.series.filter((s): s is { period: string; value: number } => s.value !== null);
+              const values = series.map((s) => s.value);
+              const latest = values.length > 0 ? values[values.length - 1] : null;
+              const previous = values.length > 1 ? values[values.length - 2] : null;
+              setData({
+                indicator: id,
+                title: d.title,
+                unit: d.unit || '',
+                source: d.source || 'Eurostat',
+                series,
+                summary: {
+                  latest, previous,
+                  change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
+                  min: values.length > 0 ? +Math.min(...values).toFixed(2) : null,
+                  max: values.length > 0 ? +Math.max(...values).toFixed(2) : null,
+                  avg: values.length > 0 ? +(values.reduce((a: number, b: number) => a + b, 0) / values.length).toFixed(2) : null,
+                  count: values.length,
+                },
+              });
+            } else {
+              setData(null);
+            }
+          }
+        } catch {
+          if (!cancelled) {
             setData(null);
           }
-        })
-        .catch(() => setData(null))
-        .finally(() => setLoading(false));
-    } else if (country === 'LV') {
-      // Latvia-only indicators via PxWeb
-      fetch(`/api/historical-data?indicator=${id}&years=${years}`)
-        .then((r) => r.ok ? r.json() : null)
-        .then((d) => setData(d))
-        .catch(() => setData(null))
-        .finally(() => setLoading(false));
-    } else {
-      setData(null);
-      setLoading(false);
-    }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
+      if (country === 'LV') {
+        // Latvia-only indicators via PxWeb
+        try {
+          const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
+          const d = response.ok ? await response.json() : null;
+          if (!cancelled) {
+            setData(d);
+          }
+        } catch {
+          if (!cancelled) {
+            setData(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      } else if (!cancelled) {
+        setData(null);
+        setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, years, country]);
 
   if (loading) {
