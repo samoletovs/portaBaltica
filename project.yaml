@@ -1,0 +1,19 @@
+name: portaBaltica
+purpose: "Bloomberg-style Baltic open data intelligence dashboard — real-time economy, trade, energy (LV, EE, LT)"
+users: "Data analysts, government watchers, business intelligence professionals"
+stage: active
+goals:
+  - "Aggregate 30+ real-time indicators from 6+ data sources"
+  - "Cross-country comparison (LV, EE, LT)"
+  - "AI-generated insights from live data"
+  - "Dark ocean theme with custom color palette"
+  - "API docs with pricing tiers"
+similar:
+  - "Bloomberg Terminal"
+  - "Eurostat dashboards"
+  - "Trading platforms"
+quality:
+  - tests
+  - ci-cd
+  - responsive
+  - api
