@@ -45,8 +45,8 @@ jobs:
       - name: Install & build frontend
         run: npm ci && npm run build
 
-      - name: Install & build API
-        run: cd api && npm ci && npm run build
+      - name: Install API deps
+        run: cd api && npm ci
 
       - name: Deploy to Azure SWA
         uses: Azure/static-web-apps-deploy@v1
