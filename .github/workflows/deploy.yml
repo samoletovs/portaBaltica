@@ -61,23 +61,36 @@ jobs:
       - name: Notify Telegram (success)
         if: success() && github.event_name == 'push'
         env:
-          TELEGRAM_NOTIFY_URL: ${{ secrets.TELEGRAM_NOTIFY_URL }}
+          NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
+          NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
         run: |
+          [ -z "$NAURO_BOT_TOKEN" ] && { echo "NAURO_BOT_TOKEN not set; skipping"; exit 0; }
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
-          curl -sf -X POST "$TELEGRAM_NOTIFY_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"message\": \"✅ portaBaltica deployed\\n\\nBranch: ${{ github.ref_name }}\\nCommit: ${COMMIT_MSG}\\nSHA: ${{ github.sha }}\\nURL: https://portabaltica.naurolabs.com\"}" \
+          curl -sf -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "text=✅ <b>portaBaltica</b> deployed
+Branch: ${{ github.ref_name }}
+Commit: ${COMMIT_MSG}
+SHA: ${{ github.sha }}
+URL: https://portabaltica.naurolabs.com" \
             || echo "::warning::Telegram notification failed"
 
       - name: Notify Telegram (failure)
         if: failure() && github.event_name == 'push'
         env:
-          TELEGRAM_NOTIFY_URL: ${{ secrets.TELEGRAM_NOTIFY_URL }}
+          NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
+          NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
         run: |
+          [ -z "$NAURO_BOT_TOKEN" ] && { echo "NAURO_BOT_TOKEN not set; skipping"; exit 0; }
           COMMIT_MSG=$(echo "${{ github.event.head_commit.message }}" | head -1)
-          curl -sf -X POST "$TELEGRAM_NOTIFY_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"message\": \"❌ portaBaltica deploy FAILED\\n\\nBranch: ${{ github.ref_name }}\\nCommit: ${COMMIT_MSG}\\nCheck: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+          curl -sf -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
+            --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "text=❌ <b>portaBaltica</b> deploy FAILED
+Branch: ${{ github.ref_name }}
+Commit: ${COMMIT_MSG}
+Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             || echo "::warning::Telegram notification failed"
 
       - name: Sync landing page order
