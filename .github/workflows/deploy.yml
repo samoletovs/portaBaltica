@@ -64,6 +64,7 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
+          skip_deploy_on_missing_secrets: true
           app_location: dist
           api_location: api
           skip_app_build: true
