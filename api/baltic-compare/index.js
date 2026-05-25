@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -265,6 +266,8 @@ function parseJsonStat(data, countries) {
  * Returns Latvia vs Estonia vs Lithuania comparison data from Eurostat.
  */
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   var indicator = (req.query && req.query.indicator) || '';
   var def = DATASETS[indicator];
   if (!def) {

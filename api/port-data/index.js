@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function httpsGet(url) {
   return new Promise(function(resolve, reject) {

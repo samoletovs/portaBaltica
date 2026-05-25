@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -80,6 +81,8 @@ async function fetchEnergyCerts() {
 }
 
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   try {
     const [construction, energy] = await Promise.all([
       fetchConstructionPermits(),
