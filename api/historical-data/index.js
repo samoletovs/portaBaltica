@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function httpsPost(url, body) {
   return new Promise(function (resolve, reject) {
@@ -317,6 +318,8 @@ var INDICATORS = {
  * Returns time-series data from CSP PxWeb API for charting.
  */
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   var indicator = (req.query && req.query.indicator) || '';
   var def = INDICATORS[indicator];
   if (!def) {

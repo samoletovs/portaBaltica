@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -29,6 +30,8 @@ function jsonGet(url) {
  * - Self-sustaining metrics (costs, subscribers — Phase 4)
  */
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   var startTime = Date.now();
 
   // Check each data source health in parallel

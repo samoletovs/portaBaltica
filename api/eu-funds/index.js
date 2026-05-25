@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -39,6 +40,8 @@ async function getLatestActiveResource(datasetId) {
  * Data from: eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti
  */
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   try {
     var resource = await getLatestActiveResource('eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti');
     if (!resource) {

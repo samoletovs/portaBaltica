@@ -1,4 +1,5 @@
 const https = require('https');
+const rateLimit = require('../shared/rateLimit.js');
 const http = require('http');
 
 function httpGet(url) {
@@ -219,6 +220,8 @@ async function fetchPxWebIndicators() {
 }
 
 module.exports = async function (context, req) {
+  const rl = rateLimit.check(req);
+  if (rl) { context.res = rl; return; }
   try {
     var zone = (req.query && req.query.country) || 'lv';
     var isLatvia = zone === 'lv';
