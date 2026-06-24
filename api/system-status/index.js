@@ -85,13 +85,13 @@ module.exports = async function (context, req) {
 
   // Check each data source health in parallel
   var checks = [
-    { name: 'ECB Exchange Rates', type: 'xml', required: true, url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml' },
-    { name: 'NordPool Electricity', type: 'json', required: true, url: buildNordPoolProbeUrl(start, end) },
-    { name: 'data.gov.lv CKAN', type: 'json', required: true, url: 'https://data.gov.lv/dati/api/3/action/site_read' },
-    { name: 'CSP PxWeb', type: 'pxweb', required: true, url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c' },
-    { name: 'Open-Meteo Weather', type: 'json', required: true, url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m' },
-    { name: 'Open-Meteo Air Quality', type: 'json', required: true, url: 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=56.95&longitude=24.11&current=pm2_5' },
-    { name: 'Riga Open Data', type: 'json', required: false, url: 'https://opendata.riga.lv/odata/service/DeclaredPersons?$top=1&$format=json' },
+    { name: 'ECB Exchange Rates', url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml', type: 'xml', required: true },
+    { name: 'NordPool Electricity', url: buildNordPoolProbeUrl(start, end), type: 'json', required: true },
+    { name: 'data.gov.lv CKAN', url: 'https://data.gov.lv/dati/api/3/action/site_read', type: 'json', required: true },
+    { name: 'CSP PxWeb', url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c', type: 'pxweb', required: true },
+    { name: 'Open-Meteo Weather', url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m', type: 'json', required: true },
+    { name: 'Open-Meteo Air Quality', url: 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=56.95&longitude=24.11&current=pm2_5', type: 'json', required: true },
+    { name: 'Riga Open Data', url: 'https://opendata.riga.lv/odata/service/DeclaredPersons?$top=1&$format=json', type: 'json', required: false },
   ];
 
   var results = await Promise.all(checks.map(async function (check) {
@@ -101,7 +101,7 @@ module.exports = async function (context, req) {
         var xml = await textGet(check.url);
         var normalizedXml = xml.toLowerCase();
         if (normalizedXml.indexOf('eurofxref') === -1 || normalizedXml.indexOf('cube') === -1) {
-          throw new Error('ECB payload missing expected fields');
+          throw new Error('ECB XML missing required elements: eurofxref or cube');
         }
       } else if (check.type === 'pxweb') {
         await jsonPost(check.url, { query: [], response: { format: 'json-stat2' } });
@@ -121,11 +121,12 @@ module.exports = async function (context, req) {
   var requiredTotal = requiredResults.length;
   var optionalResults = results.filter(function (r) { return !r.required; });
   var optionalHealthy = optionalResults.filter(function (r) { return r.status === 'healthy'; }).length;
+  var minHealthyForDegraded = Math.ceil(requiredTotal / 2);
 
   var systemStatus = 'unhealthy';
   if (requiredHealthy === requiredTotal) {
     systemStatus = 'healthy';
-  } else if (requiredHealthy >= Math.ceil(requiredTotal / 2)) {
+  } else if (requiredHealthy >= minHealthyForDegraded) {
     systemStatus = 'degraded';
   }
 
