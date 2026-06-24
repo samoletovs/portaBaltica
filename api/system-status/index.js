@@ -56,6 +56,13 @@ function jsonPost(url, body) {
   });
 }
 
+function buildNordPoolProbeUrl(start, end) {
+  return 'https://dashboard.elering.ee/api/nps/price?start=' +
+    encodeURIComponent(start.toISOString()) +
+    '&end=' +
+    encodeURIComponent(end.toISOString());
+}
+
 /**
  * GET /api/system-status
  *
@@ -79,7 +86,7 @@ module.exports = async function (context, req) {
   // Check each data source health in parallel
   var checks = [
     { name: 'ECB Exchange Rates', type: 'xml', required: true },
-    { name: 'NordPool Electricity', type: 'json', required: true, url: 'https://dashboard.elering.ee/api/nps/price?start=' + encodeURIComponent(start.toISOString()) + '&end=' + encodeURIComponent(end.toISOString()) },
+    { name: 'NordPool Electricity', type: 'json', required: true, url: buildNordPoolProbeUrl(start, end) },
     { name: 'data.gov.lv CKAN', type: 'json', required: true, url: 'https://data.gov.lv/dati/api/3/action/site_read' },
     { name: 'CSP PxWeb', type: 'pxweb', required: true, url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c' },
     { name: 'Open-Meteo Weather', type: 'json', required: true, url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m' },
