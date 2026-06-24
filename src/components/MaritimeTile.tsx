@@ -50,9 +50,8 @@ export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargo
       </div>
 
       {/* Baltic trade comparison — available for all 3 countries */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+      <div className="mt-4">
         <BalticCompareChart indicator="trade_balance" title="Trade balance (goods & services)" compact />
-        <BalticCompareChart indicator="current_account" title="Current account balance" compact />
       </div>
     </section>
   );
