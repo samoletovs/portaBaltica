@@ -91,12 +91,12 @@ export function IndicatorTable() {
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-xs text-slate-400 border-b border-slate-800/30">
+      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-xs text-slate-400 border-b border-slate-800/30">
         <span>Indicator</span>
         <span className="text-right">Latest</span>
-        <span className="text-right">Previous</span>
+        <span className="hidden sm:block text-right">Previous</span>
         <span className="text-right">Change</span>
-        <span className="text-right">Trend (3Y)</span>
+        <span className="hidden sm:block text-right">Trend (3Y)</span>
       </div>
 
       {/* Data rows */}
@@ -110,25 +110,25 @@ export function IndicatorTable() {
           <button
             key={row.id}
             onClick={() => navigate(`/indicator/${row.id}`)}
-            className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
+            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
-            <div>
-              <span className="text-sm text-white group-hover:text-slate-200 transition-colors">{row.title}</span>
-              <span className="text-xs text-slate-500 ml-2">{row.unit}</span>
+            <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
+              <span className="text-sm text-white group-hover:text-slate-200 transition-colors truncate shrink">{row.title}</span>
+              <span className="text-xs text-slate-500 shrink-0">{row.unit}</span>
             </div>
-            <span className="text-sm text-right text-white font-mono">
+            <span className="text-xs sm:text-sm text-right text-white font-mono self-center">
               {formatValue(row.summary.latest, row.unit)}
             </span>
-            <span className="text-sm text-right text-slate-400 font-mono">
+            <span className="hidden sm:block text-sm text-right text-slate-400 font-mono self-center">
               {formatValue(row.summary.previous, row.unit)}
             </span>
-            <span className={`text-sm text-right font-mono ${changeColor}`}>
+            <span className={`text-xs sm:text-sm text-right font-mono self-center ${changeColor}`}>
               {row.summary.change !== null
                 ? `${isUp ? '▲' : '▼'} ${formatValue(Math.abs(row.summary.change), row.unit)}`
                 : '—'}
             </span>
-            <div className="h-6 w-full">
+            <div className="hidden sm:block h-6 w-full self-center">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
