@@ -14,8 +14,8 @@ export function EnergyTile() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <IndicatorCard id="construction_output" title="Construction output" unit="index" />
-        <IndicatorCard id="building_permits" title="Building permits" unit="permits" />
-        <IndicatorCard id="new_vehicles" title="New car registrations" unit="vehicles" />
+        <IndicatorCard id="building_permits" title="New building starts" unit="index" />
+        <IndicatorCard id="new_vehicles" title="Cars per 1000 residents" unit="per 1000" />
         <IndicatorCard id="renewable_share" title="Renewable energy" unit="%" />
       </div>
 

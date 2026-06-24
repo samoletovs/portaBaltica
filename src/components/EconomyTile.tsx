@@ -117,12 +117,9 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
       {/* Business pulse — Latvia only (CKAN data) */}
       {data && country === 'LV' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-          <StatCard label="VAT Businesses" value={data.businessPulse.newVatRegistrations.toLocaleString()} />
-          <StatCard label="Suspended" value={data.businessPulse.suspendedBusinesses.toLocaleString()} color="amber" />
-          {data.indicators.map((ind) => (
-            <StatCard key={ind.label} label={ind.label} value={ind.value} change={ind.change} />
-          ))}
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <StatCard label="VAT Registered Businesses" value={data.businessPulse.newVatRegistrations.toLocaleString()} />
+          <StatCard label="Suspended Activities" value={data.businessPulse.suspendedBusinesses.toLocaleString()} color="amber" />
         </div>
       )}
 

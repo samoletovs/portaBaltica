@@ -15,6 +15,7 @@ const AQI_STYLES: Record<string, { bg: string; text: string; ring: string }> = {
 const WEATHER_ICONS: Record<string, string> = {
   'Clear sky': '☀️',
   'Partly cloudy': '⛅',
+  'Overcast': '☁️',
   'Foggy': '🌫️',
   'Drizzle': '🌦️',
   'Rain': '🌧️',
