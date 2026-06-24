@@ -53,11 +53,12 @@ var AQ_COORDS = {
   lt: { lat: 54.69, lon: 25.28 },
 };
 
-var POP_DATA = { lv: 605802, ee: 456000, lt: 294000 };
+var POP_DATA = { lv: 605802, ee: 456000, lt: 590000 };
 
 function describeWeather(code) {
   if (code === 0) return 'Clear sky';
-  if (code <= 3) return 'Partly cloudy';
+  if (code <= 2) return 'Partly cloudy';
+  if (code === 3) return 'Overcast';
   if (code <= 49) return 'Foggy';
   if (code <= 59) return 'Drizzle';
   if (code <= 69) return 'Rain';

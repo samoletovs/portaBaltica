@@ -77,9 +77,8 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
       </div>
 
       {/* Baltic comparison charts — available for all 3 countries */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+      <div className="mt-4">
         <BalticCompareChart indicator="house_prices" title="House price change (% YoY)" compact />
-        <BalticCompareChart indicator="interest_rate" title="Long-term interest rate" compact />
       </div>
     </section>
   );
