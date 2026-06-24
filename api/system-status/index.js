@@ -92,7 +92,7 @@ module.exports = async function (context, req) {
     try {
       if (check.type === 'xml') {
         var xml = await textGet('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml');
-        if (xml.indexOf('eurofxref') === -1 && xml.indexOf('Cube') === -1) {
+        if (xml.indexOf('eurofxref') === -1 || xml.indexOf('Cube') === -1) {
           throw new Error('ECB payload missing expected fields');
         }
       } else if (check.type === 'pxweb') {
