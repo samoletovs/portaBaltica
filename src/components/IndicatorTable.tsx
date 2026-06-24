@@ -113,9 +113,9 @@ export function IndicatorTable() {
             className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
-            <div className="min-w-0">
-              <span className="text-sm text-white group-hover:text-slate-200 transition-colors truncate block">{row.title}</span>
-              <span className="text-xs text-slate-500">{row.unit}</span>
+            <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
+              <span className="text-sm text-white group-hover:text-slate-200 transition-colors truncate shrink">{row.title}</span>
+              <span className="text-xs text-slate-500 shrink-0">{row.unit}</span>
             </div>
             <span className="text-xs sm:text-sm text-right text-white font-mono self-center">
               {formatValue(row.summary.latest, row.unit)}
