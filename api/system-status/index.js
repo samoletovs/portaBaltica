@@ -99,9 +99,10 @@ module.exports = async function (context, req) {
     try {
       if (check.type === 'xml') {
         var xml = await textGet(check.url);
-        var normalizedXml = xml.toLowerCase();
-        if (normalizedXml.indexOf('eurofxref') === -1 || normalizedXml.indexOf('cube') === -1) {
-          throw new Error('ECB XML missing required elements: eurofxref or cube');
+        var hasEnvelope = /<\s*(?:\w+:)?Envelope\b/i.test(xml);
+        var hasCube = /<\s*(?:\w+:)?Cube\b/i.test(xml);
+        if (!hasEnvelope || !hasCube) {
+          throw new Error('ECB XML missing required elements (envelope and/or cube)');
         }
       } else if (check.type === 'pxweb') {
         await jsonPost(check.url, { query: [], response: { format: 'json-stat2' } });
