@@ -85,7 +85,7 @@ module.exports = async function (context, req) {
 
   // Check each data source health in parallel
   var checks = [
-    { name: 'ECB Exchange Rates', type: 'xml', required: true },
+    { name: 'ECB Exchange Rates', type: 'xml', required: true, url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml' },
     { name: 'NordPool Electricity', type: 'json', required: true, url: buildNordPoolProbeUrl(start, end) },
     { name: 'data.gov.lv CKAN', type: 'json', required: true, url: 'https://data.gov.lv/dati/api/3/action/site_read' },
     { name: 'CSP PxWeb', type: 'pxweb', required: true, url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c' },
@@ -98,8 +98,9 @@ module.exports = async function (context, req) {
     var checkStart = Date.now();
     try {
       if (check.type === 'xml') {
-        var xml = await textGet('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml');
-        if (xml.indexOf('eurofxref') === -1 || xml.indexOf('Cube') === -1) {
+        var xml = await textGet(check.url);
+        var normalizedXml = xml.toLowerCase();
+        if (normalizedXml.indexOf('eurofxref') === -1 || normalizedXml.indexOf('cube') === -1) {
           throw new Error('ECB payload missing expected fields');
         }
       } else if (check.type === 'pxweb') {
