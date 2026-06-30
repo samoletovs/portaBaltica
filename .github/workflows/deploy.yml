@@ -17,6 +17,12 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
+# Serialize deploys per ref so a burst of merges (e.g. Dependabot) cancels older
+# in-progress runs gracefully instead of racing into Azure SWA ("Deployment Canceled").
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Quality Gate ────────────────────────────────────────────────────
   quality:
