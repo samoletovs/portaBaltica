@@ -77,17 +77,28 @@ jobs:
             // 4. With no branch protection there is no required-check gate, so
             //    enforce one here: only merge once every *other* check run on the
             //    head commit has finished successfully (exclude our own run).
-            const { data: checks } = await github.rest.checks.listForRef({
-              owner, repo, ref: pr.head.sha, per_page: 100
-            });
-            const others = checks.check_runs.filter(c => c.name !== SELF_CHECK_NAME);
+            //
+            //    GitHub does NOT re-trigger this workflow from the `check_suite`
+            //    completion of Actions-created suites (a recursion guard), so the
+            //    old "return and retry on completion" path never fired and clean
+            //    PRs sat open forever. Instead we poll here until every other
+            //    check finishes, so a single run converges on its own.
             const OK = new Set(['success', 'neutral', 'skipped']);
-            if (others.some(c => c.status === 'completed' && !OK.has(c.conclusion))) {
-              console.log(`PR #${prNumber} has a failing check - skipping`); return;
+            let ready = false;
+            for (let i = 0; i < 24; i++) {          // up to ~12 min
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner, repo, ref: pr.head.sha, per_page: 100
+              });
+              const others = checks.check_runs.filter(c => c.name !== SELF_CHECK_NAME);
+              if (others.some(c => c.status === 'completed' && !OK.has(c.conclusion))) {
+                console.log(`PR #${prNumber} has a failing check - skipping`); return;
+              }
+              if (others.length > 0 && others.every(c => c.status === 'completed')) { ready = true; break; }
+              const pending = others.filter(c => c.status !== 'completed').length || '(no checks yet)';
+              console.log(`PR #${prNumber} waiting on ${pending} check(s)...`);
+              await new Promise(r => setTimeout(r, 30000));
             }
-            if (others.some(c => c.status !== 'completed')) {
-              console.log(`PR #${prNumber} still has pending checks - will retry on completion`); return;
-            }
+            if (!ready) { console.log(`PR #${prNumber} checks did not finish in time - leaving for the daily janitor`); return; }
 
             // 5. Best-effort approval (non-fatal if Actions approvals are disabled).
             try {
