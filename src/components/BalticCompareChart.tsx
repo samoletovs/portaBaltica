@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useTheme } from '../ThemeContext';
+import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 
@@ -17,10 +18,12 @@ interface BalticCompareChartProps {
   compact?: boolean;
 }
 
-export function BalticCompareChart({ indicator, title, years = 5, compact = false }: BalticCompareChartProps) {
+export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false }: BalticCompareChartProps) {
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
+  const { years: filterYears } = useFilter();
+  const years = yearsProp ?? filterYears;
 
   useEffect(() => {
     let cancelled = false;

@@ -6,6 +6,7 @@ import './index.css'
 import { ScrollToTop } from './components/ScrollToTop.tsx'
 import { ThemeProvider } from './ThemeContext.tsx'
 import { CountryProvider } from './CountryContext.tsx'
+import { FilterProvider } from './FilterContext.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
 const App = lazy(() => import('./App.tsx'))
@@ -17,16 +18,18 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <ThemeProvider>
         <CountryProvider>
-          <BrowserRouter>
-            <ScrollToTop />
-            <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
-              <Routes>
-                <Route path="/indicator/:id" element={<IndicatorPage />} />
-                <Route path="/api-docs" element={<ApiDocsPage />} />
-                <Route path="/:section?" element={<App />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
+          <FilterProvider>
+            <BrowserRouter>
+              <ScrollToTop />
+              <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+                <Routes>
+                  <Route path="/indicator/:id" element={<IndicatorPage />} />
+                  <Route path="/api-docs" element={<ApiDocsPage />} />
+                  <Route path="/:section?" element={<App />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </FilterProvider>
         </CountryProvider>
       </ThemeProvider>
     </ErrorBoundary>
