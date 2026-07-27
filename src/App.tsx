@@ -4,6 +4,7 @@ import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoDat
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { Header } from './components/Header';
 import { DataTicker } from './components/DataTicker';
+import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
 import { EconomyTile } from './components/EconomyTile';
 import { TradeTile } from './components/TradeTile';
@@ -150,6 +151,8 @@ export default function App() {
         <DataTicker />
 
         <main className="pt-6 pb-16">
+
+        <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
 
         {/* AI Insights */}
         <InsightsBanner />
