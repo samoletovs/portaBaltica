@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
+import { useFilter, YEAR_OPTIONS, type YearRange } from '../FilterContext';
 
 interface HeaderProps {
   lastUpdated: Date | null;
@@ -26,6 +27,7 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
   const [clock, setClock] = useState(new Date());
   const { theme, toggle } = useTheme();
   const { country, setCountry, timezone, tzAbbr } = useCountry();
+  const { years, setYears } = useFilter();
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 60_000);
@@ -68,6 +70,25 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
                   aria-label={`Switch to ${COUNTRY_INFO[c].label}`}
                 >
                   {COUNTRY_INFO[c].flag} {c}
+                </button>
+              ))}
+            </div>
+            {/* Date range selector */}
+            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} aria-label="Date range filter">
+              {YEAR_OPTIONS.map((y: YearRange) => (
+                <button
+                  key={y}
+                  onClick={() => setYears(y)}
+                  className="px-2 py-1 text-xs transition-colors"
+                  style={{
+                    background: years === y ? 'var(--text-secondary)' : 'var(--bg-card)',
+                    color: years === y ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: years === y ? 500 : 400,
+                  }}
+                  aria-label={`Show ${y} year${y > 1 ? 's' : ''} of data`}
+                  aria-pressed={years === y}
+                >
+                  {y}Y
                 </button>
               ))}
             </div>

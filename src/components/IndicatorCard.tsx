@@ -3,6 +3,7 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
+import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 
@@ -70,6 +71,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const navigate = useNavigate();
   const { chartColors } = useTheme();
   const { country } = useCountry();
+  const { years } = useFilter();
 
   function formatPeriod(p: string): string {
     const qMatch = p.match(/^(\d{4})Q(\d)$/);
@@ -103,7 +105,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       const eurostatId = EUROSTAT_FALLBACK[id];
       if (eurostatId) {
         try {
-          const d = await fetchBalticCompare(eurostatId, 5);
+          const d = await fetchBalticCompare(eurostatId, years);
           if (!cancelled) {
             if (d?.countries?.[country]) {
               const cs = d.countries[country];
@@ -146,7 +148,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       // No Eurostat mapping — use Latvia PxWeb (only for LV, show null for EE/LT)
       if (country === 'LV') {
         try {
-          const response = await fetch(`/api/historical-data?indicator=${id}&years=5`);
+          const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
           const d = response.ok ? await response.json() : null;
           if (!cancelled) {
             setData(d);
@@ -171,7 +173,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     return () => {
       cancelled = true;
     };
-  }, [id, externalLoading, country, unit]);
+  }, [id, externalLoading, country, unit, years]);
 
   if (loading || externalLoading) {
     return (

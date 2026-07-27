@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useCountry } from '../CountryContext';
+import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 
@@ -26,6 +27,7 @@ export function IndicatorTable() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { country, countryLabel } = useCountry();
+  const { years } = useFilter();
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +39,7 @@ export function IndicatorTable() {
         INDICATORS.map((id) => {
           const eurostatId = EUROSTAT_MAP[id];
           if (eurostatId) {
-            return fetchBalticCompare(eurostatId, 3)
+            return fetchBalticCompare(eurostatId, years)
               .then((d) => {
                 if (!d?.countries?.[country]) return null;
                 const cs = d.countries[country];
@@ -50,7 +52,7 @@ export function IndicatorTable() {
               .catch(() => null);
           }
           if (country === 'LV') {
-            return fetch(`/api/historical-data?indicator=${id}&years=3`)
+            return fetch(`/api/historical-data?indicator=${id}&years=${years}`)
               .then((r) => r.ok ? r.json() : null)
               .then((d) => d ? { id, title: d.title, unit: d.unit, series: d.series, summary: d.summary } as IndicatorRow : null)
               .catch(() => null);
@@ -70,7 +72,7 @@ export function IndicatorTable() {
     return () => {
       cancelled = true;
     };
-  }, [country]);
+  }, [country, years]);
 
   if (loading) {
     return (
