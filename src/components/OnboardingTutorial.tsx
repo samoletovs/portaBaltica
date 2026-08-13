@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { DashboardSection } from '../types';
 
 interface OnboardingTutorialProps {
@@ -68,12 +68,39 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
     onSectionChange(step.section);
   }, [activeSection, isOpen, onSectionChange, step.section]);
 
-  function closeTutorial() {
+  const closeTutorial = useCallback(() => {
     markOnboardingComplete();
     setIsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeTutorial();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closeTutorial, isOpen]);
+
+  function restartTutorial() {
+    setStepIndex(0);
+    setIsOpen(true);
   }
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return (
+      <div className="mb-6 flex justify-end">
+        <button
+          onClick={restartTutorial}
+          className="text-xs px-3 py-1.5 rounded transition-colors"
+          style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+          aria-label="Restart guided tour"
+        >
+          Take a tour
+        </button>
+      </div>
+    );
+  }
 
   return (
     <section

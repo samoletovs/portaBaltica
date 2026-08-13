@@ -39,4 +39,25 @@ describe('OnboardingTutorial', () => {
 
     expect(screen.queryByLabelText('Dashboard onboarding tutorial')).toBeNull();
   });
+
+  it('can be restarted from the tour button after completion', () => {
+    localStorage.setItem('pb-onboarding-complete', 'true');
+
+    render(<OnboardingTutorial activeSection="all" onSectionChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restart guided tour' }));
+
+    expect(screen.getByText('Welcome to portaBaltica')).toBeTruthy();
+    expect(screen.getByText('Step 1 of 5')).toBeTruthy();
+  });
+
+  it('closes the tour on Escape', () => {
+    render(<OnboardingTutorial activeSection="all" onSectionChange={vi.fn()} />);
+    expect(screen.getByLabelText('Dashboard onboarding tutorial')).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(screen.queryByLabelText('Dashboard onboarding tutorial')).toBeNull();
+    expect(localStorage.getItem('pb-onboarding-complete')).toBe('true');
+  });
 });
