@@ -33,7 +33,13 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          # Node 20 reached end of life in April 2026, and the dependency tree
+          # has already moved past it: undici@8 (via jsdom) calls
+          # webidl.util.markAsUncloneable, which does not exist on 20, so the
+          # test suite cannot start there. The build happened to survive because
+          # it never imports undici — a latent split between the runtime the code
+          # is built on and the one its dependencies require.
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -71,7 +77,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install & build frontend
         run: npm ci && npm run build
