@@ -45,6 +45,13 @@ jobs:
       - name: Type check
         run: npx tsc -b
 
+      # 34 unit tests existed in this repo and no workflow ran any of them, so
+      # "we have tests" bought nothing. Added here rather than as a new workflow:
+      # this job already pays for checkout and `npm ci`, which is the expensive
+      # part, so the marginal cost is the suite itself and no extra run.
+      - name: Test
+        run: npm test
+
   # ── Build & Deploy ─────────────────────────────────────────────────
   build_and_deploy:
     needs: quality
