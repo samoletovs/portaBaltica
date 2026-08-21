@@ -1,65 +1,49 @@
 # portaBaltica
 
-Baltic data intelligence platform — real-time economic, trade, labour, energy, and environmental indicators for Latvia, Estonia, and Lithuania.
+portaBaltica is a dashboard that aggregates public Baltic economic, trade,
+labour, energy, property, environmental, business, and maritime data.
 
-**Live:** [portabaltica.naurolabs.com](https://portabaltica.naurolabs.com)
+## Research question
+
+portaBaltica tests the NauroLabs question **"What's worth selling?"** It asks
+whether normalizing and presenting fragmented, free public data creates useful
+value beyond the source APIs themselves.
 
 ## What it does
 
-A Bloomberg-style dashboard aggregating 30+ indicators from government open data across three Baltic countries. Cross-country comparison, time series charts, and live operational feeds.
+- Compares indicators across Latvia, Estonia, and Lithuania.
+- Presents time series, operational feeds, and indicator detail views.
+- Proxies and normalizes data from Eurostat, data.gov.lv, NordPool, ECB,
+  Open-Meteo, CSP PxWeb, and maritime sources.
+- Generates short data summaries from the available feeds.
 
-### Coverage by section
+## Stack
 
-| Section | Indicators | Countries | Source |
-|---------|-----------|-----------|--------|
-| **Economy** | GDP, salary, CPI, unemployment, house prices, retail, industrial output, population, electricity | LV, EE, LT | Eurostat, NordPool, ECB |
-| **Trade** | Exports, imports, trade balance, PPI, hotel occupancy, tourist arrivals | LV, EE, LT | Eurostat |
-| **Government** | Revenue, debt, debt/GDP, deficit/surplus, consumer confidence, current account, inequality | LV, EE, LT | Eurostat |
-| **Labour** | Hourly labour cost, unemployment, manufacturing wages, IT wages, youth unemployment, job vacancy, GDP per capita, life expectancy | LV, EE, LT | Eurostat |
-| **Energy** | Construction output, building permits, vehicles, renewables, electricity production, household electricity price, interest rate | LV, EE, LT | Eurostat |
-| **Property** | Construction permits, building energy profiles | LV | data.gov.lv |
-| **Environment** | Weather (4 cities), air quality, population | LV, EE, LT | Open-Meteo |
-| **Business** | UBO registry (195K+), address search (608K+), EU Recovery Fund (955 projects) | LV | data.gov.lv |
-| **Maritime** | Marine weather, ship visits, ferry traffic, cargo | LV (3 ports) | SKLOIS, Open-Meteo |
+- React 19, TypeScript, Vite, Tailwind CSS, and Recharts
+- Azure Static Web Apps managed Functions
+- Public Baltic and European data APIs
 
-### Features
+## Run locally
 
-- Country selector (LV / EE / LT) with country-specific timezone
-- Dark / light theme with flash-free switching
-- AI-generated insights from live data feeds
-- Baltic comparison charts (LV vs EE vs LT)
-- Drill-down indicator detail pages with time range selector
-- Scrolling data ticker with exchange rates and electricity prices
-- API documentation with pricing tiers
-- System health monitoring
-
-## Data Sources
-
-| Source | Data | Refresh |
-|--------|------|---------|
-| Eurostat REST API | 32 datasets for cross-country comparison | 1 hour |
-| NordPool (Elering) | Electricity prices per zone | Hourly |
-| ECB XML | Exchange rates (8 currencies) | Daily |
-| Open-Meteo | Weather + air quality | 15 min |
-| data.gov.lv CKAN | Property, business, maritime | 1 hour |
-| CSP PxWeb | Latvia-only indicators (gas price, building permits) | 1 hour |
-
-## Tech Stack
-
-- React 19 + TypeScript 5.9 + Vite 8
-- Tailwind CSS 4.2 + recharts 3.8
-- Azure Static Web Apps (managed functions, Node.js)
-
-## Development
-
-```bash
+```powershell
 npm install
 npm run dev
 ```
 
-## Deployment
+Before submitting a change:
 
 ```powershell
-$token = az staticwebapp secrets list --name portabaltica-swa --query "properties.apiKey" -o tsv
-npx swa deploy --app-location ./dist --api-location ./api --deployment-token $token --env production
+npm run lint
+npm test
+npm run build
 ```
+
+## Status
+
+**Active experiment.** The dashboard and its cross-country data surfaces are
+deployed at [portabaltica.naurolabs.com](https://portabaltica.naurolabs.com).
+Source coverage and data reliability vary with upstream public APIs.
+
+## License
+
+MIT
