@@ -181,3 +181,47 @@ infrastructure/main.bicep      # Functions + Storage + Foundry role assignment
    day *when the data warrants it*.
 5. **Corrections are public and append-only.** If we get something wrong, the
    article shows it and the corrections log records it.
+
+## Deploying
+
+There is no CI/CD for the Function App yet — it ships by hand, from a clean
+worktree:
+
+```powershell
+git worktree add ../portaBaltica.deploy origin/master --detach
+cd ../portaBaltica.deploy/newsroom
+func azure functionapp publish portabaltica-func --python --build remote
+```
+
+**Deploy from `origin/master` in a separate worktree, never from your own
+checkout.** `func publish` uploads whatever is on disk. It does not consult
+git, so uncommitted work ships silently and without review.
+
+This is not hypothetical. On 2026-08-24 a `func publish` from the main checkout
+deployed a background agent's uncommitted, half-finished editor stage into
+production, where it called Azure OpenAI with live feed data and failed every
+run. Nothing in the deploy output hinted at it: the branch was `master`, the
+tree looked fine at a glance, and the only symptom was an HTTP 500 several
+minutes later. This repository is worked on by parallel agents — treat the
+working tree as something another writer may be editing right now, because it
+usually is.
+
+Then prove it, because merging is not shipping and shipping is not working:
+
+```powershell
+$key = az functionapp function keys list -n portabaltica-func -g portabaltica-rg `
+  --function-name newsroom_run_now --query default -o tsv
+irm "https://portabaltica-func.azurewebsites.net/api/newsroom/run?code=$key" -Method POST
+```
+
+A healthy run ends `0 error(s)`. Read the summary rather than the exit code —
+the run that published nothing for two days reported `0 error(s)` every time,
+because "the validator rejected everything" is a correct outcome for the
+pipeline and a broken one for the product.
+
+Finally, confirm a reader can see it. The index is what the front page reads,
+and an article missing from it is invisible however faithfully it was stored:
+
+```powershell
+(irm "https://stportabalticabpmff5so.blob.core.windows.net/articles/index.json").count
+```
