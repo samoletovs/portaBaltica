@@ -1,34 +1,42 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
 import { useFilter, YEAR_OPTIONS, type YearRange } from '../FilterContext';
 
-interface HeaderProps {
-  lastUpdated: Date | null;
-  activeSection: DashboardSection | 'all';
-  onSectionChange: (section: DashboardSection | 'all') => void;
-}
-
-const SECTIONS: { id: DashboardSection | 'all'; label: string }[] = [
-  { id: 'all', label: 'Overview' },
-  { id: 'economy', label: 'Economy' },
-  { id: 'labour', label: 'Labour' },
-  { id: 'trade', label: 'Trade' },
-  { id: 'government', label: 'Government' },
-  { id: 'energy', label: 'Energy' },
-  { id: 'property', label: 'Property' },
-  { id: 'environment', label: 'Environment' },
-  { id: 'business', label: 'Business' },
-  { id: 'maritime', label: 'Maritime' },
+const SECTIONS: { id: DashboardSection | 'all' | 'news'; label: string; path: string }[] = [
+  { id: 'news', label: 'News', path: '/' },
+  { id: 'all', label: 'Overview', path: '/data' },
+  { id: 'economy', label: 'Economy', path: '/data/economy' },
+  { id: 'labour', label: 'Labour', path: '/data/labour' },
+  { id: 'trade', label: 'Trade', path: '/data/trade' },
+  { id: 'government', label: 'Government', path: '/data/government' },
+  { id: 'energy', label: 'Energy', path: '/data/energy' },
+  { id: 'property', label: 'Property', path: '/data/property' },
+  { id: 'environment', label: 'Environment', path: '/data/environment' },
+  { id: 'business', label: 'Business', path: '/data/business' },
+  { id: 'maritime', label: 'Maritime', path: '/data/maritime' },
 ];
 
-export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderProps) {
+export function Header() {
   const [clock, setClock] = useState(new Date());
+  const location = useLocation();
   const { theme, toggle } = useTheme();
   const { country, setCountry, timezone, tzAbbr } = useCountry();
   const { years, setYears } = useFilter();
+  const section = location.pathname.startsWith('/data/')
+    ? location.pathname.slice('/data/'.length).split('/')[0]
+    : null;
+  const activeSection = location.pathname === '/data'
+    ? 'all'
+    : section && SECTIONS.some((item) => item.id === section)
+      ? section
+      : location.pathname.startsWith('/data') ||
+          location.pathname.startsWith('/indicator') ||
+          location.pathname.startsWith('/api-docs')
+        ? 'all'
+        : 'news';
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 60_000);
@@ -41,28 +49,16 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
         {/* Top bar */}
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
-            <h1 className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            <Link to="/" className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               porta<span style={{ color: '#0ea5e9' }}>Baltica</span>
-            </h1>
-            <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic data intelligence</span>
-            <Link
-              to="/"
-              className="text-xs underline underline-offset-4"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              ← Front page
             </Link>
+            <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
               {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
               <span style={{ color: 'var(--text-muted)' }} className="ml-1">{tzAbbr}</span>
             </span>
-            {lastUpdated && (
-              <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-tertiary)' }}>
-                Updated {lastUpdated.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
             {/* Country selector */}
             <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }}>
               {(Object.keys(COUNTRY_INFO) as Country[]).map((c) => (
@@ -112,11 +108,11 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
         </div>
 
         {/* Section tabs */}
-        <nav className="flex gap-0 -mb-px overflow-x-auto" aria-label="Dashboard sections">
+        <nav className="flex gap-0 -mb-px overflow-x-auto" aria-label="Site sections">
           {SECTIONS.map((s) => (
-            <button
+            <Link
               key={s.id}
-              onClick={() => onSectionChange(s.id)}
+              to={s.path}
               className="px-4 py-2.5 text-sm whitespace-nowrap transition-colors border-b-2"
               style={{
                 borderColor: activeSection === s.id ? 'var(--text-secondary)' : 'transparent',
@@ -124,10 +120,9 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
                 fontWeight: activeSection === s.id ? 500 : 400,
               }}
               aria-current={activeSection === s.id ? 'page' : undefined}
-              aria-label={`Show ${s.label} section`}
             >
               {s.label}
-            </button>
+            </Link>
           ))}
         </nav>
       </div>

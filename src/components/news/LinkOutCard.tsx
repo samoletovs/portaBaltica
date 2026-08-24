@@ -36,11 +36,11 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
 
   return (
     <article
-      className="group border-l-2 border-dashed border-slate-600/70 bg-slate-900/30 py-3 pl-4 pr-3 transition-colors hover:bg-slate-900/60"
+      className="news-border news-panel news-hover-panel group border-l-2 border-dashed py-3 pl-4 pr-3 transition-colors"
       data-tier="C"
       aria-label={`External story from ${attribution}`}
     >
-      <p className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-slate-500">
+      <p className="news-subtle mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest">
         <span aria-hidden="true">↗</span>
         <span>{attribution}</span>
         {when && (
@@ -53,12 +53,12 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         )}
       </p>
 
-      <h3 className="text-[15px] font-medium leading-snug text-slate-200">
+      <h3 className="news-fg text-[15px] font-medium leading-snug">
         <a
           href={originalUrl}
           target="_blank"
           rel="noopener noreferrer external"
-          className="underline decoration-slate-600 decoration-dotted underline-offset-4 hover:decoration-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-link news-focus underline decoration-dotted underline-offset-4"
         >
           {headline}
           <span className="sr-only"> (opens {attribution} in a new tab)</span>
@@ -66,9 +66,9 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       </h3>
 
       {snippet && (
-        <blockquote className="mt-1.5 border-0 text-[13px] leading-relaxed text-slate-400">
+        <blockquote className="news-muted mt-1.5 border-0 text-[13px] leading-relaxed">
           <p>{snippet}</p>
-          <footer className="mt-1 text-[11px] text-slate-500">
+          <footer className="news-subtle mt-1 text-[11px]">
             Summary published by <cite className="not-italic">{attribution}</cite> in its own feed, quoted verbatim.
           </footer>
         </blockquote>
@@ -78,14 +78,14 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         href={originalUrl}
         target="_blank"
         rel="noopener noreferrer external"
-        className="mt-3 inline-flex items-center gap-2 rounded-md border border-ocean-600/60 bg-ocean-500/10 px-3 py-1.5 text-[13px] font-medium text-ocean-100 transition-colors hover:border-ocean-400 hover:bg-ocean-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+        className="news-tier-accent news-focus mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors"
       >
         Read this at {attribution}
         <span aria-hidden="true">↗</span>
         <span className="sr-only">(opens in a new tab)</span>
       </a>
 
-      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+      <p className="news-subtle mt-2 text-[11px] leading-relaxed">
         Their reporting, not ours — and we would rather you read it on their site.
       </p>
     </article>

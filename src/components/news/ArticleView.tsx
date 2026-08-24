@@ -22,17 +22,17 @@ function NotServable() {
   return (
     <div
       role="alert"
-      className="mx-auto max-w-2xl rounded-xl border border-amber-700/40 bg-amber-950/20 px-6 py-8 text-center"
+      className="news-border news-warning-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center"
     >
-      <h1 className="text-lg font-semibold text-amber-100">This article is not available</h1>
-      <p className="mt-2 text-sm leading-relaxed text-amber-200/80">
+      <h1 className="news-warning text-lg font-semibold">This article is not available</h1>
+      <p className="news-warning mt-2 text-sm leading-relaxed">
         It has not passed the checks we run before publishing, so we will not show it. Nothing is
         served from this portal without a passing validator verdict.
       </p>
       <p className="mt-4 text-sm">
         <Link
           to="/"
-          className="text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-link news-focus underline underline-offset-4"
         >
           Back to the front page
         </Link>
@@ -48,21 +48,21 @@ function Block({ block }: { block: ArticleBlock }) {
 
     case 'quote':
       return (
-        <blockquote className="my-6 border-l-2 border-ocean-600/60 pl-4 text-lg italic leading-relaxed text-slate-200">
+        <blockquote className="news-border news-muted my-6 border-l-2 pl-4 text-lg italic leading-relaxed">
           {block.text}
         </blockquote>
       );
 
     case 'callout':
       return (
-        <aside className="my-6 rounded-lg border border-ocean-800/50 bg-ocean-950/30 px-4 py-3 text-sm leading-relaxed text-ocean-100">
+        <aside className="news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-sm leading-relaxed">
           {block.text}
         </aside>
       );
 
     case 'list':
       return (
-        <ul className="my-4 list-disc space-y-1 pl-6 text-[17px] leading-relaxed text-slate-300">
+        <ul className="news-muted my-4 list-disc space-y-1 pl-6 text-[17px] leading-relaxed">
           {(block.text ?? '').split('\n').filter(Boolean).map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -72,7 +72,7 @@ function Block({ block }: { block: ArticleBlock }) {
     case 'table':
     case 'paragraph':
     default:
-      return <p className="my-4 text-[17px] leading-relaxed text-slate-300">{block.text}</p>;
+      return <p className="news-muted my-4 text-[17px] leading-relaxed">{block.text}</p>;
   }
 }
 
@@ -89,7 +89,7 @@ export function ArticleView({ article }: { article: Article }) {
     const syndicated = article.syndicated;
     return (
       <div className="mx-auto max-w-2xl">
-        <p className="mb-4 text-sm text-slate-400">
+        <p className="news-muted mb-4 text-sm">
           This is an external story. portaBaltica did not write it and does not reproduce it.
         </p>
         {syndicated && (
@@ -117,21 +117,21 @@ export function ArticleView({ article }: { article: Article }) {
         <TierBadge tier={article.tier} />
         <Link
           to={`/data/${article.section}`}
-          className="text-xs uppercase tracking-widest text-slate-400 underline underline-offset-4 hover:text-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-link news-focus text-xs uppercase tracking-widest underline underline-offset-4"
         >
           {SECTION_LABELS[article.section] ?? article.section}
         </Link>
       </div>
 
-      <h1 className="text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl">
+      <h1 className="news-fg text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
         {article.headline}
       </h1>
 
       {article.dek && (
-        <p className="mt-3 text-lg leading-relaxed text-slate-400">{article.dek}</p>
+        <p className="news-muted mt-3 text-lg leading-relaxed">{article.dek}</p>
       )}
 
-      <div className="mt-5 border-y border-slate-800/60 py-4">
+      <div className="news-border mt-5 border-y py-4">
         {article.persona ? (
           <Byline
             persona={{ ...article.persona, beat: article.persona.beat }}
@@ -139,7 +139,7 @@ export function ArticleView({ article }: { article: Article }) {
             timestamp={article.published_at}
           />
         ) : (
-          <p className="text-sm text-slate-400">
+          <p className="news-muted text-sm">
             Reproduced verbatim from {article.syndicated?.attribution ?? 'the original publisher'}. No
             portaBaltica byline: we did not write this.
           </p>
@@ -149,13 +149,13 @@ export function ArticleView({ article }: { article: Article }) {
       {article.corrections && article.corrections.length > 0 && (
         <section
           aria-label="Corrections to this article"
-          className="mt-6 rounded-lg border border-amber-700/40 bg-amber-950/20 px-4 py-3"
+          className="news-border news-warning-panel mt-6 rounded-lg border px-4 py-3"
         >
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-amber-200">Corrected</h2>
+          <h2 className="news-warning text-xs font-semibold uppercase tracking-widest">Corrected</h2>
           <ul className="mt-2 space-y-2">
             {article.corrections.map((correction) => (
-              <li key={correction.corrected_at} className="text-sm text-amber-100/90">
-                <time dateTime={correction.corrected_at} className="text-amber-300/80">
+              <li key={correction.corrected_at} className="news-warning text-sm">
+                <time dateTime={correction.corrected_at}>
                   {new Date(correction.corrected_at).toLocaleDateString('en-GB', {
                     day: 'numeric',
                     month: 'long',
@@ -165,7 +165,7 @@ export function ArticleView({ article }: { article: Article }) {
                 {' — '}
                 {correction.description}
                 {correction.previous_value && (
-                  <span className="block text-xs text-amber-200/60">
+                  <span className="block text-xs">
                     Previously: {correction.previous_value}
                   </span>
                 )}
@@ -177,11 +177,11 @@ export function ArticleView({ article }: { article: Article }) {
 
       <div className="mt-6">
         {article.tier === 'B' && article.syndicated?.full_text ? (
-          <div className="rounded-lg border border-slate-800/60 bg-slate-900/30 p-5">
-            <p className="mb-3 text-xs uppercase tracking-widest text-slate-500">
+          <div className="news-border news-panel rounded-lg border p-5">
+            <p className="news-subtle mb-3 text-xs uppercase tracking-widest">
               Reproduced in full, unedited
             </p>
-            <div className="whitespace-pre-line text-[17px] leading-relaxed text-slate-300">
+            <div className="news-muted whitespace-pre-line text-[17px] leading-relaxed">
               {article.syndicated.full_text}
             </div>
           </div>
@@ -193,11 +193,11 @@ export function ArticleView({ article }: { article: Article }) {
       </div>
 
       {article.tier === 'A' && (
-        <p className="mt-8 rounded-lg border border-slate-800/60 bg-slate-900/30 px-4 py-3 text-sm text-slate-400">
+        <p className="news-border news-panel news-muted mt-8 rounded-lg border px-4 py-3 text-sm">
           Every figure above is on the dashboard, live.{' '}
           <Link
             to={chartRefs[0] ? `/indicator/${chartRefs[0]}` : `/data/${article.section}`}
-            className="text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+            className="news-link news-focus underline underline-offset-4"
           >
             Check it yourself →
           </Link>

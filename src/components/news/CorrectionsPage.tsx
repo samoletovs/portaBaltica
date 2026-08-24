@@ -51,31 +51,31 @@ export default function CorrectionsPage() {
       <Markdown source={policySource} />
 
       <section aria-labelledby="the-log" className="mt-10">
-        <h2 id="the-log" className="text-xl font-semibold tracking-tight text-white">
+        <h2 id="the-log" className="news-fg text-xl font-semibold tracking-tight">
           The log
         </h2>
 
         {entries !== null && publishedCount !== null && (
-          <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-800/60 bg-slate-800/60 sm:grid-cols-3">
-            <div className="bg-slate-900/60 px-4 py-3">
-              <dt className="text-xs uppercase tracking-widest text-slate-500">Corrections</dt>
-              <dd className="mt-0.5 font-mono text-lg text-slate-100">{entries.length}</dd>
+          <dl className="news-border news-panel-muted mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-3">
+            <div className="news-panel px-4 py-3">
+              <dt className="news-subtle text-xs uppercase tracking-widest">Corrections</dt>
+              <dd className="news-fg mt-0.5 font-mono text-lg">{entries.length}</dd>
             </div>
-            <div className="bg-slate-900/60 px-4 py-3">
-              <dt className="text-xs uppercase tracking-widest text-slate-500">Articles published</dt>
-              <dd className="mt-0.5 font-mono text-lg text-slate-100">{publishedCount}</dd>
+            <div className="news-panel px-4 py-3">
+              <dt className="news-subtle text-xs uppercase tracking-widest">Articles published</dt>
+              <dd className="news-fg mt-0.5 font-mono text-lg">{publishedCount}</dd>
             </div>
-            <div className="bg-slate-900/60 px-4 py-3">
-              <dt className="text-xs uppercase tracking-widest text-slate-500">Per hundred</dt>
-              <dd className="mt-0.5 font-mono text-lg text-slate-100">{perHundred ?? '—'}</dd>
+            <div className="news-panel px-4 py-3">
+              <dt className="news-subtle text-xs uppercase tracking-widest">Per hundred</dt>
+              <dd className="news-fg mt-0.5 font-mono text-lg">{perHundred ?? '—'}</dd>
             </div>
           </dl>
         )}
 
         {entries === null ? (
-          <div className="mt-4 h-24 animate-pulse rounded-lg bg-slate-800/30" aria-busy="true" />
+          <div className="news-skeleton mt-4 h-24 animate-pulse rounded-lg" aria-busy="true" />
         ) : entries.length === 0 ? (
-          <p className="mt-4 rounded-lg border border-slate-800/60 bg-slate-900/30 px-5 py-6 text-sm leading-relaxed text-slate-400">
+          <p className="news-border news-panel news-muted mt-4 rounded-lg border px-5 py-6 text-sm leading-relaxed">
             No corrections have been issued yet. This log is published whether or not it has
             entries, so that its emptiness is verifiable rather than assumed.
           </p>
@@ -84,11 +84,11 @@ export default function CorrectionsPage() {
             {entries.map((entry) => (
               <li
                 key={`${entry.slug}-${entry.corrected_at}`}
-                className="border-l-2 border-amber-600/50 py-1 pl-4"
+                className="news-border border-l-2 py-1 pl-4"
               >
                 <time
                   dateTime={entry.corrected_at}
-                  className="text-xs uppercase tracking-widest text-amber-300/80"
+                  className="news-warning text-xs uppercase tracking-widest"
                 >
                   {new Date(entry.corrected_at).toLocaleDateString('en-GB', {
                     day: 'numeric',
@@ -96,17 +96,17 @@ export default function CorrectionsPage() {
                     year: 'numeric',
                   })}
                 </time>
-                <h3 className="mt-1 text-base font-medium text-slate-100">
+                <h3 className="news-fg mt-1 text-base font-medium">
                   <Link
                     to={`/article/${entry.slug}`}
-                    className="underline decoration-slate-700 underline-offset-4 hover:decoration-ocean-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+                    className="news-link news-focus underline underline-offset-4"
                   >
                     {entry.headline}
                   </Link>
                 </h3>
-                <p className="mt-1 text-sm leading-relaxed text-slate-300">{entry.description}</p>
+                <p className="news-muted mt-1 text-sm leading-relaxed">{entry.description}</p>
                 {entry.previous_value && (
-                  <p className="mt-1 text-xs text-slate-500">Previously: {entry.previous_value}</p>
+                  <p className="news-subtle mt-1 text-xs">Previously: {entry.previous_value}</p>
                 )}
               </li>
             ))}

@@ -21,12 +21,12 @@ interface Props {
 
 export function ChartEmbed({ indicatorId, caption }: Props) {
   return (
-    <figure className="my-8 rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
+    <figure className="news-border news-panel my-8 rounded-xl border p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-widest text-slate-500">Live data</p>
+        <p className="news-subtle text-xs font-medium uppercase tracking-widest">Live data</p>
         <Link
           to={`/indicator/${indicatorId}`}
-          className="text-xs text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-link news-focus text-xs underline underline-offset-4"
         >
           Open the full series →
         </Link>
@@ -34,13 +34,13 @@ export function ChartEmbed({ indicatorId, caption }: Props) {
 
       <Suspense
         fallback={
-          <div className="h-64 animate-pulse rounded-lg bg-slate-800/40" aria-label="Loading chart" />
+          <div className="news-skeleton h-64 animate-pulse rounded-lg" aria-label="Loading chart" />
         }
       >
         <IndicatorChart id={indicatorId} />
       </Suspense>
 
-      <figcaption className="mt-2 text-xs leading-relaxed text-slate-500">
+      <figcaption className="news-subtle mt-2 text-xs leading-relaxed">
         {caption ?? 'This chart updates independently of the article. It is the same series the story was written from.'}
       </figcaption>
     </figure>

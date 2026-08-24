@@ -9,6 +9,7 @@ import { CountryProvider } from './CountryContext.tsx'
 import { FilterProvider } from './FilterContext.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { NewsroomLayout } from './components/news/NewsroomLayout.tsx'
+import { SiteLayout } from './components/SiteLayout.tsx'
 
 // The dashboard and everything chart-shaped stays behind a lazy boundary so
 // recharts and d3 never load for a reader who only came for the front page.
@@ -50,22 +51,20 @@ createRoot(document.getElementById('root')!).render(
               <ScrollToTop />
               <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
                 <Routes>
-                  {/* The news portal */}
-                  <Route element={<NewsroomLayout />}>
-                    <Route index element={<NewsFeed />} />
-                    <Route path="/article/:slug" element={<ArticlePage />} />
-                    <Route path="/correspondents" element={<CorrespondentPage />} />
-                    <Route path="/correspondents/:id" element={<CorrespondentPage />} />
-                    <Route path="/about/ai" element={<AiPolicyPage />} />
-                    <Route path="/corrections" element={<CorrectionsPage />} />
+                  <Route element={<SiteLayout />}>
+                    <Route element={<NewsroomLayout />}>
+                      <Route index element={<NewsFeed />} />
+                      <Route path="/article/:slug" element={<ArticlePage />} />
+                      <Route path="/correspondents" element={<CorrespondentPage />} />
+                      <Route path="/correspondents/:id" element={<CorrespondentPage />} />
+                      <Route path="/about/ai" element={<AiPolicyPage />} />
+                      <Route path="/corrections" element={<CorrectionsPage />} />
+                    </Route>
+                    <Route path="/data/:section?" element={<App />} />
+                    <Route path="/indicator/:id" element={<IndicatorPage />} />
+                    <Route path="/api-docs" element={<ApiDocsPage />} />
+                    <Route path="/:section" element={<LegacySectionRedirect />} />
                   </Route>
-
-                  {/* The dashboard, preserved whole as the evidence behind the reporting */}
-                  <Route path="/data/:section?" element={<App />} />
-                  <Route path="/indicator/:id" element={<IndicatorPage />} />
-                  <Route path="/api-docs" element={<ApiDocsPage />} />
-
-                  <Route path="/:section" element={<LegacySectionRedirect />} />
                 </Routes>
               </Suspense>
             </BrowserRouter>

@@ -41,6 +41,18 @@
   --chart-tooltip-border: #1e293b;
   --scrollbar-thumb: #1e293b;
   --scrollbar-hover: #334155;
+  --news-fg: #f8fafc;
+  --news-muted: #cbd5e1;
+  --news-subtle: #94a3b8;
+  --news-border: #334155;
+  --news-panel: #111827;
+  --news-panel-muted: #1e293b;
+  --news-accent: #38bdf8;
+  --news-accent-panel: #0c2d42;
+  --news-warning: #fde68a;
+  --news-warning-panel: #291c0b;
+  --news-positive: #6ee7b7;
+  --news-negative: #fca5a5;
 }
 
 [data-theme="light"] {
@@ -61,6 +73,18 @@
   --chart-tooltip-border: #e2e8f0;
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-hover: #94a3b8;
+  --news-fg: #0f172a;
+  --news-muted: #334155;
+  --news-subtle: #475569;
+  --news-border: #cbd5e1;
+  --news-panel: #ffffff;
+  --news-panel-muted: #f1f5f9;
+  --news-accent: #0369a1;
+  --news-accent-panel: #e0f2fe;
+  --news-warning: #92400e;
+  --news-warning-panel: #fffbeb;
+  --news-positive: #047857;
+  --news-negative: #b91c1c;
 }
 
 body {
@@ -71,6 +95,61 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s, color 0.2s;
+}
+
+/* Editorial surfaces use semantic tokens so every news route follows the theme. */
+.news-fg { color: var(--news-fg); }
+.news-muted { color: var(--news-muted); }
+.news-subtle { color: var(--news-subtle); }
+.news-accent { color: var(--news-accent); }
+.news-positive { color: var(--news-positive); }
+.news-negative { color: var(--news-negative); }
+.news-panel { background: var(--news-panel); }
+.news-panel-muted { background: var(--news-panel-muted); }
+.news-accent-panel { background: var(--news-accent-panel); }
+.news-warning { color: var(--news-warning); }
+.news-warning-panel { background: var(--news-warning-panel); }
+.news-border { border-color: var(--news-border); }
+.news-skeleton { background: var(--news-panel-muted); }
+.news-link {
+  color: var(--news-accent);
+  text-decoration-color: color-mix(in srgb, var(--news-accent) 65%, transparent);
+}
+.news-link:hover { color: var(--news-fg); }
+.news-hover:hover { color: var(--news-fg); }
+.news-hover-panel:hover { background: var(--news-panel-muted); }
+.news-focus:focus-visible {
+  outline: 2px solid var(--news-accent);
+  outline-offset: 2px;
+}
+.news-tab-active {
+  color: var(--news-fg);
+  border-color: var(--news-accent);
+  background: var(--news-accent-panel);
+}
+.news-tab-inactive {
+  color: var(--news-muted);
+  border-color: var(--news-border);
+}
+.news-tier-accent {
+  color: var(--news-accent);
+  border-color: var(--news-accent);
+  background: var(--news-accent-panel);
+}
+.news-tier-neutral {
+  color: var(--news-muted);
+  border-color: var(--news-border);
+  background: var(--news-panel-muted);
+}
+.news-status-positive {
+  color: var(--news-positive);
+  border-color: var(--news-positive);
+  background: var(--news-panel);
+}
+.news-status-warning {
+  color: var(--news-warning);
+  border-color: var(--news-warning);
+  background: var(--news-warning-panel);
 }
 
 /* ─── Theme-aware utility classes ─── */

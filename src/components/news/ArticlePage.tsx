@@ -36,22 +36,22 @@ export default function ArticlePage() {
   if (load === null) {
     return (
       <div className="mx-auto max-w-2xl space-y-3" aria-busy="true" aria-label="Loading article">
-        <div className="h-8 w-3/4 animate-pulse rounded bg-slate-800/40" />
-        <div className="h-4 w-1/2 animate-pulse rounded bg-slate-800/30" />
-        <div className="h-40 animate-pulse rounded bg-slate-800/20" />
+        <div className="news-skeleton h-8 w-3/4 animate-pulse rounded" />
+        <div className="news-skeleton h-4 w-1/2 animate-pulse rounded" />
+        <div className="news-skeleton h-40 animate-pulse rounded" />
       </div>
     );
   }
 
   if (load.state === 'not-found') {
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border border-slate-800/60 bg-slate-900/30 px-6 py-8 text-center">
-        <h1 className="text-lg font-semibold text-slate-100">Article not found</h1>
-        <p className="mt-2 text-sm text-slate-400">
+      <div className="news-border news-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center">
+        <h1 className="news-fg text-lg font-semibold">Article not found</h1>
+        <p className="news-muted mt-2 text-sm">
           No article is published at this address.{' '}
           <Link
             to="/"
-            className="text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+            className="news-link news-focus underline underline-offset-4"
           >
             Back to the front page
           </Link>
@@ -64,16 +64,16 @@ export default function ArticlePage() {
     return (
       <div
         role="alert"
-        className="mx-auto max-w-2xl rounded-xl border border-amber-700/40 bg-amber-950/20 px-6 py-8 text-center"
+        className="news-border news-warning-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center"
       >
-        <h1 className="text-lg font-semibold text-amber-100">This article is not available</h1>
-        <p className="mt-2 text-sm leading-relaxed text-amber-200/80">
+        <h1 className="news-warning text-lg font-semibold">This article is not available</h1>
+        <p className="news-warning mt-2 text-sm leading-relaxed">
           It has not passed the checks we run before publishing, so we will not show it.
         </p>
         <p className="mt-4 text-sm">
           <Link
             to="/"
-            className="text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+            className="news-link news-focus underline underline-offset-4"
           >
             Back to the front page
           </Link>
