@@ -24,6 +24,9 @@ asking for trust it has not earned.
 - **We do not rewrite other outlets' journalism.** Where we point you at another
   publication, you get their headline, the summary they published themselves, and
   a link. Nothing is reworded.
+- **Routine review is handled by a disclosed AI editor.** Sam is interrupted only
+  when material appears dangerous, harmful or inappropriate; the editor approves
+  or rejects ordinary verbatim items itself.
 - **A human is accountable for everything here.** Named, above.
 
 ---
@@ -78,7 +81,9 @@ it first. "The AI did it" is not an explanation we will ever offer you.
 Articles built from open data publish automatically once they pass our
 validation checks. Their provenance lists any research sources consulted.
 Verbatim official press releases and links to other outlets' reporting are
-reviewed by a human before they appear as standalone items.
+reviewed by a named AI editor after validation and before publication. The editor
+may approve, reject, or escalate. Escalation is reserved for dangerous, harmful
+or inappropriate content that Sam should see; routine approvals do not go to him.
 
 ## 4. What you see as a reader
 
@@ -87,6 +92,10 @@ Our correspondents are **Ilze Bērziņa** (Economy & Labour), **Marek Soosaar**
 (Environment & Climate) and **Rasa Petrauskaitė** (Government, EU & Society).
 Each covers a beat, has a declared area of expertise, and writes in a
 consistent voice.
+
+The editor for syndicated items is **Dace Vaivode** (Editorial Review). It is the
+same kind of disclosed AI persona: an invented name with a declared competence,
+not a staff journalist and not a real individual.
 
 **None of them exists.** They are invented people. The names are fictional, the
 expertise is a description of what each one is built to look for, and no

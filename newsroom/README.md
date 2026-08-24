@@ -44,8 +44,8 @@ set in advance. Automate the form, never the judgment.
 | Tier | What | Who writes it | Approval | Rewriting |
 |------|------|---------------|----------|-----------|
 | **A** | Original data journalism from open APIs | An AI correspondent, from a verified signal | Auto-publish once the validator passes | n/a — it is ours |
-| **B** | Official press releases (EC, EP) | Nobody — reproduced verbatim | Human, via Telegram | **Never** |
-| **C** | Third-party headlines | Nobody — headline + the outlet's own RSS snippet + link | Human, via Telegram | **Never** |
+| **B** | Official press releases (EC, EP) | Nobody — reproduced verbatim | AI editor; Telegram only on escalation | **Never** |
+| **C** | Third-party headlines | Nobody — headline + the outlet's own RSS snippet + link | AI editor; Telegram only on escalation | **Never** |
 
 `newsroom/sources.yaml` is authoritative. Content from a source not registered
 there is dropped. The `rewrite_allowed` flag is enforced in code, not by
@@ -83,8 +83,12 @@ convention.
    │
    ├─ 6. VALIDATE     the gate. See below. Fails closed.
    │
-   └─ 7. PUBLISH      article JSON → Blob → SWA serves it statically
-                      tier B/C instead → Telegram approve/reject → Blob
+   ├─ 7. EDIT         tier B/C only: approve, reject or escalate.
+   │                  Routine decisions stay inside the pipeline; Sam is
+   │                  notified only for dangerous, harmful or inappropriate
+   │                  material.
+   │
+   └─ 8. PUBLISH      article JSON → Blob → SWA serves it statically
 ```
 
 ### Why generation is batch, not per-request

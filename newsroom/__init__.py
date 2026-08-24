@@ -11,7 +11,7 @@ The public modules:
 * :mod:`newsroom.persona_rules` — loads ``personas.yaml``; bylines and routing.
 * :mod:`newsroom.fencing` — nonce-delimited fencing for untrusted feed content.
 * :mod:`newsroom.validator` — the publication gate. Fails closed.
-* :mod:`newsroom.approval` — the tier B/C human approval flow.
+* :mod:`newsroom.pipeline.editor` — the tier B/C AI editor and escalation flow.
 """
 
 from __future__ import annotations

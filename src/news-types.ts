@@ -17,7 +17,7 @@ export type ArticleStatus =
   | 'corrected'
   | 'retracted';
 
-export type PersonaId = 'nida' | 'akmensrags' | 'kolka' | 'ristna' | 'irbene';
+export type PersonaId = 'nida' | 'akmensrags' | 'kolka' | 'ristna' | 'irbene' | 'saulkrasti';
 
 export type Country = 'LV' | 'EE' | 'LT' | 'Baltic' | 'EU';
 
@@ -68,6 +68,18 @@ export interface ResearchProvenance {
   consulted: ResearchSource[];
 }
 
+export type EditorDecision = 'approve' | 'reject' | 'escalate';
+
+export interface EditorProvenance {
+  prompt_version: string;
+  decision: EditorDecision;
+  reason: string;
+  editor: string;
+  decided_at: string;
+  model?: string;
+  notified_accountable_editor?: boolean;
+}
+
 /**
  * The article's "passport": what it was built from, by what, when, and who is
  * accountable. Rendered on the page — not merely stored.
@@ -83,6 +95,7 @@ export interface Provenance {
   approved_by?: string;
   approved_at?: string;
   accountable_editor?: string;
+  editor?: EditorProvenance;
   validator: ValidatorVerdict;
 }
 
