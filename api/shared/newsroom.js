@@ -7,7 +7,19 @@
 const https = require('https');
 
 const SITE_URL = process.env.SITE_URL || 'https://portabaltica.naurolabs.com';
-const ARTICLES_BASE_URL = (process.env.ARTICLES_BASE_URL || SITE_URL + '/articles').replace(/\/$/, '');
+
+// Articles live in a public blob container, not on the Static Web App. The
+// frontend gets this at build time via VITE_ARTICLES_BASE_URL (deploy.yml); the
+// Functions get it from an ARTICLES_BASE_URL app setting.
+//
+// The fallback used to be SITE_URL + '/articles', which the SWA does not serve —
+// it 404s. Combined with the fail-open below, that meant /rss.xml and
+// /sitemap.xml returned a valid, empty, HTTP 200 feed while three articles were
+// live. Nothing was red anywhere. The default now points where the articles
+// actually are, so a missing app setting degrades to the right place.
+const DEFAULT_ARTICLES_BASE_URL =
+  'https://stportabalticabpmff5so.blob.core.windows.net/articles';
+const ARTICLES_BASE_URL = (process.env.ARTICLES_BASE_URL || DEFAULT_ARTICLES_BASE_URL).replace(/\/$/, '');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -29,11 +41,34 @@ function jsonGet(url) {
   });
 }
 
+/**
+ * Turns a fetched index into an article list, or throws.
+ *
+ * The distinction this draws is the whole point:
+ *
+ *   - an index that exists and lists nothing is a QUIET DAY. Empty feed, 200.
+ *     The newsroom publishes only when the data warrants it, so that is a
+ *     legitimate state and must not be an error.
+ *   - an index that is MISSING or MALFORMED is a misconfiguration. It must
+ *     throw, so the endpoint 500s and someone notices.
+ *
+ * Collapsing those two into "return []" is what let a wrong base URL masquerade
+ * as "no news today" — a green endpoint serving a silently wrong answer, which
+ * is the most expensive kind of failure this project keeps running into.
+ */
+function parseIndex(raw, sourceUrl) {
+  if (raw === null || raw === undefined) {
+    throw new Error('Article index not found at ' + sourceUrl);
+  }
+  if (typeof raw !== 'object' || !Array.isArray(raw.articles)) {
+    throw new Error('Article index at ' + sourceUrl + ' is malformed');
+  }
+  return raw.articles;
+}
+
 function fetchIndex() {
-  return jsonGet(ARTICLES_BASE_URL + '/index.json').then(function (raw) {
-    if (!raw || !Array.isArray(raw.articles)) return [];
-    return raw.articles;
-  });
+  const url = ARTICLES_BASE_URL + '/index.json';
+  return jsonGet(url).then(function (raw) { return parseIndex(raw, url); });
 }
 
 /**
@@ -58,4 +93,4 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-module.exports = { SITE_URL, ARTICLES_BASE_URL, jsonGet, fetchIndex, ourArticles, escapeXml };
+module.exports = { SITE_URL, ARTICLES_BASE_URL, jsonGet, fetchIndex, parseIndex, ourArticles, escapeXml };
