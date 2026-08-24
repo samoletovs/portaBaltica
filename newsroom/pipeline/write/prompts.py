@@ -188,10 +188,35 @@ def build_revision_prompt(original_user_prompt: str, failure_summary: str) -> st
     )
 
 
+#: Fields that exist so a detector can decide a story is worth writing, and
+#: mean nothing to a reader. A z-score is how the pipeline knows June was
+#: unusual; it is not a fact about Estonian unemployment, and offering it as a
+#: "verified figure" invited exactly what it got — "The z-score of 2.13589
+#: indicates that this unemployment rate is notably lower", published.
+#:
+#: They stay on the signal for ranking and provenance. They are simply not
+#: shown to the writer, which is also why the validator will now reject them if
+#: the model produces one anyway: it cannot cite a number it was never given.
+_INTERNAL_ONLY_FIELDS = frozenset({"z_score"})
+
+#: Fields whose value is a ratio or count rather than a measure in the signal's
+#: own unit. Labelling `deviation_pct` with the signal unit produced
+#: "2.13589% of the labour force", a number that means nothing.
+_DIMENSIONLESS_FIELDS = frozenset({"z_score", "deviation_pct", "spread_pct"})
+
+
+def _unit_for(signal: Signal, name: str) -> str:
+    if name in _DIMENSIONLESS_FIELDS or "pct" in name:
+        return "%"
+    return signal.unit
+
+
 def _format_figures(signal: Signal) -> str:
     lines = []
     for name, value in signal.fields.items():
-        lines.append(f"  - {name} = {value:g}   ({signal.unit if 'pct' not in name else '%'})")
+        if name in _INTERNAL_ONLY_FIELDS:
+            continue
+        lines.append(f"  - {name} = {value:g}   ({_unit_for(signal, name)})")
     return "\n".join(lines)
 
 

@@ -55,6 +55,45 @@ def test_should_reject_a_tier_b_source_that_permits_rewriting() -> None:
         )
 
 
+def test_should_reject_a_research_source_that_is_not_in_english() -> None:
+    """The trap this closes: an /en/ URL that serves another language.
+
+    Statistics Estonia was registered as a research source on the strength of
+    https://www.stat.ee/en/rss, which returns 200 and Estonian. Its headlines
+    were handed to an English-writing correspondent. Nothing downstream would
+    have objected — the model either ignores them, or translates, and
+    translation is a derivative work under DSM Art. 15 as well as being named
+    in Google's scaled-content-abuse policy.
+    """
+    with pytest.raises(InvalidRegistryError, match="research_language"):
+        SourceRegistry.from_mapping(
+            _document(research_role="prior_coverage", research_language="et")
+        )
+
+
+def test_should_reject_a_research_source_that_declares_no_language_at_all() -> None:
+    # Silence is not English. The declaration has to be made deliberately,
+    # after someone has read the feed.
+    with pytest.raises(InvalidRegistryError, match="research_language"):
+        SourceRegistry.from_mapping(_document(research_role="prior_coverage"))
+
+
+def test_should_accept_an_english_research_source() -> None:
+    registry = SourceRegistry.from_mapping(
+        _document(research_role="prior_coverage", research_language="en")
+    )
+
+    assert registry.get("example_feed").research_language == "en"
+
+
+def test_should_not_require_a_language_from_a_source_used_only_for_ingestion() -> None:
+    # The guard is about text entering a writer prompt. A tier C card quotes
+    # the outlet verbatim and is never rewritten, so it is out of scope.
+    registry = SourceRegistry.from_mapping(_document())
+
+    assert registry.get("example_feed").research_role is None
+
+
 def test_should_reject_rewrite_allowed_written_as_a_string() -> None:
     # "false" is truthy in Python. Accepting it would turn a YAML quoting typo
     # into permission to rewrite a copyrighted feed.
