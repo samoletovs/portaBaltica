@@ -1,0 +1,62 @@
+name: Newsroom safety gate
+
+# Kept separate from CI/CD deliberately. That workflow is scoped to
+# `branches: [main, master]` because it deploys, so it would not run on a PR
+# targeting a feature branch — and this suite is exactly the one that must run
+# on every newsroom change, wherever it is headed. The repo is public, so the
+# Actions minutes are free.
+#
+# What this gate protects:
+#   * no article can be published with a number that traces to nothing
+#   * no third-party journalism can be rewritten
+#   * every correspondent byline discloses that it is an AI
+# It must stay a required check. If it is failing, the correct response is to
+# fix the article pipeline, never to loosen the invariant.
+
+on:
+  push:
+    paths:
+      - 'newsroom/**'
+      - 'src/news-types.ts'
+      - 'pytest.ini'
+      - '.github/workflows/newsroom-ci.yml'
+  pull_request:
+    paths:
+      - 'newsroom/**'
+      - 'src/news-types.ts'
+      - 'pytest.ini'
+      - '.github/workflows/newsroom-ci.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validator:
+    name: Validator and invariants (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor the Azure Functions Flex Consumption runtime gives
+        # us; 3.12 is what a contributor is likely to have locally. The package
+        # has to work on both, and nothing here needs a newer feature.
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: newsroom/requirements.txt
+
+      - name: Install newsroom dependencies
+        run: python -m pip install --upgrade pip && pip install -r newsroom/requirements.txt
+
+      - name: Run the content-safety suite
+        run: python -m pytest newsroom/tests -q
