@@ -1,0 +1,302 @@
+# portaBaltica — source registry
+#
+# The legal spine of the newsroom. Every piece of ingested content must map to
+# an entry here, and the entry decides what the pipeline is permitted to do
+# with it. There is no default: content from an unregistered source is dropped.
+#
+# TIERS
+# -----
+#   A  Original data journalism. We pull structured open data and write our own
+#      analysis. We own the resulting article outright. This is the product.
+#
+#   B  Verbatim reproduction permitted. Official press material that an explicit
+#      licence lets us republish in full with attribution. We do not rewrite it —
+#      rewriting would add legal risk for no editorial gain.
+#
+#   C  Link-out only. Third-party journalism. We may show the headline, the
+#      snippet THE OUTLET THEMSELVES published in their RSS <description>, and a
+#      link back. Nothing more. Never a rewrite, never a paraphrase, never the
+#      article body, never <content:encoded>.
+#
+# WHY TIER C IS SO NARROW
+# -----------------------
+# Two independent constraints bite here, and they point the same way:
+#   * EU DSM Directive 2019/790 Art. 15 gives press publishers a neighbouring
+#     right over online reuse, transposed in LV, EE and LT since 2021. Only
+#     hyperlinks and "individual words or very short extracts" are carved out.
+#     The outlet's own RSS snippet is the largest unit we can defend, because
+#     they published it for syndication themselves.
+#   * Google's scaled content abuse policy (March 2024) explicitly names
+#     "scraping feeds ... automated transformations like synonymizing,
+#     translating, or other obfuscation techniques" as spam. AI-paraphrasing a
+#     feed is the single fastest way to get this portal deindexed.
+#
+# So `rewrite_allowed: false` on tier C is not caution. It is the only setting
+# under which the portal survives both a legal challenge and a core update.
+
+version: 1
+
+defaults:
+  rewrite_allowed: false
+  requires_human_approval: true
+  cache_ttl_minutes: 60
+
+sources:
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TIER A — structured open data. We write original analysis from these.
+  # ─────────────────────────────────────────────────────────────────────
+
+  - id: eurostat
+    name: "Eurostat"
+    publisher: "European Commission"
+    tier: A
+    endpoint: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/{dataset}"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "EU Decision 2011/833/EU — free reuse with attribution"
+    attribution: "Source: Eurostat"
+    rewrite_allowed: true
+    requires_human_approval: false
+    update_frequency: "varies — GDP/HICP monthly to quarterly, population annual"
+    cache_ttl_minutes: 720
+    notes: "Primary cross-country comparison source. Best single source for LV/EE/LT divergence stories."
+
+  - id: ecb
+    name: "European Central Bank"
+    publisher: "ECB"
+    tier: A
+    endpoint: "https://data-api.ecb.europa.eu/service/data/{flowRef}/{key}"
+    auth: none
+    licence: "Free reuse with attribution"
+    attribution: "Source: European Central Bank"
+    rewrite_allowed: true
+    requires_human_approval: false
+    update_frequency: "daily (FX), monthly (rates)"
+    cache_ttl_minutes: 720
+
+  - id: elering
+    name: "Elering day-ahead electricity prices"
+    publisher: "Elering AS (Estonian TSO)"
+    tier: A
+    endpoint: "https://dashboard.elering.ee/api/nps/price"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Open, attribution required"
+    attribution: "Source: Elering / Nord Pool"
+    rewrite_allowed: true
+    requires_human_approval: false
+    update_frequency: "hourly; day-ahead published ~13:00 CET"
+    cache_ttl_minutes: 30
+    notes: >-
+      Historically an unofficial public API. Request formal open-data access
+      from Elering before this portal is promoted publicly.
+
+  - id: datagovlv
+    name: "data.gov.lv (CKAN)"
+    publisher: "Republic of Latvia"
+    tier: A
+    endpoint: "https://data.gov.lv/dati/api/3/action/datastore_search"
+    auth: none
+    licence: "CC BY 4.0 / CC0 — varies per dataset, check per resource"
+    attribution: "Source: data.gov.lv"
+    rewrite_allowed: true
+    requires_human_approval: false
+    update_frequency: "daily to biweekly per dataset"
+    cache_ttl_minutes: 1440
+
+  - id: statee
+    name: "Statistics Estonia PxWeb"
+    publisher: "Statistikaamet"
+    tier: A
+    endpoint: "https://andmed.stat.ee/api/v1/en/stat"
+    auth: none
+    licence: "CC BY 4.0"
+    attribution: "Source: Statistics Estonia"
+    rewrite_allowed: true
+    requires_human_approval: false
+    cache_ttl_minutes: 1440
+
+  - id: datagovlt
+    name: "data.gov.lt"
+    publisher: "Republic of Lithuania"
+    tier: A
+    endpoint: "https://data.gov.lt/api/3/action/package_search"
+    auth: none
+    licence: "CC BY 4.0"
+    attribution: "Source: data.gov.lt"
+    rewrite_allowed: true
+    requires_human_approval: false
+    cache_ttl_minutes: 1440
+
+  - id: openmeteo
+    name: "Open-Meteo"
+    publisher: "Open-Meteo"
+    tier: A
+    endpoint: "https://api.open-meteo.com/v1/forecast"
+    auth: none
+    licence: "CC BY 4.0 — free for non-commercial and commercial use"
+    attribution: "Weather data by Open-Meteo.com"
+    rewrite_allowed: true
+    requires_human_approval: false
+    cache_ttl_minutes: 60
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TIER B — official press material we may reproduce verbatim.
+  # Reproduced whole, attributed, never rewritten.
+  # ─────────────────────────────────────────────────────────────────────
+
+  - id: ec_presscorner
+    name: "European Commission Press Corner"
+    publisher: "European Commission"
+    tier: B
+    endpoint: "https://ec.europa.eu/commission/presscorner/api/rss?language=en"
+    verified: "2026-08-24 — HTTP 200, 10 items"
+    auth: none
+    licence: "EU Decision 2011/833/EU — reproduction permitted, source acknowledged, content not distorted"
+    attribution: "Source: European Commission"
+    rewrite_allowed: false     # permitted, but we choose verbatim: no distortion risk
+    requires_human_approval: true
+    filter: "Baltic relevance — mentions Latvia, Estonia, Lithuania, Baltic, or an EU-wide measure with regional effect"
+    cache_ttl_minutes: 60
+
+  - id: ep_news
+    name: "European Parliament news"
+    publisher: "European Parliament"
+    tier: B
+    endpoint: "https://www.europarl.europa.eu/rss/doc/top-stories/en.xml"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "EU Decision 2011/833/EU — free reuse with attribution"
+    attribution: "Source: European Parliament"
+    rewrite_allowed: false
+    requires_human_approval: true
+    cache_ttl_minutes: 120
+
+  # ─────────────────────────────────────────────────────────────────────
+  # TIER C — link-out only. Headline + the outlet's own RSS snippet + link.
+  # rewrite_allowed is false on every entry and must stay that way.
+  # ─────────────────────────────────────────────────────────────────────
+
+  - id: lsm_en
+    name: "LSM.lv English"
+    publisher: "Latvijas Sabiedriskie Mediji (Latvian Public Media)"
+    country: LV
+    tier: C
+    endpoint: "https://eng.lsm.lv/rss"
+    verified: "2026-08-24 — HTTP 200, language=en, 50 items"
+    auth: none
+    licence: "Copyright LSM. No open reuse licence. RSS snippet + link only."
+    attribution: "LSM.lv English"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    cache_ttl_minutes: 30
+    notes: >-
+      Best English-language Latvian source. Found during endpoint validation —
+      an earlier research pass wrongly reported that no English LSM feed
+      existed, having only tried lsm.lv/en/rss which redirects to the Latvian
+      feed. The working host is eng.lsm.lv.
+
+  - id: err_en
+    name: "ERR News (English)"
+    publisher: "Eesti Rahvusringhääling (Estonian Public Broadcasting)"
+    country: EE
+    tier: C
+    endpoint: "https://news.err.ee/rss"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Copyright ERR, declared in feed. RSS snippet + link only."
+    attribution: "ERR News"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    cache_ttl_minutes: 30
+    notes: "Feed declares <language>et</language> despite English content — a metadata error on their side, not a content signal."
+
+  - id: baltictimes
+    name: "The Baltic Times"
+    publisher: "The Baltic Times"
+    country: "Baltic"
+    tier: C
+    endpoint: "https://www.baltictimes.com/rss/"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Copyright. No open licence located. RSS snippet + link only."
+    attribution: "The Baltic Times"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    cache_ttl_minutes: 60
+
+  - id: emerging_europe
+    name: "Emerging Europe"
+    publisher: "Emerging Europe Ltd"
+    country: "Regional"
+    tier: C
+    endpoint: "https://emerging-europe.com/feed/"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Copyright. RSS snippet + link only."
+    attribution: "Emerging Europe"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    cache_ttl_minutes: 120
+    notes: >-
+      DANGER: this feed includes <content:encoded> carrying the full article
+      body. The parser must read <description> only. Ingesting content:encoded
+      would be republication of a complete copyrighted work.
+
+  - id: delfi_global
+    name: "Delfi (global channel)"
+    publisher: "Delfi UAB"
+    country: LT
+    tier: C
+    endpoint: "https://feed.delfi.lt/v2/channel/global?format=rss"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Copyright, commercial publisher. RSS snippet + link only."
+    attribution: "Delfi"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    enabled: false
+    cache_ttl_minutes: 60
+    notes: "Disabled until confirmed the channel returns English items rather than Lithuanian."
+
+  - id: euobserver
+    name: "EUobserver"
+    publisher: "EUobserver"
+    country: "EU"
+    tier: C
+    endpoint: "https://euobserver.com/feed/"
+    verified: "2026-08-24 — HTTP 200"
+    auth: none
+    licence: "Copyright. RSS snippet + link only."
+    attribution: "EUobserver"
+    rewrite_allowed: false
+    requires_human_approval: true
+    max_snippet_source: "rss_description_verbatim"
+    cache_ttl_minutes: 120
+
+# ─────────────────────────────────────────────────────────────────────────
+# Known-unavailable. Kept so future passes do not re-research them blindly.
+# ─────────────────────────────────────────────────────────────────────────
+unavailable:
+  - id: lrt_en
+    name: "LRT English (Lithuanian public broadcaster)"
+    reason: "HTTP 502 at https://www.lrt.lt/en/news-in-english/rss/ on 2026-08-24; six other URL patterns 404 in research."
+    action: "Retry periodically; contact lrt@lrt.lt for a syndication or feed endpoint."
+  - id: bns
+    name: "Baltic News Service"
+    reason: "Paid B2B wire service, licensed to subscribers only. No public feed."
+    action: "Do not ingest under any circumstance without a signed licence."
+  - id: postimees_en
+    name: "Postimees English"
+    reason: "No standalone English edition or English RSS; main feed is Estonian."
+    action: "None. Covered adequately by ERR News."
+  - id: rebaltica
+    name: "Re:Baltica"
+    reason: "English RSS not located; investigative nonprofit worth a direct partnership approach."
+    action: "Contact for syndication — mission-aligned, would strengthen credibility."
