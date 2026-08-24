@@ -64,12 +64,33 @@ class ArticleStore:
             self._blob_failed = True
         return self._blob
 
+    @staticmethod
+    def blob_name_for(article: Article) -> str:
+        """Where an article is stored.
+
+        A PUBLISHED article lives at ``<slug>.json``, flat at the container
+        root, because that is the address the reader asks for: ``news-api.ts``
+        fetches ``${BASE}/${slug}.json`` and the route is ``/article/<slug>``.
+        A dated path would give every story a URL that depends on when it was
+        generated, and the frontend would 404 on all of them -- which is
+        exactly what happened: the front page listed two articles and both
+        links led to "Article not found", with the only clue a 404 in the
+        console reading "The specified blob does not exist".
+
+        Everything NOT published keeps a dated, status-prefixed path. Rejected
+        drafts are an audit trail, never reachable content, and grouping them
+        by day is how you review a bad afternoon.
+        """
+        if article.status == "published":
+            return f"{article.slug}.json"
+        return f"{article.status}/{article.created_at[:10]}/{article.slug}.json"
+
     async def put(self, article: Article) -> str:
         if article.status == "published" and not is_servable(article):
             raise NotServable(
                 f"{article.id} is marked published without a passing validator verdict"
             )
-        name = f"{article.status}/{article.created_at[:10]}/{article.slug}.json"
+        name = self.blob_name_for(article)
         body = json.dumps(article.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
         await asyncio.to_thread(self._write_local, name, body)
         container = self._container_client()
@@ -90,9 +111,59 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    INDEX_MAX_ENTRIES = 200
+
+    def _read_existing_index(self) -> list[dict[str, Any]]:
+        """Entries already on the front page, from blob if available else local.
+
+        Blob is authoritative: a local run must not be able to publish a front
+        page built from one machine's leftovers.
+        """
+        container = self._container_client()
+        if container is not None:
+            try:
+                raw = container.download_blob("index.json").readall()
+                payload = json.loads(raw.decode("utf-8"))
+                existing = payload.get("articles")
+                if isinstance(existing, list):
+                    return [e for e in existing if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.info("no readable index in blob yet (%s); starting fresh", exc)
+
+        local = self._local_dir / "index.json"
+        if local.exists():
+            try:
+                payload = json.loads(local.read_text(encoding="utf-8"))
+                existing = payload.get("articles")
+                if isinstance(existing, list):
+                    return [e for e in existing if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.warning("local index unreadable (%s); starting fresh", exc)
+        return []
+
     async def write_index(self, articles: Sequence[Article]) -> str:
-        """A compact index of servable articles, for the frontend to fetch."""
-        entries = [
+        """A compact index of servable articles, for the frontend to fetch.
+
+        The shape is fixed by ``ArticleSummary`` in ``src/news-types.ts`` and is
+        enforced at render time by ``isRenderableSummary`` in ``src/news-api.ts``:
+        a tier A entry must carry a ``persona`` OBJECT with a ``name``, and a
+        tier B/C entry a ``syndicated`` object with ``attribution`` and
+        ``original_url``. Entries that do not match are dropped silently by the
+        reader, which is the right behaviour for the client and a miserable
+        thing to debug from the server.
+
+        THE INDEX ACCUMULATES. It is the front page of a news site, not a
+        report on the last run. This previously rebuilt the index from only the
+        current run's articles, so the first run that published nothing --
+        which is the *designed* behaviour on a quiet day -- silently erased
+        every story already on the front page. A wire that deletes its archive
+        whenever the data is unremarkable is not a wire.
+
+        Entries are keyed by slug so a re-run that regenerates the same story
+        updates it rather than duplicating it, and the newest
+        ``INDEX_MAX_ENTRIES`` are kept so the file cannot grow without bound.
+        """
+        fresh = [
             {
                 "id": a.id,
                 "slug": a.slug,
@@ -100,15 +171,35 @@ class ArticleStore:
                 "section": a.section,
                 "headline": a.headline,
                 "dek": a.dek,
-                "byline": (a.persona or {}).get("byline"),
-                "attribution": (a.syndicated or {}).get("attribution"),
+                "persona": a.persona or None,
+                "syndicated": (
+                    {
+                        "attribution": (a.syndicated or {}).get("attribution"),
+                        "original_url": (a.syndicated or {}).get("original_url"),
+                        "snippet": (a.syndicated or {}).get("snippet"),
+                    }
+                    if a.syndicated
+                    else None
+                ),
                 "published_at": a.published_at or a.created_at,
                 "countries": a.countries,
             }
             for a in articles
             if is_servable(a)
         ]
-        entries.sort(key=lambda e: e["published_at"], reverse=True)
+
+        by_slug: dict[str, dict[str, Any]] = {}
+        for entry in await asyncio.to_thread(self._read_existing_index):
+            slug = entry.get("slug")
+            if isinstance(slug, str) and slug:
+                by_slug[slug] = entry
+        for entry in fresh:  # this run wins on a slug collision
+            by_slug[entry["slug"]] = entry
+
+        entries = sorted(
+            by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True
+        )[: self.INDEX_MAX_ENTRIES]
+
         body = json.dumps(
             {"generated_at": isoformat(utcnow()), "count": len(entries), "articles": entries},
             ensure_ascii=False,
