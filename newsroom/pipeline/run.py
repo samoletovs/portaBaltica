@@ -86,7 +86,19 @@ async def collect_feeds(
     """
     items: list[FeedItem] = []
     raw_descriptions: dict[str, str] = {}
-    for source in [*registry().enabled("B"), *registry().enabled("C")]:
+    # by_tier() returns every registered source of that tier; enabled_sources()
+    # filters out the ones marked `enabled: false` (delfi_global is disabled
+    # until its channel is confirmed to serve English). Intersecting the two
+    # keeps a disabled source out of the wire without removing it from the
+    # registry, which is where its licence and attribution are recorded.
+    enabled_ids = {source.id for source in registry().enabled_sources()}
+    syndicated = [
+        source
+        for tier in ("B", "C")
+        for source in registry().by_tier(tier)
+        if source.id in enabled_ids
+    ]
+    for source in syndicated:
         result = await http.fetch(
             source_id=source.id,
             url=source.endpoint,

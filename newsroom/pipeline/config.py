@@ -26,9 +26,39 @@ AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini
 # --- Storage ----------------------------------------------------------------
 # Raw items are archived here *before* anything parses them, so a validator
 # failure downstream is always reproducible from the bytes we actually received.
-STORAGE_ACCOUNT_URL = os.environ.get("NEWSROOM_STORAGE_ACCOUNT_URL", "")
-RAW_CONTAINER = os.environ.get("NEWSROOM_RAW_CONTAINER", "raw-feeds")
-ARTICLES_CONTAINER = os.environ.get("NEWSROOM_ARTICLES_CONTAINER", "articles")
+#
+# TWO NAMES FOR EACH SETTING, ON PURPOSE.
+#
+# The infrastructure and pipeline workstreams were built in parallel and did
+# not agree on env-var names: Bicep provisions BLOB_ACCOUNT_URL and
+# NEWSROOM_CONTAINER_ARTICLES, while this module was written expecting
+# NEWSROOM_STORAGE_ACCOUNT_URL and NEWSROOM_ARTICLES_CONTAINER. Nothing failed
+# loudly — the Function would have deployed, started, found an empty account
+# URL, written to no blob at all, and left the front page saying "nothing to
+# report" forever. A silent seam is worse than a crash.
+#
+# The deployed names win, because they are in IaC and already provisioned. The
+# older names stay as a fallback so a local run or an older environment keeps
+# working, and so this fix cannot itself break anything.
+def _setting(*names: str, default: str = "") -> str:
+    """First non-empty value among ``names``, else ``default``."""
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    return default
+
+
+STORAGE_ACCOUNT_URL = _setting("BLOB_ACCOUNT_URL", "NEWSROOM_STORAGE_ACCOUNT_URL")
+RAW_CONTAINER = _setting(
+    "NEWSROOM_CONTAINER_RAW_FEEDS", "NEWSROOM_RAW_CONTAINER", default="raw-feeds"
+)
+ARTICLES_CONTAINER = _setting(
+    "NEWSROOM_CONTAINER_ARTICLES", "NEWSROOM_ARTICLES_CONTAINER", default="articles"
+)
+APPROVALS_CONTAINER = _setting(
+    "NEWSROOM_CONTAINER_APPROVALS", "NEWSROOM_APPROVALS_CONTAINER", default="approvals"
+)
 
 # Local mirror of the raw archive. Always written; blob is written too when a
 # storage account is configured. Keeping the local copy unconditional means the
