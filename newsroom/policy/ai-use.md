@@ -77,22 +77,43 @@ it appears.
 
 ## 4. What you see as a reader
 
-Our correspondents are named **Nida**, **Akmeņrags**, **Kolka**, **Ristna** and
-**Irbene**, after landmarks on the Baltic coast. Each covers a beat and writes in
-a consistent voice.
+Our correspondents are **Ilze Bērziņa** (Economy & Labour), **Marek Soosaar**
+(Energy & Markets), **Gintaras Vaitkus** (Maritime & Trade), **Kadri Lepik**
+(Environment & Climate) and **Rasa Petrauskaitė** (Government, EU & Society).
+Each covers a beat, has a declared area of expertise, and writes in a
+consistent voice.
 
-They are named after lighthouses and capes rather than given human names on
-purpose. A reader can mistake "Marta Ozola" for a staff journalist; nobody
-mistakes a lighthouse for one. Alongside that:
+**None of them exists.** They are invented people. The names are fictional, the
+expertise is a description of what each one is built to look for, and no
+correspondent has held a job, studied anywhere, been anywhere or met anyone.
+Their working methods are drawn from real traditions in economics, market and
+accountability reporting — a reader who knows those traditions may recognise
+the approach — but no correspondent is modelled on a named individual or claims
+any association with one.
+
+> **An earlier version of this page said something different.** These
+> correspondents were first named after Baltic landmarks — Nida, Akmeņrags,
+> Kolka, Ristna, Irbene — and this page argued that place names were safer
+> because nobody mistakes a lighthouse for a journalist. That was a fair point
+> and we changed our minds: a correspondent with a name and a stated expertise
+> can be *held to* that expertise, and readers were being asked to take
+> anonymous analysis on trust. We are recording the change here rather than
+> quietly editing it away, because a policy you can silently rewrite is not a
+> policy. What did **not** change is everything the argument was protecting:
 
 - every byline reads **"· AI correspondent"**, always, without exception
-- every correspondent has a page saying plainly that it is a software system,
-  which datasets it works from, and who is accountable for it
+- every correspondent has a page that opens by stating it is a software system
+  and not a person, before anything else
 - avatars are abstract marks. **We will never use a synthetic human face.**
-- every article carries a provenance panel: sources, datasets, when the data was
-  retrieved, and which model wrote it
+- no correspondent may claim to have visited, phoned, interviewed, attended or
+  witnessed anything — this is enforced in code, and an article that breaks it
+  is rejected before publication rather than corrected afterwards
+- every article carries a provenance panel: sources, datasets, when the data
+  was retrieved, and which model wrote it
 
-We would rather over-disclose than have you discover it later.
+We would rather over-disclose than have you discover it later. If you ever read
+something here and are unsure whether a person wrote it, we have failed, and we
+would like to know.
 
 ## 5. Why we do not rewrite other publications
 
