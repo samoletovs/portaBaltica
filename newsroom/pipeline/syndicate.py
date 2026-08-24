@@ -118,7 +118,7 @@ def syndicate(
     cards: list[Article] = []
     for item in items:
         source = registry().get(item.source_id)
-        if source.tier == "A":
+        if source.tier == "A" or source.research_only:
             continue
         if source.publisher.startswith("European") and not is_baltic_relevant(item):
             continue

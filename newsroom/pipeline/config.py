@@ -76,6 +76,17 @@ HTTP_TIMEOUT_SECONDS = float(os.environ.get("NEWSROOM_HTTP_TIMEOUT", "30"))
 HTTP_MAX_RETRIES = int(os.environ.get("NEWSROOM_HTTP_RETRIES", "3"))
 HTTP_BACKOFF_SECONDS = float(os.environ.get("NEWSROOM_HTTP_BACKOFF", "1.5"))
 
+# --- Research ---------------------------------------------------------------
+# Research reuses the registered RSS responses already fetched for syndication,
+# so it adds no search API call. These ceilings bound both prompt size and cost.
+RESEARCH_MAX_ITEMS = int(os.environ.get("NEWSROOM_RESEARCH_MAX_ITEMS", "5"))
+RESEARCH_MAX_PER_SOURCE = int(os.environ.get("NEWSROOM_RESEARCH_MAX_PER_SOURCE", "2"))
+RESEARCH_MIN_RELEVANCE = int(os.environ.get("NEWSROOM_RESEARCH_MIN_RELEVANCE", "2"))
+RESEARCH_MAX_SUMMARY_CHARS = int(
+    os.environ.get("NEWSROOM_RESEARCH_MAX_SUMMARY_CHARS", "800")
+)
+RESEARCH_MAX_AGE_DAYS = int(os.environ.get("NEWSROOM_RESEARCH_MAX_AGE_DAYS", "120"))
+
 
 @dataclass(frozen=True)
 class RankingPolicy:

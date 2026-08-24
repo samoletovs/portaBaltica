@@ -23,6 +23,7 @@ from typing import Any
 
 from newsroom.pipeline.ids import new_ulid, slugify
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
+from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import (
     RewriteNotPermittedError,
     Verdict,
@@ -108,6 +109,7 @@ def generate_article(
     *,
     paragraphs: int = 4,
     now: str | None = None,
+    research: ResearchContext | None = None,
 ) -> GenerationResult:
     """Generate, then gate. Always returns a result; check ``publishable``."""
     created_at = now or isoformat(utcnow())
@@ -121,7 +123,7 @@ def generate_article(
 
     persona = persona_for_section(signal.section)
     system = build_system_prompt(signal, persona, paragraphs=paragraphs)
-    user = build_user_prompt(signal)
+    user = build_user_prompt(signal, research=research)
 
     payload = writer.complete_json(system=system, user=user, max_tokens=MAX_COMPLETION_TOKENS)
 
@@ -156,6 +158,7 @@ def generate_article(
             "prompt_version": PROMPT_VERSION,
             "generated_at": created_at,
             "accountable_editor": personas().accountable_editor or "Sam Samoletovs",
+            **({"research": research.to_provenance()} if research is not None else {}),
         },
     )
 

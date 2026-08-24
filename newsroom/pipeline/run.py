@@ -1,4 +1,4 @@
-"""The orchestrator: collect -> detect -> rank -> write -> validate -> publish.
+"""The orchestrator: collect -> detect -> rank -> research -> write -> validate -> publish.
 
 One run of this function is one edition of the wire. It is deliberately boring:
 every interesting decision has already been made in a stage module, and the
@@ -21,6 +21,7 @@ from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.publish import ArticleStore
 from newsroom.pipeline.rank import RankingReport, rank
+from newsroom.pipeline.research import ResearchContext, research_selected
 from newsroom.pipeline.safety import registry
 from newsroom.pipeline.syndicate import pending_approval_queue, syndicate
 from newsroom.pipeline.write import AzureOpenAIWriter, LlmWriter, generate_article
@@ -55,6 +56,7 @@ class RunReport:
     ranking: RankingReport | None = None
     generated: list[GenerationResult] = field(default_factory=list)
     syndicated: list[Article] = field(default_factory=list)
+    research: dict[str, ResearchContext] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
     @property
@@ -108,7 +110,12 @@ async def collect_feeds(
             log.info("%s: %s", source.id, result.skipped_reason)
             continue
         raw_blob = result.item.archive_name
-        parsed = parse_feed(result.item.body, source_id=source.id, raw_blob=raw_blob)
+        parsed = parse_feed(
+            result.item.body,
+            source_id=source.id,
+            raw_blob=raw_blob,
+            retrieved_at=result.item.retrieved_at,
+        )
         items.extend(parsed)
         stored = archive.read(raw_blob)
         for item in parsed:
@@ -168,10 +175,15 @@ async def run_once(
             )
         report.ranking = rank(report.signals, policy)
 
-        # --- 4/5. write and validate -------------------------------------
+        # --- 4. research -------------------------------------------------
+        report.research = research_selected(report.ranking.selected, feed_items)
+
+        # --- 5/6. write and validate -------------------------------------
         for signal in report.ranking.selected:
             try:
-                report.generated.append(generate_article(signal, writer))
+                report.generated.append(
+                    generate_article(signal, writer, research=report.research[signal.id])
+                )
             except GenerationRefused as exc:
                 log.warning("generation refused for %s: %s", signal.id, exc)
                 report.errors.append(f"refused {signal.id}: {exc}")
@@ -183,7 +195,7 @@ async def run_once(
         if include_syndication and feed_items:
             report.syndicated = syndicate(feed_items, raw_descriptions=raw_descriptions)
 
-        # --- 6. publish ---------------------------------------------------
+        # --- 7. publish ---------------------------------------------------
         await _store_all(store, report)
     finally:
         if owns_http:

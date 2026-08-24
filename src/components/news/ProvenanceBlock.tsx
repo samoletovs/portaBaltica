@@ -75,6 +75,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
     signal_id,
     approved_by,
     approved_at,
+    research,
   } = provenance;
 
   const passedCount = validator.checks.filter((check) => check.passed).length;
@@ -150,6 +151,44 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
             ))}
           </ul>
         </div>
+
+        {research && (
+          <div>
+            <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
+              Reporting context consulted
+            </h3>
+            {research.consulted.length > 0 ? (
+              <ul className="space-y-2">
+                {research.consulted.map((item) => (
+                  <li
+                    key={`${item.source_id}-${item.url}`}
+                    className="news-border news-panel rounded-lg border px-3 py-2.5"
+                  >
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="news-link news-focus text-sm font-medium underline underline-offset-2"
+                    >
+                      {item.title} ↗<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                    <p className="news-subtle mt-1 text-xs">
+                      {item.source_name} ·{' '}
+                      {item.role === 'official_statement'
+                        ? 'official statement'
+                        : 'prior coverage lead'}{' '}
+                      · retrieved {formatTimestamp(item.retrieved_at)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="news-muted text-[13px]">
+                No relevant item was found in the registered feeds for this signal.
+              </p>
+            )}
+          </div>
+        )}
 
         {signal_id && (
           <div>

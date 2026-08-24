@@ -204,6 +204,7 @@ class FeedItem:
     published: str | None
     guid: str
     raw_blob: str
+    retrieved_at: str | None = None
 
 
 @dataclass

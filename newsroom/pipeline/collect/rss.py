@@ -95,7 +95,13 @@ def _iter_items(root: Any) -> Iterable[Any]:
             yield element
 
 
-def parse_feed(raw_body: bytes, *, source_id: str, raw_blob: str) -> list[FeedItem]:
+def parse_feed(
+    raw_body: bytes,
+    *,
+    source_id: str,
+    raw_blob: str,
+    retrieved_at: str | None = None,
+) -> list[FeedItem]:
     """Parse a feed into items carrying headline, link and the outlet's own snippet.
 
     The returned items contain no article body, by construction.
@@ -125,6 +131,7 @@ def parse_feed(raw_body: bytes, *, source_id: str, raw_blob: str) -> list[FeedIt
                 published=published,
                 guid=guid,
                 raw_blob=raw_blob,
+                retrieved_at=retrieved_at,
             )
         )
     log.info("%s: parsed %d items", source_id, len(items))

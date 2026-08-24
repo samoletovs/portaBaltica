@@ -107,6 +107,7 @@ class TestContentEncodedIsUnreachable:
             "published",
             "guid",
             "raw_blob",
+            "retrieved_at",
         }
 
 

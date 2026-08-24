@@ -120,6 +120,33 @@
         "signal_id": { "type": "string", "description": "The deterministic signal that triggered this story." },
         "model": { "type": "string", "description": "e.g. gpt-4o-mini@2024-07-18. Null for tier B and C, which involve no generation." },
         "prompt_version": { "type": "string" },
+        "research": {
+          "type": "object",
+          "description": "Registered web sources consulted between signal detection and writing. Research supplies context, never verified figures.",
+          "required": ["method", "candidates_considered", "consulted"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "registered_feeds" },
+            "candidates_considered": { "type": "integer", "minimum": 0 },
+            "consulted": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["source_id", "source_name", "role", "title", "url", "retrieved_at"],
+                "additionalProperties": false,
+                "properties": {
+                  "source_id": { "type": "string" },
+                  "source_name": { "type": "string" },
+                  "role": { "enum": ["official_statement", "prior_coverage"] },
+                  "title": { "type": "string" },
+                  "url": { "type": "string", "format": "uri" },
+                  "retrieved_at": { "type": "string", "format": "date-time" },
+                  "published": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
         "generated_at": { "type": "string", "format": "date-time" },
         "approved_by": { "type": "string", "description": "Set for tier B and C after Telegram approval." },
         "approved_at": { "type": "string", "format": "date-time" },
