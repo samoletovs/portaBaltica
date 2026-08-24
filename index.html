@@ -13,9 +13,24 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
     <link rel="alternate" type="application/rss+xml" title="portaBaltica" href="/rss.xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!--
+      No Google Fonts. Two reasons, and the first is that they never worked:
+      our CSP is `style-src 'self' 'unsafe-inline'` and `font-src 'self' data:`,
+      so the browser has been blocking these requests for the site's entire
+      life and quietly falling back to the system stack. Every page load spent
+      two failed requests and two console errors to render exactly what it
+      renders now.
+
+      The second reason is why we are not simply widening the CSP: fetching
+      fonts from Google discloses every reader's IP address to a third party
+      on page load. German courts have held that to be a GDPR violation, and a
+      news site read in the EU is the last place to take that risk for a
+      typeface. If we want Inter, we self-host it.
+
+      src/index.css still names "Inter" first, so a reader who has it locally
+      gets it, and everyone else gets system-ui — which is what they already
+      saw.
+    -->
     <script>
       // Prevent theme flash: set data-theme before CSS applies
       (function(){var t=localStorage.getItem('pb-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
