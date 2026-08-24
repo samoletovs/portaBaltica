@@ -1,13 +1,21 @@
+import type { ReactNode } from 'react';
 import type { Provenance, ValidatorCheckName } from '../../news-types';
 import { ACCOUNTABLE_EDITOR } from '../../newsroom/editorial';
 
 /**
  * The passport.
  *
- * Every tier A article shows what it was built from, by what, when, and who is
- * accountable. This is meant to be read, not merely stored — so the validator
- * checks are spelled out as sentences a reader can judge rather than as
- * snake_case gate names, and the datasets link back to their publishers.
+ * The published AI-use policy promises readers that "every article carries a
+ * provenance panel: sources, datasets, when the data was retrieved, and which
+ * model wrote it", and section 6 commits to displaying the deterministic signal
+ * that caused the story, the prompt version, the validation results, and — for
+ * reviewed material — who approved it and when. All of that is rendered here.
+ *
+ * It is written for a reader, not for a lawyer. The validator gates are spelled
+ * out as sentences someone can judge ("No number appears in the text that is
+ * absent from the data") rather than as snake_case names, the datasets link
+ * back to their publishers so a claim can actually be checked, and the panel
+ * opens by saying what it is for.
  */
 
 const SOURCE_NAMES: Record<string, string> = {
@@ -47,99 +55,162 @@ function formatTimestamp(value: string | undefined): string {
   });
 }
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-[13px] text-slate-200">{children}</dd>
+    </div>
+  );
+}
+
 export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
-  const { sources, validator, model, prompt_version, generated_at, accountable_editor } = provenance;
+  const {
+    sources,
+    validator,
+    model,
+    prompt_version,
+    generated_at,
+    accountable_editor,
+    signal_id,
+    approved_by,
+    approved_at,
+  } = provenance;
+
   const passedCount = validator.checks.filter((check) => check.passed).length;
+  const allPassed = passedCount === validator.checks.length && validator.checks.length > 0;
 
   return (
     <section
       aria-labelledby="provenance-heading"
-      className="mt-10 rounded-xl border border-ocean-800/50 bg-ocean-950/40"
+      className="mt-10 overflow-hidden rounded-xl border border-ocean-800/50 bg-ocean-950/40"
     >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ocean-800/40 px-5 py-3">
         <h2 id="provenance-heading" className="text-sm font-semibold tracking-tight text-ocean-100">
           Where this came from
         </h2>
-        <p className="flex items-center gap-2 text-xs text-emerald-300">
-          <span aria-hidden="true">✓</span>
-          {passedCount} of {validator.checks.length} publication checks passed
+        <p
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
+            allPassed
+              ? 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300'
+              : 'border-amber-600/40 bg-amber-500/10 text-amber-200'
+          }`}
+        >
+          <span aria-hidden="true">{allPassed ? '✓' : '!'}</span>
+          {passedCount} of {validator.checks.length} checks passed
         </p>
       </div>
 
-      <div className="space-y-5 px-5 py-4">
+      <div className="space-y-6 px-5 py-4">
+        <p className="text-[13px] leading-relaxed text-slate-400">
+          This record was written automatically as the article was produced. Open any dataset below
+          and you can check the figures for yourself — that is what it is here for.
+        </p>
+
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">Data</h3>
-          <ul className="space-y-2">
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+            The data behind it
+          </h3>
+          <ul className="space-y-3">
             {sources.map((source) => (
-              <li key={`${source.source_id}-${source.retrieved_at}`} className="text-sm text-slate-300">
-                <span className="font-medium text-slate-100">
+              <li
+                key={`${source.source_id}-${source.dataset ?? ''}-${source.retrieved_at}`}
+                className="rounded-lg border border-slate-800/50 bg-slate-900/40 px-3 py-2.5"
+              >
+                <p className="text-sm font-medium text-slate-100">
                   {SOURCE_NAMES[source.source_id] ?? source.source_id}
-                </span>
-                {source.dataset && <span className="text-slate-400"> — {source.dataset}</span>}
-                {source.dataset_version && (
-                  <span className="text-slate-500"> (v{source.dataset_version})</span>
+                </p>
+                {source.dataset && (
+                  <p className="mt-0.5 text-[13px] text-slate-300">
+                    {source.dataset}
+                    {source.dataset_version && (
+                      <span className="text-slate-500"> · version {source.dataset_version}</span>
+                    )}
+                  </p>
                 )}
-                <span className="block text-xs text-slate-500">
-                  Retrieved <time dateTime={source.retrieved_at}>{formatTimestamp(source.retrieved_at)}</time>
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
+                  <span>
+                    Retrieved{' '}
+                    <time dateTime={source.retrieved_at} className="text-slate-400">
+                      {formatTimestamp(source.retrieved_at)}
+                    </time>
+                  </span>
                   {source.url && (
-                    <>
-                      {' · '}
-                      <a
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-2 hover:text-slate-300"
-                      >
-                        open the dataset ↗
-                      </a>
-                    </>
+                    <a
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-ocean-300 underline underline-offset-2 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+                    >
+                      Open the dataset ↗<span className="sr-only"> (opens in a new tab)</span>
+                    </a>
                   )}
-                </span>
+                </p>
               </li>
             ))}
           </ul>
         </div>
 
+        {signal_id && (
+          <div>
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+              Why this story exists
+            </h3>
+            <p className="text-[13px] leading-relaxed text-slate-300">
+              A deterministic detector — not a model — flagged this change as newsworthy and
+              triggered the story.
+            </p>
+            <p className="mt-1 font-mono text-xs text-slate-400">{signal_id}</p>
+          </div>
+        )}
+
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">How it was written</h3>
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-            <div className="flex justify-between gap-3 sm:block">
-              <dt className="text-slate-500">Model</dt>
-              <dd className="font-mono text-xs text-slate-300">{model ?? 'None — not generated'}</dd>
-            </div>
+          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+            How it was written
+          </h3>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            <Field label="Model">
+              <span className="font-mono text-xs">{model ?? 'None — not generated'}</span>
+            </Field>
             {prompt_version && (
-              <div className="flex justify-between gap-3 sm:block">
-                <dt className="text-slate-500">Prompt version</dt>
-                <dd className="font-mono text-xs text-slate-300">{prompt_version}</dd>
-              </div>
+              <Field label="Prompt version">
+                <span className="font-mono text-xs">{prompt_version}</span>
+              </Field>
             )}
-            <div className="flex justify-between gap-3 sm:block">
-              <dt className="text-slate-500">Written</dt>
-              <dd className="text-xs text-slate-300">
-                <time dateTime={generated_at}>{formatTimestamp(generated_at)}</time>
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3 sm:block">
-              <dt className="text-slate-500">Accountable editor</dt>
-              <dd className="text-xs text-slate-300">{accountable_editor ?? ACCOUNTABLE_EDITOR}</dd>
-            </div>
+            <Field label="Written">
+              <time dateTime={generated_at}>{formatTimestamp(generated_at)}</time>
+            </Field>
+            <Field label="Accountable editor">{accountable_editor ?? ACCOUNTABLE_EDITOR}</Field>
+            {approved_by && (
+              <Field label="Approved by">
+                {approved_by}
+                {approved_at && (
+                  <span className="block text-xs text-slate-500">
+                    <time dateTime={approved_at}>{formatTimestamp(approved_at)}</time>
+                  </span>
+                )}
+              </Field>
+            )}
           </dl>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">
             The model writes sentences around figures the pipeline has already verified. It is never
             asked to recall or supply a number.
           </p>
         </div>
 
-        <details className="group">
+        <details className="group border-t border-slate-800/50 pt-3">
           <summary className="cursor-pointer list-none text-xs font-medium uppercase tracking-widest text-slate-500 hover:text-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400">
-            <span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">
+            <span
+              aria-hidden="true"
+              className="mr-1 inline-block transition-transform group-open:rotate-90"
+            >
               ›
             </span>
-            Checks run before publication
+            The {validator.checks.length} checks run before publication
           </summary>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-3 space-y-1.5">
             {validator.checks.map((check) => (
-              <li key={check.name} className="flex gap-2 text-sm">
+              <li key={check.name} className="flex gap-2 text-[13px]">
                 <span
                   aria-hidden="true"
                   className={check.passed ? 'text-emerald-400' : 'text-red-400'}
@@ -149,14 +220,17 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 <span className="text-slate-300">
                   {CHECK_LABELS[check.name] ?? check.name}
                   <span className="sr-only">{check.passed ? ' — passed' : ' — failed'}</span>
-                  {check.detail && <span className="block text-xs text-slate-500">{check.detail}</span>}
+                  {check.detail && (
+                    <span className="block text-xs text-slate-500">{check.detail}</span>
+                  )}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-slate-500">
-            Checked <time dateTime={validator.checked_at}>{formatTimestamp(validator.checked_at)}</time>. An
-            article that fails any check is not published.
+          <p className="mt-3 text-xs leading-relaxed text-slate-500">
+            Checked{' '}
+            <time dateTime={validator.checked_at}>{formatTimestamp(validator.checked_at)}</time>. An
+            article that fails any check is not published — the system fails closed.
           </p>
         </details>
       </div>

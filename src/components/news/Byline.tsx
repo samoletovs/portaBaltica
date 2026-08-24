@@ -18,6 +18,10 @@ interface Props {
  * disclosure stripped gets a correct byline built from the persona rather than
  * being rendered bare — the reader is never left guessing what wrote this.
  *
+ * The AI-use policy states this in public as an absolute: "every byline reads
+ * '· AI correspondent', always, without exception." There is deliberately no
+ * prop, flag or variant that can suppress it.
+ *
  * Feed summaries carry no beat, so it is resolved from the registry: the beat
  * belongs to the correspondent, not to the article.
  */

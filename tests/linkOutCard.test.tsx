@@ -58,10 +58,22 @@ describe('Tier C link-out card', () => {
     expect(link.getAttribute('rel')).toContain('noreferrer');
   });
 
-  it('says plainly that the reader is leaving', () => {
+  it('says plainly that this is not our reporting', () => {
     renderItem(tierCSummary());
 
-    expect(screen.getByText(/this link leaves portaBaltica/i)).toBeTruthy();
+    expect(screen.getByText(/Their reporting, not ours/i)).toBeTruthy();
+  });
+
+  it('makes the outbound link genuinely prominent, not a grudging footnote', () => {
+    renderItem(tierCSummary());
+
+    // The policy says we would rather readers click through to the outlet. A
+    // card that offered only a linked headline would be saying one thing and
+    // designing the opposite.
+    const cta = screen.getByRole('link', { name: /Read this at ERR News/i });
+    expect(cta.getAttribute('href')).toBe('https://news.err.ee/example-story');
+    expect(cta.getAttribute('target')).toBe('_blank');
+    expect(screen.getByText(/we would rather you read it on their site/i)).toBeTruthy();
   });
 
   it('is dropped entirely if the attribution or outbound link is missing', () => {

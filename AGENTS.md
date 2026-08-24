@@ -36,6 +36,8 @@ portaBaltica/
 │   ├── newsroom/
 │   │   ├── correspondents.ts  # Mirrors newsroom/personas.yaml; builds bylines
 │   │   ├── editorial.ts       # Accountable editor + byline suffix
+│   │   ├── markdown-parse.ts  # Block parser for the policy documents
+│   │   ├── markdown.tsx       # Renders those blocks as React (never as HTML)
 │   │   ├── sections.ts        # Section display names
 │   │   ├── structured-data.ts # JSON-LD NewsArticle (tier A only)
 │   │   └── usePageMeta.ts     # Per-route title, description, canonical
@@ -51,7 +53,7 @@ portaBaltica/
 │       │   ├── ChartEmbed.tsx      # Lazy recharts; the article → /data round trip
 │       │   ├── CorrespondentAvatar.tsx # Abstract marks only, never a face
 │       │   ├── CorrespondentPage.tsx, AiPolicyPage.tsx, CorrectionsPage.tsx
-│       │   ├── NewsCard.tsx, TierBadge.tsx, JsonLd.tsx
+│       │   ├── NewsCard.tsx, TierBadge.tsx, JsonLd.tsx, PolicyFooter.tsx
 │       ├── Header.tsx       # Dashboard header
 │       ├── InsightsBanner.tsx # AI-generated insights
 │       ├── EconomyTile.tsx  # Economy & Business data
@@ -63,6 +65,9 @@ portaBaltica/
 │       ├── FerryPanel.tsx
 │       └── CargoPanel.tsx
 ├── newsroom/               # Newsroom contracts (schema, personas, sources)
+│   └── policy/             # Published AI-use and corrections policy —
+│                           # authoritative text, rendered at /about/ai and
+│                           # /corrections. Never restate it in JSX.
 ├── api/                    # Azure SWA managed functions (JS)
 │   ├── shared/
 │   │   ├── eurostat.js     # Deadline-bounded HTTP + strict JSON-stat parsing

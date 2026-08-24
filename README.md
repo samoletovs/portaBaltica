@@ -51,6 +51,28 @@ Nothing renders without passing `isServable()` in [src/news-types.ts](src/news-t
 an article that lacks `status: 'published'` and a passing validator verdict is
 refused at render time, however it reached the client.
 
+## Policy pages
+
+`/about/ai` and `/corrections` render
+[newsroom/policy/ai-use.md](newsroom/policy/ai-use.md) and
+[newsroom/policy/corrections.md](newsroom/policy/corrections.md) directly, through
+a small dependency-free markdown renderer. **Do not restate policy text in JSX** —
+the published commitments have one source of truth, and rendering from it is what
+keeps the page and the promise from drifting apart.
+
+Three commitments in that policy are binding on the UI and are covered by
+[tests/policyCommitments.test.tsx](tests/policyCommitments.test.tsx): no synthetic
+human face on any correspondent, every byline carrying `· AI correspondent`, and
+the provenance panel showing sources, datasets, retrieval time and model on every
+article.
+
+## Bundle size
+
+Run `node scripts/route-weight.mjs` after a build to see what a reader actually
+downloads per route. It walks the static import graph, which is the only reliable
+way to catch a heavy dependency leaking into a route that should not have it —
+chunk names alone are misleading.
+
 ## Stack
 
 - React 19, TypeScript, Vite, Tailwind CSS, and Recharts
