@@ -155,20 +155,49 @@ def test_escalation_failure_should_raise_and_leave_the_item_unpublished():
     assert "editor" not in card.provenance
 
 
-def test_content_filter_refusal_should_escalate_with_triggered_categories():
+def test_content_filter_refusal_should_withhold_without_paging():
+    """A refusal to assess is a limit of the tool, not a safety finding.
+
+    This asserted the opposite until a production run settled it: of 129
+    editor decisions, 26 were content-filter refusals. Every one would have
+    sent Sam a Telegram message, and none of them was a judgement about our
+    content — Azure's prompt shield fires routinely on the war coverage a
+    Baltic wire carries daily.
+
+    Twenty-six pages in one run is not vigilance. It is how the escalation
+    channel stops being read before the day it matters. The item is withheld,
+    which is the protection that actually counts, and the reason is recorded
+    on the article so the decision is auditable rather than silent.
+    """
     card = tier_c_card()
     notifier = RecordingNotifier()
 
     outcome = review_syndicated_article(card, ContentFilterWriter(), notifier=notifier)
 
+    assert notifier.calls == 0, "an unassessable item must not page the accountable editor"
+    assert outcome.action is EditorAction.REJECT
+    assert outcome.notified is False
+    assert "content filter refused" in outcome.reason
+    assert "jailbreak" in outcome.reason, "the triggered category is still recorded"
+    assert card.status == "rejected", "it must not publish"
+    assert card.provenance["editor"]["decision"] == "reject"
+
+
+def test_a_model_judgement_of_danger_still_pages():
+    """The counterpart. Narrowing the content-filter path must not narrow this.
+
+    Escalation keeps exactly one meaning: the model read the item and judged it
+    dangerous, harmful or inappropriate. That is the case Sam asked to see.
+    """
+    card = tier_c_card()
+    notifier = RecordingNotifier()
+    writer = StubWriter({"decision": "escalate", "reason": "Contains graphic harm."})
+
+    outcome = review_syndicated_article(card, writer, notifier=notifier)
+
     assert notifier.calls == 1
     assert outcome.action is EditorAction.ESCALATE
     assert outcome.notified is True
-    assert "content filter refused" in outcome.reason
-    assert "jailbreak" in outcome.reason
-    assert card.status == "rejected"
-    assert card.provenance["editor"]["decision"] == "escalate"
-    assert card.provenance["editor"]["notified_accountable_editor"] is True
 
 
 def test_telegram_notifier_should_report_telegram_refusal(monkeypatch):

@@ -189,12 +189,12 @@ def review_syndicated_article(
     except BadRequestError as exc:
         if not _is_content_filter_error(exc):
             raise
+        # Deliberately not notified. See _content_filter_outcome: withholding
+        # is the protection; paging for every unassessable war headline is how
+        # the escalation channel stops being read.
         outcome = _content_filter_outcome(article, exc, now=moment, model=writer.model_name)
-        channel = notifier or TelegramEscalationNotifier()
-        notified = _with_notification_recorded(outcome)
-        channel.notify(article, notified)
-        _apply_outcome(article, notified)
-        return notified
+        _apply_outcome(article, outcome)
+        return outcome
 
     action, reason = _parse_editor_payload(raw)
     outcome = EditorOutcome(
@@ -355,15 +355,39 @@ def _content_filter_outcome(
     now: datetime,
     model: str | None,
 ) -> EditorOutcome:
+    """An item the model refused to assess is withheld, not escalated.
+
+    This used to escalate, on the reasoning that a card the model will not look
+    at is exactly the card a human should see. One production run disproved it:
+    of 129 decisions, 26 were content-filter refusals, and every one of them
+    would have paged Sam. They were not findings about our content — Azure's
+    prompt shield fires routinely on war coverage, which a Baltic wire carries
+    every day.
+
+    Twenty-six pages per run is not vigilance, it is a channel nobody will read
+    within a week, and the escalation path is the one thing that must still
+    work on the day something genuinely dangerous appears.
+
+    Rejection is the honest outcome and already means precisely this: see
+    `_technical_failure_outcome`, which treats "this item could not be
+    reviewed" the same way. The item does not publish, which is the protection
+    that actually matters; the reason is recorded on the article, and the run
+    summary carries the count so a filter firing on *everything* is still
+    visible as an anomaly rather than as silence.
+
+    Escalation is reserved for its one meaning: the model read the item and
+    judged it dangerous, harmful or inappropriate.
+    """
     categories = _content_filter_categories(getattr(exc, "body", None))
     category_text = ", ".join(categories) if categories else "content_filter"
     return EditorOutcome(
         article_id=article.id,
-        action=EditorAction.ESCALATE,
+        action=EditorAction.REJECT,
         reason=(
             "Azure OpenAI content filter refused the editor prompt; triggered "
-            f"category/categories: {category_text}. Treating this as an escalation "
-            "because the untrusted feed item could not be safely assessed by the model."
+            f"category/categories: {category_text}. The item could not be assessed, "
+            "so it is withheld rather than published. Not escalated: a refusal to "
+            "assess is a limit of the tool, not a judgement that the content is unsafe."
         )[:500],
         editor=_editor_byline(),
         decided_at=now.isoformat().replace("+00:00", "Z"),
