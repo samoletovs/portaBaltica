@@ -6,9 +6,12 @@ import { getCorrespondent } from '../../newsroom/correspondents';
  *
  * Generated marks only — concentric sweeps standing for a light, a signal or a
  * current. Never a face, never anything a reader could mistake for a
- * photograph of a person. That is the rule from newsroom/personas.yaml and it
- * is the whole difference between a disclosed AI byline and the Sports
- * Illustrated failure mode.
+ * photograph of a person.
+ *
+ * This is a **published public commitment**, not a style preference: the
+ * AI-use policy states in section 4 that "avatars are abstract marks. We will
+ * never use a synthetic human face." It cannot be traded away for visual
+ * appeal, and `tests/correspondents.test.tsx` asserts it for all five.
  */
 
 interface Props {

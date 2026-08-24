@@ -90,7 +90,7 @@ describe('ArticleView — the byline always discloses', () => {
 });
 
 describe('ArticleView — the provenance passport', () => {
-  it('shows the dataset, the retrieval time and the model', () => {
+  it('shows the four things the policy promises: sources, datasets, retrieval time and model', () => {
     renderArticle(tierAArticle());
 
     expect(screen.getByRole('heading', { name: 'Where this came from' })).toBeTruthy();
@@ -99,6 +99,44 @@ describe('ArticleView — the provenance passport', () => {
     expect(screen.getByText('gpt-4o-mini@2024-07-18')).toBeTruthy();
     expect(screen.getByText('Sam Samoletovs')).toBeTruthy();
     expect(screen.getByText(/Retrieved/)).toBeTruthy();
+  });
+
+  it('shows the deterministic signal that caused the story, as section 6 commits to', () => {
+    renderArticle(tierAArticle());
+
+    // The policy says story selection is deterministic code, not the model.
+    // The panel has to be able to show which detector fired.
+    expect(screen.getByRole('heading', { name: 'Why this story exists' })).toBeTruthy();
+    expect(screen.getByText('sig-lv-wages-2026q2')).toBeTruthy();
+    expect(screen.getByText(/deterministic detector — not a model/i)).toBeTruthy();
+  });
+
+  it('shows the prompt version and the validation results', () => {
+    renderArticle(tierAArticle());
+
+    expect(screen.getByText('v3')).toBeTruthy();
+    expect(screen.getByText(/5 of 5 checks passed/)).toBeTruthy();
+    expect(
+      screen.getByText('No number appears in the text that is absent from the data'),
+    ).toBeTruthy();
+  });
+
+  it('shows who approved reviewed material and when', () => {
+    // Tier B and C pass through human approval; the policy commits to showing it.
+    const article = tierAArticle();
+    article.provenance.approved_by = 'Sam Samoletovs';
+    article.provenance.approved_at = '2026-08-24T06:12:00Z';
+
+    renderArticle(article);
+
+    expect(screen.getByText('Approved by')).toBeTruthy();
+  });
+
+  it('reads as something a reader can act on rather than boilerplate', () => {
+    renderArticle(tierAArticle());
+
+    expect(screen.getByText(/you can check the figures for yourself/i)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Open the dataset/ })).toBeTruthy();
   });
 
   it('emits NewsArticle structured data for tier A', () => {

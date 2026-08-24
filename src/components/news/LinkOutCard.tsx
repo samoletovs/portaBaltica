@@ -13,6 +13,11 @@ import type { ArticleSummary } from '../../news-types';
  * Google's scaled-content-abuse policy both make a rewritten feed item the
  * single most expensive mistake this portal could make.
  *
+ * The outbound link is deliberately the most prominent thing in the card. The
+ * published policy says: "If you find their story interesting, you should read
+ * it on their site, and we would rather you did." A card that buried the link
+ * in a footnote would be saying one thing and designing the opposite.
+ *
  * Visually it is deliberately not one of our article cards. Dashed rule,
  * outlet name first, and an explicit statement that the reader is leaving.
  */
@@ -38,6 +43,14 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       <p className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-slate-500">
         <span aria-hidden="true">↗</span>
         <span>{attribution}</span>
+        {when && (
+          <>
+            <span aria-hidden="true">·</span>
+            <time dateTime={publishedAt} className="font-normal tracking-normal">
+              {when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </time>
+          </>
+        )}
       </p>
 
       <h3 className="text-[15px] font-medium leading-snug text-slate-200">
@@ -61,14 +74,19 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         </blockquote>
       )}
 
-      <p className="mt-2 text-[11px] text-slate-500">
-        Not our reporting — this link leaves portaBaltica.
-        {when && (
-          <>
-            {' · '}
-            <time dateTime={publishedAt}>{when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</time>
-          </>
-        )}
+      <a
+        href={originalUrl}
+        target="_blank"
+        rel="noopener noreferrer external"
+        className="mt-3 inline-flex items-center gap-2 rounded-md border border-ocean-600/60 bg-ocean-500/10 px-3 py-1.5 text-[13px] font-medium text-ocean-100 transition-colors hover:border-ocean-400 hover:bg-ocean-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+      >
+        Read this at {attribution}
+        <span aria-hidden="true">↗</span>
+        <span className="sr-only">(opens in a new tab)</span>
+      </a>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+        Their reporting, not ours — and we would rather you read it on their site.
       </p>
     </article>
   );
