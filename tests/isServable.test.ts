@@ -24,7 +24,6 @@ describe('isServable', () => {
     'draft',
     'pending_approval',
     'rejected',
-    'retracted',
   ];
 
   it.each(nonPublished)('refuses status "%s" even with a passing verdict', (status) => {
@@ -55,4 +54,45 @@ describe('isServable', () => {
 
     expect(isServable(article)).toBe(false);
   });
+});
+
+/**
+ * ─── Unreconciled with the published corrections policy ───
+ *
+ * `isServable()` came from the data contract (PR #7). The corrections policy
+ * (PR #8) was written afterwards and the two were never reconciled. They now
+ * disagree, in public, about what happens to an article after we correct it:
+ *
+ *   newsroom/policy/corrections.md
+ *     Correction → "Correction notice on the article, entry in the log,
+ *                   article marked `corrected`."
+ *     Retraction → "Article marked `retracted` ... The page stays up, showing
+ *                   why. We do not delete the evidence."
+ *
+ * Because the gate is `status === 'published'`, marking an article `corrected`
+ * makes it disappear — the exact opposite of the promise — and a `retracted`
+ * article shows a generic refusal rather than its reason.
+ *
+ * The tests below pin the CURRENT behaviour so it cannot drift silently, and
+ * the `todo` entries record the behaviour the policy requires. They are not
+ * assertions of correctness. Changing `isServable()` affects the pipeline and
+ * safety workstreams, so it needs their agreement rather than a unilateral fix
+ * from the frontend.
+ *
+ * Recorded as executable todos rather than a comment on purpose: the policy
+ * this contradicts is the same document that says "a lesson recorded only as
+ * prose is advice, and advice does not execute."
+ */
+describe('isServable — disputed statuses', () => {
+  it('currently refuses "corrected", which contradicts the corrections policy', () => {
+    expect(isServable({ status: 'corrected', provenance: tierAArticle().provenance })).toBe(false);
+  });
+
+  it('currently refuses "retracted", which contradicts the corrections policy', () => {
+    expect(isServable({ status: 'retracted', provenance: tierAArticle().provenance })).toBe(false);
+  });
+
+  it.todo('serves a "corrected" article, with its correction notice shown on the page');
+  it.todo('serves a "retracted" article as a tombstone stating why it was retracted');
+  it.todo('excludes a "retracted" article from RSS and the sitemap');
 });
