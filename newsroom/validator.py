@@ -686,14 +686,27 @@ def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
     """A described change must name what it is measured against.
 
     "Electricity prices rose 12%" is not a fact until the reader knows twelve
-    per cent against what. Applied per text unit, so the basis has to sit beside
-    the claim rather than three paragraphs below it.
+    per cent against what, so a *quantified* change must carry its basis in the
+    same text unit — beside the claim, not three paragraphs below it.
+
+    A change mentioned without a figure is held to a weaker rule: the article
+    must state a basis somewhere. "The decline was broad-based" makes no
+    numeric claim and cannot mislead anyone about what it is measured against,
+    and demanding "compared with a year earlier" in every paragraph that refers
+    back to the change produces prose no editor would pass. Requiring it
+    article-wide keeps the basis from disappearing altogether.
     """
     name = "comparison_basis_stated"
     problems: list[str] = []
     described = 0
+    qualitative_gaps: list[str] = []
+    basis_anywhere = False
 
     for location, text in context.generated_prose():
+        has_basis = any(pattern.search(text) for pattern in _BASIS_PATTERNS)
+        if has_basis:
+            basis_anywhere = True
+
         if location == "headline":
             # Headlines are capped at 140 characters and conventionally omit the
             # basis; the dek and body carry it. Exempted deliberately, not by
@@ -704,12 +717,22 @@ def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
         if change is None:
             continue
         described += 1
+        if has_basis:
+            continue
 
-        if not any(pattern.search(text) for pattern in _BASIS_PATTERNS):
+        if numeric_scan.scan(text):
             problems.append(
-                f"{location}: describes a change ({change.group(0).strip()!r}) "
+                f"{location}: quantifies a change ({change.group(0).strip()!r}) "
                 "without naming the comparison basis"
             )
+        else:
+            qualitative_gaps.append(location)
+
+    if qualitative_gaps and not basis_anywhere:
+        problems.append(
+            f"{', '.join(qualitative_gaps)}: describes a change and the article "
+            "never names the comparison basis"
+        )
 
     if problems:
         return CheckResult(name, False, "; ".join(problems))

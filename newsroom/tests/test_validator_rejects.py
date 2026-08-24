@@ -567,3 +567,44 @@ def test_should_reject_an_unbased_change_in_any_block_not_just_the_first(
     verdict = validate(tier_a_article, signal=signal)
 
     assert_rejected_by(verdict, "comparison_basis_stated")
+
+
+def test_should_reject_a_quantified_change_even_when_another_block_states_the_basis(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The basis must sit beside the number, not elsewhere in the piece.
+
+    A reader meeting "12.0% higher" mid-article should not have to hunt for
+    what it is higher than. This is the rule the qualitative allowance below
+    must not be permitted to erode.
+    """
+    tier_a_article["body"][0]["text"] = (
+        "Latvian day-ahead electricity settled at 142.5 euros per megawatt-hour, "
+        "compared with a year earlier."
+    )
+    tier_a_article["body"][1]["text"] = "The spread widened to 303.5 euros."
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "comparison_basis_stated")
+
+
+def test_should_reject_a_qualitative_change_when_no_block_states_a_basis(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """An unquantified change is allowed to lean on a basis stated elsewhere —
+    but only if one actually is stated. With none anywhere, the article never
+    tells the reader what moved against what.
+
+    Every numeral is stripped so that only this gate can fail: a fixture that
+    also trips the figure checks would prove nothing about this one.
+    """
+    tier_a_article["headline"] = "Baltic electricity market weakens across the region"
+    tier_a_article["dek"] = "Prices declined, with no basis of comparison given."
+    for block in tier_a_article["body"]:
+        block["text"] = "The market weakened noticeably."
+        block["figures"] = []
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "comparison_basis_stated")
