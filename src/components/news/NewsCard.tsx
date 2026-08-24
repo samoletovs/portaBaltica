@@ -1,0 +1,79 @@
+import { Link } from 'react-router-dom';
+import type { ArticleSummary } from '../../news-types';
+import type { DashboardSection } from '../../types';
+import { Byline } from './Byline';
+import { LinkOutCardFromSummary } from './LinkOutCard';
+import { SECTION_LABELS } from '../../newsroom/sections';
+import { TierBadge } from './TierBadge';
+
+interface CardProps {
+  summary: ArticleSummary;
+  variant?: 'lead' | 'standard';
+}
+
+/** Tier A and B: our own page, our own URL. */
+export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
+  const isLead = variant === 'lead';
+  const section = SECTION_LABELS[summary.section as DashboardSection] ?? summary.section;
+
+  return (
+    <article
+      data-tier={summary.tier}
+      className={
+        isLead
+          ? 'rounded-xl border border-slate-800/60 bg-slate-900/40 p-6 transition-colors hover:border-ocean-700/60'
+          : 'border-b border-slate-800/50 pb-5'
+      }
+    >
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <TierBadge tier={summary.tier} />
+        <span className="text-[11px] uppercase tracking-widest text-slate-500">{section}</span>
+      </div>
+
+      <h2
+        className={
+          isLead
+            ? 'text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl'
+            : 'text-lg font-medium leading-snug text-slate-100'
+        }
+      >
+        <Link
+          to={`/article/${summary.slug}`}
+          className="hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+        >
+          {summary.headline}
+        </Link>
+      </h2>
+
+      {summary.dek && (
+        <p className={isLead ? 'mt-3 text-base leading-relaxed text-slate-400' : 'mt-1.5 text-sm leading-relaxed text-slate-400'}>
+          {summary.dek}
+        </p>
+      )}
+
+      <div className="mt-3">
+        {summary.persona ? (
+          <Byline persona={summary.persona} timestamp={summary.published_at} />
+        ) : (
+          <p className="text-xs text-slate-500">
+            {summary.syndicated?.attribution
+              ? `Reproduced verbatim — ${summary.syndicated.attribution}`
+              : 'Reproduced verbatim'}
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Routes a feed item to the renderer its tier permits.
+ *
+ * Tier C goes to `LinkOutCard`, which is given only the four fields it is
+ * allowed to display. There is no branch here that would let a tier C item
+ * render as one of our articles.
+ */
+export function FeedItem({ summary, variant }: CardProps) {
+  if (summary.tier === 'C') return <LinkOutCardFromSummary summary={summary} />;
+  return <ArticleCard summary={summary} variant={variant} />;
+}

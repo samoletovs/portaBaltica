@@ -1,0 +1,70 @@
+import { Link } from 'react-router-dom';
+import type { Persona } from '../../news-types';
+import { getCorrespondent, renderByline } from '../../newsroom/correspondents';
+import { CorrespondentAvatar } from './CorrespondentAvatar';
+
+interface Props {
+  persona: Pick<Persona, 'id' | 'name' | 'byline'> & { beat?: string };
+  /** Compact form for feed cards; full form carries the avatar and links to the bio. */
+  variant?: 'compact' | 'full';
+  timestamp?: string;
+}
+
+/**
+ * The byline, which always discloses.
+ *
+ * `renderByline` is the single source of the string and it guarantees the
+ * phrase "AI correspondent" is in it. A feed summary that arrives with the
+ * disclosure stripped gets a correct byline built from the persona rather than
+ * being rendered bare — the reader is never left guessing what wrote this.
+ *
+ * Feed summaries carry no beat, so it is resolved from the registry: the beat
+ * belongs to the correspondent, not to the article.
+ */
+export function Byline({ persona, variant = 'compact', timestamp }: Props) {
+  const beat = persona.beat ?? getCorrespondent(persona.id)?.beat;
+  const text = renderByline({ name: persona.name, beat, byline: persona.byline });
+  const when = timestamp ? new Date(timestamp) : null;
+
+  if (variant === 'compact') {
+    return (
+      <p className="text-xs text-slate-400">
+        <span className="text-slate-300">{text}</span>
+        {when && (
+          <>
+            {' · '}
+            <time dateTime={timestamp}>{when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</time>
+          </>
+        )}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <CorrespondentAvatar id={persona.id} size={44} />
+      <div className="min-w-0">
+        <Link
+          to={`/correspondents/${persona.id}`}
+          className="text-sm font-medium text-slate-100 underline decoration-ocean-500/50 underline-offset-4 hover:decoration-ocean-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+        >
+          {text}
+        </Link>
+        <p className="text-xs text-slate-400">
+          Written by an AI system from open data.{' '}
+          <Link to="/about/ai" className="underline underline-offset-2 hover:text-slate-200">
+            How this works
+          </Link>
+          {when && (
+            <>
+              {' · '}
+              <time dateTime={timestamp}>
+                {when.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </time>
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
