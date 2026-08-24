@@ -7,13 +7,13 @@
  */
 export function PolicyFooter({ sourcePath }: { sourcePath: string }) {
   return (
-    <p className="mt-12 border-t border-slate-800/60 pt-4 text-xs leading-relaxed text-slate-500">
+    <p className="news-border news-subtle mt-12 border-t pt-4 text-xs leading-relaxed">
       This page is rendered from{' '}
       <a
         href={`https://github.com/samoletovs/portaBaltica/blob/master/${sourcePath}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-mono underline underline-offset-2 hover:text-slate-300"
+        className="news-link news-focus font-mono underline underline-offset-2"
       >
         {sourcePath}
       </a>{' '}

@@ -32,8 +32,8 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
 
   if (variant === 'compact') {
     return (
-      <p className="text-xs text-slate-400">
-        <span className="text-slate-300">{text}</span>
+      <p className="news-subtle text-xs">
+        <span className="news-muted">{text}</span>
         {when && (
           <>
             {' · '}
@@ -50,13 +50,13 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
       <div className="min-w-0">
         <Link
           to={`/correspondents/${persona.id}`}
-          className="text-sm font-medium text-slate-100 underline decoration-ocean-500/50 underline-offset-4 hover:decoration-ocean-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-link news-focus text-sm font-medium underline underline-offset-4"
         >
           {text}
         </Link>
-        <p className="text-xs text-slate-400">
+        <p className="news-subtle text-xs">
           Written by an AI system from open data.{' '}
-          <Link to="/about/ai" className="underline underline-offset-2 hover:text-slate-200">
+          <Link to="/about/ai" className="news-hover underline underline-offset-2">
             How this works
           </Link>
           {when && (

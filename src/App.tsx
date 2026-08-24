@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { PORTS } from './types';
 import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
-import { Header } from './components/Header';
-import { DataTicker } from './components/DataTicker';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
 import { EconomyTile } from './components/EconomyTile';
@@ -59,8 +57,6 @@ export default function App() {
   const [euFunds, setEuFunds] = useState<EUFundsData | null>(null);
   const [euLoading, setEuLoading] = useState(true);
 
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
   // Track login
   useEffect(() => {
     fetch('/api/track-login', { method: 'POST' }).catch(() => {});
@@ -85,7 +81,7 @@ export default function App() {
         setCargoData(govData.cargoData);
         setCargoTurnover(govData.cargoTurnover ?? []);
       } catch { /* non-critical */ } finally {
-        if (!cancelled) { setMaritimeLoading(false); setLastUpdated(new Date()); }
+        if (!cancelled) setMaritimeLoading(false);
       }
     }
 
@@ -145,12 +141,8 @@ export default function App() {
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <Header lastUpdated={lastUpdated} activeSection={activeSection} onSectionChange={setActiveSection} />
-        <DataTicker />
-
-        <main className="pt-6 pb-16">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <main id="main" className="pt-6 pb-16">
 
         <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
 
@@ -221,7 +213,6 @@ export default function App() {
           </p>
         </footer>
       </main>
-      </div>
     </div>
   );
 }

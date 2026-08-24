@@ -58,8 +58,8 @@ function formatTimestamp(value: string | undefined): string {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="mt-0.5 text-[13px] text-slate-200">{children}</dd>
+      <dt className="news-subtle text-xs">{label}</dt>
+      <dd className="news-muted mt-0.5 text-[13px]">{children}</dd>
     </div>
   );
 }
@@ -83,17 +83,17 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
   return (
     <section
       aria-labelledby="provenance-heading"
-      className="mt-10 overflow-hidden rounded-xl border border-ocean-800/50 bg-ocean-950/40"
+      className="news-border news-accent-panel mt-10 overflow-hidden rounded-xl border"
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ocean-800/40 px-5 py-3">
-        <h2 id="provenance-heading" className="text-sm font-semibold tracking-tight text-ocean-100">
+      <div className="news-border flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+        <h2 id="provenance-heading" className="news-fg text-sm font-semibold tracking-tight">
           Where this came from
         </h2>
         <p
           className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
             allPassed
-              ? 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300'
-              : 'border-amber-600/40 bg-amber-500/10 text-amber-200'
+              ? 'news-status-positive'
+              : 'news-status-warning'
           }`}
         >
           <span aria-hidden="true">{allPassed ? '✓' : '!'}</span>
@@ -102,36 +102,36 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
       </div>
 
       <div className="space-y-6 px-5 py-4">
-        <p className="text-[13px] leading-relaxed text-slate-400">
+        <p className="news-muted text-[13px] leading-relaxed">
           This record was written automatically as the article was produced. Open any dataset below
           and you can check the figures for yourself — that is what it is here for.
         </p>
 
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+          <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
             The data behind it
           </h3>
           <ul className="space-y-3">
             {sources.map((source) => (
               <li
                 key={`${source.source_id}-${source.dataset ?? ''}-${source.retrieved_at}`}
-                className="rounded-lg border border-slate-800/50 bg-slate-900/40 px-3 py-2.5"
+                className="news-border news-panel rounded-lg border px-3 py-2.5"
               >
-                <p className="text-sm font-medium text-slate-100">
+                <p className="news-fg text-sm font-medium">
                   {SOURCE_NAMES[source.source_id] ?? source.source_id}
                 </p>
                 {source.dataset && (
-                  <p className="mt-0.5 text-[13px] text-slate-300">
+                  <p className="news-muted mt-0.5 text-[13px]">
                     {source.dataset}
                     {source.dataset_version && (
-                      <span className="text-slate-500"> · version {source.dataset_version}</span>
+                      <span className="news-subtle"> · version {source.dataset_version}</span>
                     )}
                   </p>
                 )}
-                <p className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-slate-500">
+                <p className="news-subtle mt-1 flex flex-wrap items-center gap-x-3 text-xs">
                   <span>
                     Retrieved{' '}
-                    <time dateTime={source.retrieved_at} className="text-slate-400">
+                    <time dateTime={source.retrieved_at} className="news-muted">
                       {formatTimestamp(source.retrieved_at)}
                     </time>
                   </span>
@@ -140,7 +140,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                       href={source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-ocean-300 underline underline-offset-2 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+                      className="news-link news-focus underline underline-offset-2"
                     >
                       Open the dataset ↗<span className="sr-only"> (opens in a new tab)</span>
                     </a>
@@ -153,19 +153,19 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
         {signal_id && (
           <div>
-            <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+            <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
               Why this story exists
             </h3>
-            <p className="text-[13px] leading-relaxed text-slate-300">
+            <p className="news-muted text-[13px] leading-relaxed">
               A deterministic detector — not a model — flagged this change as newsworthy and
               triggered the story.
             </p>
-            <p className="mt-1 font-mono text-xs text-slate-400">{signal_id}</p>
+            <p className="news-subtle mt-1 font-mono text-xs">{signal_id}</p>
           </div>
         )}
 
         <div>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">
+          <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
             How it was written
           </h3>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -185,21 +185,21 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               <Field label="Approved by">
                 {approved_by}
                 {approved_at && (
-                  <span className="block text-xs text-slate-500">
+                  <span className="news-subtle block text-xs">
                     <time dateTime={approved_at}>{formatTimestamp(approved_at)}</time>
                   </span>
                 )}
               </Field>
             )}
           </dl>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          <p className="news-subtle mt-3 text-xs leading-relaxed">
             The model writes sentences around figures the pipeline has already verified. It is never
             asked to recall or supply a number.
           </p>
         </div>
 
-        <details className="group border-t border-slate-800/50 pt-3">
-          <summary className="cursor-pointer list-none text-xs font-medium uppercase tracking-widest text-slate-500 hover:text-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400">
+        <details className="news-border group border-t pt-3">
+          <summary className="news-subtle news-hover news-focus cursor-pointer list-none text-xs font-medium uppercase tracking-widest">
             <span
               aria-hidden="true"
               className="mr-1 inline-block transition-transform group-open:rotate-90"
@@ -213,21 +213,21 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               <li key={check.name} className="flex gap-2 text-[13px]">
                 <span
                   aria-hidden="true"
-                  className={check.passed ? 'text-emerald-400' : 'text-red-400'}
+                  className={check.passed ? 'news-positive' : 'news-negative'}
                 >
                   {check.passed ? '✓' : '✕'}
                 </span>
-                <span className="text-slate-300">
+                <span className="news-muted">
                   {CHECK_LABELS[check.name] ?? check.name}
                   <span className="sr-only">{check.passed ? ' — passed' : ' — failed'}</span>
                   {check.detail && (
-                    <span className="block text-xs text-slate-500">{check.detail}</span>
+                    <span className="news-subtle block text-xs">{check.detail}</span>
                   )}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs leading-relaxed text-slate-500">
+          <p className="news-subtle mt-3 text-xs leading-relaxed">
             Checked{' '}
             <time dateTime={validator.checked_at}>{formatTimestamp(validator.checked_at)}</time>. An
             article that fails any check is not published — the system fails closed.

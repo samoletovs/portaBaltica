@@ -18,7 +18,7 @@ const INLINE = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 
 const LINK_CLASS =
-  'text-ocean-300 underline underline-offset-4 hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400';
+  'news-link news-focus underline underline-offset-4';
 
 /** Renders inline emphasis, code and links. Returns React nodes, never HTML. */
 function renderInline(text: string, keyPrefix = ''): ReactNode[] {
@@ -29,7 +29,7 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
 
     if (part.startsWith('**') && part.endsWith('**')) {
       return (
-        <strong key={key} className="font-semibold text-slate-100">
+        <strong key={key} className="news-fg font-semibold">
           {part.slice(2, -2)}
         </strong>
       );
@@ -47,7 +47,7 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
       return (
         <code
           key={key}
-          className="rounded bg-slate-800/70 px-1 py-0.5 font-mono text-[0.85em] text-ocean-100"
+          className="news-accent-panel news-accent rounded px-1 py-0.5 font-mono text-[0.85em]"
         >
           {part.slice(1, -1)}
         </code>
@@ -86,10 +86,10 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
 }
 
 const HEADING_CLASSES: Record<number, string> = {
-  1: 'text-3xl font-semibold tracking-tight text-white',
-  2: 'mt-10 mb-3 text-xl font-semibold tracking-tight text-white',
-  3: 'mt-8 mb-2 text-base font-semibold text-slate-100',
-  4: 'mt-6 mb-2 text-sm font-semibold text-slate-200',
+  1: 'news-fg text-3xl font-semibold tracking-tight',
+  2: 'news-fg mt-10 mb-3 text-xl font-semibold tracking-tight',
+  3: 'news-fg mt-8 mb-2 text-base font-semibold',
+  4: 'news-muted mt-6 mb-2 text-sm font-semibold',
 };
 
 function Heading({ level, text }: { level: number; text: string }) {
@@ -107,15 +107,15 @@ function BlockView({ block, index }: { block: Block; index: number }) {
       return <Heading level={block.level} text={block.text} />;
 
     case 'rule':
-      return <hr className="my-8 border-slate-800/60" />;
+      return <hr className="news-border my-8" />;
 
     case 'meta':
       return (
-        <dl className="my-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border border-slate-800/60 bg-slate-900/40 px-4 py-3 text-sm">
+        <dl className="news-border news-panel my-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-sm">
           {block.entries.map((entry, position) => (
             <div key={`${index}-m-${position}`} className="flex gap-2">
-              <dt className="text-slate-500">{entry.label}</dt>
-              <dd className="text-slate-200">
+              <dt className="news-subtle">{entry.label}</dt>
+              <dd className="news-muted">
                 {renderInline(entry.value, `dd-${index}-${position}`)}
               </dd>
             </div>
@@ -125,13 +125,13 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'list':
       return block.ordered ? (
-        <ol className="my-4 list-decimal space-y-2 pl-6 text-[17px] leading-relaxed text-slate-300">
+        <ol className="news-muted my-4 list-decimal space-y-2 pl-6 text-[17px] leading-relaxed">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
         </ol>
       ) : (
-        <ul className="my-4 list-disc space-y-2 pl-6 text-[17px] leading-relaxed text-slate-300">
+        <ul className="news-muted my-4 list-disc space-y-2 pl-6 text-[17px] leading-relaxed">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
@@ -140,15 +140,15 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'table':
       return (
-        <div className="my-6 overflow-x-auto rounded-lg border border-slate-800/60">
+        <div className="news-border my-6 overflow-x-auto rounded-lg border">
           <table className="w-full border-collapse text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-800/60 bg-slate-900/50">
+              <tr className="news-border news-panel border-b">
                 {block.header.map((cell, position) => (
                   <th
                     key={`${index}-h-${position}`}
                     scope="col"
-                    className="px-4 py-2.5 font-medium text-slate-200"
+                    className="news-muted px-4 py-2.5 font-medium"
                   >
                     {renderInline(cell, `th-${index}-${position}`)}
                   </th>
@@ -159,12 +159,12 @@ function BlockView({ block, index }: { block: Block; index: number }) {
               {block.rows.map((row, rowPosition) => (
                 <tr
                   key={`${index}-r-${rowPosition}`}
-                  className="border-b border-slate-800/40 last:border-0"
+                  className="news-border border-b last:border-0"
                 >
                   {row.map((cell, position) => (
                     <td
                       key={`${index}-c-${rowPosition}-${position}`}
-                      className="px-4 py-2.5 align-top leading-relaxed text-slate-300"
+                      className="news-muted px-4 py-2.5 align-top leading-relaxed"
                     >
                       {renderInline(cell, `td-${index}-${rowPosition}-${position}`)}
                     </td>
@@ -179,7 +179,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
     case 'paragraph':
     default:
       return (
-        <p className="my-4 text-[17px] leading-relaxed text-slate-300">
+        <p className="news-muted my-4 text-[17px] leading-relaxed">
           {renderInline(block.text, `p-${index}`)}
         </p>
       );

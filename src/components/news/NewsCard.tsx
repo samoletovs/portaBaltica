@@ -21,32 +21,32 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       data-tier={summary.tier}
       className={
         isLead
-          ? 'rounded-xl border border-slate-800/60 bg-slate-900/40 p-6 transition-colors hover:border-ocean-700/60'
-          : 'border-b border-slate-800/50 pb-5'
+          ? 'news-border news-panel rounded-xl border p-6 transition-colors'
+          : 'news-border border-b pb-5'
       }
     >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <TierBadge tier={summary.tier} />
-        <span className="text-[11px] uppercase tracking-widest text-slate-500">{section}</span>
+        <span className="news-subtle text-[11px] uppercase tracking-widest">{section}</span>
       </div>
 
       <h2
         className={
           isLead
-            ? 'text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl'
-            : 'text-lg font-medium leading-snug text-slate-100'
+            ? 'news-fg text-2xl font-semibold leading-tight tracking-tight sm:text-3xl'
+            : 'news-fg text-lg font-medium leading-snug'
         }
       >
         <Link
           to={`/article/${summary.slug}`}
-          className="hover:text-ocean-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ocean-400"
+          className="news-hover news-focus"
         >
           {summary.headline}
         </Link>
       </h2>
 
       {summary.dek && (
-        <p className={isLead ? 'mt-3 text-base leading-relaxed text-slate-400' : 'mt-1.5 text-sm leading-relaxed text-slate-400'}>
+        <p className={isLead ? 'news-muted mt-3 text-base leading-relaxed' : 'news-muted mt-1.5 text-sm leading-relaxed'}>
           {summary.dek}
         </p>
       )}
@@ -55,7 +55,7 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
         {summary.persona ? (
           <Byline persona={summary.persona} timestamp={summary.published_at} />
         ) : (
-          <p className="text-xs text-slate-500">
+          <p className="news-subtle text-xs">
             {summary.syndicated?.attribution
               ? `Reproduced verbatim — ${summary.syndicated.attribution}`
               : 'Reproduced verbatim'}
