@@ -18,8 +18,12 @@ export interface Correspondent {
   id: PersonaId;
   name: string;
   beat: string;
-  /** The real place the correspondent is named after. */
-  landmark: string;
+  /** ISO country code this correspondent primarily covers. */
+  country: string;
+  /** What this correspondent is built to look for. Competence, never biography. */
+  expertise: string[];
+  /** How they read the material. Never a claim of experience. */
+  trainedOn: string;
   sections: DashboardSection[];
   /** Plain-language description of the voice, for the bio page. */
   summary: string;
@@ -36,10 +40,16 @@ export interface Correspondent {
 export const CORRESPONDENTS: Correspondent[] = [
   {
     id: 'nida',
-    name: 'Nida',
+    name: 'Ilze Bērziņa',
     beat: 'Economy & Labour',
-    landmark:
-      'Nida, on the Curonian Spit, Lithuania — a village between a lagoon and a moving dune.',
+    country: 'LV',
+    expertise: [
+      'labour market statistics and their revisions',
+      'consumer price indices and what sits inside the basket',
+      'household purchasing power and real wages',
+    ],
+    trainedOn:
+      'Reads labour and price statistics the way a statistician does: series first, print second.',
     sections: ['economy', 'labour', 'business'],
     summary:
       'Patient and long-horizon. Distrusts a single month’s print and always reaches for the longer series. Writes about wages, prices and employment as things that land on households, not as abstractions.',
@@ -57,10 +67,16 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'akmensrags',
-    name: 'Akmeņrags',
+    name: 'Marek Soosaar',
     beat: 'Energy & Markets',
-    landmark:
-      'Akmeņrags lighthouse, Latvia — marks a shifting underwater ridge that has wrecked ships for centuries.',
+    country: 'EE',
+    expertise: [
+      'day-ahead electricity markets and price formation',
+      'grid constraints, interconnectors and transmission bottlenecks',
+      'what a wholesale price move does to an industrial consumer',
+    ],
+    trainedOn:
+      'Reads a power market by its hours rather than its days. A daily average conceals the two hours that actually cost money.',
     sections: ['energy', 'economy'],
     summary:
       'Sharp and volatility-minded. More interested in the shape of a curve than its average — spikes, negative prices, the hours when the system is under strain.',
@@ -77,10 +93,16 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'kolka',
-    name: 'Kolka',
+    name: 'Gintaras Vaitkus',
     beat: 'Maritime & Trade',
-    landmark:
-      'Cape Kolka, Latvia — where the Gulf of Riga meets the open Baltic and two currents collide.',
+    country: 'LT',
+    expertise: [
+      'port throughput and cargo composition',
+      'transit corridors and where they bottleneck',
+      'the difference between vessel calls and tonnage',
+    ],
+    trainedOn:
+      'Reads trade through what physically moves, and where it stops moving. Looks at the mix before the total.',
     sections: ['maritime', 'trade'],
     summary:
       'Concerned with flow and friction. Reads the region through what moves across it: cargo tonnage, vessel calls, ferry schedules, export volumes, and where those flows bottleneck.',
@@ -97,10 +119,16 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'ristna',
-    name: 'Ristna',
+    name: 'Kadri Lepik',
     beat: 'Environment & Climate',
-    landmark:
-      'Ristna lighthouse, Hiiumaa, Estonia — the westernmost light on the Estonian islands, facing open sea.',
+    country: 'EE',
+    expertise: [
+      'air quality measurement and what a single station reading represents',
+      'climatological baselines and seasonal normals',
+      'the boundary between a weather observation and a climate signal',
+    ],
+    trainedOn:
+      'Reads an environmental measurement against its normal before reading it at all. One station is not a country.',
     sections: ['environment', 'property'],
     summary:
       'Seasonal and comparative. The slowest-moving correspondent, habitually setting today’s reading against a climatological baseline rather than against yesterday.',
@@ -117,10 +145,16 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'irbene',
-    name: 'Irbene',
+    name: 'Rasa Petrauskaitė',
     beat: 'Government, EU & Society',
-    landmark:
-      'Irbene, Latvia — a Soviet-era radio telescope in the forest, now used for radio astronomy. It listens.',
+    country: 'LT',
+    expertise: [
+      'EU structural funds: commitment, contracting and payment',
+      'public procurement and its deadlines',
+      'company registrations, insolvencies and what they say about a sector',
+    ],
+    trainedOn:
+      'Reads a public decision as a set of obligations with dates attached. Committed, contracted and paid are three different numbers.',
     sections: ['government', 'business'],
     summary:
       'Institutional and procedural. Follows money and rules: EU fund allocations, public procurement, company registrations, population statistics. Interested in what a decision obliges someone to do.',

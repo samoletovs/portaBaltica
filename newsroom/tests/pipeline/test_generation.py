@@ -79,8 +79,8 @@ class TestHappyPath:
             make_signal(section="energy"), StubWriter(GOOD_PAYLOAD)
         )
 
-        assert labour.article.persona["name"] == "Nida"
-        assert energy.article.persona["name"] == "Akmeņrags"
+        assert labour.article.persona["name"] == "Ilze Bērziņa"
+        assert energy.article.persona["name"] == "Marek Soosaar"
         assert "AI correspondent" in labour.article.persona["byline"]
 
     def test_should_append_a_chart_block_pointing_at_the_live_tile(self):
@@ -231,7 +231,7 @@ class TestPrompt:
         signal = make_signal()
         system = build_system_prompt(signal, persona_for_section("labour"))
 
-        assert "Nida" in system
+        assert "Ilze Bērziņa" in system
         assert "6.8" not in system, "voice shapes prose only; it never touches a number"
 
 

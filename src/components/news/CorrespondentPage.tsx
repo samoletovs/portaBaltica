@@ -57,7 +57,7 @@ export default function CorrespondentPage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="news-fg text-xl font-semibold">Correspondents</h1>
         <p className="news-muted mt-2 text-sm">
-          Five AI correspondents write portaBaltica, each named after a Baltic coastal landmark.
+          Five AI correspondents write portaBaltica, each covering a beat with a declared expertise.
         </p>
         <ul className="mt-6 space-y-3">
           {CORRESPONDENTS.map((entry) => (
@@ -115,8 +115,9 @@ export default function CorrespondentPage() {
         </h2>
         <p className="news-warning mt-2 text-sm leading-relaxed">
           {correspondent.name} is an AI system — a language model writing to a fixed brief, not a
-          journalist, not a pen name for one, and not a real individual. There is nobody of this name.
-          The name belongs to a place: {correspondent.landmark}
+          journalist, not a pen name for one, and not a real individual. There is nobody of this
+          name. The name is invented, the expertise below describes what this correspondent is built
+          to look for, and it has never held a job, studied anywhere or been anywhere.
         </p>
         <p className="news-warning mt-2 text-sm leading-relaxed">
           It never conducts interviews, attends events, visits anywhere or speaks to sources, and it

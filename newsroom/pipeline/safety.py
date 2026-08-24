@@ -108,16 +108,29 @@ def find_lived_experience_claims(text: str) -> list[tuple[str, str]]:
 
 
 def voice_card(persona: Persona) -> str:
-    """Render a persona's voice as prompt text.
+    """Render a persona's identity and method as prompt text.
 
-    Only the voice is rendered. Nothing here can influence a number: the model
-    receives figures separately and the validator checks them regardless of
-    which correspondent holds the byline.
+    Only voice and expertise are rendered. Nothing here can influence a
+    number: the model receives figures separately and the validator checks
+    them regardless of which correspondent holds the byline.
+
+    ``expertise`` and ``trained_on`` describe what this correspondent is
+    oriented to look for. They are deliberately phrased as competence rather
+    than biography — the correspondent has not held a job or been anywhere,
+    and telling the model otherwise is how a lived-experience claim ends up in
+    the prose and gets the article rejected.
     """
     voice: Mapping[str, Any] = persona.voice or {}
+
     lines = [f"You are {persona.name}, covering {persona.beat}."]
-    if persona.landmark:
-        lines.append(f"Named after: {persona.landmark}")
+
+    if persona.expertise:
+        lines.append("Your areas of expertise:")
+        lines.extend(f"  - {item}" for item in persona.expertise)
+
+    if persona.trained_on:
+        lines.append(f"How you read this material: {persona.trained_on.strip()}")
+
     for key, label in (
         ("summary", "Voice"),
         ("notices_first", "You notice first"),
@@ -128,9 +141,16 @@ def voice_card(persona: Persona) -> str:
         value = voice.get(key)
         if value:
             lines.append(f"{label}: {str(value).strip()}")
+
     avoid = voice.get("avoid") or []
     if avoid:
         lines.append("Avoid: " + "; ".join(str(a) for a in avoid))
+
+    lines.append(
+        "You are an AI system. You have never held a job, attended an "
+        "institution, visited anywhere or spoken to anyone. Write from the "
+        "supplied data only, and never imply otherwise."
+    )
     return "\n".join(lines)
 
 
