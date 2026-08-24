@@ -98,13 +98,13 @@ def test_should_not_put_third_party_article_text_in_the_writer_prompt_or_body() 
 def test_should_cap_research_items_per_article() -> None:
     items = [
         FeedItem(
-            source_id="statistics_estonia_news",
+            source_id="latvijas_banka_news",
             title=f"Estonian labour market update {suffix}",
             link=f"https://stat.ee/en/example-{suffix}",
             description="Official unemployment context.",
             published=None,
             guid=f"official-{suffix}",
-            raw_blob=f"2026-08-24/statistics_estonia_news/{suffix}.raw",
+            raw_blob=f"2026-08-24/latvijas_banka_news/{suffix}.raw",
             retrieved_at="2026-08-24T11:00:00Z",
         )
         for suffix in ("a", "b", "c")
@@ -120,13 +120,13 @@ def test_should_cap_research_items_per_article() -> None:
 
 def test_should_include_official_summary_but_not_prior_coverage_summary() -> None:
     official = FeedItem(
-        source_id="statistics_estonia_news",
+        source_id="latvijas_banka_news",
         title="Estonian labour market update",
         link="https://stat.ee/en/official",
         description="The agency attributed the change to softer hiring demand.",
         published=None,
         guid="official",
-        raw_blob="2026-08-24/statistics_estonia_news/official.raw",
+        raw_blob="2026-08-24/latvijas_banka_news/official.raw",
         retrieved_at="2026-08-24T11:00:00Z",
     )
     coverage = FeedItem(
@@ -168,13 +168,13 @@ def test_should_not_select_an_item_that_matches_only_the_geography() -> None:
 
 def test_should_not_select_stale_context_for_a_current_signal() -> None:
     stale = FeedItem(
-        source_id="statistics_estonia_news",
+        source_id="latvijas_banka_news",
         title="Electricity generation changed in Estonia",
         link="https://stat.ee/en/stale",
         description="Official energy context.",
         published="Fri, 06 Sep 2024 06:00:00 +0000",
         guid="stale",
-        raw_blob="2024-09-06/statistics_estonia_news/stale.raw",
+        raw_blob="2024-09-06/latvijas_banka_news/stale.raw",
         retrieved_at="2026-08-24T11:00:00Z",
     )
 

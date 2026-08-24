@@ -70,6 +70,13 @@ class Source:
     research_role: str | None = None
     research_summary_allowed: bool = False
     research_only: bool = False
+    #: Language of the feed's own text. Only English feeds may be used as
+    #: research context: the portal publishes in English, and handing
+    #: foreign-language source text to an English-writing model invites
+    #: translation — a derivative work under DSM Art. 15, and named explicitly
+    #: in Google's scaled-content-abuse policy. Statistics Estonia was added as
+    #: a research source on the strength of an /en/ URL that returns Estonian.
+    research_language: str | None = None
     enabled: bool = True
     verified: str | None = None
     notes: str | None = None
@@ -399,6 +406,20 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
     research_only = _require_bool(
         merged.get("research_only", False), source_id=source_id, key="research_only"
     )
+    research_language = _optional_str(merged.get("research_language"))
+    if research_role is not None and research_language != "en":
+        # Fails at load rather than in a test, so a misconfigured source can
+        # never reach the pipeline. Statistics Estonia was registered on the
+        # strength of an /en/ URL that serves Estonian, and its items were duly
+        # handed to an English-writing model. Nothing downstream would have
+        # caught that: the model would either ignore them, or translate — and
+        # translation is a derivative work under DSM Art. 15 as well as being
+        # named in Google's scaled-content-abuse policy.
+        raise InvalidRegistryError(
+            f"source {source_id!r}: a research source must declare "
+            f"`research_language: en`, got {research_language!r}. Confirm the "
+            "feed's own text is English by reading it, not by trusting the URL."
+        )
 
     return Source(
         id=source_id,
@@ -416,6 +437,7 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
         research_role=research_role,
         research_summary_allowed=research_summary_allowed,
         research_only=research_only,
+        research_language=research_language,
         enabled=enabled,
         verified=_optional_str(merged.get("verified")),
         notes=_optional_str(merged.get("notes")),

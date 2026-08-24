@@ -158,6 +158,7 @@ sources:
     rewrite_allowed: false     # permitted, but we choose verbatim: no distortion risk
     requires_human_approval: true
     research_role: official_statement
+    research_language: en
     research_summary_allowed: true
     filter: "Baltic relevance — mentions Latvia, Estonia, Lithuania, Baltic, or an EU-wide measure with regional effect"
     cache_ttl_minutes: 60
@@ -174,6 +175,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: official_statement
+    research_language: en
     research_summary_allowed: true
     cache_ttl_minutes: 120
 
@@ -183,30 +185,15 @@ sources:
     country: LV
     tier: B
     endpoint: "https://www.bank.lv/en/news-and-events/news-and-articles/news?format=feed&type=rss"
-    verified: "2026-08-24 — HTTP 200, RSS 2.0"
+    verified: "2026-08-24 — HTTP 200, RSS 2.0, English confirmed by reading titles"
+    language: en
     auth: none
     licence: "Official primary-source material; research context with attribution only"
     attribution: "Source: Latvijas Banka"
     rewrite_allowed: false
     requires_human_approval: true
     research_role: official_statement
-    research_summary_allowed: true
-    research_only: true
-    cache_ttl_minutes: 720
-
-  - id: statistics_estonia_news
-    name: "Statistics Estonia news"
-    publisher: "Statistics Estonia"
-    country: EE
-    tier: B
-    endpoint: "https://www.stat.ee/en/rss"
-    verified: "2026-08-24 — HTTP 200, RSS 2.0"
-    auth: none
-    licence: "Official primary-source material; research context with attribution only"
-    attribution: "Source: Statistics Estonia"
-    rewrite_allowed: false
-    requires_human_approval: true
-    research_role: official_statement
+    research_language: en
     research_summary_allowed: true
     research_only: true
     cache_ttl_minutes: 720
@@ -229,6 +216,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 30
     notes: >-
@@ -250,6 +238,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 30
     notes: "Feed declares <language>et</language> despite English content — a metadata error on their side, not a content signal."
@@ -267,6 +256,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 60
 
@@ -283,6 +273,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 120
     notes: >-
@@ -303,6 +294,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     enabled: false
     cache_ttl_minutes: 60
@@ -321,6 +313,7 @@ sources:
     rewrite_allowed: false
     requires_human_approval: true
     research_role: prior_coverage
+    research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 120
 
@@ -328,6 +321,20 @@ sources:
 # Known-unavailable. Kept so future passes do not re-research them blindly.
 # ─────────────────────────────────────────────────────────────────────────
 unavailable:
+  - id: statistics_estonia_news
+    name: "Statistics Estonia news"
+    reason: >-
+      No English RSS exists. Both https://www.stat.ee/en/rss and
+      https://www.stat.ee/rss?lang=en return 200 with Estonian content — the
+      language selector is ignored by their RSS handler. Verified 2026-08-24;
+      titles came back as "Töötuse määr oli teises kvartalis 6,6%".
+    action: >-
+      Do not re-add as a research source until an English feed exists. This is
+      a licence question, not just an editorial one: handing Estonian source
+      text to an English-writing model invites translation, which is a
+      derivative work under DSM Art. 15 and is named explicitly in Google's
+      scaled-content-abuse policy. The English-language guard in
+      tests/test_sources.py enforces this.
   - id: lrt_en
     name: "LRT English (Lithuanian public broadcaster)"
     reason: "HTTP 502 at https://www.lrt.lt/en/news-in-english/rss/ on 2026-08-24; six other URL patterns 404 in research."

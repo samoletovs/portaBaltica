@@ -213,13 +213,46 @@ class TestFailsClosed:
 
 
 class TestPrompt:
-    def test_should_hand_the_model_every_verified_figure(self):
+    def test_should_hand_the_model_every_publishable_figure(self):
         signal = make_signal()
 
         user = build_user_prompt(signal)
 
         for name in signal.fields:
             assert name in user
+
+    def test_should_withhold_internal_detection_statistics_from_the_writer(self):
+        """A z-score is how the detector decided this was a story. It is not a
+        fact about the world, and offering it as a "verified figure" got it
+        published: "The z-score of 2.13589 indicates that this unemployment
+        rate is notably lower" went out on the wire.
+
+        Withholding it is stronger than instructing against it — the model
+        cannot cite a number it was never given, and the validator will reject
+        it if the model invents one."""
+        signal = make_signal(
+            fields={"latest_value": 6.6, "seasonal_mean": 7.075, "z_score": 2.13589}
+        )
+
+        user = build_user_prompt(signal)
+
+        assert "z_score" not in user
+        assert "2.13589" not in user
+        assert "latest_value" in user, "the publishable figures must still be there"
+
+    def test_should_not_label_a_dimensionless_field_with_the_signal_unit(self):
+        """`deviation_pct` is a ratio, not a measure in the signal's own unit.
+        Labelling it with one produced "2.13589% of the labour force"."""
+        signal = make_signal(
+            unit="% of the labour force",
+            fields={"latest_value": 6.6, "deviation_pct": 6.71378},
+        )
+
+        user = build_user_prompt(signal)
+
+        line = next(ln for ln in user.splitlines() if "deviation_pct" in ln)
+        assert "% of the labour force" not in line
+        assert line.rstrip().endswith("(%)")
 
     def test_should_state_the_comparison_basis_in_the_prompt(self):
         signal = make_signal()
