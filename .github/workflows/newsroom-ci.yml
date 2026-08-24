@@ -53,10 +53,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: newsroom/requirements.txt
+          cache-dependency-path: |
+            newsroom/requirements.txt
+            newsroom/requirements-dev.txt
 
       - name: Install newsroom dependencies
-        run: python -m pip install --upgrade pip && pip install -r newsroom/requirements.txt
+        # requirements-dev.txt pulls in requirements.txt via -r, and adds the
+        # test-only extras (pytest-asyncio, respx) the pipeline suite needs.
+        # The runtime requirements stay deliberately tiny -- the safety package
+        # must never gain an HTTP client or anything that could reach the
+        # network from inside a check -- so the async extras belong here and
+        # only here.
+        run: python -m pip install --upgrade pip && pip install -r newsroom/requirements-dev.txt
 
       - name: Run the content-safety suite
         run: python -m pytest newsroom/tests -q
