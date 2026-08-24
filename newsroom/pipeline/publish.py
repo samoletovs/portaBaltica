@@ -91,7 +91,21 @@ class ArticleStore:
         target.write_bytes(body)
 
     async def write_index(self, articles: Sequence[Article]) -> str:
-        """A compact index of servable articles, for the frontend to fetch."""
+        """A compact index of servable articles, for the frontend to fetch.
+
+        The shape is fixed by ``ArticleSummary`` in ``src/news-types.ts`` and is
+        enforced at render time by ``isRenderableSummary`` in ``src/news-api.ts``:
+        a tier A entry must carry a ``persona`` OBJECT with a ``name``, and a
+        tier B/C entry a ``syndicated`` object with ``attribution`` and
+        ``original_url``. Entries that do not match are dropped silently by the
+        reader, which is the right behaviour for the client and a miserable
+        thing to debug from the server.
+
+        This previously emitted flat ``byline`` and ``attribution`` strings. The
+        index published fine, the browser fetched it fine, every check was
+        green, and the front page said "Nothing to report yet today" because
+        the only article in it failed the type guard.
+        """
         entries = [
             {
                 "id": a.id,
@@ -100,8 +114,16 @@ class ArticleStore:
                 "section": a.section,
                 "headline": a.headline,
                 "dek": a.dek,
-                "byline": (a.persona or {}).get("byline"),
-                "attribution": (a.syndicated or {}).get("attribution"),
+                "persona": a.persona or None,
+                "syndicated": (
+                    {
+                        "attribution": (a.syndicated or {}).get("attribution"),
+                        "original_url": (a.syndicated or {}).get("original_url"),
+                        "snippet": (a.syndicated or {}).get("snippet"),
+                    }
+                    if a.syndicated
+                    else None
+                ),
                 "published_at": a.published_at or a.created_at,
                 "countries": a.countries,
             }
