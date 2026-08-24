@@ -1,5 +1,7 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
+const EUROSTAT_INDICATORS = require('../shared/indicators.js');
+const es = require('../shared/eurostat.js');
 
 function httpsPost(url, body) {
   return new Promise(function (resolve, reject) {
@@ -100,6 +102,9 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   industrial: {
+    // CSP's RUI020m is not queryable: the MIG_* codes return an all-null
+    // series and every aggregate code (B_C_D_X_D353, C, C10) is rejected with
+    // HTTP 400. Served from Eurostat until the national table works again.
     path: '/NOZ/RU/RUI/RUI020m',
     query: [
       { code: 'NACE_MIG', selection: { filter: 'item', values: ['MIG_ING'] } },
@@ -109,6 +114,8 @@ var INDICATORS = {
     unit: '% YoY',
     title: 'Industrial Production Growth',
     source: 'CSP Latvia (PxWeb)',
+    eurostatFallback: 'industrial',
+    preferEurostat: true,
   },
   population: {
     path: '/POP/IR/IRS/IRS010',
@@ -275,6 +282,9 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   renewable_share: {
+    // ENA010 is renewable resources in natural units: 50 indicators x 15
+    // resource types, 12,750 cells. The flat read below picked an arbitrary
+    // slice of it and published the result as a percentage share.
     path: '/NOZ/EN/ENA/ENA010',
     query: [
       { code: 'ContentsCode', selection: { filter: 'item', values: ['ENA010'] } },
@@ -283,8 +293,11 @@ var INDICATORS = {
     unit: '%',
     title: 'Renewable energy share',
     source: 'CSP Latvia (PxWeb)',
+    eurostatFallback: 'renewables',
+    preferEurostat: true,
   },
   ppi: {
+    // RCI020m fails the same way as RUI020m — see `industrial`.
     path: '/VEK/RC/RCI/RCI020m',
     query: [
       { code: 'SALES', selection: { filter: 'item', values: ['TOVT'] } },
@@ -295,6 +308,8 @@ var INDICATORS = {
     unit: '% YoY',
     title: 'Producer prices (PPI)',
     source: 'CSP Latvia (PxWeb)',
+    eurostatFallback: 'ppi',
+    preferEurostat: true,
   },
   trade_balance: {
     path: '/TIR/AT/ATD/ATD110m',
@@ -312,10 +327,86 @@ var INDICATORS = {
 };
 
 /**
+ * Fetch a Latvian series from Eurostat, used when the CSP table behind an
+ * indicator is unavailable or returns a cube this endpoint cannot read flatly.
+ */
+async function fetchEurostatSeries(eurostatKey, years) {
+  const def = EUROSTAT_INDICATORS[eurostatKey];
+  if (!def) throw new Error('No Eurostat definition for ' + eurostatKey);
+  const data = await es.httpJson(es.buildUrl(def, years || 10, ['LV']), { deadlineMs: 20000 });
+  const parsed = es.parseJsonStat(data, ['LV']);
+  const lv = parsed.countries.LV;
+  if (!lv || lv.series.every(function (s) { return s.value === null; })) {
+    throw new Error('Eurostat returned no data for ' + eurostatKey);
+  }
+  return {
+    series: lv.series,
+    unit: def.unit,
+    title: def.title,
+    source: 'Eurostat (' + def.dataset + ')',
+  };
+}
+
+function summarise(series) {
+  const valid = series.filter(function (s) { return s.value !== null; }).map(function (s) { return s.value; });
+  const latest = valid.length > 0 ? valid[valid.length - 1] : null;
+  const previous = valid.length > 1 ? valid[valid.length - 2] : null;
+  const min = valid.length > 0 ? Math.min.apply(null, valid) : null;
+  const max = valid.length > 0 ? Math.max.apply(null, valid) : null;
+  const avg = valid.length > 0 ? valid.reduce(function (a, b) { return a + b; }, 0) / valid.length : null;
+  return {
+    latest: latest,
+    previous: previous,
+    change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
+    min: min !== null ? +min.toFixed(2) : null,
+    max: max !== null ? +max.toFixed(2) : null,
+    avg: avg !== null ? +avg.toFixed(2) : null,
+    count: valid.length,
+  };
+}
+
+/**
+ * Read a PxWeb json-stat2 response as a single time series.
+ *
+ * Returns null when the cube has more cells than time periods. That means the
+ * query left a dimension open, and the flat read below would publish an
+ * arbitrary slice of the cube under the indicator's label — which is exactly
+ * what "Renewable energy share" was doing with a 12,750-cell table.
+ */
+function readPxWebSeries(data, transform) {
+  if (!data || !data.value) return null;
+
+  const timeDim = data.id ? data.id[data.id.length - 1] : 'TIME';
+  let timeLabels = [];
+  if (data.dimension && data.dimension[timeDim] && data.dimension[timeDim].category) {
+    const cat = data.dimension[timeDim].category;
+    timeLabels = cat.index ? Object.keys(cat.index).sort(function (a, b) {
+      return (cat.index[a] || 0) - (cat.index[b] || 0);
+    }) : [];
+  }
+
+  const values = Array.isArray(data.value) ? data.value : Object.values(data.value);
+  if (timeLabels.length === 0) return null;
+  if (values.length > timeLabels.length) return null;
+
+  const series = [];
+  for (let i = 0; i < values.length && i < timeLabels.length; i++) {
+    series.push({
+      period: timeLabels[i],
+      value: transform ? transform(values[i]) : values[i],
+    });
+  }
+  if (series.every(function (s) { return s.value === null; })) return null;
+  return series;
+}
+
+/**
  * GET /api/historical-data?indicator=gdp
  * GET /api/historical-data?indicator=gdp&years=5
  *
- * Returns time-series data from CSP PxWeb API for charting.
+ * Latvian time series, from CSP PxWeb where it works and Eurostat where it
+ * does not. `source` always names the provider that actually answered, so a
+ * fallback is visible rather than silent.
  */
 module.exports = async function (context, req) {
   const rl = rateLimit.check(req);
@@ -333,83 +424,71 @@ module.exports = async function (context, req) {
     return;
   }
 
-  try {
-    var data = await httpsPost(PXWEB + def.path, {
-      query: def.query,
-      response: { format: 'json-stat2' },
-    });
+  var years = parseInt(req.query && req.query.years, 10) || 0;
+  var title = def.title;
+  var unit = def.unit;
+  var source = def.source;
+  var series = null;
 
-    if (!data || !data.value) {
-      context.res = {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ indicator: indicator, series: [], meta: def }),
-      };
-      return;
-    }
-
-    // Extract time labels from the dimension
-    var timeDim = data.id ? data.id[data.id.length - 1] : 'TIME';
-    var timeLabels = [];
-    if (data.dimension && data.dimension[timeDim] && data.dimension[timeDim].category) {
-      var cat = data.dimension[timeDim].category;
-      timeLabels = cat.index ? Object.keys(cat.index).sort(function (a, b) {
-        return (cat.index[a] || 0) - (cat.index[b] || 0);
-      }) : [];
-    }
-
-    var values = data.value || [];
-    var fn = def.transform;
-    var series = [];
-    for (var i = 0; i < values.length && i < timeLabels.length; i++) {
-      var v = values[i];
-      series.push({
-        period: timeLabels[i],
-        value: fn ? fn(v) : v,
+  if (!def.preferEurostat) {
+    try {
+      var data = await httpsPost(PXWEB + def.path, {
+        query: def.query,
+        response: { format: 'json-stat2' },
       });
+      series = readPxWebSeries(data, def.transform);
+    } catch (e) {
+      series = null;
     }
 
     // Optional: limit to last N years
-    var years = parseInt(req.query && req.query.years, 10) || 0;
-    if (years > 0) {
+    if (series && years > 0) {
       var cutoff = series.length - (years * (indicator === 'gdp' || indicator === 'salary' || indicator === 'house_prices' ? 4 : 12));
       if (cutoff > 0) series = series.slice(cutoff);
     }
+  }
 
-    // Calculate summary stats
-    var validVals = series.filter(function (s) { return s.value !== null; }).map(function (s) { return s.value; });
-    var latest = validVals.length > 0 ? validVals[validVals.length - 1] : null;
-    var previous = validVals.length > 1 ? validVals[validVals.length - 2] : null;
-    var min = validVals.length > 0 ? Math.min.apply(null, validVals) : null;
-    var max = validVals.length > 0 ? Math.max.apply(null, validVals) : null;
-    var avg = validVals.length > 0 ? validVals.reduce(function (a, b) { return a + b; }, 0) / validVals.length : null;
+  if (!series && def.eurostatFallback) {
+    try {
+      var fallback = await fetchEurostatSeries(def.eurostatFallback, years || 10);
+      series = fallback.series;
+      unit = fallback.unit;
+      source = fallback.source;
+    } catch (e) {
+      series = null;
+    }
+  }
 
+  if (!series) {
     context.res = {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
       body: JSON.stringify({
         indicator: indicator,
-        title: def.title,
-        unit: def.unit,
-        source: def.source,
-        series: series,
-        summary: {
-          latest: latest,
-          previous: previous,
-          change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null,
-          min: min !== null ? +min.toFixed(2) : null,
-          max: max !== null ? +max.toFixed(2) : null,
-          avg: avg !== null ? +avg.toFixed(2) : null,
-          count: validVals.length,
-        },
+        title: title,
+        unit: unit,
+        source: source,
+        series: [],
+        summary: summarise([]),
+        error: 'No data available from ' + source,
         fetchedAt: new Date().toISOString(),
       }),
     };
-  } catch (error) {
-    context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message }),
-    };
+    return;
   }
+
+  context.res = {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
+    body: JSON.stringify({
+      indicator: indicator,
+      title: title,
+      unit: unit,
+      source: source,
+      series: series,
+      summary: summarise(series),
+      fetchedAt: new Date().toISOString(),
+    }),
+  };
 };
+

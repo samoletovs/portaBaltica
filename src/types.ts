@@ -97,7 +97,12 @@ export interface AirQualityData {
 export interface EnvironmentData {
   weather: WeatherCondition[];
   airQuality: AirQualityData;
-  capitalPopulation: number;
+  capitalPopulation: number | null;
+  /** What the population figure actually counts — a NUTS 3 region, which is
+   *  the city for Rīga but a wider capital region for Tallinn and Vilnius. */
+  capitalPopulationLabel?: string;
+  capitalPopulationYear?: string | null;
+  capitalPopulationSource?: string;
   rigaPopulation?: number; // backward compat with cached API responses
   fetchedAt: string;
 }

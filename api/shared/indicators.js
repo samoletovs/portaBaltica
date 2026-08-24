@@ -1,0 +1,412 @@
+/**
+ * Baltic comparison indicators — single source of truth.
+ *
+ * Every definition pins *every* dimension of its Eurostat cube. That is not
+ * stylistic: the parser used to fall back to category index 0 for anything a
+ * query left open, so a retired or mistyped code produced a valid-looking
+ * response containing either nothing or a different statistic under the old
+ * label. A live audit found nine indicators returning no data and three
+ * rendering the wrong series entirely — including a chart labelled
+ * "Income inequality (Gini)" that was actually plotting net foreign direct
+ * investment as a share of GDP.
+ *
+ * `sanity` is the guard against that second, quieter failure. It is the range
+ * a plausible latest value must fall in, and the contract test asserts it. A
+ * Gini index reading 8.9 fails `[20, 45]`; an empty chart fails on point count.
+ * When adding an indicator, set the band from what the statistic *means*, not
+ * from what the API happens to return today.
+ */
+
+const INDICATORS = {
+  // ---- Output & prices -------------------------------------------------
+  gdp: {
+    dataset: 'namq_10_gdp',
+    params: 'unit=CLV_PCH_PRE&s_adj=SCA&na_item=B1GQ&freq=Q',
+    freq: 'Q',
+    title: 'GDP Growth Rate',
+    unit: '% QoQ',
+    sanity: [-20, 20],
+  },
+  gdp_per_capita: {
+    dataset: 'sdg_08_10',
+    // CLV10_EUR_HAB was retired when Eurostat rebased chain-linked volumes to 2020.
+    params: 'freq=A&unit=CLV20_EUR_HAB&na_item=B1GQ',
+    freq: 'A',
+    title: 'GDP per capita',
+    unit: 'EUR',
+    sanity: [5000, 60000],
+  },
+  inflation: {
+    dataset: 'prc_hicp_manr',
+    params: 'coicop=CP00&freq=M',
+    freq: 'M',
+    title: 'HICP Inflation',
+    unit: '% YoY',
+    sanity: [-10, 40],
+  },
+  energy_inflation: {
+    dataset: 'prc_hicp_manr',
+    params: 'coicop=NRG&freq=M',
+    freq: 'M',
+    title: 'Energy inflation',
+    unit: '% YoY',
+    sanity: [-60, 100],
+  },
+  food_inflation: {
+    dataset: 'prc_hicp_manr',
+    params: 'coicop=FOOD&freq=M',
+    freq: 'M',
+    title: 'Food inflation',
+    unit: '% YoY',
+    sanity: [-30, 50],
+  },
+  core_inflation: {
+    dataset: 'prc_hicp_manr',
+    params: 'coicop=TOT_X_NRG_FOOD&freq=M',
+    freq: 'M',
+    title: 'Core inflation (excl. energy & food)',
+    unit: '% YoY',
+    sanity: [-10, 30],
+  },
+  ppi: {
+    dataset: 'sts_inpp_m',
+    params: 'nace_r2=B-D&s_adj=NSA&unit=PCH_PRE&freq=M',
+    freq: 'M',
+    title: 'Producer prices',
+    unit: '% MoM',
+    sanity: [-25, 25],
+  },
+  industrial: {
+    // nace_r2=B-D36 is not a code in this dataset; the aggregate is B-D.
+    dataset: 'sts_inpr_m',
+    params: 'nace_r2=B-D&indic_bt=PRD&s_adj=SCA&unit=PCH_PRE&freq=M',
+    freq: 'M',
+    title: 'Industrial production',
+    unit: '% MoM',
+    sanity: [-30, 30],
+  },
+  retail: {
+    dataset: 'sts_trtu_m',
+    params: 'nace_r2=G47&indic_bt=VOL_SLS&s_adj=CA&unit=PCH_SM&freq=M',
+    freq: 'M',
+    title: 'Retail sales growth',
+    unit: '% YoY',
+    sanity: [-40, 40],
+  },
+  construction: {
+    // sts_copr_m carries no Baltic data at all — the geo dimension comes back
+    // empty. The quarterly table does.
+    dataset: 'sts_copr_q',
+    params: 'nace_r2=F&indic_bt=PRD&s_adj=SCA&unit=PCH_PRE&freq=Q',
+    freq: 'Q',
+    title: 'Construction output',
+    unit: '% QoQ',
+    sanity: [-40, 40],
+  },
+  house_prices: {
+    dataset: 'prc_hpi_q',
+    params: 'purchase=TOTAL&unit=RCH_A&freq=Q',
+    freq: 'Q',
+    title: 'House Price Change',
+    unit: '% YoY',
+    sanity: [-40, 50],
+  },
+  interest_rate: {
+    dataset: 'irt_lt_mcby_m',
+    params: 'freq=M',
+    freq: 'M',
+    title: 'Long-term interest rate',
+    unit: '%',
+    sanity: [-2, 20],
+  },
+  consumer_confidence: {
+    // BS-CSMCI-BAL is not a code: BAL is a value of the separate `unit` dimension.
+    dataset: 'ei_bsco_m',
+    params: 'indic=BS-CSMCI&s_adj=SA&unit=BAL&freq=M',
+    freq: 'M',
+    title: 'Consumer confidence',
+    unit: 'balance',
+    sanity: [-70, 30],
+  },
+  economic_sentiment: {
+    // The "Economic sentiment" card used to be mapped onto consumer
+    // confidence, which is one of its five components rather than the index.
+    dataset: 'ei_bssi_m_r2',
+    params: 'freq=M&indic=BS-ESI-I&s_adj=SA',
+    freq: 'M',
+    title: 'Economic sentiment indicator',
+    unit: 'index (long-term avg=100)',
+    sanity: [40, 150],
+  },
+
+  // ---- Labour ----------------------------------------------------------
+  unemployment: {
+    dataset: 'une_rt_m',
+    params: 'unit=PC_ACT&s_adj=SA&age=TOTAL&sex=T&freq=M',
+    freq: 'M',
+    title: 'Unemployment Rate',
+    unit: '%',
+    sanity: [1, 30],
+  },
+  youth_unemployment: {
+    dataset: 'une_rt_m',
+    params: 'unit=PC_ACT&s_adj=SA&age=Y_LT25&sex=T&freq=M',
+    freq: 'M',
+    title: 'Youth unemployment (under 25)',
+    unit: '%',
+    sanity: [2, 50],
+  },
+  job_vacancy: {
+    // indic_em=JOBRATE is not a code; the job vacancy rate is JVR.
+    dataset: 'jvs_q_nace2',
+    params: 'freq=Q&nace_r2=B-S&s_adj=SA&sizeclas=TOTAL&indic_em=JVR',
+    freq: 'Q',
+    title: 'Job vacancy rate',
+    unit: '%',
+    sanity: [0, 12],
+  },
+  salary: {
+    dataset: 'lc_lci_lev',
+    params: 'freq=A&lcstruct=D1_D4_MD5&unit=EUR&nace_r2=B-S_X_O',
+    freq: 'A',
+    title: 'Hourly labour cost',
+    unit: 'EUR/hour',
+    sanity: [3, 80],
+  },
+  wages_mfg: {
+    dataset: 'lc_lci_r2_q',
+    params: 'freq=Q&nace_r2=C&unit=I20&s_adj=SCA&lcstruct=D1_D4_MD5',
+    freq: 'Q',
+    title: 'Labour cost: manufacturing',
+    unit: 'index (2020=100)',
+    sanity: [60, 300],
+  },
+  wages_it: {
+    dataset: 'lc_lci_r2_q',
+    params: 'freq=Q&nace_r2=J&unit=I20&s_adj=SCA&lcstruct=D1_D4_MD5',
+    freq: 'Q',
+    title: 'Labour cost: IT sector',
+    unit: 'index (2020=100)',
+    sanity: [60, 300],
+  },
+  minimum_wage: {
+    dataset: 'earn_mw_cur',
+    params: 'freq=S&currency=EUR',
+    freq: 'S',
+    title: 'Minimum wage',
+    unit: 'EUR/month',
+    sanity: [200, 3000],
+  },
+
+  // ---- Government & society -------------------------------------------
+  gov_debt_gdp: {
+    // The sector dimension was left open, so the parser read S1 (total
+    // economy), which carries no general government debt.
+    dataset: 'gov_10dd_edpt1',
+    params: 'na_item=GD&unit=PC_GDP&sector=S13&freq=A',
+    freq: 'A',
+    title: 'Government debt / GDP',
+    unit: '% GDP',
+    sanity: [0, 200],
+  },
+  gov_revenue: {
+    dataset: 'gov_10q_ggnfa',
+    params: 'na_item=TR&freq=Q&unit=MIO_EUR&sector=S13&s_adj=NSA',
+    freq: 'Q',
+    title: 'Government revenue',
+    unit: 'M EUR',
+    sanity: [100, 50000],
+  },
+  gov_deficit: {
+    dataset: 'gov_10q_ggnfa',
+    params: 'na_item=B9&freq=Q&unit=MIO_EUR&sector=S13&s_adj=NSA',
+    freq: 'Q',
+    title: 'Government net lending/borrowing',
+    unit: 'M EUR',
+    sanity: [-20000, 20000],
+  },
+  inequality: {
+    // Was tipsii20, which is net foreign direct investment as % of GDP — not
+    // an inequality measure at all. ilc_di12 is the Gini of equivalised
+    // disposable income.
+    dataset: 'ilc_di12',
+    params: 'freq=A&age=TOTAL&statinfo=GINI_HND',
+    freq: 'A',
+    title: 'Income inequality (Gini)',
+    unit: 'index',
+    sanity: [20, 45],
+  },
+  poverty_risk: {
+    dataset: 'ilc_peps01n',
+    params: 'freq=A&unit=PC&age=TOTAL&sex=T',
+    freq: 'A',
+    title: 'At risk of poverty or social exclusion',
+    unit: '% of population',
+    sanity: [5, 45],
+  },
+  life_expectancy: {
+    // age=Y1 is life expectancy *at age 1*; at birth is Y_LT1.
+    dataset: 'demo_mlexpec',
+    params: 'freq=A&sex=T&age=Y_LT1&unit=YR',
+    freq: 'A',
+    title: 'Life expectancy at birth',
+    unit: 'years',
+    sanity: [65, 90],
+  },
+  population: {
+    dataset: 'demo_pjan',
+    params: 'sex=T&age=TOTAL&freq=A',
+    freq: 'A',
+    title: 'Population',
+    unit: 'persons',
+    sanity: [100000, 20000000],
+  },
+  net_migration: {
+    dataset: 'demo_gind',
+    params: 'freq=A&indic_de=CNMIGRATRT',
+    freq: 'A',
+    title: 'Net migration rate',
+    unit: 'per 1000 inhabitants',
+    sanity: [-40, 40],
+  },
+  birth_rate: {
+    dataset: 'demo_gind',
+    params: 'freq=A&indic_de=GBIRTHRT',
+    freq: 'A',
+    title: 'Crude birth rate',
+    unit: 'per 1000 inhabitants',
+    sanity: [3, 25],
+  },
+  rd_spending: {
+    dataset: 'sdg_09_10',
+    params: 'freq=A&unit=PC_GDP&sectperf=TOTAL',
+    freq: 'A',
+    title: 'R&D expenditure',
+    unit: '% GDP',
+    sanity: [0.1, 6],
+  },
+  digital_skills: {
+    dataset: 'sdg_04_70',
+    params: 'freq=A&unit=PC_IND&indic_is=I_DSK2_BAB&ind_type=IND_TOTAL',
+    freq: 'A',
+    title: 'Basic digital skills',
+    unit: '% of individuals',
+    sanity: [10, 95],
+  },
+
+  // ---- Trade & external ------------------------------------------------
+  exports: {
+    // ext_tec01 is trade *by enterprise characteristics* — annual, and shaped
+    // around size class and NACE, so a monthly geo/time read of it is empty.
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=G&stk_flow=CRE&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Exports of goods',
+    unit: 'M EUR',
+    sanity: [100, 100000],
+  },
+  imports: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=G&stk_flow=DEB&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Imports of goods',
+    unit: 'M EUR',
+    sanity: [100, 100000],
+  },
+  trade_balance: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=GS&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Trade balance (goods & services)',
+    unit: 'M EUR',
+    sanity: [-20000, 20000],
+  },
+  current_account: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=CA&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Current account balance',
+    unit: 'M EUR',
+    sanity: [-20000, 20000],
+  },
+  tourism: {
+    dataset: 'tour_occ_nim',
+    params: 'nace_r2=I551-I553&unit=NR&c_resid=TOTAL&freq=M',
+    freq: 'M',
+    title: 'Tourist arrivals',
+    unit: 'persons',
+    sanity: [1000, 10000000],
+  },
+  tourism_foreign: {
+    dataset: 'tour_occ_nim',
+    params: 'nace_r2=I551-I553&unit=NR&c_resid=FOR&freq=M',
+    freq: 'M',
+    title: 'Nights spent by foreign visitors',
+    unit: 'nights',
+    sanity: [1000, 10000000],
+  },
+  hotel_occupancy: {
+    // The "Hotel occupancy" card used to be mapped onto tourist arrivals, so
+    // it displayed a headcount under a percentage label.
+    dataset: 'tour_occ_anor2',
+    params: 'freq=A&accomunit=BEDPL',
+    freq: 'A',
+    title: 'Net occupancy rate of bed places',
+    unit: '%',
+    sanity: [5, 95],
+  },
+
+  // ---- Energy & infrastructure ----------------------------------------
+  elec_production: {
+    // nrg_cb_em is the import/export table: it has neither siec=TOTAL nor
+    // nrg_bal=GEP. Gross electricity production lives in nrg_cb_pem.
+    dataset: 'nrg_cb_pem',
+    params: 'freq=M&siec=TOTAL&unit=GWH',
+    freq: 'M',
+    title: 'Electricity production',
+    unit: 'GWh',
+    sanity: [10, 20000],
+  },
+  elec_renewable_gen: {
+    dataset: 'nrg_cb_pem',
+    params: 'freq=M&siec=RA000&unit=GWH',
+    freq: 'M',
+    title: 'Renewable electricity generation',
+    unit: 'GWh',
+    sanity: [1, 20000],
+  },
+  renewables: {
+    dataset: 'nrg_ind_ren',
+    params: 'freq=A&nrg_bal=REN',
+    freq: 'A',
+    title: 'Renewable energy share',
+    unit: '%',
+    sanity: [0, 100],
+  },
+  elec_price_household: {
+    dataset: 'nrg_pc_204',
+    params: 'freq=S&nrg_cons=TOT_KWH&tax=I_TAX&currency=EUR',
+    freq: 'S',
+    title: 'Electricity price (households)',
+    unit: 'EUR/kWh',
+    sanity: [0.03, 1],
+  },
+  elec_price_industry: {
+    dataset: 'nrg_pc_205',
+    params: 'freq=S&nrg_cons=TOT_KWH&tax=X_TAX&currency=EUR&unit=KWH',
+    freq: 'S',
+    title: 'Electricity price (industry)',
+    unit: 'EUR/kWh',
+    sanity: [0.02, 1],
+  },
+  vehicles: {
+    dataset: 'road_eqs_carhab',
+    params: 'freq=A',
+    freq: 'A',
+    title: 'Passenger cars per 1000 inhabitants',
+    unit: 'per 1000',
+    sanity: [100, 900],
+  },
+};
+
+module.exports = INDICATORS;

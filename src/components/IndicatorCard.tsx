@@ -7,7 +7,13 @@ import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 
-// Mapping: PxWeb indicator → Eurostat baltic-compare indicator (for EE/LT)
+// Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
+//
+// Every entry here must name the *same statistic* the card is labelled with.
+// Two entries used to point at a near neighbour instead — "Hotel occupancy"
+// resolved to tourist arrivals and "Economic sentiment" to consumer
+// confidence — so both cards rendered a real number that was not the number in
+// the title.
 const EUROSTAT_FALLBACK: Record<string, string> = {
   gdp: 'gdp',
   unemployment: 'unemployment',
@@ -17,9 +23,9 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   retail_sales: 'retail',
   population: 'population',
   tourist_arrivals: 'tourism',
-  hotel_occupancy: 'tourism',
+  hotel_occupancy: 'hotel_occupancy',
   construction_output: 'construction',
-  biz_confidence: 'consumer_confidence',
+  biz_confidence: 'economic_sentiment',
   industrial: 'industrial',
   ppi: 'ppi',
   gov_revenue: 'gov_revenue',

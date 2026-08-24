@@ -20,6 +20,43 @@ export interface BalticCompareData {
   unit: string;
   countries: Record<string, BalticCompareCountrySeries>;
   source: string;
+  /** Dimensions the indicator definition failed to pin. Always empty for a
+   *  correctly specified indicator — a non-empty value means the API had to
+   *  guess which slice of the Eurostat cube to read. */
+  assumptions?: { dimension: string; chosen: string; optionCount: number; reason: string }[];
+}
+
+export interface PowerPriceZone {
+  id: 'ee' | 'lv' | 'lt' | 'fi';
+  label: string;
+  flag: string;
+  current: number | null;
+  min: number | null;
+  max: number | null;
+  avg: number | null;
+}
+
+export interface PowerPricePoint {
+  time: string;
+  ee: number | null;
+  lv: number | null;
+  lt: number | null;
+  fi: number | null;
+  spread: number;
+}
+
+export interface PowerPriceData {
+  unit: string;
+  zones: PowerPriceZone[];
+  series: PowerPricePoint[];
+  currentTime: string | null;
+  currentSpread: number | null;
+  coupled: boolean | null;
+  decoupledIntervals: number;
+  totalIntervals: number;
+  widestSpread: { spread: number; time: string } | null;
+  source: string;
+  fetchedAt: string;
 }
 
 /** Fetch marine weather for a port from Open-Meteo */
@@ -250,4 +287,8 @@ export async function fetchBalticCompare(indicator: string, years = 5): Promise<
     `baltic_compare-${encodedIndicator}-${normalizedYears}`,
     `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`
   );
+}
+
+export async function fetchPowerPrices(): Promise<PowerPriceData> {
+  return cachedFetch<PowerPriceData>('power-prices', '/api/power-prices');
 }
