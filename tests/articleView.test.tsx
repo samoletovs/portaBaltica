@@ -121,6 +121,30 @@ describe('ArticleView — the provenance passport', () => {
     ).toBeTruthy();
   });
 
+  it('shows every research source consulted for the story', () => {
+    const article = tierAArticle();
+    article.provenance.research = {
+      method: 'registered_feeds',
+      candidates_considered: 4,
+      consulted: [
+        {
+          source_id: 'statistics_estonia_news',
+          source_name: 'Statistics Estonia news',
+          role: 'official_statement',
+          title: 'The unemployment rate fell in the latest quarter',
+          url: 'https://stat.ee/en/example',
+          retrieved_at: '2026-08-24T05:30:00Z',
+        },
+      ],
+    };
+
+    renderArticle(article);
+
+    expect(screen.getByRole('heading', { name: 'Reporting context consulted' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /unemployment rate fell/ })).toBeTruthy();
+    expect(screen.getByText(/Statistics Estonia news · official statement/)).toBeTruthy();
+  });
+
   it('shows who approved reviewed material and when', () => {
     // Tier B and C pass through human approval; the policy commits to showing it.
     const article = tierAArticle();

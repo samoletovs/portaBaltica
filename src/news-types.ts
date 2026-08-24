@@ -52,6 +52,22 @@ export interface ProvenanceSource {
   url?: string;
 }
 
+export interface ResearchSource {
+  source_id: string;
+  source_name: string;
+  role: 'official_statement' | 'prior_coverage';
+  title: string;
+  url: string;
+  retrieved_at: string;
+  published?: string;
+}
+
+export interface ResearchProvenance {
+  method: 'registered_feeds';
+  candidates_considered: number;
+  consulted: ResearchSource[];
+}
+
 /**
  * The article's "passport": what it was built from, by what, when, and who is
  * accountable. Rendered on the page — not merely stored.
@@ -62,6 +78,7 @@ export interface Provenance {
   /** Null for tiers B and C, which involve no generation at all. */
   model?: string | null;
   prompt_version?: string;
+  research?: ResearchProvenance;
   generated_at: string;
   approved_by?: string;
   approved_at?: string;

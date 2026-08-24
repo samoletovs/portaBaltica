@@ -124,6 +124,7 @@ class CollectorHttp:
         self._max_retries = max_retries
         self._backoff = backoff
         self._sleep = sleep
+        self._memory_cache: dict[str, RawItem] = {}
 
     async def __aenter__(self) -> CollectorHttp:
         if self._client is None:
@@ -153,7 +154,12 @@ class CollectorHttp:
 
         if not force and self._state.is_fresh(url, cache_ttl_minutes):
             log.info("%s: inside %d-minute TTL, not requesting", source_id, cache_ttl_minutes)
-            return FetchResult(source_id, url, None, skipped_reason="within_cache_ttl")
+            return FetchResult(
+                source_id,
+                url,
+                self._cached_item(source_id, url),
+                skipped_reason="within_cache_ttl",
+            )
 
         headers = {"Accept": accept}
         remembered = self._state.get(url)
@@ -169,7 +175,12 @@ class CollectorHttp:
         if response.status_code == 304:
             log.info("%s: 304 Not Modified", source_id)
             self._state.remember(url, etag=None, last_modified=None, archive_name=None)
-            return FetchResult(source_id, url, None, skipped_reason="not_modified")
+            return FetchResult(
+                source_id,
+                url,
+                self._cached_item(source_id, url),
+                skipped_reason="not_modified",
+            )
 
         item = RawItem(
             source_id=source_id,
@@ -186,6 +197,7 @@ class CollectorHttp:
         # durably stored, so any later validator failure is reproducible from
         # exactly what the publisher served us.
         await self._archive.store(item)
+        self._memory_cache[url] = item
 
         self._state.remember(
             url,
@@ -194,6 +206,42 @@ class CollectorHttp:
             archive_name=item.archive_name,
         )
         return FetchResult(source_id, url, item)
+
+    def _cached_item(self, source_id: str, url: str) -> RawItem | None:
+        in_memory = self._memory_cache.get(url)
+        if in_memory is not None:
+            return RawItem(
+                source_id=in_memory.source_id,
+                url=in_memory.url,
+                retrieved_at=in_memory.retrieved_at,
+                content_type=in_memory.content_type,
+                body=in_memory.body,
+                http_status=in_memory.http_status,
+                from_cache=True,
+                etag=in_memory.etag,
+                last_modified=in_memory.last_modified,
+            )
+
+        state = self._state.get(url)
+        archive_name = state.get("archive_name")
+        fetched_at = state.get("fetched_at")
+        if not isinstance(archive_name, str) or not isinstance(fetched_at, str):
+            return None
+        try:
+            body = self._archive.read(archive_name)
+        except (AttributeError, OSError):
+            log.warning("%s: cached archive %s unavailable", source_id, archive_name)
+            return None
+        return RawItem(
+            source_id=source_id,
+            url=url,
+            retrieved_at=fetched_at,
+            content_type="application/octet-stream",
+            body=body,
+            from_cache=True,
+            etag=state.get("etag"),
+            last_modified=state.get("last_modified"),
+        )
 
     async def _request_with_backoff(
         self,

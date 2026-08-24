@@ -67,6 +67,9 @@ class Source:
     country: str | None = None
     max_snippet_source: str | None = None
     cache_ttl_minutes: int | None = None
+    research_role: str | None = None
+    research_summary_allowed: bool = False
+    research_only: bool = False
     enabled: bool = True
     verified: str | None = None
     notes: str | None = None
@@ -379,6 +382,24 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
     if cache_ttl is not None and not isinstance(cache_ttl, int):
         raise InvalidRegistryError(f"source {source_id!r}: `cache_ttl_minutes` must be an integer")
 
+    research_role = _optional_str(merged.get("research_role"))
+    if research_role not in (None, "official_statement", "prior_coverage"):
+        raise InvalidRegistryError(
+            f"source {source_id!r}: `research_role` must be official_statement or prior_coverage"
+        )
+    research_summary_allowed = _require_bool(
+        merged.get("research_summary_allowed", False),
+        source_id=source_id,
+        key="research_summary_allowed",
+    )
+    if tier == "C" and research_summary_allowed:
+        raise InvalidRegistryError(
+            f"source {source_id!r}: tier C article text may not enter research prompts"
+        )
+    research_only = _require_bool(
+        merged.get("research_only", False), source_id=source_id, key="research_only"
+    )
+
     return Source(
         id=source_id,
         name=str(merged["name"]),
@@ -392,6 +413,9 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
         country=_optional_str(merged.get("country")),
         max_snippet_source=_optional_str(merged.get("max_snippet_source")),
         cache_ttl_minutes=cache_ttl,
+        research_role=research_role,
+        research_summary_allowed=research_summary_allowed,
+        research_only=research_only,
         enabled=enabled,
         verified=_optional_str(merged.get("verified")),
         notes=_optional_str(merged.get("notes")),

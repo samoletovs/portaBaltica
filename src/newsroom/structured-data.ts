@@ -27,7 +27,7 @@ export function newsArticleJsonLd(article: Article): Record<string, unknown> | n
   const byline = renderByline(article.persona);
   const lastCorrection = article.corrections?.[article.corrections.length - 1];
 
-  const citations = article.provenance.sources
+  const dataCitations = article.provenance.sources
     .filter((source) => Boolean(source.url))
     .map((source) => ({
       '@type': 'Dataset',
@@ -35,6 +35,14 @@ export function newsArticleJsonLd(article: Article): Record<string, unknown> | n
       url: source.url,
       ...(source.dataset_version ? { version: source.dataset_version } : {}),
     }));
+  const researchCitations =
+    article.provenance.research?.consulted.map((source) => ({
+      '@type': 'CreativeWork',
+      name: source.title,
+      url: source.url,
+      publisher: { '@type': 'Organization', name: source.source_name },
+    })) ?? [];
+  const citations = [...dataCitations, ...researchCitations];
 
   return {
     '@context': 'https://schema.org',

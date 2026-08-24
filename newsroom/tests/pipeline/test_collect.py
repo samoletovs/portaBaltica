@@ -124,6 +124,9 @@ class TestCacheTtl:
 
         assert len(calls) == 1
         assert second.skipped_reason == "within_cache_ttl"
+        assert second.item is not None
+        assert second.item.body == b"payload"
+        assert second.item.from_cache is True
 
     async def test_should_request_again_once_the_ttl_has_expired(self, tmp_path):
         calls = []

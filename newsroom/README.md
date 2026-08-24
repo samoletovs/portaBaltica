@@ -69,14 +69,21 @@ convention.
    │                  Quiet day ⇒ fewer articles. Never pad to hit a quota:
    │                  padding is precisely what "scaled content abuse" means.
    │
-   ├─ 4. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
-   │                  Receives the signal payload and a persona voice card.
-   │                  Writes prose AROUND numbers it is given.
+   ├─ 4. RESEARCH     relevant items from registered official and news feeds.
+   │                  Reuses the cached collection pass: no search key and no
+   │                  extra fetch per article. Official summaries are context;
+   │                  third-party reporting contributes headline + link leads
+   │                  only. Every item is nonce-fenced as untrusted input.
+   │
+   ├─ 5. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
+   │                  Receives the verified signal, fenced research context and
+   │                  a persona voice card. It writes what changed, plausible
+   │                  causes, who is affected and what to watch.
    │                  It is never asked to recall or supply a figure.
    │
-   ├─ 5. VALIDATE     the gate. See below. Fails closed.
+   ├─ 6. VALIDATE     the gate. See below. Fails closed.
    │
-   └─ 6. PUBLISH      article JSON → Blob → SWA serves it statically
+   └─ 7. PUBLISH      article JSON → Blob → SWA serves it statically
                       tier B/C instead → Telegram approve/reject → Blob
 ```
 
@@ -147,6 +154,7 @@ newsroom/
 ├── fencing.py                 # nonce-delimited fencing for untrusted feed text
 ├── numeric_scan.py            # numeric tokenising for no_invented_numbers
 ├── validator.py               # the gate: every check in the schema enum
+├── pipeline/research.py       # bounded context from cached registered feeds
 ├── requirements.txt           # pyyaml, jsonschema, pytest — no Azure SDK
 └── tests/                     # negative fixtures first; see test_invariants.py
 

@@ -30,14 +30,19 @@ asking for trust it has not earned.
 
 ## 1. What data goes to the AI, and who decides
 
-The model receives two things: a payload of already-verified figures from public
-datasets, and a style guide for the correspondent writing the piece.
+The model receives three things: a payload of already-verified figures from
+public datasets, a style guide for the correspondent writing the piece, and
+bounded research context selected from registered official and news feeds.
+Research can explain a plausible cause, identify who is affected, or point to
+what happens next. It can never supply a figure: a number found only in research
+is rejected before publication.
 
-It does not receive personal data. It does not browse. It is not connected to
-anything that could send it instructions from outside — content we ingest from
-other websites is passed to the model inside explicit boundaries that mark it as
-untrusted data rather than instruction, because a hostile headline is a genuine
-attack on a system like this one.
+It does not receive personal data and it does not browse freely. Deterministic
+code selects a small number of relevant items from feeds we already fetched and
+cached. Content we ingest from other websites is passed to the model inside
+nonce-delimited boundaries that mark it as untrusted data rather than
+instruction, because a hostile headline is a genuine attack on a system like
+this one.
 
 The list of permitted sources is a published file in our source code
 (`newsroom/sources.yaml`). Content from a source that is not on that list is
@@ -71,9 +76,9 @@ published here — including anything a machine produced without a human reading
 it first. "The AI did it" is not an explanation we will ever offer you.
 
 Articles built from open data publish automatically once they pass our
-validation checks. Material originating with someone else — official press
-releases, or links to other outlets' reporting — is reviewed by a human before
-it appears.
+validation checks. Their provenance lists any research sources consulted.
+Verbatim official press releases and links to other outlets' reporting are
+reviewed by a human before they appear as standalone items.
 
 ## 4. What you see as a reader
 
@@ -143,6 +148,7 @@ people we are not employing and could not replace.
 Every article stores, and displays:
 
 - each source, the dataset used, and the timestamp at which we retrieved it
+- each official statement or prior-coverage lead consulted during research
 - the deterministic signal that caused the story to be written at all
 - the model and prompt version
 - the result of every validation check
