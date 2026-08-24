@@ -2,7 +2,7 @@ import { useState, useEffect, useId } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
-import { useCountry } from '../CountryContext';
+import { useCountry, type Country } from '../CountryContext';
 import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
@@ -266,12 +266,18 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 }
 
 // Full chart for indicator detail pages
-export function IndicatorChart({ id }: { id: string }) {
+export function IndicatorChart({ id, country: countryOverride }: { id: string; country?: Country }) {
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(10);
   const { chartColors } = useTheme();
-  const { country } = useCountry();
+  const { country: selectedCountry } = useCountry();
+  // An article about Estonia must show Estonia's series, whatever the
+  // dashboard's country switcher happens to be set to. Without the override
+  // the embedded chart silently answered for a different country than the
+  // story it was placed under — the "check it yourself" link led somewhere
+  // that could not confirm the claim, which is worse than omitting the chart.
+  const country = countryOverride ?? selectedCountry;
 
   function formatPeriod(p: string): string {
     const qMatch = p.match(/^(\d{4})Q(\d)$/);

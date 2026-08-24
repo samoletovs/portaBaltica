@@ -8,6 +8,7 @@ import { JsonLd } from './JsonLd';
 import { LinkOutCard } from './LinkOutCard';
 import { ProvenanceBlock } from './ProvenanceBlock';
 import { SECTION_LABELS } from '../../newsroom/sections';
+import { soleCountry } from '../../newsroom/article-country';
 import { TierBadge } from './TierBadge';
 
 /**
@@ -41,10 +42,12 @@ function NotServable() {
   );
 }
 
-function Block({ block }: { block: ArticleBlock }) {
+function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' | 'LT' }) {
   switch (block.type) {
     case 'chart':
-      return block.chart_ref ? <ChartEmbed indicatorId={block.chart_ref} caption={block.text} /> : null;
+      return block.chart_ref ? (
+        <ChartEmbed indicatorId={block.chart_ref} country={country} caption={block.text} />
+      ) : null;
 
     case 'quote':
       return (
@@ -187,7 +190,11 @@ export function ArticleView({ article }: { article: Article }) {
           </div>
         ) : (
           (article.body ?? []).map((block, index) => (
-            <Block key={`${block.type}-${index}`} block={block} />
+            <Block
+              key={`${block.type}-${index}`}
+              block={block}
+              country={soleCountry(article)}
+            />
           ))
         )}
       </div>
