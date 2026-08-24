@@ -25,8 +25,15 @@ const ROOT = resolve(__dirname, '..');
 const DEPLOYED = resolve(ROOT, 'public/staticwebapp.config.json');
 const DECOY = resolve(ROOT, 'staticwebapp.config.json');
 
-function deployedConfig(): Record<string, any> {
-  return JSON.parse(readFileSync(DEPLOYED, 'utf-8'));
+/** Shape of the parts of the SWA config these tests assert on. */
+interface SwaConfig {
+  globalHeaders?: Record<string, string>;
+  routes?: { route: string }[];
+  navigationFallback?: { rewrite?: string; exclude?: string[] };
+}
+
+function deployedConfig(): SwaConfig {
+  return JSON.parse(readFileSync(DEPLOYED, 'utf-8')) as SwaConfig;
 }
 
 describe('Static Web Apps configuration', () => {
