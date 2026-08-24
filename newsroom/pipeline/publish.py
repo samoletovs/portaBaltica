@@ -90,6 +90,36 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    INDEX_MAX_ENTRIES = 200
+
+    def _read_existing_index(self) -> list[dict[str, Any]]:
+        """Entries already on the front page, from blob if available else local.
+
+        Blob is authoritative: a local run must not be able to publish a front
+        page built from one machine's leftovers.
+        """
+        container = self._container_client()
+        if container is not None:
+            try:
+                raw = container.download_blob("index.json").readall()
+                payload = json.loads(raw.decode("utf-8"))
+                existing = payload.get("articles")
+                if isinstance(existing, list):
+                    return [e for e in existing if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.info("no readable index in blob yet (%s); starting fresh", exc)
+
+        local = self._local_dir / "index.json"
+        if local.exists():
+            try:
+                payload = json.loads(local.read_text(encoding="utf-8"))
+                existing = payload.get("articles")
+                if isinstance(existing, list):
+                    return [e for e in existing if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.warning("local index unreadable (%s); starting fresh", exc)
+        return []
+
     async def write_index(self, articles: Sequence[Article]) -> str:
         """A compact index of servable articles, for the frontend to fetch.
 
@@ -101,12 +131,18 @@ class ArticleStore:
         reader, which is the right behaviour for the client and a miserable
         thing to debug from the server.
 
-        This previously emitted flat ``byline`` and ``attribution`` strings. The
-        index published fine, the browser fetched it fine, every check was
-        green, and the front page said "Nothing to report yet today" because
-        the only article in it failed the type guard.
+        THE INDEX ACCUMULATES. It is the front page of a news site, not a
+        report on the last run. This previously rebuilt the index from only the
+        current run's articles, so the first run that published nothing --
+        which is the *designed* behaviour on a quiet day -- silently erased
+        every story already on the front page. A wire that deletes its archive
+        whenever the data is unremarkable is not a wire.
+
+        Entries are keyed by slug so a re-run that regenerates the same story
+        updates it rather than duplicating it, and the newest
+        ``INDEX_MAX_ENTRIES`` are kept so the file cannot grow without bound.
         """
-        entries = [
+        fresh = [
             {
                 "id": a.id,
                 "slug": a.slug,
@@ -130,7 +166,19 @@ class ArticleStore:
             for a in articles
             if is_servable(a)
         ]
-        entries.sort(key=lambda e: e["published_at"], reverse=True)
+
+        by_slug: dict[str, dict[str, Any]] = {}
+        for entry in await asyncio.to_thread(self._read_existing_index):
+            slug = entry.get("slug")
+            if isinstance(slug, str) and slug:
+                by_slug[slug] = entry
+        for entry in fresh:  # this run wins on a slug collision
+            by_slug[entry["slug"]] = entry
+
+        entries = sorted(
+            by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True
+        )[: self.INDEX_MAX_ENTRIES]
+
         body = json.dumps(
             {"generated_at": isoformat(utcnow()), "count": len(entries), "articles": entries},
             ensure_ascii=False,
