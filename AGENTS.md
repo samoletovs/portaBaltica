@@ -17,10 +17,31 @@ Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard
 ```
 portaBaltica/
 ├── src/                    # React frontend
-│   ├── App.tsx             # Main dashboard with tile layout
-│   ├── api.ts              # All API fetch functions
+│   ├── main.tsx            # Routes: / news feed, /data dashboard
+│   ├── App.tsx             # The dashboard tile layout, now served at /data
+│   ├── api.ts              # All dashboard API fetch functions
+│   ├── news-api.ts         # Reads published article JSON (no credentials)
+│   ├── news-types.ts       # Article contract + isServable() render gate
 │   ├── types.ts            # Shared TypeScript interfaces
+│   ├── newsroom/
+│   │   ├── correspondents.ts  # Mirrors newsroom/personas.yaml; builds bylines
+│   │   ├── editorial.ts       # Accountable editor + byline suffix
+│   │   ├── sections.ts        # Section display names
+│   │   ├── structured-data.ts # JSON-LD NewsArticle (tier A only)
+│   │   └── usePageMeta.ts     # Per-route title, description, canonical
 │   └── components/
+│       ├── news/
+│       │   ├── NewsroomLayout.tsx  # Masthead with the standing AI disclosure
+│       │   ├── NewsFeed.tsx        # The front page
+│       │   ├── ArticleView.tsx     # Applies isServable() before rendering
+│       │   ├── ArticlePage.tsx     # Loads one article by slug
+│       │   ├── LinkOutCard.tsx     # Tier C — link out only, never a rewrite
+│       │   ├── Byline.tsx          # Always contains "AI correspondent"
+│       │   ├── ProvenanceBlock.tsx # The passport: data, model, checks
+│       │   ├── ChartEmbed.tsx      # Lazy recharts; the article → /data round trip
+│       │   ├── CorrespondentAvatar.tsx # Abstract marks only, never a face
+│       │   ├── CorrespondentPage.tsx, AiPolicyPage.tsx, CorrectionsPage.tsx
+│       │   ├── NewsCard.tsx, TierBadge.tsx, JsonLd.tsx
 │       ├── Header.tsx       # Dashboard header
 │       ├── InsightsBanner.tsx # AI-generated insights
 │       ├── EconomyTile.tsx  # Economy & Business data
@@ -31,12 +52,15 @@ portaBaltica/
 │       ├── ShipVisitsPanel.tsx
 │       ├── FerryPanel.tsx
 │       └── CargoPanel.tsx
+├── newsroom/               # Newsroom contracts (schema, personas, sources)
 ├── api/                    # Azure SWA managed functions (JS)
 │   └── src/functions/
 │       ├── port-data.js    # Maritime data proxy (existing)
 │       ├── economy-data.js # ECB, NordPool, CSP, business registries
 │       ├── property-data.js # Construction, energy certs, cadastral
-│       └── environment-data.js # Weather, air quality, population
+│       ├── environment-data.js # Weather, air quality, population
+│       ├── news-rss/       # /rss.xml — our own articles only
+│       └── news-sitemap/   # /sitemap.xml
 └── infrastructure/         # Bicep IaC (future)
 ```
 

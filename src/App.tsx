@@ -36,7 +36,7 @@ export default function App() {
   const { country } = useCountry();
 
   function setActiveSection(s: DashboardSection | 'all') {
-    navigate(s === 'all' ? '/' : `/${s}`, { replace: true });
+    navigate(s === 'all' ? '/data' : `/data/${s}`, { replace: true });
   }
 
   // Maritime data (existing)
