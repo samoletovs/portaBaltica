@@ -20,7 +20,7 @@ from newsroom.pipeline.detect import Threshold, detect_all
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
-from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.publish import ArticleStore, is_servable
 from newsroom.pipeline.rank import RankingReport, rank
 from newsroom.pipeline.research import ResearchContext, research_selected
 from newsroom.pipeline.safety import registry
@@ -63,7 +63,24 @@ class RunReport:
 
     @property
     def published(self) -> list[Article]:
-        return [g.article for g in self.generated if g.publishable]
+        """Everything a reader should now be able to find.
+
+        The index built from this is what the front page reads, so anything
+        missing here is invisible however faithfully it was written to Blob.
+
+        Syndicated cards were absent until #39. The editor approved 99 of them
+        in one run, `_store_all` wrote all 99 to storage, and the front page
+        went on saying "Nothing filed here right now" — because approval sets
+        `status = "published"` on the card while this property only ever looked
+        at tier A generations. Storing is not publishing.
+        """
+        articles = [g.article for g in self.generated if g.publishable]
+        articles.extend(
+            card
+            for card in self.syndicated
+            if card.status == "published" and is_servable(card)
+        )
+        return articles
 
     @property
     def rejected(self) -> list[Article]:
