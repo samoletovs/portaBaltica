@@ -150,3 +150,50 @@ class TestPublishedArticlesLiveWhereTheReaderLooks:
         name = asyncio.run(store.put(a))
         assert name == "flat-path-story.json"
         assert (tmp_path / "flat-path-story.json").exists()
+
+class TestOneStoryPerSignal:
+    """A signal is a finding, not a headline.
+
+    Re-running the pipeline regenerates the same finding, and because the slug
+    comes from the headline and the model rephrases it each time, every run
+    minted what looked like a new story. Production ended up with three
+    articles about one Estonian unemployment figure, differing only in wording.
+    """
+
+    def test_re_telling_the_same_signal_does_not_add_a_second_story(self, tmp_path) -> None:
+        store = ArticleStore(local_dir=tmp_path)
+
+        first = article("unemployment-at-6-6-in-june", published_at="2026-08-24T10:00:00Z")
+        first.provenance["signal_id"] = "aae7754ee5c17788708b"
+        asyncio.run(store.write_index([first]))
+
+        # Same finding, different wording, therefore a different slug.
+        again = article("unemployment-declines-in-june", published_at="2026-08-24T11:00:00Z")
+        again.provenance["signal_id"] = "aae7754ee5c17788708b"
+        asyncio.run(store.write_index([again]))
+
+        payload = read_index(tmp_path)
+        assert payload["count"] == 1, "the same finding was published twice"
+        assert payload["articles"][0]["slug"] == "unemployment-declines-in-june", (
+            "the newest telling should be the one on the front page"
+        )
+
+    def test_different_signals_are_both_kept(self, tmp_path) -> None:
+        store = ArticleStore(local_dir=tmp_path)
+        a = article("unemployment-story", published_at="2026-08-24T10:00:00Z")
+        a.provenance["signal_id"] = "signal-one"
+        b = article("inflation-story", published_at="2026-08-24T11:00:00Z")
+        b.provenance["signal_id"] = "signal-two"
+        asyncio.run(store.write_index([a, b]))
+        assert read_index(tmp_path)["count"] == 2
+
+    def test_entries_without_a_signal_id_are_never_dropped(self, tmp_path) -> None:
+        """Tier B and C carry no signal. Deduping on a missing key would empty
+        the syndication rail entirely."""
+        store = ArticleStore(local_dir=tmp_path)
+        a = article("press-release-one", published_at="2026-08-24T10:00:00Z")
+        b = article("press-release-two", published_at="2026-08-24T11:00:00Z")
+        for art in (a, b):
+            art.provenance.pop("signal_id", None)
+        asyncio.run(store.write_index([a, b]))
+        assert read_index(tmp_path)["count"] == 2
