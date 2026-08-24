@@ -141,6 +141,42 @@ class ArticleStore:
                 log.warning("local index unreadable (%s); starting fresh", exc)
         return []
 
+    @staticmethod
+    def _dedupe_by_signal(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Keep one article per deterministic signal, the newest.
+
+        A signal is a specific finding in a specific series for a specific
+        period — "Estonian unemployment in June 2026 sits below its four-year
+        seasonal average". Re-running the pipeline regenerates it, and because
+        the slug is derived from the headline and the model rephrases the
+        headline each time, every run minted what looked like a new story:
+
+            Estonia's Unemployment Rate at 6.6% in June 2026
+            Estonia's Unemployment Rate Declines in June 2026
+            Estonia's Unemployment Rate Declines to 6.6% in June 2026
+
+        Three slugs, three index entries, one fact. A front page that reports
+        the same figure three times in different words is worse than one that
+        reports it once, and it is the sort of thing a reader notices before
+        anything else.
+
+        Entries arrive newest-first, so the first sighting of a signal wins and
+        later re-tellings are dropped. Entries without a signal id — tier B and
+        C syndication, and anything published before this field existed — are
+        never deduped, because there is nothing to compare and dropping them on
+        a missing key would silently empty the syndication rail.
+        """
+        seen: set[str] = set()
+        kept: list[dict[str, Any]] = []
+        for entry in entries:
+            signal_id = entry.get("signal_id")
+            if isinstance(signal_id, str) and signal_id:
+                if signal_id in seen:
+                    continue
+                seen.add(signal_id)
+            kept.append(entry)
+        return kept
+
     async def write_index(self, articles: Sequence[Article]) -> str:
         """A compact index of servable articles, for the frontend to fetch.
 
@@ -183,6 +219,10 @@ class ArticleStore:
                 ),
                 "published_at": a.published_at or a.created_at,
                 "countries": a.countries,
+                # The deterministic signal this story came from. Two articles
+                # sharing one signal are two tellings of the same finding, not
+                # two stories, and the index dedupes on it below.
+                "signal_id": (a.provenance or {}).get("signal_id"),
             }
             for a in articles
             if is_servable(a)
@@ -198,7 +238,8 @@ class ArticleStore:
 
         entries = sorted(
             by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True
-        )[: self.INDEX_MAX_ENTRIES]
+        )
+        entries = self._dedupe_by_signal(entries)[: self.INDEX_MAX_ENTRIES]
 
         body = json.dumps(
             {"generated_at": isoformat(utcnow()), "count": len(entries), "articles": entries},
