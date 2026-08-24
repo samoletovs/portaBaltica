@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portabaltica.naurolabs.com/schemas/article.schema.json",
+  "title": "portaBaltica article",
+  "description": "The unit of publication. Every article, regardless of tier, carries a provenance record and a validator verdict. An article without a passing verdict is never served.",
+  "type": "object",
+  "required": ["id", "slug", "tier", "status", "headline", "section", "created_at", "provenance"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "description": "Stable ULID." },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+
+    "tier": {
+      "enum": ["A", "B", "C"],
+      "description": "A = original data journalism, B = verbatim official press release, C = link-out card. Decided by the source registry, never by the model."
+    },
+
+    "status": {
+      "enum": ["draft", "pending_approval", "published", "rejected", "corrected", "retracted"],
+      "description": "Tier A goes draft -> published automatically once the validator passes. Tier B and C must pass through pending_approval."
+    },
+
+    "section": {
+      "enum": ["economy", "trade", "government", "labour", "energy", "property", "environment", "maritime", "business"],
+      "description": "Matches the existing dashboard sections so an article can link to its live tile."
+    },
+
+    "headline": { "type": "string", "minLength": 12, "maxLength": 140 },
+    "dek": { "type": "string", "maxLength": 300, "description": "Standfirst. One sentence explaining why this matters." },
+
+    "body": {
+      "type": "array",
+      "description": "Structured blocks rather than a prose blob, so the validator can check numeric claims per block and the renderer can place charts inline.",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": { "enum": ["paragraph", "chart", "table", "quote", "list", "callout"] },
+          "text": { "type": "string" },
+          "chart_ref": { "type": "string", "description": "Indicator id resolving to a live /data tile." },
+          "figures": {
+            "type": "array",
+            "description": "Every numeric value appearing in this block, with the signal field it came from. The validator cross-checks these against the source payload.",
+            "items": {
+              "type": "object",
+              "required": ["value", "signal_field"],
+              "properties": {
+                "value": { "type": "number" },
+                "unit": { "type": "string" },
+                "signal_field": { "type": "string" },
+                "rendered_as": { "type": "string", "description": "How it appears in the text, e.g. '4.2%'." }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "persona": {
+      "type": "object",
+      "description": "Absent on tier B and C, which carry no byline because we did not write them.",
+      "required": ["id", "name", "beat"],
+      "properties": {
+        "id": { "enum": ["nida", "akmensrags", "kolka", "ristna", "irbene"] },
+        "name": { "type": "string" },
+        "beat": { "type": "string" },
+        "byline": {
+          "type": "string",
+          "description": "Rendered byline. MUST contain 'AI correspondent'. Enforced by persona_rules.py, not by convention."
+        }
+      }
+    },
+
+    "syndicated": {
+      "type": "object",
+      "description": "Tier B and C only. The verbatim material and where it came from.",
+      "required": ["source_id", "original_url", "attribution"],
+      "additionalProperties": false,
+      "properties": {
+        "source_id": { "type": "string" },
+        "original_url": { "type": "string", "format": "uri" },
+        "attribution": { "type": "string" },
+        "snippet": {
+          "type": "string",
+          "description": "TIER C: copied verbatim from the outlet's own RSS <description>. Never rewritten, never drawn from the article body or content:encoded."
+        },
+        "full_text": {
+          "type": "string",
+          "description": "TIER B only, where the licence explicitly permits verbatim reproduction."
+        },
+        "snippet_is_verbatim": {
+          "type": "boolean",
+          "const": true,
+          "description": "Asserted by the ingester and re-checked by the validator against the stored raw feed item. A false value fails the build."
+        }
+      }
+    },
+
+    "provenance": {
+      "type": "object",
+      "description": "The 'паспорт материала' from the research note, made machine-readable. Rendered on the page, not just stored.",
+      "required": ["sources", "generated_at", "validator"],
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["source_id", "retrieved_at"],
+            "properties": {
+              "source_id": { "type": "string" },
+              "dataset": { "type": "string" },
+              "dataset_version": { "type": "string" },
+              "retrieved_at": { "type": "string", "format": "date-time" },
+              "url": { "type": "string", "format": "uri" }
+            }
+          }
+        },
+        "signal_id": { "type": "string", "description": "The deterministic signal that triggered this story." },
+        "model": { "type": "string", "description": "e.g. gpt-4o-mini@2024-07-18. Null for tier B and C, which involve no generation." },
+        "prompt_version": { "type": "string" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "approved_by": { "type": "string", "description": "Set for tier B and C after Telegram approval." },
+        "approved_at": { "type": "string", "format": "date-time" },
+        "accountable_editor": { "type": "string", "default": "Sam Samoletovs" },
+
+        "validator": {
+          "type": "object",
+          "description": "The gate. An article is servable only when passed is true.",
+          "required": ["passed", "checked_at", "checks"],
+          "properties": {
+            "passed": { "type": "boolean" },
+            "checked_at": { "type": "string", "format": "date-time" },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "passed"],
+                "properties": {
+                  "name": {
+                    "enum": [
+                      "figures_traceable",
+                      "no_invented_numbers",
+                      "snippet_verbatim",
+                      "no_rewrite_of_restricted_source",
+                      "byline_discloses_ai",
+                      "no_lived_experience_claims",
+                      "attribution_present",
+                      "comparison_basis_stated"
+                    ]
+                  },
+                  "passed": { "type": "boolean" },
+                  "detail": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "corrections": {
+      "type": "array",
+      "description": "Append-only. Surfaced publicly on the article and in the corrections log.",
+      "items": {
+        "type": "object",
+        "required": ["corrected_at", "description"],
+        "properties": {
+          "corrected_at": { "type": "string", "format": "date-time" },
+          "description": { "type": "string" },
+          "previous_value": { "type": "string" }
+        }
+      }
+    },
+
+    "created_at": { "type": "string", "format": "date-time" },
+    "published_at": { "type": "string", "format": "date-time" },
+    "countries": {
+      "type": "array",
+      "items": { "enum": ["LV", "EE", "LT", "Baltic", "EU"] }
+    },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  },
+
+  "allOf": [
+    {
+      "if": { "properties": { "tier": { "const": "A" } }, "required": ["tier"] },
+      "then": {
+        "required": ["persona", "body", "dek"],
+        "description": "Original journalism must have a disclosed byline and a body."
+      }
+    },
+    {
+      "if": { "properties": { "tier": { "enum": ["B", "C"] } }, "required": ["tier"] },
+      "then": {
+        "required": ["syndicated"],
+        "not": { "required": ["persona"] },
+        "description": "We did not write these, so no correspondent may claim them."
+      }
+    }
+  ]
+}
