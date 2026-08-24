@@ -37,6 +37,7 @@ from newsroom.pipeline.safety import (
 from newsroom.pipeline.write.llm import LlmWriter
 from newsroom.pipeline.write.prompts import (
     PROMPT_VERSION,
+    build_revision_prompt,
     build_system_prompt,
     build_user_prompt,
 )
@@ -44,6 +45,19 @@ from newsroom.pipeline.write.prompts import (
 log = logging.getLogger(__name__)
 
 MAX_COMPLETION_TOKENS = 900
+
+# Two drafts, never more. The first is usually rejected for bookkeeping — a
+# figure written in the prose but not declared — which a writer fixes when
+# shown the complaint. A second failure means the model is not going to get
+# there, and paying for a third attempt buys nothing.
+#
+# Cost is not the constraint it was once assumed to be. Measured in production:
+# ~2,600 prompt + ~490 completion tokens per article, which on gpt-4o-mini is
+# about $0.0007. At 8 articles a day a revision on every single one adds
+# roughly $0.20 a month against a €150 subscription. The comment this replaces
+# justified having no revision loop at all on cost grounds; it was wrong by
+# three orders of magnitude, and the price was that a run published nothing.
+MAX_ATTEMPTS = 2
 
 _COUNTRY_ALIASES = {"LV": "LV", "EE": "EE", "LT": "LT", "Baltic": "Baltic", "EU27_2020": "EU"}
 
@@ -110,8 +124,20 @@ def generate_article(
     paragraphs: int = 4,
     now: str | None = None,
     research: ResearchContext | None = None,
+    max_attempts: int = MAX_ATTEMPTS,
 ) -> GenerationResult:
-    """Generate, then gate. Always returns a result; check ``publishable``."""
+    """Generate, gate, and allow one bounded revision. Check ``publishable``.
+
+    A rejected first draft is usually a bookkeeping failure rather than a
+    fabrication — the model wrote a correct figure in the prose and forgot to
+    declare it, or described a movement without naming the comparison basis.
+    Those are faults a writer can fix when told what they are, so the
+    validator's own complaint goes back once and the article is re-gated.
+
+    The gate itself is untouched: the same checks run again at the same zero
+    tolerance, and a second failure discards the article. Nothing here can
+    publish something the validator rejected.
+    """
     created_at = now or isoformat(utcnow())
 
     # Licence gate, before a single token is spent.
@@ -125,8 +151,53 @@ def generate_article(
     system = build_system_prompt(signal, persona, paragraphs=paragraphs)
     user = build_user_prompt(signal, research=research)
 
-    payload = writer.complete_json(system=system, user=user, max_tokens=MAX_COMPLETION_TOKENS)
+    result: GenerationResult | None = None
+    prompt = user
+    # One bound, deliberately. An earlier draft of this loop had both a bounded
+    # range and an explicit break on the same ceiling; each silently masked the
+    # other, so neither could be shown to work and removing either would have
+    # looked safe in review.
+    attempts = max(1, max_attempts)
+    for attempt in range(1, attempts + 1):
+        payload = writer.complete_json(
+            system=system, user=prompt, max_tokens=MAX_COMPLETION_TOKENS
+        )
+        result = _article_from_payload(
+            payload,
+            signal=signal,
+            persona=persona,
+            writer=writer,
+            created_at=created_at,
+            research=research,
+            attempts=attempt,
+        )
+        if result.publishable:
+            break
 
+        summary = result.verdict.failure_summary() or "failed shape checks"
+        if attempt == attempts:
+            log.warning("article rejected for signal %s: %s", signal.id, summary)
+        else:
+            log.info(
+                "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, summary
+            )
+            prompt = build_revision_prompt(user, summary)
+
+    assert result is not None  # the loop runs at least once
+    return result
+
+
+def _article_from_payload(
+    payload: dict[str, Any],
+    *,
+    signal: Signal,
+    persona,
+    writer: LlmWriter,
+    created_at: str,
+    research: ResearchContext | None,
+    attempts: int,
+) -> GenerationResult:
+    """Build an article from one model response and run it through the gate."""
     headline = str(payload.get("headline") or "").strip()
     dek = str(payload.get("dek") or "").strip() or None
     blocks = _coerce_blocks(payload, signal)
@@ -157,6 +228,11 @@ def generate_article(
             "model": writer.model_name,
             "prompt_version": PROMPT_VERSION,
             "generated_at": created_at,
+            # How many drafts this took. Recorded because a reader auditing the
+            # provenance is entitled to know the piece was rewritten once
+            # before it passed, and because a rising average is the signal that
+            # the prompt, not the model, needs work.
+            "attempts": attempts,
             "accountable_editor": personas().accountable_editor or "Sam Samoletovs",
             **({"research": research.to_provenance()} if research is not None else {}),
         },
@@ -170,11 +246,6 @@ def generate_article(
         article.published_at = created_at
     else:
         article.status = "rejected"
-        log.warning(
-            "article rejected for signal %s: %s",
-            signal.id,
-            verdict.failure_summary() or "failed shape checks",
-        )
     return GenerationResult(signal=signal, article=article, verdict=verdict)
 
 
