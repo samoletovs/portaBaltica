@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 import pytest
+from openai import BadRequestError
 
 from newsroom.pipeline.editor import (
     EditorAction,
@@ -42,6 +44,45 @@ class RecordingNotifier:
 class FailingNotifier:
     def notify(self, article, outcome) -> None:
         raise EditorError("Telegram refused the escalation")
+
+
+class OneFailureThenApprovalWriter:
+    model_name = "mixed-writer"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def complete_json(self, *, system: str, user: str, max_tokens: int) -> dict[str, object]:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("first item cannot be reviewed")
+        return {"decision": "approve", "reason": "Second item is relevant."}
+
+
+class ContentFilterWriter:
+    model_name = "gpt-4o-mini"
+
+    def complete_json(self, *, system: str, user: str, max_tokens: int) -> dict[str, object]:
+        body = {
+            "error": {
+                "code": "content_filter",
+                "innererror": {
+                    "code": "ResponsibleAIPolicyViolation",
+                    "content_filter_result": {
+                        "jailbreak": {"detected": True, "filtered": True},
+                        "violence": {"filtered": False},
+                    },
+                },
+            }
+        }
+        raise BadRequestError(
+            "Error code: 400 - content_filter",
+            response=httpx.Response(
+                400,
+                request=httpx.Request("POST", "https://example.invalid/openai"),
+            ),
+            body=body,
+        )
 
 
 def test_editor_should_approve_a_valid_routine_link_card_without_rewriting():
@@ -114,6 +155,22 @@ def test_escalation_failure_should_raise_and_leave_the_item_unpublished():
     assert "editor" not in card.provenance
 
 
+def test_content_filter_refusal_should_escalate_with_triggered_categories():
+    card = tier_c_card()
+    notifier = RecordingNotifier()
+
+    outcome = review_syndicated_article(card, ContentFilterWriter(), notifier=notifier)
+
+    assert notifier.calls == 1
+    assert outcome.action is EditorAction.ESCALATE
+    assert outcome.notified is True
+    assert "content filter refused" in outcome.reason
+    assert "jailbreak" in outcome.reason
+    assert card.status == "rejected"
+    assert card.provenance["editor"]["decision"] == "escalate"
+    assert card.provenance["editor"]["notified_accountable_editor"] is True
+
+
 def test_telegram_notifier_should_report_telegram_refusal(monkeypatch):
     card = tier_c_card()
     outcome = review_syndicated_article(
@@ -146,6 +203,35 @@ def test_edit_stage_should_decide_every_pending_syndicated_card():
 
     assert [outcome.action for outcome in outcomes] == [EditorAction.APPROVE]
     assert card.status == "published"
+
+
+def test_edit_stage_should_isolate_one_item_failure_from_the_rest_of_the_batch():
+    bad = tier_c_card()
+    good = tier_c_card()
+    writer = OneFailureThenApprovalWriter()
+
+    outcomes = edit_syndicated_articles([bad, good], writer)
+
+    assert [outcome.action for outcome in outcomes] == [
+        EditorAction.REJECT,
+        EditorAction.APPROVE,
+    ]
+    assert "first item cannot be reviewed" in outcomes[0].reason
+    assert bad.status == "rejected"
+    assert good.status == "published"
+
+
+def test_edit_stage_should_still_surface_escalation_delivery_failure():
+    card = tier_c_card()
+
+    with pytest.raises(EditorError, match="Telegram refused"):
+        edit_syndicated_articles(
+            [card],
+            StubWriter({"decision": "escalate", "reason": "Contains graphic harm."}),
+            notifier=FailingNotifier(),
+        )
+
+    assert card.status == "pending_approval"
 
 
 def test_escalation_message_should_escape_untrusted_feed_text():

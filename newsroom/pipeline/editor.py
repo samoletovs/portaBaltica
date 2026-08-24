@@ -19,6 +19,7 @@ from enum import Enum
 from typing import Any, Mapping, Protocol, Sequence
 
 import httpx
+from openai import BadRequestError
 
 from newsroom.fencing import build_untrusted_prompt
 from newsroom.pipeline import config
@@ -135,7 +136,18 @@ def edit_syndicated_articles(
     for article in articles:
         if article.tier not in ("B", "C") or article.status != "pending_approval":
             continue
-        outcomes.append(review_syndicated_article(article, writer, notifier=notifier, now=now))
+        try:
+            outcomes.append(review_syndicated_article(article, writer, notifier=notifier, now=now))
+        except EditorError:
+            # Escalation delivery failures are not per-item editorial failures:
+            # they mean the one channel allowed to interrupt Sam is broken. Let
+            # that surface loudly rather than recording a false "handled" result.
+            raise
+        except Exception as exc:  # noqa: BLE001
+            log.exception("editor failed for article %s", article.id)
+            outcome = _technical_failure_outcome(article, exc, now=now)
+            _apply_outcome(article, outcome)
+            outcomes.append(outcome)
     return outcomes
 
 
@@ -168,11 +180,22 @@ def review_syndicated_article(
         _apply_outcome(article, outcome)
         return outcome
 
-    raw = writer.complete_json(
-        system=_system_prompt(),
-        user=_user_prompt(article),
-        max_tokens=EDITOR_COMPLETION_TOKENS,
-    )
+    try:
+        raw = writer.complete_json(
+            system=_system_prompt(),
+            user=_user_prompt(article),
+            max_tokens=EDITOR_COMPLETION_TOKENS,
+        )
+    except BadRequestError as exc:
+        if not _is_content_filter_error(exc):
+            raise
+        outcome = _content_filter_outcome(article, exc, now=moment, model=writer.model_name)
+        channel = notifier or TelegramEscalationNotifier()
+        notified = _with_notification_recorded(outcome)
+        channel.notify(article, notified)
+        _apply_outcome(article, notified)
+        return notified
+
     action, reason = _parse_editor_payload(raw)
     outcome = EditorOutcome(
         article_id=article.id,
@@ -185,20 +208,51 @@ def review_syndicated_article(
 
     if action is EditorAction.ESCALATE:
         channel = notifier or TelegramEscalationNotifier()
-        notified = EditorOutcome(
-            article_id=outcome.article_id,
-            action=outcome.action,
-            reason=outcome.reason,
-            editor=outcome.editor,
-            decided_at=outcome.decided_at,
-            model=outcome.model,
-            notified=True,
-        )
+        notified = _with_notification_recorded(outcome)
         channel.notify(article, notified)
         outcome = notified
 
     _apply_outcome(article, outcome)
     return outcome
+
+
+def _technical_failure_outcome(
+    article: Article,
+    exc: Exception,
+    *,
+    now: datetime | None = None,
+) -> EditorOutcome:
+    """Convert one card's editor crash into that card's rejection.
+
+    This is deliberately *not* used for Telegram failures. A model or parsing
+    failure says "this item could not be reviewed"; a broken escalation channel
+    says "Sam was not told when we said he must be", and must remain visible at
+    the run level.
+    """
+
+    moment = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return EditorOutcome(
+        article_id=article.id,
+        action=EditorAction.REJECT,
+        reason=(
+            f"editor failed for this item ({type(exc).__name__}: {exc}); "
+            "rejected so the rest of the batch can continue"
+        )[:500],
+        editor=_editor_byline(),
+        decided_at=moment.isoformat().replace("+00:00", "Z"),
+    )
+
+
+def _with_notification_recorded(outcome: EditorOutcome) -> EditorOutcome:
+    return EditorOutcome(
+        article_id=outcome.article_id,
+        action=outcome.action,
+        reason=outcome.reason,
+        editor=outcome.editor,
+        decided_at=outcome.decided_at,
+        model=outcome.model,
+        notified=True,
+    )
 
 
 def _validator_passed(article: Article) -> bool:
@@ -280,6 +334,75 @@ def _parse_editor_payload(payload: Mapping[str, Any]) -> tuple[EditorAction, str
     if not reason:
         return (EditorAction.REJECT, "editor returned no reason; failing closed")
     return action, reason[:500]
+
+
+def _is_content_filter_error(exc: BadRequestError) -> bool:
+    body = getattr(exc, "body", None)
+    if isinstance(body, Mapping):
+        code = body.get("code")
+        nested = body.get("error")
+        if code == "content_filter":
+            return True
+        if isinstance(nested, Mapping) and nested.get("code") == "content_filter":
+            return True
+    return getattr(exc, "code", None) == "content_filter" or "content_filter" in str(exc)
+
+
+def _content_filter_outcome(
+    article: Article,
+    exc: BadRequestError,
+    *,
+    now: datetime,
+    model: str | None,
+) -> EditorOutcome:
+    categories = _content_filter_categories(getattr(exc, "body", None))
+    category_text = ", ".join(categories) if categories else "content_filter"
+    return EditorOutcome(
+        article_id=article.id,
+        action=EditorAction.ESCALATE,
+        reason=(
+            "Azure OpenAI content filter refused the editor prompt; triggered "
+            f"category/categories: {category_text}. Treating this as an escalation "
+            "because the untrusted feed item could not be safely assessed by the model."
+        )[:500],
+        editor=_editor_byline(),
+        decided_at=now.isoformat().replace("+00:00", "Z"),
+        model=model,
+    )
+
+
+def _content_filter_categories(body: object) -> tuple[str, ...]:
+    """Return filter category paths where Azure reported detected/filtered true."""
+
+    if not isinstance(body, Mapping):
+        return ()
+
+    roots: list[object] = [body]
+    error = body.get("error")
+    if isinstance(error, Mapping):
+        roots.append(error)
+        inner = error.get("innererror")
+        if isinstance(inner, Mapping):
+            roots.append(inner)
+
+    for root in roots:
+        if isinstance(root, Mapping):
+            result = root.get("content_filter_result") or root.get("content_filter_results")
+            if isinstance(result, Mapping):
+                return tuple(_triggered_filter_paths(result))
+    return ()
+
+
+def _triggered_filter_paths(result: Mapping[str, Any], prefix: str = "") -> list[str]:
+    paths: list[str] = []
+    for key, value in result.items():
+        name = f"{prefix}.{key}" if prefix else str(key)
+        if isinstance(value, Mapping):
+            detected = value.get("detected") is True or value.get("filtered") is True
+            if detected:
+                paths.append(name)
+            paths.extend(_triggered_filter_paths(value, name))
+    return sorted(set(paths))
 
 
 def _apply_outcome(article: Article, outcome: EditorOutcome) -> None:
