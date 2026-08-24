@@ -67,6 +67,21 @@ OUTPUT — a single JSON object, no markdown:
   "tags": ["two to five lowercase topical tags"]
 }}
 
+THE FIGURES ARRAY IS NOT OPTIONAL AND IS THE MOST COMMON REASON AN ARTICLE IS
+REJECTED. For EVERY block, list in that block's own "figures" array every
+number that appears anywhere in that block's text — including inside the
+comparison basis you were told to restate.
+
+- "value" must be copied EXACTLY from VERIFIED FIGURES, digit for digit. Do not
+  round it. If the figure is 7.075, write 7.075, not 7.08.
+- "signal_field" must be the name shown beside it in VERIFIED FIGURES.
+- "rendered_as" is how it reads in your sentence, e.g. "7.075%".
+- A number in the text with no matching entry in that block's figures array
+  fails the article. A block whose text contains no numbers has "figures": [].
+
+Before you answer, re-read each paragraph and check that every digit you wrote
+appears in that paragraph's figures array.
+
 Write {paragraphs} paragraphs. The first must carry the finding and its
 comparison basis. The last must follow your closing move. Keep it tight — this
 is a wire story, not an essay."""
@@ -83,8 +98,19 @@ what triggered this story: {detector}
 COMPARISON BASIS — state this in the article:
 {comparison_basis}
 
+MANDATORY: every sentence that describes a change (rose, fell, increased,
+decreased, declined, up, down, higher, lower) MUST name the comparison basis
+above in that same sentence. A change without its basis is meaningless and the
+article will be rejected.
+
 VERIFIED FIGURES — the complete and only set of numbers you may use:
 {figures}
+
+MANDATORY: the digits above and the period labels below are the ONLY numerals
+that may appear anywhere in your output. Do not compute new numbers. Do not
+convert between units. Do not add a percentage you derived yourself. If you
+want to express a relationship the figures do not contain, describe it in
+words instead ("roughly a third higher"), never as a new numeral.
 
 PERIOD LABELS you may quote verbatim: {period_labels}
 

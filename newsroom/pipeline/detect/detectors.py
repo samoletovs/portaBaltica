@@ -418,7 +418,13 @@ def detect_seasonal_deviation(
         value=latest.value,
         unit=series.unit,
         comparison_basis=(
-            f"the {len(baseline)}-year average of {mean:.2f} {series.unit} for the same "
+            # ``:g`` and not ``:.2f`` — this string is pipeline-authored prose
+            # that the model is REQUIRED to restate, so any number in it must
+            # render identically to the verified figure it comes from.
+            # ``:.2f`` printed 7.08 while ``seasonal_mean`` held 7.075, so the
+            # model faithfully repeated 7.08 and the validator rejected it as
+            # invented. The pipeline was setting the model up to fail.
+            f"the {len(baseline)}-year average of {mean:g} {series.unit} for the same "
             f"point in the year ({series.season_key(latest.period)})"
         ),
         score=score,

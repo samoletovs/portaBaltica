@@ -70,6 +70,19 @@ class SourceRef:
         return out
 
 
+def _quantise(value: float) -> float:
+    """Round a computed figure to the precision it is displayed at.
+
+    `{:g}` renders at most six significant digits, which is what the model
+    is shown, so storing more precision than that guarantees a mismatch the
+    model cannot avoid. Rounding here keeps the stored value and the rendered
+    value identical.
+    """
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return value
+    return float(f"{float(value):.6g}")
+
+
 @dataclass(frozen=True)
 class Signal:
     """A deterministic finding in a time series. No model produced this.
@@ -104,6 +117,26 @@ class Signal:
             raise ValueError("a signal must name what its value is measured against")
         if not self.sources:
             raise ValueError("a signal must carry at least one source reference")
+
+        # Quantise the verified figures to the precision they are shown at.
+        #
+        # Detectors compute values like 10.869999999999976. The prompt renders
+        # that as "10.87", the model can only echo what it was shown, and the
+        # validator then compares 10.87 against the raw float with a tolerance
+        # of exactly zero — so a correct article is rejected for a floating
+        # point artefact nobody can see. An end-to-end run against live
+        # Eurostat and Elering data rejected two of two articles on precisely
+        # this, alongside genuine catches.
+        #
+        # Zero tolerance in the validator is right and must not be loosened:
+        # it is what makes "every figure traces to a dataset" a fact rather
+        # than an approximation. The fix belongs here, by making the stored
+        # value identical to the displayed one, so prompt and verdict agree by
+        # construction instead of by luck.
+        object.__setattr__(
+            self, "fields", {k: _quantise(v) for k, v in self.fields.items()}
+        )
+        object.__setattr__(self, "value", _quantise(self.value))
 
     @property
     def id(self) -> str:

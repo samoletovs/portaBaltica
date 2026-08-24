@@ -50,3 +50,8 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+
+# Local pipeline output (blob stand-in for local runs)
+.newsroom-articles/
+.newsroom-archive/
+

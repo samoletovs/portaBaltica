@@ -36,7 +36,6 @@ from newsroom.pipeline.safety import (
 from newsroom.pipeline.write.llm import LlmWriter
 from newsroom.pipeline.write.prompts import (
     PROMPT_VERSION,
-    allowed_numeric_literals,
     build_system_prompt,
     build_user_prompt,
 )
