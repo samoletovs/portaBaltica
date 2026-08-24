@@ -1,6 +1,7 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
 const http = require('http');
+const es = require('../shared/eurostat.js');
 
 function httpGet(url) {
   var lib = url.startsWith('https') ? https : http;
@@ -24,7 +25,25 @@ function httpGet(url) {
 
 var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 var AIR_QUALITY = 'https://air-quality-api.open-meteo.com/v1/air-quality';
-var RIGA_POP_URL = 'https://opendata.riga.lv/odata/service/DeclaredPersons';
+
+/**
+ * Capital-region population.
+ *
+ * This used to come from opendata.riga.lv's `DeclaredPersons` OData collection
+ * for Latvia and from hardcoded constants for Estonia and Lithuania. The Riga
+ * service now returns HTTP 500 on every entity set, so the request always fell
+ * through to its own hardcoded constant — meaning all three countries showed a
+ * fixed number presented as live "declared residents".
+ *
+ * Eurostat's NUTS 3 population is a real, comparable, dated figure for all
+ * three. It is a region rather than a municipality for Tallinn and Vilnius, so
+ * the label travels with the number.
+ */
+var CAPITAL_REGIONS = {
+  lv: { geo: 'LV006', label: 'Rīga (NUTS 3 region)' },
+  ee: { geo: 'EE001', label: 'Põhja-Eesti (Tallinn capital region)' },
+  lt: { geo: 'LT011', label: 'Vilniaus apskritis (Vilnius county)' },
+};
 
 var CITIES_BY_COUNTRY = {
   lv: [
@@ -52,8 +71,6 @@ var AQ_COORDS = {
   ee: { lat: 59.44, lon: 24.75 },
   lt: { lat: 54.69, lon: 25.28 },
 };
-
-var POP_DATA = { lv: 605802, ee: 456000, lt: 590000 };
 
 function describeWeather(code) {
   if (code === 0) return 'Clear sky';
@@ -120,17 +137,24 @@ async function fetchAirQuality(country) {
 }
 
 async function fetchCapitalPopulation(country) {
-  if (country !== 'lv') return POP_DATA[country] || 0;
+  var region = CAPITAL_REGIONS[country] || CAPITAL_REGIONS.lv;
   try {
-    var data = await httpGet(RIGA_POP_URL);
-    var records = (data.value || (data.d && data.d.results)) || [];
-    if (records.length === 0) return 605802;
-    var total = records.reduce(function (sum, r) {
-      return sum + (r.PersonCount || r.Count || 0);
-    }, 0);
-    return total > 0 ? total : 605802;
+    var url = es.EUROSTAT_BASE + '/demo_r_pjanaggr3?geo=' + region.geo +
+      '&sex=T&age=TOTAL&freq=A&unit=NR&sinceTimePeriod=' + (new Date().getFullYear() - 6);
+    var data = await es.httpJson(url, { deadlineMs: 10000 });
+    var parsed = es.parseJsonStat(data, [region.geo]);
+    var series = parsed.countries[region.geo] ? parsed.countries[region.geo].series : [];
+    var withValues = series.filter(function (p) { return p.value !== null; });
+    if (withValues.length === 0) throw new Error('No population value for ' + region.geo);
+    var latest = withValues[withValues.length - 1];
+    return {
+      value: latest.value,
+      year: latest.period,
+      label: region.label,
+      source: 'Eurostat (demo_r_pjanaggr3)',
+    };
   } catch (e) {
-    return 605802; // Fallback 2025 data
+    return { value: null, year: null, label: region.label, source: 'unavailable' };
   }
 }
 
@@ -139,7 +163,7 @@ module.exports = async function (context, req) {
   if (rl) { context.res = rl; return; }
   try {
     var country = (req.query && req.query.country) || 'lv';
-    const [weather, airQuality, capitalPopulation] = await Promise.all([
+    const [weather, airQuality, population] = await Promise.all([
       fetchWeather(country),
       fetchAirQuality(country),
       fetchCapitalPopulation(country),
@@ -151,7 +175,10 @@ module.exports = async function (context, req) {
       body: JSON.stringify({
         weather: weather,
         airQuality: airQuality,
-        capitalPopulation: capitalPopulation,
+        capitalPopulation: population.value,
+        capitalPopulationLabel: population.label,
+        capitalPopulationYear: population.year,
+        capitalPopulationSource: population.source,
         fetchedAt: new Date().toISOString(),
       }),
     };

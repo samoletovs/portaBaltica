@@ -8,9 +8,19 @@ Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard
 
 - **Frontend:** React 19, TypeScript 5.9, Tailwind CSS 4.2, Vite 8
 - **Backend:** Azure Static Web App managed functions (JavaScript)
-- **Data sources:** data.gov.lv CKAN API v3, Open-Meteo, Elering (NordPool), ECB, CSP PxWeb
+- **Data sources:** Eurostat dissemination API (JSON-stat 2.0), data.gov.lv CKAN API v3, Open-Meteo, Elering (NordPool), ECB, CSP PxWeb
 - **Hosting:** Azure Static Web Apps (free tier) at portabaltica.naurolabs.com
 - **Theme:** Dark ocean theme with custom `ocean-*` color palette
+
+### Known-dead sources
+
+- `opendata.riga.lv` OData — every entity set returns HTTP 500 and `$format=json`
+  is rejected; only the service document responds. Nothing depends on it. It is
+  still probed by `/api/system-status` as an optional source so that a recovery
+  is noticed.
+- CSP PxWeb `RUI020m` (industrial production) and `RCI020m` (producer prices) —
+  the MIG_* codes return all-null series and every aggregate code is rejected
+  with HTTP 400. Both indicators fall back to Eurostat.
 
 ## Architecture
 
@@ -54,13 +64,19 @@ portaBaltica/
 │       └── CargoPanel.tsx
 ├── newsroom/               # Newsroom contracts (schema, personas, sources)
 ├── api/                    # Azure SWA managed functions (JS)
-│   └── src/functions/
-│       ├── port-data.js    # Maritime data proxy (existing)
-│       ├── economy-data.js # ECB, NordPool, CSP, business registries
-│       ├── property-data.js # Construction, energy certs, cadastral
-│       ├── environment-data.js # Weather, air quality, population
-│       ├── news-rss/       # /rss.xml — our own articles only
-│       └── news-sitemap/   # /sitemap.xml
+│   ├── shared/
+│   │   ├── eurostat.js     # Deadline-bounded HTTP + strict JSON-stat parsing
+│   │   └── indicators.js   # Every Baltic comparison indicator, fully pinned
+│   ├── baltic-compare/     # LV vs EE vs LT from Eurostat
+│   ├── historical-data/    # Latvian series: CSP PxWeb, Eurostat fallback
+│   ├── power-prices/       # Nord Pool day-ahead + zone spread
+│   ├── port-data/          # Maritime data proxy (existing)
+│   ├── economy-data/       # ECB, NordPool, CSP, business registries
+│   ├── property-data/      # Construction, energy certs, cadastral
+│   ├── environment-data/   # Weather, air quality, population
+│   ├── system-status/      # Health probes for every upstream
+│   ├── news-rss/           # /rss.xml — our own articles only
+│   └── news-sitemap/       # /sitemap.xml
 └── infrastructure/
     ├── main.bicep          # SWA + monitoring + newsroom Functions/Storage/RBAC
     ├── modules/
@@ -261,8 +277,29 @@ visible.
 
 ## Data source patterns
 
-- **CKAN Datastore:** `fetch('https://data.gov.lv/dati/api/3/action/datastore_search?resource_id=ID&limit=N')`
+- **Eurostat:** every Baltic comparison indicator is defined in
+  `api/shared/indicators.js` and fetched through `api/shared/eurostat.js`.
+  **Pin every dimension of the cube.** An unpinned dimension makes the parser
+  choose a slice on your behalf; it reports that choice in the response's
+  `assumptions` array, and `tests/indicators.live.test.ts` fails on it. Give
+  each indicator a `sanity` band describing what the statistic *means* — that
+  band is what catches a definition pointing at the wrong dataset, which is how
+  "Income inequality (Gini)" spent months plotting foreign direct investment.
+- **CKAN Datastore:** `fetch('https://data.gov.lv/dati/api/3/action/datastore_search?resource_id=ID&limit=N')`.
+  The portal answers HTTP 200 with `success: false` for an unknown action, so
+  check `success` rather than the status code.
 - **Open-Meteo:** Direct client-side fetch (CORS-enabled)
-- **ECB rates:** `fetch('https://www.bank.lv/vk/ecb.xml')` — parse XML
-- **NordPool/Elering:** `fetch('https://dashboard.elering.ee/api/nps/price?start=...&end=...')`
-- **CSP PxWeb:** POST JSON query to `https://data.stat.gov.lv/api/v1/lv/OSP_PUB/`
+- **ECB rates:** `fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml')` — parse XML
+- **NordPool/Elering:** `fetch('https://dashboard.elering.ee/api/nps/price?start=...&end=...')` —
+  returns all four bidding zones (EE, LV, LT, FI) in one response
+- **CSP PxWeb:** POST JSON query to `https://data.stat.gov.lv/api/v1/lv/OSP_PUB/`.
+  Slow (1–12s per table) and its json-stat2 `value` array is only safe to read
+  flatly when the query pins every dimension but time.
+
+## Adding a data source
+
+Give every outbound call an explicit deadline via `api/shared/eurostat.js`'s
+`httpJson`/`httpText`. Probe it in `/api/system-status` at an endpoint that is
+*cheap* — a catalogue root, not a table query — and at the endpoint the app
+actually uses, so a removed action shows up as an outage rather than passing
+because some other path on the same host still answers.

@@ -1,6 +1,7 @@
 import { IndicatorCard }
 from './IndicatorCard';
 import { useCountry } from '../CountryContext';
+import { BalticCompareChart } from './BalticCompareChart';
 
 export function TradeTile() {
   const { countryLabel, flag } = useCountry();
@@ -21,6 +22,13 @@ export function TradeTile() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <IndicatorCard id="hotel_occupancy" title="Hotel occupancy" unit="%" />
         <IndicatorCard id="tourist_arrivals" title="Tourist arrivals" unit="thousands" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BalticCompareChart indicator="exports" title="Exports of goods" compact />
+        <BalticCompareChart indicator="imports" title="Imports of goods" compact />
+        <BalticCompareChart indicator="trade_balance" title="Trade balance" compact />
+        <BalticCompareChart indicator="tourism_foreign" title="Nights spent by foreign visitors" compact />
       </div>
     </section>
   );

@@ -2,16 +2,17 @@ import { useNavigate } from 'react-router-dom';
 
 const API_ENDPOINTS = [
   { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Live electricity prices, ECB exchange rates, PxWeb macro indicators, business pulse', cache: '30 min' },
-  { method: 'GET', path: '/api/environment-data', params: '?country=lv|ee|lt', description: 'Weather for 4 cities, air quality, capital city population', cache: '15 min' },
-  { method: 'GET', path: '/api/historical-data', params: '?indicator=gdp&years=5', description: '24 indicators with time series: GDP, salary, CPI, unemployment, house prices, exports, imports, PPI, trade balance, etc.', cache: '1 hour' },
-  { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat: GDP, unemployment, inflation, house prices, interest rates, debt/GDP, construction, consumer confidence', cache: '1 hour' },
+  { method: 'GET', path: '/api/environment-data', params: '?country=lv|ee|lt', description: 'Weather for 4 cities, air quality, capital-region population', cache: '15 min' },
+  { method: 'GET', path: '/api/historical-data', params: '?indicator=gdp&years=5', description: '24 Latvian indicators with time series from CSP PxWeb, falling back to Eurostat where a national table is unavailable. The `source` field always names the provider that answered.', cache: '1 hour' },
+  { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 45 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
+  { method: 'GET', path: '/api/power-prices', params: '', description: 'Nord Pool day-ahead prices for all four Baltic-region bidding zones (EE, LV, LT, FI) with the spread between them and whether the market is currently coupled', cache: '15 min' },
   { method: 'GET', path: '/api/property-data', params: '', description: 'Construction permits by municipality, building energy profile', cache: '1 hour' },
   { method: 'GET', path: '/api/port-data', params: '', description: 'Maritime: ship visits, ferry passengers, cargo volumes for 3 Latvian ports', cache: '1 hour' },
   { method: 'GET', path: '/api/business-search', params: '?q=TERM', description: 'Search 195K+ beneficial owners (UBO) by company registration number or surname', cache: '5 min' },
   { method: 'GET', path: '/api/address-search', params: '?q=TERM', description: 'Search 608K+ Latvian addresses with GPS coordinates', cache: '5 min' },
   { method: 'GET', path: '/api/eu-funds', params: '', description: 'EU Recovery & Resilience Fund: 955 projects with status', cache: '1 hour' },
   { method: 'GET', path: '/api/ai-insights', params: '', description: 'Real-time AI-generated insights from live data analysis', cache: '15 min' },
-  { method: 'GET', path: '/api/system-status', params: '', description: 'System health: 7 data source checks with latency, API inventory', cache: '1 min' },
+  { method: 'GET', path: '/api/system-status', params: '', description: 'System health: 8 data source checks with latency and what each one powers, plus API inventory', cache: '1 min' },
 ];
 
 const INDICATORS = [

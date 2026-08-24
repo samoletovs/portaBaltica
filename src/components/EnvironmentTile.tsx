@@ -33,7 +33,6 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
   const aqiStyle = AQI_STYLES[data.airQuality.status] ?? AQI_STYLES.good;
   const capitals: Record<string, string> = { LV: 'Riga', EE: 'Tallinn', LT: 'Vilnius' };
   const capital = capitals[country] || 'Riga';
-  const popSources: Record<string, string> = { LV: 'opendata.riga.lv', EE: 'Statistics Estonia', LT: 'Lithuanian Statistics' };
 
   return (
     <section>
@@ -89,11 +88,17 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
           {/* Population */}
           <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
-            <p className="text-xs text-slate-400 mb-1">{capital} Population</p>
+            <p className="text-xs text-slate-400 mb-1">{capital} area population</p>
             <p className="text-2xl font-bold text-white font-mono">
-              {(data.capitalPopulation ?? data.rigaPopulation ?? 0).toLocaleString()}
+              {(data.capitalPopulation ?? data.rigaPopulation) != null
+                ? (data.capitalPopulation ?? data.rigaPopulation ?? 0).toLocaleString()
+                : '—'}
             </p>
-            <p className="text-xs text-slate-500 mt-1">Declared residents · {popSources[country]}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {data.capitalPopulationLabel ?? `${capital} region`}
+              {data.capitalPopulationYear ? ` · ${data.capitalPopulationYear}` : ''}
+            </p>
+            <p className="text-xs text-slate-600 mt-0.5">{data.capitalPopulationSource ?? 'Eurostat'}</p>
           </div>
         </div>
       </div>

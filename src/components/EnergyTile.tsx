@@ -2,6 +2,7 @@ import { IndicatorCard }
 from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { PowerMarketCard } from './PowerMarketCard';
 
 export function EnergyTile() {
   const { countryLabel, flag } = useCountry();
@@ -19,11 +20,15 @@ export function EnergyTile() {
         <IndicatorCard id="renewable_share" title="Renewable energy" unit="%" />
       </div>
 
+      <PowerMarketCard />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BalticCompareChart indicator="construction" title="Construction output" compact />
         <BalticCompareChart indicator="interest_rate" title="Long-term interest rate" compact />
         <BalticCompareChart indicator="elec_production" title="Electricity production" compact />
+        <BalticCompareChart indicator="elec_renewable_gen" title="Renewable electricity generated" compact />
         <BalticCompareChart indicator="elec_price_household" title="Electricity price (households)" compact />
+        <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry)" compact />
         <BalticCompareChart indicator="renewables" title="Renewable energy share" compact />
       </div>
     </section>

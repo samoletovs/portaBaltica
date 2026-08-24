@@ -1,147 +1,190 @@
-const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
-
-function textGet(url) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { timeout: 8000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () { resolve(data); });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-  });
-}
-
-function jsonGet(url) {
-  return textGet(url).then(function (text) {
-    try { return JSON.parse(text); }
-    catch (e) { throw new Error('JSON parse failed for ' + url); }
-  });
-}
-
-function jsonPost(url, body) {
-  return new Promise(function (resolve, reject) {
-    var parsed = new URL(url);
-    var postData = JSON.stringify(body);
-    var req = https.request({
-      hostname: parsed.hostname,
-      path: parsed.pathname,
-      method: 'POST',
-      timeout: 8000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData),
-      },
-    }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      var data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed for ' + url)); }
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
-  });
-}
-
-function buildNordPoolProbeUrl(start, end) {
-  return 'https://dashboard.elering.ee/api/nps/price?start=' +
-    encodeURIComponent(start.toISOString()) +
-    '&end=' +
-    encodeURIComponent(end.toISOString());
-}
+const es = require('../shared/eurostat.js');
 
 /**
  * GET /api/system-status
  *
- * Public health check endpoint. Reports:
- * - API endpoint health (which data sources are responding)
- * - Data freshness (when each source was last fetched)
- * - System uptime and version info
- * - Self-sustaining metrics (costs, subscribers — Phase 4)
+ * Public health check. What it reports is only as good as what it probes, and
+ * a live audit found three of the seven probes were wrong rather than the
+ * sources being down:
+ *
+ *   - data.gov.lv was probed with the CKAN `site_read` action, which the portal
+ *     no longer implements. It answered "Action name not known" in 124ms and
+ *     was recorded as an outage while the portal was perfectly healthy.
+ *   - CSP PxWeb was probed by POSTing an empty query, which materialises an
+ *     entire GDP table (13s) to answer "are you up".
+ *   - Riga Open Data is genuinely broken upstream — every entity set returns
+ *     HTTP 500 — so it is probed at the only endpoint that works and is no
+ *     longer relied on for data anywhere in the app.
+ *
+ * Eurostat is probed now too. It backs more than forty charts and was the one
+ * dependency the health check never looked at.
+ *
+ * Each probe carries its own deadline and the endpoint reports whatever has
+ * answered by the overall budget. Previously the response time was the slowest
+ * probe's, so one stalled source made the whole status page take 16 seconds.
  */
+
+const PROBE_DEADLINE_MS = 5000;
+const OVERALL_BUDGET_MS = 7000;
+
+function buildNordPoolProbeUrl() {
+  const start = new Date();
+  start.setUTCHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return 'https://dashboard.elering.ee/api/nps/price?start=' +
+    encodeURIComponent(start.toISOString()) + '&end=' + encodeURIComponent(end.toISOString());
+}
+
+const CHECKS = [
+  {
+    name: 'Eurostat',
+    url: es.EUROSTAT_BASE + '/une_rt_m?geo=LV&unit=PC_ACT&s_adj=SA&age=TOTAL&sex=T&freq=M&lastTimePeriod=1',
+    type: 'json',
+    required: true,
+    powers: 'All Baltic comparison charts',
+  },
+  {
+    name: 'ECB Exchange Rates',
+    url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml',
+    type: 'ecb-xml',
+    required: true,
+    powers: 'Currency ticker',
+  },
+  {
+    name: 'NordPool Electricity',
+    url: buildNordPoolProbeUrl(),
+    type: 'json',
+    required: true,
+    powers: 'Day-ahead power prices',
+  },
+  {
+    name: 'data.gov.lv CKAN',
+    // `site_read` was removed from the portal's action list; `status_show` is
+    // the supported liveness action.
+    url: 'https://data.gov.lv/dati/api/3/action/status_show',
+    type: 'ckan',
+    required: true,
+    powers: 'Business registry counts',
+  },
+  {
+    name: 'CSP PxWeb',
+    // The catalogue root answers in ~80ms; a table query takes seconds.
+    url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB',
+    type: 'json',
+    required: true,
+    powers: 'Latvian national indicators',
+  },
+  {
+    name: 'Open-Meteo Weather',
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m',
+    type: 'json',
+    required: true,
+    powers: 'City weather',
+  },
+  {
+    name: 'Open-Meteo Air Quality',
+    url: 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=56.95&longitude=24.11&current=pm2_5',
+    type: 'json',
+    required: true,
+    powers: 'Air quality',
+  },
+  {
+    name: 'Riga Open Data',
+    // Entity sets return HTTP 500 upstream; only the service document responds.
+    url: 'https://opendata.riga.lv/odata/service/',
+    type: 'text',
+    required: false,
+    powers: 'Nothing — retained as an availability signal only',
+    note: 'Entity sets return HTTP 500 upstream; no dashboard element depends on it',
+  },
+];
+
+async function runCheck(check) {
+  const started = Date.now();
+  try {
+    if (check.type === 'ecb-xml') {
+      const xml = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
+      const hasEnvelope = /<\s*(?:\w+:)?Envelope\b/i.test(xml);
+      const hasCube = /<\s*(?:\w+:)?Cube\b/i.test(xml);
+      if (!hasEnvelope || !hasCube) throw new Error('ECB XML missing required elements (envelope and/or cube)');
+    } else if (check.type === 'ckan') {
+      const body = await es.httpJson(check.url, { deadlineMs: PROBE_DEADLINE_MS });
+      // CKAN answers 200 with success:false for an unknown action, which is how
+      // a removed action previously read as a healthy source.
+      if (body && body.success === false) throw new Error('CKAN reported failure: ' + JSON.stringify(body.error || body).slice(0, 120));
+    } else if (check.type === 'text') {
+      const text = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
+      if (!text || text.length === 0) throw new Error('Empty response');
+    } else {
+      await es.httpJson(check.url, { deadlineMs: PROBE_DEADLINE_MS });
+    }
+    return { name: check.name, status: 'healthy', latency: Date.now() - started, required: check.required, powers: check.powers, note: check.note };
+  } catch (e) {
+    return { name: check.name, status: 'unhealthy', latency: Date.now() - started, required: check.required, powers: check.powers, note: check.note, error: e.message };
+  }
+}
+
+/** Resolve with whatever each probe has produced by the overall budget. */
+function withBudget(promise, check, budgetMs, startedAt) {
+  return Promise.race([
+    promise,
+    new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve({
+          name: check.name,
+          status: 'unhealthy',
+          latency: Date.now() - startedAt,
+          required: check.required,
+          powers: check.powers,
+          note: check.note,
+          error: 'Exceeded the ' + budgetMs + 'ms status budget',
+        });
+      }, budgetMs);
+    }),
+  ]);
+}
+
+const API_ENDPOINTS = [
+  '/api/baltic-compare', '/api/historical-data', '/api/economy-data',
+  '/api/property-data', '/api/environment-data', '/api/power-prices',
+  '/api/port-data', '/api/business-search', '/api/eu-funds',
+  '/api/address-search', '/api/ai-insights', '/api/system-status',
+];
+
 module.exports = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
-  var startTime = Date.now();
+  const startTime = Date.now();
 
-  var now = new Date();
-  var start = new Date(now);
-  start.setUTCHours(0, 0, 0, 0);
-  var end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
-
-  // Check each data source health in parallel
-  var checks = [
-    { name: 'ECB Exchange Rates', url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml', type: 'xml', required: true },
-    { name: 'NordPool Electricity', url: buildNordPoolProbeUrl(start, end), type: 'json', required: true },
-    { name: 'data.gov.lv CKAN', url: 'https://data.gov.lv/dati/api/3/action/site_read', type: 'json', required: true },
-    { name: 'CSP PxWeb', url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c', type: 'pxweb', required: true },
-    { name: 'Open-Meteo Weather', url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m', type: 'json', required: true },
-    { name: 'Open-Meteo Air Quality', url: 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=56.95&longitude=24.11&current=pm2_5', type: 'json', required: true },
-    { name: 'Riga Open Data', url: 'https://opendata.riga.lv/odata/service/DeclaredPersons?$top=1&$format=json', type: 'json', required: false },
-  ];
-
-  var results = await Promise.all(checks.map(async function (check) {
-    var checkStart = Date.now();
-    try {
-      if (check.type === 'xml') {
-        var xml = await textGet(check.url);
-        var hasEnvelope = /<\s*(?:\w+:)?Envelope\b/i.test(xml);
-        var hasCube = /<\s*(?:\w+:)?Cube\b/i.test(xml);
-        if (!hasEnvelope || !hasCube) {
-          throw new Error('ECB XML missing required elements (envelope and/or cube)');
-        }
-      } else if (check.type === 'pxweb') {
-        await jsonPost(check.url, { query: [], response: { format: 'json-stat2' } });
-      } else {
-        await jsonGet(check.url);
-      }
-      return { name: check.name, status: 'healthy', latency: Date.now() - checkStart, required: check.required };
-    } catch (e) {
-      return { name: check.name, status: 'unhealthy', latency: Date.now() - checkStart, error: e.message, required: check.required };
-    }
+  const results = await Promise.all(CHECKS.map(function (check) {
+    return withBudget(runCheck(check), check, OVERALL_BUDGET_MS, startTime);
   }));
 
-  var healthy = results.filter(function (r) { return r.status === 'healthy'; }).length;
-  var total = results.length;
-  var requiredResults = results.filter(function (r) { return r.required; });
-  var requiredHealthy = requiredResults.filter(function (r) { return r.status === 'healthy'; }).length;
-  var requiredTotal = requiredResults.length;
-  var optionalResults = results.filter(function (r) { return !r.required; });
-  var optionalHealthy = optionalResults.filter(function (r) { return r.status === 'healthy'; }).length;
-  var minHealthyForDegraded = Math.ceil(requiredTotal / 2);
+  const healthy = results.filter(function (r) { return r.status === 'healthy'; }).length;
+  const requiredResults = results.filter(function (r) { return r.required; });
+  const requiredHealthy = requiredResults.filter(function (r) { return r.status === 'healthy'; }).length;
+  const requiredTotal = requiredResults.length;
+  const optionalResults = results.filter(function (r) { return !r.required; });
+  const optionalHealthy = optionalResults.filter(function (r) { return r.status === 'healthy'; }).length;
+  const minHealthyForDegraded = Math.ceil(requiredTotal / 2);
 
-  var systemStatus = 'unhealthy';
-  if (requiredHealthy === requiredTotal) {
-    systemStatus = 'healthy';
-  } else if (requiredHealthy >= minHealthyForDegraded) {
-    systemStatus = 'degraded';
-  }
+  let systemStatus = 'unhealthy';
+  if (requiredHealthy === requiredTotal) systemStatus = 'healthy';
+  else if (requiredHealthy >= minHealthyForDegraded) systemStatus = 'degraded';
 
   context.res = {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
     body: JSON.stringify({
       status: systemStatus,
-      version: '0.3.0',
+      version: '0.4.0',
       phase: 'Phase 3 — Deep Latvia',
       uptime: 'Azure Static Web Apps (managed)',
       dataSources: {
         healthy: healthy,
-        total: total,
+        total: results.length,
         requiredHealthy: requiredHealthy,
         requiredTotal: requiredTotal,
         optionalHealthy: optionalHealthy,
@@ -149,12 +192,8 @@ module.exports = async function (context, req) {
         checks: results,
       },
       apis: {
-        total: 8,
-        endpoints: [
-          '/api/economy-data', '/api/property-data', '/api/environment-data',
-          '/api/port-data', '/api/business-search', '/api/eu-funds',
-          '/api/address-search', '/api/system-status',
-        ],
+        total: API_ENDPOINTS.length,
+        endpoints: API_ENDPOINTS,
       },
       selfSustaining: {
         monthlyInfrastructureCost: '~€5-18',

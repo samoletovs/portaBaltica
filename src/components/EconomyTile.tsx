@@ -130,7 +130,11 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
           <BalticCompareChart indicator="gdp" title="GDP growth" compact />
           <BalticCompareChart indicator="unemployment" title="Unemployment" compact />
           <BalticCompareChart indicator="inflation" title="Inflation (HICP)" compact />
+          <BalticCompareChart indicator="core_inflation" title="Core inflation" compact />
+          <BalticCompareChart indicator="energy_inflation" title="Energy inflation" compact />
+          <BalticCompareChart indicator="food_inflation" title="Food inflation" compact />
           <BalticCompareChart indicator="house_prices" title="House prices" compact />
+          <BalticCompareChart indicator="industrial" title="Industrial production" compact />
         </div>
       </div>
 
