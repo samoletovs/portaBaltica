@@ -29,6 +29,28 @@ def test_should_accept_a_fully_traceable_tier_a_article(
     assert len(verdict.checks) == len(CHECK_NAMES)
 
 
+def test_should_accept_a_later_unquantified_reference_to_an_established_change(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """Prose an editor would actually pass.
+
+    The first block quantifies the move and names the basis. A later paragraph
+    then refers back to "the decline" without restating "compared with a year
+    earlier" — because repeating the basis in every paragraph is how you write
+    a spreadsheet, not an article, and because a sentence carrying no figure
+    cannot mislead the reader about what it is measured against.
+
+    This is the shape the model kept producing and the validator kept
+    rejecting, which is why a production run published nothing.
+    """
+    tier_a_article["body"][1]["text"] = "The decline was broad-based across the region."
+    tier_a_article["body"][1]["figures"] = []
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_all_passed(verdict)
+
+
 def test_should_accept_a_verbatim_tier_c_link_out_card(
     tier_c_article: dict[str, Any], lsm_raw_item: dict[str, Any], validate
 ) -> None:

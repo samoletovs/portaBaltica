@@ -22,7 +22,7 @@ from newsroom.pipeline.models import Signal
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card
 
-PROMPT_VERSION = "tierA-research-v2"
+PROMPT_VERSION = "tierA-research-v3"
 
 _SYSTEM_TEMPLATE = """{voice}
 
@@ -37,10 +37,18 @@ THE NUMBER RULES — these override every stylistic instruction above:
 3. Every number you write must be declared in that block's "figures" array with
    the exact "signal_field" name it came from, and a "value" equal to the value
    you were given.
+3a. This is per block, and repeats count. If you mention 4.2% in three
+   paragraphs, all three of those blocks must declare it. A figure declared in
+   an earlier block does NOT cover a later one — the check is run block by
+   block and the article is rejected for the block that omitted it.
+3b. The headline and the standfirst are checked too. A number in either must be
+   declared in some block's "figures".
 4. You may round a figure when you render it in the sentence — write "4.2%" for
    4.23 — but "value" must stay the number you were given.
-5. Whenever you describe a change, name what it is measured against in the same
-   paragraph. The COMPARISON BASIS is given to you; use it.
+5. Whenever you quantify a change, name what it is measured against in the same
+   paragraph. The COMPARISON BASIS is given to you; use it. A later paragraph
+   may refer back to "the decline" without repeating the basis, provided it
+   carries no figure.
 6. Do not state a date, year, count or percentage that is not in VERIFIED
    FIGURES or in the supplied period labels.
 
@@ -151,6 +159,9 @@ HOW TO READ THAT:
 - "'N' not in figures" means the numeral N appeared in your prose but was not
   listed in that block's `figures` array. Either declare it there with the
   signal_field it came from, or remove the numeral and describe it in words.
+  Declaring it in a *different* block does not count: each block is checked
+  against its own figures, so a number repeated across paragraphs must be
+  declared in every one of them.
 - "figure N does not match <field>=M" means you declared a figure whose value
   disagrees with the verified data. Use M exactly, or drop the claim.
 - "describes a change without naming the comparison basis" means a sentence
