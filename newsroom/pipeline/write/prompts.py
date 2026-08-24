@@ -137,6 +137,46 @@ WEB RESEARCH (untrusted orientation and primary-source context):
 Write the article now."""
 
 
+_REVISION_TEMPLATE = """Your previous attempt was rejected by the publication
+checks. Below is the original brief, then exactly what failed.
+
+{original}
+
+────────────────────────────────────────────────────────────────────────
+WHAT YOU PRODUCED LAST TIME WAS REJECTED FOR:
+
+{failures}
+
+HOW TO READ THAT:
+- "'N' not in figures" means the numeral N appeared in your prose but was not
+  listed in that block's `figures` array. Either declare it there with the
+  signal_field it came from, or remove the numeral and describe it in words.
+- "figure N does not match <field>=M" means you declared a figure whose value
+  disagrees with the verified data. Use M exactly, or drop the claim.
+- "describes a change without naming the comparison basis" means a sentence
+  used a movement word (rose, fell, declined, up, down) without stating what
+  the comparison is against. Name the comparison basis in that same sentence.
+
+Every rule in the brief still applies in full. The checks are not negotiable
+and will run again unchanged: an article that fails them a second time is
+discarded, not published.
+
+Return the corrected article as a complete JSON object in the same shape."""
+
+
+def build_revision_prompt(original_user_prompt: str, failure_summary: str) -> str:
+    """Hand the model the validator's own complaint and ask it to fix it.
+
+    The validator is not re-run in a laxer mode and nothing here grants an
+    exemption: this only tells the writer what it got wrong, in the words the
+    gate used. A second failure ends the article.
+    """
+    return _REVISION_TEMPLATE.format(
+        original=original_user_prompt,
+        failures=failure_summary or "failed the article shape checks",
+    )
+
+
 def _format_figures(signal: Signal) -> str:
     lines = []
     for name, value in signal.fields.items():

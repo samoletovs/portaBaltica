@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import lru_cache
-from typing import Any, Protocol
+from typing import Any, Protocol, Sequence
 
 from newsroom.pipeline import config
 
@@ -44,9 +44,9 @@ def _client() -> Any:
         api_version=config.AZURE_OPENAI_API_VERSION,
         azure_ad_token_provider=token_provider,
         timeout=90.0,
-        # One retry, and only for transport failures. There is deliberately no
-        # regeneration loop: if the validator rejects an article we drop it
-        # rather than pay to try again, which keeps the monthly bill in euros.
+        # One transport retry. Regeneration after a *validator* rejection is a
+        # separate concern handled in generator.py, which re-prompts once with
+        # the validator's own complaint. This setting is only about the network.
         max_retries=1,
     )
 
@@ -82,13 +82,28 @@ class AzureOpenAIWriter:
 
 
 class StubWriter:
-    """Test double. Returns a canned payload and records what it was asked."""
+    """Test double. Returns a canned payload and records what it was asked.
 
-    def __init__(self, payload: dict[str, Any], model_name: str = "stub-model") -> None:
-        self.payload = payload
+    Accepts a sequence of payloads to model a writer that responds differently
+    to a revision request than to the original brief. The last payload repeats
+    once the sequence is exhausted, so a single-payload stub behaves exactly as
+    before and a two-payload stub exercises the revision path.
+    """
+
+    def __init__(
+        self,
+        payload: dict[str, Any] | Sequence[dict[str, Any]],
+        model_name: str = "stub-model",
+    ) -> None:
+        payloads = [payload] if isinstance(payload, dict) else list(payload)
+        if not payloads:
+            raise ValueError("StubWriter needs at least one payload")
+        self.payloads = payloads
+        self.payload = payloads[0]
         self.model_name = model_name
         self.calls: list[dict[str, Any]] = []
 
     def complete_json(self, *, system: str, user: str, max_tokens: int) -> dict[str, Any]:
         self.calls.append({"system": system, "user": user, "max_tokens": max_tokens})
-        return self.payload
+        index = min(len(self.calls) - 1, len(self.payloads) - 1)
+        return self.payloads[index]

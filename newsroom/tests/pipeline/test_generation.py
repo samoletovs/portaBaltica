@@ -8,6 +8,7 @@ import pytest
 
 from newsroom.pipeline.models import SourceRef
 from newsroom.pipeline.write import StubWriter, generate_article
+from newsroom.pipeline.write.generator import MAX_ATTEMPTS
 from newsroom.pipeline.write.generator import GenerationRefused
 from newsroom.pipeline.write.prompts import (
     allowed_numeric_literals,
@@ -148,14 +149,67 @@ class TestFailsClosed:
 
         assert writer.calls == [], "the model must not be called for a restricted source"
 
-    def test_should_never_regenerate_after_a_rejection(self):
+    def test_should_stop_after_the_bounded_number_of_attempts(self):
+        # The prior policy was no regeneration at all, on the grounds that a
+        # retry cost money. Measured, a retry costs ~$0.0007, while the policy
+        # cost an entire run's output — three signals detected, nothing
+        # published. The invariant that actually matters is not "never retry"
+        # but "never retry without a bound", which is what this asserts.
         payload = json.loads(json.dumps(GOOD_PAYLOAD))
         payload["blocks"][0]["text"] = "The rate hit 6.8% and 41200 people, versus 6.5% before."
         writer = StubWriter(payload)
 
+        result = generate_article(make_signal(), writer)
+
+        assert len(writer.calls) == MAX_ATTEMPTS
+        assert not result.publishable
+
+    def test_should_not_publish_a_revision_that_still_fails(self):
+        # The revision path must not become a way in. Both drafts here carry an
+        # undeclared number; the second must be rejected exactly as the first.
+        bad = json.loads(json.dumps(GOOD_PAYLOAD))
+        bad["blocks"][0]["text"] = "The rate hit 6.8% and 41200 people, versus 6.5% before."
+        still_bad = json.loads(json.dumps(GOOD_PAYLOAD))
+        still_bad["blocks"][0]["text"] = "It reached 9.9% on the month, versus 6.5% before."
+
+        result = generate_article(make_signal(), StubWriter([bad, still_bad]))
+
+        assert not result.publishable
+        assert result.article.status == "rejected"
+        assert not result.verdict.passed
+
+    def test_should_publish_a_revision_that_fixes_the_complaint(self):
+        bad = json.loads(json.dumps(GOOD_PAYLOAD))
+        bad["blocks"][0]["text"] = "The rate hit 6.8% and 41200 people, versus 6.5% before."
+        writer = StubWriter([bad, GOOD_PAYLOAD])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert len(writer.calls) == 2
+        assert result.article.provenance["attempts"] == 2
+
+    def test_should_tell_the_model_what_the_validator_objected_to(self):
+        # A revision request that does not carry the complaint is just a second
+        # roll of the dice, and would leave the model no better informed.
+        bad = json.loads(json.dumps(GOOD_PAYLOAD))
+        bad["blocks"][0]["text"] = "The rate hit 6.8% and 41200 people, versus 6.5% before."
+        writer = StubWriter([bad, GOOD_PAYLOAD])
+
         generate_article(make_signal(), writer)
 
-        assert len(writer.calls) == 1
+        revision = writer.calls[1]["user"]
+        assert "no_invented_numbers" in revision
+        assert "6.8" in revision, "the offending number must be named"
+
+    def test_should_not_revise_an_article_that_passed_first_time(self):
+        writer = StubWriter(GOOD_PAYLOAD)
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert len(writer.calls) == 1, "a passing draft must not be paid for twice"
+        assert result.article.provenance["attempts"] == 1
 
 
 class TestPrompt:
