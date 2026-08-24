@@ -1,0 +1,103 @@
+name: Telegram delivery check
+
+# Proves the ops bot can actually deliver a message to the ops chat.
+#
+# Why this exists as its own workflow
+# -----------------------------------
+# The lab has already shipped a green PR that re-pointed a notification at the
+# right secret name and delivered nothing, because the token behind that name
+# had been revoked months earlier. CI was green the whole time. The routing was
+# correct; the channel was dead.
+#
+# The failure was possible because every Telegram send in the fleet is written
+# to fail soft -- `|| true`, or a helper that exits 0 when the token is missing.
+# That is the right behaviour for a deploy notification, where a dead bot should
+# not fail a good deploy. It is exactly the wrong behaviour for finding out
+# whether the bot is alive.
+#
+# So this workflow inverts the rule on purpose: it is the one place that FAILS
+# LOUDLY when delivery fails. The news portal's approval flow gates tier B and
+# tier C publication on a human answering a Telegram prompt, which means a dead
+# bot does not degrade the portal -- it silently halts publication of two of the
+# three content tiers with no error anywhere. Run this before trusting that flow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Optional note to include in the test message"
+        required: false
+        default: ""
+  # Also run whenever the notification path itself changes. This is the
+  # "encode the lesson as something that runs" rule: a channel that is only
+  # ever checked by hand is a channel nobody checks. Scoped by path so it
+  # costs nothing on ordinary commits and does not spam the ops chat.
+  push:
+    paths:
+      - ".github/workflows/telegram-check.yml"
+      - "newsroom/notify*"
+      - "newsroom/approval*"
+      - "api/approval/**"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify ops bot delivery
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send and confirm
+        env:
+          NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
+          NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          set -uo pipefail
+
+          fail() { echo "::error::$1"; exit 1; }
+
+          [ -n "${NAURO_BOT_TOKEN:-}" ] || fail "NAURO_BOT_TOKEN is not set on this repository."
+          [ -n "${NAURO_CHAT_ID:-}" ]   || fail "NAURO_CHAT_ID is not set on this repository."
+
+          # 1. Is the token itself valid? getMe fails fast on a revoked token and
+          #    distinguishes "bad credential" from "cannot reach that chat".
+          me=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/getMe")
+          if [ "$(printf '%s' "$me" | jq -r '.ok')" != "true" ]; then
+            code=$(printf '%s' "$me" | jq -r '.error_code // "?"')
+            desc=$(printf '%s' "$me" | jq -r '.description // "no description"')
+            fail "Token rejected by Telegram (getMe ${code}): ${desc}. The secret exists but the bot behind it is not usable -- most likely revoked."
+          fi
+          bot=$(printf '%s' "$me" | jq -r '.result.username')
+          echo "Authenticated as @${bot}"
+
+          # 2. Can it actually reach the ops chat? A valid token that is not a
+          #    member of the target chat is just as dead for our purposes.
+          #    Plain text, no parse_mode: nothing here is trusted markup, and
+          #    an unescaped entity must never be able to fail a delivery check.
+          text="portaBaltica: Telegram delivery check passed.
+          bot=@${bot}
+          repo=${GITHUB_REPOSITORY}
+          run=${GITHUB_RUN_ID}"
+          [ -n "${NOTE:-}" ] && text="${text}
+          note=${NOTE}"
+
+          resp=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
+            --data-urlencode "text=${text}" \
+            --data-urlencode "disable_web_page_preview=true")
+
+          if [ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]; then
+            code=$(printf '%s' "$resp" | jq -r '.error_code // "?"')
+            desc=$(printf '%s' "$resp" | jq -r '.description // "no description"')
+            fail "sendMessage failed (${code}): ${desc}. Token is valid, so check that @${bot} is a member of chat ${NAURO_CHAT_ID} and has permission to post."
+          fi
+
+          msg_id=$(printf '%s' "$resp" | jq -r '.result.message_id')
+          chat_title=$(printf '%s' "$resp" | jq -r '.result.chat.title // .result.chat.username // .result.chat.id')
+          echo "Delivered message ${msg_id} to \"${chat_title}\"."
+          echo "### Telegram delivery verified" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- bot: \`@${bot}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- chat: \`${chat_title}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- message id: \`${msg_id}\`" >> "$GITHUB_STEP_SUMMARY"
