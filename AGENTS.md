@@ -207,6 +207,25 @@ not referenced in `main.bicep` yet.
 Free-tier Cosmos is **already consumed by golazo** — a subscription allows only
 one — so the newsroom uses blob storage for state, not Cosmos.
 
+### The `AZURE_OPENAI_KEY` repo secret is still live — do not delete it
+
+The newsroom pipeline uses managed identity and holds no key. That does **not**
+make the `AZURE_OPENAI_KEY` repo secret redundant:
+
+- It is consumed by `.github/workflows/copilot-triage.yml` for AI issue triage.
+  That runs on a GitHub Actions runner, which has no managed identity to use
+  instead.
+- It targets a **different account** — `gpt-4.1-nano` on
+  `oai-agents-s6vbks3oteo4y` (`rg-personal-agents`), not `foundrylab-aiservices`.
+  It could not target foundryLab: `disableLocalAuth: true` blocks keys there.
+
+The workflow fails **soft** (`if (!endpoint || !apiKey) { ...skipping...; return }`),
+so deleting the secret leaves the workflow green while triage silently stops.
+Retiring it properly means migrating that workflow to OIDC federated credentials
+first, and turning the soft-fail into a hard failure so a bad migration is
+visible.
+
+
 
 ## Conventions
 
