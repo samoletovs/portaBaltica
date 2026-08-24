@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
@@ -44,6 +45,13 @@ export function Header({ lastUpdated, activeSection, onSectionChange }: HeaderPr
               porta<span style={{ color: '#0ea5e9' }}>Baltica</span>
             </h1>
             <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic data intelligence</span>
+            <Link
+              to="/"
+              className="text-xs underline underline-offset-4"
+              style={{ color: 'var(--text-secondary)' }}
+            >
+              ← Front page
+            </Link>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
