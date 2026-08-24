@@ -28,6 +28,16 @@ on:
         description: "Optional note to include in the test message"
         required: false
         default: ""
+  # Also run whenever the notification path itself changes. This is the
+  # "encode the lesson as something that runs" rule: a channel that is only
+  # ever checked by hand is a channel nobody checks. Scoped by path so it
+  # costs nothing on ordinary commits and does not spam the ops chat.
+  push:
+    paths:
+      - ".github/workflows/telegram-check.yml"
+      - "newsroom/notify*"
+      - "newsroom/approval*"
+      - "api/approval/**"
 
 permissions:
   contents: read
