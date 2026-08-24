@@ -16,10 +16,16 @@ const IndicatorChart = lazy(() =>
 interface Props {
   /** Indicator id resolving to a live tile on /data. */
   indicatorId: string;
+  /**
+   * The country the article is about. Overrides the dashboard's country
+   * switcher, so a story about Estonia never renders Latvia's series
+   * underneath it.
+   */
+  country?: 'LV' | 'EE' | 'LT';
   caption?: string;
 }
 
-export function ChartEmbed({ indicatorId, caption }: Props) {
+export function ChartEmbed({ indicatorId, country, caption }: Props) {
   return (
     <figure className="news-border news-panel my-8 rounded-xl border p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -37,7 +43,7 @@ export function ChartEmbed({ indicatorId, caption }: Props) {
           <div className="news-skeleton h-64 animate-pulse rounded-lg" aria-label="Loading chart" />
         }
       >
-        <IndicatorChart id={indicatorId} />
+        <IndicatorChart id={indicatorId} country={country} />
       </Suspense>
 
       <figcaption className="news-subtle mt-2 text-xs leading-relaxed">

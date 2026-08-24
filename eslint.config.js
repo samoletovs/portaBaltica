@@ -6,7 +6,13 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Git worktrees are checked out under these paths during parallel work. Each
+  // carries its own tsconfig, and typescript-eslint refuses to guess between
+  // them: with a worktree present, every rule that needs type information
+  // fails to parse and lint reports hundreds of phantom errors across files
+  // nobody touched. Ignoring the checkouts and pinning the root below makes
+  // the result depend only on the working tree being linted.
+  globalIgnores(['dist', '.worktrees', '**/.worktrees/**']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -18,6 +24,9 @@ export default defineConfig([
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
 ])
