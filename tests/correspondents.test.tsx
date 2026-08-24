@@ -42,7 +42,7 @@ describe('renderByline', () => {
 });
 
 describe('correspondent registry', () => {
-  it('has five correspondents, all named after coastal landmarks', () => {
+  it('has five correspondents, each with a declared expertise', () => {
     expect(CORRESPONDENTS).toHaveLength(5);
     expect(CORRESPONDENTS.map((c) => c.id).sort()).toEqual([
       'akmensrags',
@@ -52,7 +52,13 @@ describe('correspondent registry', () => {
       'ristna',
     ]);
     CORRESPONDENTS.forEach((correspondent) => {
-      expect(correspondent.landmark.length).toBeGreaterThan(0);
+      // Expertise is what a reader is asked to trust the byline for, so an
+      // empty one is a correspondent with nothing to be held to.
+      expect(correspondent.expertise.length).toBeGreaterThan(0);
+      expect(correspondent.trainedOn.length).toBeGreaterThan(0);
+      // The names are invented people now, not places. What must never
+      // change is that the byline still says so.
+      expect(renderByline(correspondent)).toContain('AI correspondent');
     });
   });
 
@@ -94,8 +100,11 @@ describe('Correspondent bio page', () => {
   it('states plainly that the correspondent is an AI system, not a person', () => {
     renderBio('nida');
 
-    expect(screen.getByRole('heading', { name: 'Nida is not a person' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Ilze Bērziņa is not a person' })).toBeTruthy();
     expect(screen.getByText(/is an AI system/)).toBeTruthy();
+    // The names read as people now, so the denial has to be explicit rather
+    // than implied by an obviously non-human name.
+    expect(screen.getByText(/There is nobody of this name/)).toBeTruthy();
   });
 
   it('names the datasets it works from', () => {

@@ -69,6 +69,12 @@ class Persona:
     beat: str
     sections: tuple[str, ...]
     landmark: str | None = None
+    #: What this correspondent is oriented to look for. Competence, never
+    #: biography: it has not held a job or been anywhere, and describing it as
+    #: though it had is how a lived-experience claim reaches the prose.
+    expertise: tuple[str, ...] = ()
+    trained_on: str | None = None
+    country: str | None = None
     voice: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     @property
@@ -399,6 +405,9 @@ def _build_persona(entry: Any, *, index: int) -> Persona:
         beat=str(entry["beat"]),
         sections=tuple(str(section) for section in raw_sections),
         landmark=str(entry["landmark"]) if entry.get("landmark") is not None else None,
+        expertise=tuple(str(item) for item in (entry.get("expertise") or [])),
+        trained_on=str(entry["trained_on"]) if entry.get("trained_on") is not None else None,
+        country=str(entry["country"]) if entry.get("country") is not None else None,
         voice=MappingProxyType(dict(voice)),
     )
 

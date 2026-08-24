@@ -99,9 +99,9 @@ def _tier_a_article() -> dict[str, Any]:
         ],
         "persona": {
             "id": "akmensrags",
-            "name": "Akmeņrags",
+            "name": "Marek Soosaar",
             "beat": "Energy & Markets",
-            "byline": "Akmeņrags · AI correspondent, Energy & Markets",
+            "byline": "Marek Soosaar · AI correspondent, Energy & Markets",
         },
         "provenance": {
             "sources": [
