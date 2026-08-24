@@ -64,12 +64,33 @@ class ArticleStore:
             self._blob_failed = True
         return self._blob
 
+    @staticmethod
+    def blob_name_for(article: Article) -> str:
+        """Where an article is stored.
+
+        A PUBLISHED article lives at ``<slug>.json``, flat at the container
+        root, because that is the address the reader asks for: ``news-api.ts``
+        fetches ``${BASE}/${slug}.json`` and the route is ``/article/<slug>``.
+        A dated path would give every story a URL that depends on when it was
+        generated, and the frontend would 404 on all of them -- which is
+        exactly what happened: the front page listed two articles and both
+        links led to "Article not found", with the only clue a 404 in the
+        console reading "The specified blob does not exist".
+
+        Everything NOT published keeps a dated, status-prefixed path. Rejected
+        drafts are an audit trail, never reachable content, and grouping them
+        by day is how you review a bad afternoon.
+        """
+        if article.status == "published":
+            return f"{article.slug}.json"
+        return f"{article.status}/{article.created_at[:10]}/{article.slug}.json"
+
     async def put(self, article: Article) -> str:
         if article.status == "published" and not is_servable(article):
             raise NotServable(
                 f"{article.id} is marked published without a passing validator verdict"
             )
-        name = f"{article.status}/{article.created_at[:10]}/{article.slug}.json"
+        name = self.blob_name_for(article)
         body = json.dumps(article.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
         await asyncio.to_thread(self._write_local, name, body)
         container = self._container_client()

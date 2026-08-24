@@ -118,3 +118,35 @@ class TestTheIndexAccumulates:
         rejected.status = "rejected"
         asyncio.run(store.write_index([rejected]))
         assert read_index(tmp_path)["count"] == 0
+
+class TestPublishedArticlesLiveWhereTheReaderLooks:
+    """The blob path must equal the URL the frontend requests.
+
+    news-api.ts fetches `${BASE}/${slug}.json` and the route is
+    `/article/<slug>`. Storing a published article under a dated prefix made
+    every link on the front page 404 -- the list rendered, the headlines were
+    right, and every one of them led to "Article not found".
+    """
+
+    def test_a_published_article_is_addressable_by_slug_alone(self) -> None:
+        a = article("some-story", published_at="2026-08-24T10:00:00Z")
+        assert ArticleStore.blob_name_for(a) == "some-story.json"
+
+    def test_a_rejected_draft_keeps_a_dated_audit_path(self) -> None:
+        a = article("some-story", published_at="2026-08-24T10:00:00Z")
+        a.status = "rejected"
+        assert ArticleStore.blob_name_for(a) == "rejected/2026-08-24/some-story.json"
+
+    def test_a_pending_item_is_not_reachable_at_the_public_address(self) -> None:
+        a = article("some-story", published_at="2026-08-24T10:00:00Z")
+        a.status = "pending_approval"
+        name = ArticleStore.blob_name_for(a)
+        assert name != "some-story.json", "an unapproved item must not sit at the public URL"
+        assert name.startswith("pending_approval/")
+
+    def test_put_writes_a_published_article_at_the_flat_path(self, tmp_path) -> None:
+        store = ArticleStore(local_dir=tmp_path)
+        a = article("flat-path-story", published_at="2026-08-24T10:00:00Z")
+        name = asyncio.run(store.put(a))
+        assert name == "flat-path-story.json"
+        assert (tmp_path / "flat-path-story.json").exists()
