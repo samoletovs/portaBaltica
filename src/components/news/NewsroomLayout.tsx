@@ -14,18 +14,19 @@ export function NewsroomLayout() {
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <header className="news-border border-b pt-5 pb-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="news-subtle text-xs leading-relaxed">
-            Articles here are written by named AI correspondents from open data, checked against the
-            source before publishing, and edited by {ACCOUNTABLE_EDITOR}.{' '}
-            <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
-              What that means
-            </Link>
-          </p>
-          <nav aria-label="Newsroom information" className="flex gap-3 text-xs">
-            <Link className="news-link news-focus underline underline-offset-2" to="/correspondents">Correspondents</Link>
-            <Link className="news-link news-focus underline underline-offset-2" to="/corrections">Corrections</Link>
-            <Link className="news-link news-focus underline underline-offset-2" to="/about/ai">How we use AI</Link>
-          </nav>
+            <p className="news-subtle text-xs leading-relaxed">
+              Articles here are written by named AI correspondents from open data, checked against
+              the source before publishing, and edited by a disclosed AI editor;{' '}
+              {ACCOUNTABLE_EDITOR} is accountable for everything published here.{' '}
+              <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
+                What that means
+              </Link>
+            </p>
+            <nav aria-label="Newsroom information" className="flex gap-3 text-xs">
+              <Link className="news-link news-focus underline underline-offset-2" to="/correspondents">Correspondents</Link>
+              <Link className="news-link news-focus underline underline-offset-2" to="/corrections">Corrections</Link>
+              <Link className="news-link news-focus underline underline-offset-2" to="/about/ai">How we use AI</Link>
+            </nav>
           </div>
         </header>
 
