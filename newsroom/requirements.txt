@@ -1,0 +1,9 @@
+# Dependencies for the newsroom content-safety core.
+#
+# Deliberately tiny. This package is the gate every article passes through, it
+# must run standalone in CI, and it must be auditable — so no Azure SDK, no HTTP
+# client, nothing that could reach the network from inside a check.
+
+PyYAML>=6.0.1,<7
+jsonschema>=4.21,<5
+pytest>=8.0,<9
