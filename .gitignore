@@ -42,3 +42,11 @@ playwright-report/
 
 # Parallel-workstream git worktrees (see newsroom/README.md)
 .worktrees/
+
+# Python — the newsroom content-safety package
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
