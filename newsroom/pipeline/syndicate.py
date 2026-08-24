@@ -11,9 +11,9 @@ into :mod:`newsroom.pipeline.write`, which is the structural expression of
   unit defensible under DSM Art. 15 because the publisher themselves put it out
   for syndication.
 
-Both land in ``pending_approval`` and wait for a human on Telegram. Approval is
-a sibling workstream; the handoff contract is documented in
-:func:`pending_approval_queue`.
+Both land in ``pending_approval`` only long enough for the editor stage to judge
+the exact card. Routine approval no longer goes to Telegram; escalation is the
+only human interruption path.
 """
 
 from __future__ import annotations
@@ -153,12 +153,14 @@ def syndicate(
 
 
 def pending_approval_queue(cards: Sequence[Article]) -> list[dict[str, object]]:
-    """The handoff to the Telegram approval workstream.
+    """Legacy handoff shape for tests and manual inspection.
 
     One dict per card, carrying only what an approver needs to make a decision:
     what it is, who published it, the exact text we would reproduce, and the
     link. The approver's job is to say yes or no — never to edit the text, since
-    editing is precisely the rewriting the licence forbids.
+    editing is precisely the rewriting the licence forbids. In the normal timer
+    run, :mod:`newsroom.pipeline.editor` consumes these cards before publication
+    instead of handing routine approvals to Sam.
     """
     queue = []
     for card in cards:

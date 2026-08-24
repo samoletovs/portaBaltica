@@ -40,7 +40,7 @@ import logging  # noqa: E402
 
 import azure.functions as func  # noqa: E402
 
-from newsroom.pipeline.run import approval_queue, run_once  # noqa: E402
+from newsroom.pipeline.run import run_once  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -68,13 +68,6 @@ async def newsroom_edition(timer: func.TimerRequest) -> None:
     for error in report.errors:
         log.error("edition error: %s", error)
 
-    queue = approval_queue(report)
-    if queue:
-        # Handed to the Telegram approval workstream. Logged as a single JSON
-        # line so it is queryable in Application Insights until that consumer
-        # exists.
-        log.info("pending_approval_queue %s", json.dumps(queue, ensure_ascii=False))
-
 
 @app.function_name(name="newsroom_run_now")
 @app.route(route="newsroom/run", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
@@ -87,7 +80,7 @@ async def newsroom_run_now(req: func.HttpRequest) -> func.HttpResponse:
                 "summary": report.summary(),
                 "published": [a.slug for a in report.published],
                 "rejected": [a.slug for a in report.rejected],
-                "pending_approval": len(approval_queue(report)),
+                "editor_decisions": [decision.to_dict() for decision in report.edited],
                 "errors": report.errors,
             },
             ensure_ascii=False,

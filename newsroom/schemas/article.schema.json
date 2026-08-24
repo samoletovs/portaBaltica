@@ -17,7 +17,7 @@
 
     "status": {
       "enum": ["draft", "pending_approval", "published", "rejected", "corrected", "retracted"],
-      "description": "Tier A goes draft -> published automatically once the validator passes. Tier B and C must pass through pending_approval."
+      "description": "Tier A goes draft -> published automatically once the validator passes. Tier B and C pass through pending_approval inside the pipeline, then the AI editor approves, rejects or escalates."
     },
 
     "section": {
@@ -61,7 +61,7 @@
       "description": "Absent on tier B and C, which carry no byline because we did not write them.",
       "required": ["id", "name", "beat"],
       "properties": {
-        "id": { "enum": ["nida", "akmensrags", "kolka", "ristna", "irbene"] },
+        "id": { "enum": ["nida", "akmensrags", "kolka", "ristna", "irbene", "saulkrasti"] },
         "name": { "type": "string" },
         "beat": { "type": "string" },
         "byline": {
@@ -151,6 +151,21 @@
         "approved_by": { "type": "string", "description": "Set for tier B and C after Telegram approval." },
         "approved_at": { "type": "string", "format": "date-time" },
         "accountable_editor": { "type": "string", "default": "Sam Samoletovs" },
+        "editor": {
+          "type": "object",
+          "description": "AI editor decision for tier B and C material. This is a judgement layer on top of the validator, never a bypass.",
+          "required": ["prompt_version", "decision", "reason", "editor", "decided_at"],
+          "additionalProperties": false,
+          "properties": {
+            "prompt_version": { "type": "string" },
+            "decision": { "enum": ["approve", "reject", "escalate"] },
+            "reason": { "type": "string" },
+            "editor": { "type": "string" },
+            "decided_at": { "type": "string", "format": "date-time" },
+            "model": { "type": "string" },
+            "notified_accountable_editor": { "type": "boolean" }
+          }
+        },
 
         "validator": {
           "type": "object",

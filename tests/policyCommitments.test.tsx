@@ -6,9 +6,11 @@ import aiUseSource from '../newsroom/policy/ai-use.md?raw';
 import correctionsSource from '../newsroom/policy/corrections.md?raw';
 import AiPolicyPage from '../src/components/news/AiPolicyPage';
 import CorrectionsPage from '../src/components/news/CorrectionsPage';
+import { NewsroomLayout } from '../src/components/news/NewsroomLayout';
 import { CorrespondentAvatar } from '../src/components/news/CorrespondentAvatar';
 import { Byline } from '../src/components/news/Byline';
 import { CORRESPONDENTS, renderByline } from '../src/newsroom/correspondents';
+import { ACCOUNTABLE_EDITOR } from '../src/newsroom/editorial';
 
 /**
  * The policy is published, so these are not style preferences — they are
@@ -134,6 +136,20 @@ describe('/about/ai renders the published policy, not a paraphrase of it', () =>
 
     expect(text).not.toContain('What the correspondents never do');
     expect(text).not.toContain('The gate');
+  });
+});
+
+describe('newsroom masthead disclosure', () => {
+  it('distinguishes AI editing from human accountability above the fold', () => {
+    const { container } = renderPage(<NewsroomLayout />);
+    const text = container.textContent ?? '';
+
+    expect(text).toContain('edited by a disclosed AI editor');
+    expect(text).toContain(`${ACCOUNTABLE_EDITOR} is accountable for everything published here`);
+    expect(text).not.toContain(`edited by ${ACCOUNTABLE_EDITOR}`);
+    expect(screen.getByRole('link', { name: 'What that means' }).getAttribute('href')).toBe(
+      '/about/ai',
+    );
   });
 });
 

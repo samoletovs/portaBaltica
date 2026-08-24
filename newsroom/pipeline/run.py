@@ -19,6 +19,7 @@ from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.detect import Threshold, detect_all
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
+from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
 from newsroom.pipeline.publish import ArticleStore
 from newsroom.pipeline.rank import RankingReport, rank
 from newsroom.pipeline.research import ResearchContext, research_selected
@@ -56,6 +57,7 @@ class RunReport:
     ranking: RankingReport | None = None
     generated: list[GenerationResult] = field(default_factory=list)
     syndicated: list[Article] = field(default_factory=list)
+    edited: list[EditorOutcome] = field(default_factory=list)
     research: dict[str, ResearchContext] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
@@ -72,7 +74,8 @@ class RunReport:
             f"{len(self.series)} series, {len(self.signals)} signals, "
             f"{len(self.ranking.selected) if self.ranking else 0} selected, "
             f"{len(self.published)} published, {len(self.rejected)} rejected, "
-            f"{len(self.syndicated)} syndicated cards, {len(self.errors)} error(s)"
+            f"{len(self.syndicated)} syndicated cards, {len(self.edited)} editor decisions, "
+            f"{len(self.errors)} error(s)"
         )
 
 
@@ -194,6 +197,11 @@ async def run_once(
         # --- tier B/C ----------------------------------------------------
         if include_syndication and feed_items:
             report.syndicated = syndicate(feed_items, raw_descriptions=raw_descriptions)
+            try:
+                report.edited = edit_syndicated_articles(report.syndicated, writer)
+            except Exception as exc:  # noqa: BLE001
+                log.exception("editor stage failed")
+                report.errors.append(f"editor: {exc}")
 
         # --- 7. publish ---------------------------------------------------
         await _store_all(store, report)

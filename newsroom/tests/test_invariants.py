@@ -99,6 +99,21 @@ def test_the_registry_default_for_rewriting_is_denial(raw_sources: dict[str, Any
     assert raw_sources["defaults"]["rewrite_allowed"] is False
 
 
+def test_tier_b_and_c_sources_do_not_recreate_a_human_approval_queue(
+    raw_sources: dict[str, Any],
+) -> None:
+    offenders = [
+        entry.get("id")
+        for entry in raw_sources["sources"]
+        if entry.get("tier") in {"B", "C"} and entry.get("requires_human_approval") is not False
+    ]
+
+    assert offenders == [], (
+        f"tier B/C sources still require human approval: {offenders}. "
+        "The editor agent handles routine decisions; Sam is interrupted only for escalation."
+    )
+
+
 def test_every_tier_c_source_is_pinned_to_the_outlets_own_rss_snippet(
     registry: SourceRegistry,
 ) -> None:

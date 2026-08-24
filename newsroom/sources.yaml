@@ -38,7 +38,7 @@ version: 1
 
 defaults:
   rewrite_allowed: false
-  requires_human_approval: true
+  requires_human_approval: false
   cache_ttl_minutes: 60
 
 sources:
@@ -156,7 +156,7 @@ sources:
     licence: "EU Decision 2011/833/EU — reproduction permitted, source acknowledged, content not distorted"
     attribution: "Source: European Commission"
     rewrite_allowed: false     # permitted, but we choose verbatim: no distortion risk
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
@@ -173,7 +173,7 @@ sources:
     licence: "EU Decision 2011/833/EU — free reuse with attribution"
     attribution: "Source: European Parliament"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
@@ -191,7 +191,7 @@ sources:
     licence: "Official primary-source material; research context with attribution only"
     attribution: "Source: Latvijas Banka"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
@@ -214,7 +214,7 @@ sources:
     licence: "Copyright LSM. No open reuse licence. RSS snippet + link only."
     attribution: "LSM.lv English"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
@@ -236,7 +236,7 @@ sources:
     licence: "Copyright ERR, declared in feed. RSS snippet + link only."
     attribution: "ERR News"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
@@ -254,7 +254,7 @@ sources:
     licence: "Copyright. No open licence located. RSS snippet + link only."
     attribution: "The Baltic Times"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
@@ -271,7 +271,7 @@ sources:
     licence: "Copyright. RSS snippet + link only."
     attribution: "Emerging Europe"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
@@ -292,7 +292,7 @@ sources:
     licence: "Copyright, commercial publisher. RSS snippet + link only."
     attribution: "Delfi"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
@@ -311,7 +311,7 @@ sources:
     licence: "Copyright. RSS snippet + link only."
     attribution: "EUobserver"
     rewrite_allowed: false
-    requires_human_approval: true
+    requires_human_approval: false
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
