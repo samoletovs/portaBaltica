@@ -17,11 +17,29 @@ on:
       - '.gitignore'
       - 'LICENSE'
 
-# Serialize deploys per ref so a burst of merges (e.g. Dependabot) cancels older
-# in-progress runs gracefully instead of racing into Azure SWA ("Deployment Canceled").
+# Serialize deploys so a burst of merges cannot race into Azure SWA
+# ("Deployment Canceled"). Serialization is the goal; cancelling is not.
+#
+# The group is keyed on the event as well as the ref. Merging a PR fires a
+# `push` to master and a `pull_request: closed` in the same second, and with a
+# ref-only key those two runs evicted each other. The push run is the only one
+# that deploys production, and it lost the race twice on 2026-08-24 — cancelled
+# 2 and 3 seconds after creation, before a single job started:
+#
+#   7b180bd (#18)  created 13:36:11  cancelled 13:36:13
+#   e5aae8f (#22)  created 13:58:32  cancelled 13:58:35
+#
+# Both merges reported fully green while production kept serving the previous
+# build. Nothing anywhere turned red, because a cancelled run is not a failed
+# one. #18 shipped only after someone noticed the deployed API still answering
+# with the old version and re-ran the job by hand.
+#
+# `cancel-in-progress` is therefore false for pushes: consecutive master
+# deploys queue and every merged commit reaches production. Pull request runs
+# still cancel when superseded, which is where the Actions minutes actually go.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   # ── Quality Gate ────────────────────────────────────────────────────
