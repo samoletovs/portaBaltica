@@ -142,7 +142,13 @@ newsroom/
 ├── sources.yaml               # source registry: licence, tier, rewrite_allowed
 ├── schemas/
 │   └── article.schema.json    # the publication contract
-└── (python package — pipeline workstream)
+├── source_registry.py         # loads sources.yaml; refuses a loosened contract
+├── persona_rules.py           # bylines, routing, forbidden-claim detection
+├── fencing.py                 # nonce-delimited fencing for untrusted feed text
+├── numeric_scan.py            # numeric tokenising for no_invented_numbers
+├── validator.py               # the gate: every check in the schema enum
+├── requirements.txt           # pyyaml, jsonschema, pytest — no Azure SDK
+└── tests/                     # negative fixtures first; see test_invariants.py
 
 api/                           # existing SWA managed functions (dashboard)
 src/                           # React frontend; news routes + /data dashboard
