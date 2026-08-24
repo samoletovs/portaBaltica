@@ -18,9 +18,14 @@ export default defineConfig({
         // library in order to get `useState`. Splitting React out instead lets
         // recharts fall into the lazily-loaded chunks that actually use it.
         //
-        // Measured with `node scripts/route-weight.mjs` after a build:
+        // Measured with `node scripts/route-weight.mjs`, both arms in one build:
         //   with the charts rule    /  = 654 kB    /data = 716 kB
         //   with this rule          /  = 255 kB    /data = 717 kB
+        //
+        // The /data figure tracks the dashboard and drifts as tiles are added —
+        // it is 727 kB since the PowerMarketCard chart arrived in #18. The pair
+        // above is what matters: ~400 kB the news routes stopped paying, which
+        // has not moved.
         //
         // Re-run that script before changing anything here.
         manualChunks(id: string) {
