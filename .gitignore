@@ -39,3 +39,6 @@ playwright-report/
 
 # IDE
 .vscode/
+
+# Parallel-workstream git worktrees (see newsroom/README.md)
+.worktrees/
