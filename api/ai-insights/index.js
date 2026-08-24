@@ -61,12 +61,45 @@ module.exports = async function (context, req) {
     };
     var capital = capitalCoords[country] || capitalCoords.lv;
 
+    // Start every upstream fetch before awaiting any of them.
+    //
+    // These four calls were previously awaited one after another, each with
+    // its own 10-15s timeout, so a single slow upstream delayed all the
+    // others and the worst case was the SUM of the timeouts (~55s) rather
+    // than the longest one. That is what made /api/ai-insights intermittently
+    // time out on a cold cache, and why tests/api-contracts.test.ts fails
+    // against production when the 15s client budget expires first.
+    //
+    // The calls are independent, so kicking them all off here makes the worst
+    // case the slowest single upstream (~15s). Each result is still consumed
+    // inside its own try/catch below, so one failing source degrades that one
+    // insight instead of the whole response.
+    var now = new Date();
+    var dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
+    var dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+
+    var eleringPromise = jsonGet(
+      ELERING_URL + '?start=' + dayStart.toISOString() + '&end=' + dayEnd.toISOString()
+    );
+    var ecbPromise = httpGetText(ECB_URL);
+    var airPromise = jsonGet(
+      OPEN_METEO_AQ + '?latitude=' + capital.lat + '&longitude=' + capital.lon +
+      '&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=' + capital.tz
+    );
+    var weatherPromise = jsonGet(
+      OPEN_METEO_WX + '?latitude=' + capital.lat + '&longitude=' + capital.lon +
+      '&current=temperature_2m,wind_speed_10m,weather_code&timezone=' + capital.tz
+    );
+
+    // Attach a no-op catch to each so a rejection that is not awaited until
+    // later cannot surface as an unhandled rejection and take down the worker.
+    [eleringPromise, ecbPromise, airPromise, weatherPromise].forEach(function (p) {
+      p.catch(function () { /* handled at the await site below */ });
+    });
+
     // 1. Electricity prices from Elering
     try {
-      var now = new Date();
-      var start = new Date(now); start.setUTCHours(0, 0, 0, 0);
-      var end = new Date(start); end.setDate(end.getDate() + 1);
-      var elData = await jsonGet(ELERING_URL + '?start=' + start.toISOString() + '&end=' + end.toISOString());
+      var elData = await eleringPromise;
       var prices = (elData.data && elData.data[zone]) || [];
       if (prices.length > 0) {
         var avg = prices.reduce(function (s, p) { return s + p.price; }, 0) / prices.length;
@@ -88,7 +121,7 @@ module.exports = async function (context, req) {
 
     // 2. ECB exchange rates
     try {
-      var xml = await httpGetText(ECB_URL);
+      var xml = await ecbPromise;
       var usdMatch = xml.match(/currency='USD' rate='([\d.]+)'/);
       if (usdMatch) {
         var usdRate = parseFloat(usdMatch[1]);
@@ -98,7 +131,7 @@ module.exports = async function (context, req) {
 
     // 3. Air quality
     try {
-      var aqData = await jsonGet(OPEN_METEO_AQ + '?latitude=' + capital.lat + '&longitude=' + capital.lon + '&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=' + capital.tz);
+      var aqData = await airPromise;
       var aqCurrent = aqData.current || {};
       var aqi = aqCurrent.european_aqi || 0;
       var pm25 = aqCurrent.pm2_5 || 0;
@@ -108,7 +141,7 @@ module.exports = async function (context, req) {
 
     // 4. Weather
     try {
-      var wxData = await jsonGet(OPEN_METEO_WX + '?latitude=' + capital.lat + '&longitude=' + capital.lon + '&current=temperature_2m,wind_speed_10m,weather_code&timezone=' + capital.tz);
+      var wxData = await weatherPromise;
       var wxCurrent = wxData.current || {};
       var temp = wxCurrent.temperature_2m || 0;
       var wind = wxCurrent.wind_speed_10m || 0;
