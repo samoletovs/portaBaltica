@@ -1,17 +1,24 @@
 name: portaBaltica
-purpose: "Bloomberg-style Baltic open data intelligence dashboard — real-time economy, trade, energy (LV, EE, LT)"
-users: "Data analysts, government watchers, business intelligence professionals"
+purpose: "Baltic news portal — original data journalism generated from open government and EU data, written by disclosed AI correspondents"
+users: "Anyone following the Baltic region in English — analysts, journalists, investors, expatriates, policy watchers"
 stage: active
 goals:
-  - "Aggregate 30+ real-time indicators from 6+ data sources"
-  - "Cross-country comparison (LV, EE, LT)"
-  - "AI-generated insights from live data"
-  - "Dark ocean theme with custom color palette"
-  - "API docs with pricing tiers"
+  - "Publish 3-8 original data-journalism articles a day, only when the data warrants it"
+  - "Every figure traceable to a named dataset and retrieval timestamp"
+  - "Five AI correspondents with distinct beats and voices, always disclosed as AI"
+  - "Reproduce official EU/government press releases verbatim under open licence"
+  - "Link out to third-party journalism, never rewrite it"
+  - "Cross-country coverage (LV, EE, LT), with the live dashboard as supporting evidence at /data"
+  - "Run entirely on Azure for ~EUR 3-5/month"
+non_goals:
+  - "News aggregation — EU DSM Art. 15 and Google's scaled-content-abuse policy independently rule it out"
+  - "AI-paraphrasing other outlets' articles, in any language"
+  - "Machine-translating local-language outlets (a derivative work AND named in Google's spam policy)"
+  - "Filler on quiet days to hit a publication quota"
 similar:
-  - "Bloomberg Terminal"
-  - "Eurostat dashboards"
-  - "Trading platforms"
+  - "Associated Press automated earnings stories"
+  - "Reuters data journalism"
+  - "ERR News / LSM English"
 quality:
   - tests
   - ci-cd
