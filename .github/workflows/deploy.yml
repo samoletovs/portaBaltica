@@ -80,6 +80,18 @@ jobs:
           node-version: 22
 
       - name: Install & build frontend
+        env:
+          # The published articles live in the `articles` blob container, which
+          # the newsroom Function writes to on a timer. The browser fetches them
+          # directly: Static Web Apps cannot proxy a route to an external host,
+          # and SWA Free cannot hold a managed identity to read the blob on the
+          # reader's behalf, so a same-origin path is not available to us.
+          #
+          # Only this container is anonymously readable, and only for GET/HEAD.
+          # `raw-feeds` and `approvals` stay private, and the account keeps
+          # allowSharedKeyAccess=false. Published journalism is public by
+          # definition; the archive and the approval queue are not.
+          VITE_ARTICLES_BASE_URL: https://stportabalticabpmff5so.blob.core.windows.net/articles
         run: npm ci && npm run build
 
       - name: Install API deps
