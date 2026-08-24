@@ -95,6 +95,33 @@ jobs:
           api_location: api
           skip_app_build: true
 
+      # Live smoke tests run HERE, against what was just deployed — not in the
+      # PR gate, where they only measured production's latency from a runner
+      # and could fail a correct change because a Free-tier Function was cold.
+      #
+      # continue-on-error because this reports on the deployment rather than
+      # gating it: the code is already live, so failing the job would not roll
+      # anything back, it would only make the notification below say "deploy
+      # FAILED" when the deploy in fact succeeded. The step's own red mark
+      # carries the signal, and the summary line below states it plainly.
+      - name: Live smoke tests
+        id: smoke
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: npm run test:live
+
+      - name: Report smoke result
+        if: github.event_name == 'push'
+        run: |
+          if [ "${{ steps.smoke.outcome }}" = "success" ]; then
+            echo "Live smoke tests passed against the deployment." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Live smoke tests FAILED after deploy" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "The code is live. Something it depends on is not answering." >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the endpoints before assuming the release is healthy." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Notify Telegram (success)
         if: success() && github.event_name == 'push'
         env:
