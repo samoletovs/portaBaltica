@@ -19,6 +19,32 @@ from newsroom.pipeline.models import Article, isoformat, utcnow
 
 log = logging.getLogger(__name__)
 
+#: How long a reader's browser may reuse a copy without asking.
+#:
+#: Both were previously written with no content settings at all, so Azure
+#: served them as `application/octet-stream` with no `Cache-Control`. Browsers
+#: fall back to heuristic caching in that case, and a front page pinned to a
+#: stale index is a serious defect for a news site specifically: the portal
+#: kept showing articles and correspondent names that had since been replaced,
+#: which read as "the site is broken" rather than "your cache is old".
+#:
+#: The index is the freshness-critical document — it is what the front page
+#: reads — so it gets a short window and must revalidate. Individual articles
+#: are effectively immutable once published (a correction changes the file, but
+#: that is rare and the index links it), so they can be cached longer.
+_INDEX_CACHE_CONTROL = "public, max-age=60, must-revalidate"
+_ARTICLE_CACHE_CONTROL = "public, max-age=300"
+
+
+def _content_settings(cache_control: str) -> Any:
+    """Built lazily: the Azure SDK is not a dependency of the local-only path."""
+    from azure.storage.blob import ContentSettings
+
+    return ContentSettings(
+        content_type="application/json; charset=utf-8",
+        cache_control=cache_control,
+    )
+
 
 class NotServable(RuntimeError):
     """Raised when something tries to publish an unvalidated article."""
@@ -101,6 +127,7 @@ class ArticleStore:
                     name=name,
                     data=body,
                     overwrite=True,
+                    content_settings=_content_settings(_ARTICLE_CACHE_CONTROL),
                 )
             except Exception as exc:  # noqa: BLE001
                 log.warning("blob write failed for %s (%s)", name, exc)
@@ -251,7 +278,11 @@ class ArticleStore:
         if container is not None:
             try:
                 await asyncio.to_thread(
-                    container.upload_blob, name="index.json", data=body, overwrite=True
+                    container.upload_blob,
+                    name="index.json",
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(_INDEX_CACHE_CONTROL),
                 )
             except Exception as exc:  # noqa: BLE001
                 log.warning("index blob write failed (%s)", exc)
