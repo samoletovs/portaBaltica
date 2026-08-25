@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Callable, Sequence
 
 from newsroom.pipeline.collect.archive import RawArchive
 from newsroom.pipeline.collect.httpclient import CollectorHttp
@@ -177,6 +177,55 @@ def apply_house_style(article: Article) -> list[str]:
     return notes
 
 
+def _revision_for(
+    generated: GenerationResult, writer: LlmWriter, report: RunReport
+) -> Callable[[Article, Sequence[str]], Article | None]:
+    """Turn the desk's notes back into a draft.
+
+    Without this the desk's "revise" verdict was a decision with no
+    consequence. ``run_desk`` accepts a revision callback and holds the article
+    whenever one is not supplied, and the production run never supplied one, so
+    six of eight articles in a live run were sent back to a writer that was
+    never asked to rewrite them.
+
+    The rewrite goes through ``generate_article``, so it faces the identical
+    validator at the identical zero tolerance. The desk can still only narrow
+    what publishes: a revision that fails the gate returns ``None`` and the
+    article is held.
+    """
+
+    def revise(article: Article, notes: Sequence[str]) -> Article | None:
+        try:
+            revised = generate_article(
+                generated.signal,
+                writer,
+                research=report.research.get(generated.signal.id),
+                editor_notes=tuple(notes),
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.exception("revision failed for %s", article.id)
+            report.errors.append(f"revise {article.id}: {exc}")
+            return None
+
+        if not revised.publishable:
+            log.info(
+                "revision of %s did not pass the gate: %s",
+                article.id,
+                revised.verdict.failure_summary() or "failed shape checks",
+            )
+            return None
+
+        for note in apply_house_style(revised.article):
+            report.style_notes.append(note)
+        # Keep the identity stable so the audit trail, the slug and any
+        # correction filed against this piece still refer to one article.
+        revised.article.id = article.id
+        revised.article.slug = article.slug
+        return revised.article
+
+    return revise
+
+
 async def run_once(
     *,
     writer: LlmWriter | None = None,
@@ -267,8 +316,15 @@ async def run_once(
                     generated.article,
                     writer,
                     style_notes=report.style_notes,
+                    revise=_revision_for(generated, writer, report),
                 )
                 report.desk.append(outcome)
+                # The desk rewrites in place through the callback, so the piece
+                # that publishes must be the rewritten one. Publishing
+                # generated.article here would ship the draft the editor had
+                # just sent back.
+                if outcome.revised_article is not None:
+                    generated.article = outcome.revised_article
                 log.info(
                     "desk %s %s: %s",
                     outcome.action.value,
