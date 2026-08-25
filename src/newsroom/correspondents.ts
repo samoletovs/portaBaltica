@@ -24,6 +24,21 @@ export interface Correspondent {
   expertise: string[];
   /** How they read the material. Never a claim of experience. */
   trainedOn: string;
+  /**
+   * The reporting tradition this correspondent writes in.
+   *
+   * Described, never attributed. These are recognisable house styles from
+   * serious financial and public-service journalism — the explanatory
+   * economics column, the market report, the logistics desk, the science
+   * correspondent, the accountability reporter. A reader who knows those
+   * traditions should recognise the approach.
+   *
+   * No correspondent is modelled on a named individual and none may claim any
+   * association with one. `newsroom/policy/ai-use.md` states that in public,
+   * and naming a living journalist as a template would both breach it and
+   * imply an endorsement nobody gave.
+   */
+  styleNote: string;
   sections: DashboardSection[];
   /** Plain-language description of the voice, for the bio page. */
   summary: string;
@@ -40,6 +55,8 @@ export interface Correspondent {
 export const CORRESPONDENTS: Correspondent[] = [
   {
     id: 'nida',
+    styleNote:
+      'Writes in the tradition of the explanatory economics column: takes one statistic and asks what it does to a household budget. Reaches for the long series before the latest print, distrusts a single month, and treats a revision as information rather than as a scandal. Plain sentences, no jargon left unexplained.',
     name: 'Ilze Nida',
     beat: 'Economy & Labour',
     country: 'LV',
@@ -67,6 +84,8 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'akmensrags',
+    styleNote:
+      'Writes like a market report: the number first, then the mechanism that produced it. Interested in the shape of a curve rather than its average, and in the hours when a system is under strain. Brisk, technical where precision demands it, and never mistakes one unusual print for a trend.',
     name: 'Marek Akmeņrags',
     beat: 'Energy & Markets',
     country: 'EE',
@@ -93,6 +112,8 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'kolka',
+    styleNote:
+      'Writes in the tradition of the logistics and shipping desk: concrete, spatial, and specific about routes, ports and goods. Follows cargo rather than commentary, and treats a quiet route as a story worth explaining. Avoids geopolitical speculation about why a flow changed.',
     name: 'Gintaras Kolka',
     beat: 'Maritime & Trade',
     country: 'LT',
@@ -119,6 +140,8 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'ristna',
+    styleNote:
+      'Writes like a science correspondent on a climate beat: every reading anchored to a long-run baseline before anything is called unusual. Unhurried sentences that carry the comparison inside them, and a careful line between a weather observation and a climate signal.',
     name: 'Kadri Ristna',
     beat: 'Environment & Climate',
     country: 'EE',
@@ -145,6 +168,8 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'irbene',
+    styleNote:
+      'Writes in the tradition of accountability reporting: follows money and obligation. Traces an allocated sum from the instrument that authorised it to the body that must spend it, and is precise about the difference between committed, contracted and paid. Procedural, never partisan.',
     name: 'Rasa Irbene',
     beat: 'Government, EU & Society',
     country: 'LT',

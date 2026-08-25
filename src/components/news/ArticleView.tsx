@@ -203,7 +203,7 @@ export function ArticleView({ article }: { article: Article }) {
                     year: 'numeric',
                   })}
                 </time>
-                {' — '}
+                {': '}
                 {correction.description}
                 {correction.previous_value && (
                   <span className="block text-xs">

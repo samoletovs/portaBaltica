@@ -31,8 +31,8 @@ export default function CorrespondentPage() {
 
   usePageMeta({
     title: correspondent
-      ? `${correspondent.name} — AI correspondent, ${correspondent.beat} — portaBaltica`
-      : 'Correspondents — portaBaltica',
+      ? `${correspondent.name}, AI correspondent, ${correspondent.beat} | portaBaltica`
+      : 'The newsroom | portaBaltica',
     description: correspondent
       ? `${correspondent.name} is an AI system that writes portaBaltica's ${correspondent.beat} coverage from open data. Not a person.`
       : undefined,
@@ -96,7 +96,7 @@ export default function CorrespondentPage() {
           {correspondent.name} is not a person
         </h2>
         <p className="news-warning mt-2 text-sm leading-relaxed">
-          {correspondent.name} is an AI system — a language model writing to a fixed brief, not a
+          {correspondent.name} is an AI system: a language model writing to a fixed brief, not a
           journalist, not a pen name for one, and not a real individual. There is nobody of this
           name. The name is invented, the expertise below describes what this correspondent is built
           to look for, and it has never held a job, studied anywhere or been anywhere.
@@ -127,6 +127,12 @@ export default function CorrespondentPage() {
           The beat
         </h2>
         <p className="news-muted mt-2 text-[17px] leading-relaxed">{correspondent.summary}</p>
+        <div className="news-border news-panel mt-4 rounded-lg border px-4 py-3">
+          <h3 className="news-subtle text-xs font-medium uppercase tracking-widest">
+            How this one writes
+          </h3>
+          <p className="news-muted mt-1.5 text-sm leading-relaxed">{correspondent.styleNote}</p>
+        </div>
         <dl className="mt-4 space-y-2 text-sm">
           <div>
             <dt className="news-subtle inline">Notices first: </dt>

@@ -105,7 +105,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
       <div className="space-y-6 px-5 py-4">
         <p className="news-muted text-[13px] leading-relaxed">
           This record was written automatically as the article was produced. Open any dataset below
-          and you can check the figures for yourself — that is what it is here for.
+          and you can check the figures for yourself. That is what it is here for.
         </p>
 
         <div>
@@ -196,7 +196,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               Why this story exists
             </h3>
             <p className="news-muted text-[13px] leading-relaxed">
-              A deterministic detector — not a model — flagged this change as newsworthy and
+              A deterministic detector, not a model, flagged this change as newsworthy and
               triggered the story.
             </p>
             <p className="news-subtle mt-1 font-mono text-xs">{signal_id}</p>
@@ -209,7 +209,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           </h3>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <Field label="Model">
-              <span className="font-mono text-xs">{model ?? 'None — not generated'}</span>
+              <span className="font-mono text-xs">{model ?? 'None. Not generated'}</span>
             </Field>
             {prompt_version && (
               <Field label="Prompt version">
@@ -259,7 +259,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 </span>
                 <span className="news-muted">
                   {CHECK_LABELS[check.name] ?? check.name}
-                  <span className="sr-only">{check.passed ? ' — passed' : ' — failed'}</span>
+                  <span className="sr-only">{check.passed ? ': passed' : ': failed'}</span>
                   {check.detail && (
                     <span className="news-subtle block text-xs">{check.detail}</span>
                   )}
@@ -270,7 +270,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           <p className="news-subtle mt-3 text-xs leading-relaxed">
             Checked{' '}
             <time dateTime={validator.checked_at}>{formatTimestamp(validator.checked_at)}</time>. An
-            article that fails any check is not published — the system fails closed.
+            article that fails any check is not published. The system fails closed.
           </p>
         </details>
       </div>
