@@ -18,9 +18,10 @@ from newsroom.pipeline.detect import (
     detect_seasonal_deviation,
     detect_sharp_move,
     detect_streak,
+    detect_structural_divergence,
     detect_threshold_cross,
 )
-from newsroom.tests.pipeline.conftest import monthly_periods, series_from
+from newsroom.tests.pipeline.conftest import monthly_periods, quarterly_periods, series_from
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +214,235 @@ class TestDivergence:
         }
 
         assert detect_divergence(group) is None
+
+
+# ---------------------------------------------------------------------------
+# Structural divergence — sustained and widening
+# ---------------------------------------------------------------------------
+class TestStructuralDivergence:
+    """The slow story that ``detect_divergence`` is built to ignore.
+
+    Latvia's services surplus and Lithuania's were within a few hundred million
+    euro of one another in 2010 and eight billion apart by 2025. No quarter in
+    that run was remarkable on its own, which is exactly why the spread-based
+    detector cannot see it — and why this one exists.
+    """
+
+    @staticmethod
+    def _group(lv, ee, lt, *, metric="services_balance", chart_ref=None):
+        periods = quarterly_periods(len(lv))
+        return {
+            geo: series_from(
+                values,
+                geography=geo,
+                periods=periods,
+                metric=metric,
+                metric_label="the services balance",
+                unit="million EUR",
+                section="trade",
+                frequency="quarterly",
+                chart_ref=chart_ref,
+            )
+            for geo, values in (("LV", lv), ("EE", ee), ("LT", lt))
+        }
+
+    #: A gap that opens early and compounds: LV flat, LT climbing away.
+    @staticmethod
+    def _widening(n=24):
+        return (
+            [300 + 8 * i for i in range(n)],
+            [340 + 10 * i for i in range(n)],
+            [250 + 95 * i for i in range(n)],
+        )
+
+    # -- fires ---------------------------------------------------------------
+    def test_should_signal_when_a_gap_opens_and_keeps_widening(self):
+        lv, ee, lt = self._widening()
+
+        signal = detect_structural_divergence(self._group(lv, ee, lt))
+
+        assert signal is not None
+        assert signal.detector == "structural_divergence"
+        assert signal.geography == "Baltic"
+        assert signal.context["highest_geography"] == "LT"
+        assert signal.context["lowest_geography"] == "LV"
+        assert signal.context["direction"] == "widening"
+        assert signal.fields["widening_ratio"] > 1.5
+
+    def test_should_report_how_long_the_ordering_has_held(self):
+        # "Structural" is a claim about duration, so the duration is counted
+        # and published rather than implied by the detector's name.
+        lv, ee, lt = self._widening()
+
+        signal = detect_structural_divergence(self._group(lv, ee, lt))
+
+        assert signal is not None
+        assert signal.fields["sustained_periods"] >= 8
+
+    def test_should_signal_when_the_ordering_has_inverted(self):
+        # The strongest form: the country now furthest ahead used to be behind.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[1000.0] * 24,
+                ee=[700.0] * 24,
+                lt=[400 + 70 * i for i in range(24)],
+            )
+        )
+
+        assert signal is not None
+        assert signal.context["direction"] == "inverted"
+        assert signal.fields["early_gap"] < 0
+
+    def test_should_not_report_a_ratio_across_a_sign_change(self):
+        # Dividing a positive gap by the negative one it grew out of yields a
+        # number that reads like a measurement and means nothing. Better to
+        # omit the field than to hand the writer a figure it cannot interpret.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[1000.0] * 24,
+                ee=[700.0] * 24,
+                lt=[400 + 70 * i for i in range(24)],
+            )
+        )
+
+        assert signal is not None
+        assert "widening_ratio" not in signal.fields
+
+    # -- stays silent --------------------------------------------------------
+    def test_should_stay_silent_on_a_one_off_break(self):
+        # One country jumps in the final quarter only. That is a real story and
+        # it belongs to detect_divergence; claiming it is structural would be
+        # false.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[6.0] * 24,
+                ee=[6.1] * 24,
+                lt=[6.0] * 23 + [20.0],
+            )
+        )
+
+        assert signal is None
+
+    def test_should_stay_silent_when_the_gap_is_converging(self):
+        # The laggard is catching up. Reporting a closing gap as divergence
+        # would invert the finding.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[200 + 40 * i for i in range(24)],
+                ee=[1200.0] * 24,
+                lt=[2000.0] * 24,
+            )
+        )
+
+        assert signal is None
+
+    def test_should_stay_silent_when_the_gap_is_wide_but_flat(self):
+        # The case that most needs suppressing: three countries permanently far
+        # apart are not news for being far apart today. Only movement is.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[400.0] * 24,
+                ee=[1200.0] * 24,
+                lt=[2400.0] * 24,
+            )
+        )
+
+        assert signal is None
+
+    def test_should_stay_silent_when_the_ordering_keeps_swapping(self):
+        # Values straddling zero produce enormous relative gaps from nothing.
+        # A stable ordering is what separates a structural gap from noise, and
+        # this is the fixture that proves the ordering test carries that weight.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[1.0, -1.0] * 12,
+                ee=[-1.0, 1.0] * 12,
+                lt=[0.5, -0.5] * 12,
+            )
+        )
+
+        assert signal is None
+
+    def test_should_stay_silent_when_the_gap_is_small_against_the_level(self):
+        # Constructed so that only the magnitude floor can reject it: the gap
+        # grows more than fivefold, the ordering is stable, and the history is
+        # long -- but 460 on a level of 10,000 is not a divergence.
+        signal = detect_structural_divergence(
+            self._group(
+                lv=[10000.0] * 24,
+                ee=[10100.0] * 24,
+                lt=[10000 + 20 * i for i in range(24)],
+            )
+        )
+
+        assert signal is None
+
+    def test_should_stay_silent_when_history_is_too_short(self):
+        # Twelve quarters cannot establish that anything is structural.
+        lv, ee, lt = self._widening(n=12)
+
+        assert detect_structural_divergence(self._group(lv, ee, lt)) is None
+
+    def test_should_stay_silent_with_only_two_countries(self):
+        lv, ee, lt = self._widening()
+        group = self._group(lv, ee, lt)
+        del group["EE"]
+
+        assert detect_structural_divergence(group) is None
+
+    # -- contracts -----------------------------------------------------------
+    def test_should_carry_the_chart_ref_so_the_reader_can_check_it(self):
+        # The signal must carry the dashboard's chart id, taken from the series,
+        # not the metric name. A chart_ref of "services_balance_something" that
+        # the API cannot serve renders a "Live data" frame with nothing in it,
+        # which is the failure test_chart_ref_contract.py exists to prevent.
+        lv, ee, lt = self._widening()
+        group = self._group(lv, ee, lt, chart_ref="services_balance")
+
+        signal = detect_structural_divergence(group)
+
+        assert signal is not None
+        assert signal.chart_ref == "services_balance"
+
+    def test_should_count_in_quarters_not_bare_periods(self):
+        # "across the first 8 periods" names no unit of time; the desk rejected
+        # two live articles for exactly that hedge. See test_basis_declarable.
+        lv, ee, lt = self._widening()
+
+        signal = detect_structural_divergence(self._group(lv, ee, lt))
+
+        assert signal is not None
+        assert "quarters" in signal.comparison_basis
+        assert "periods" not in signal.comparison_basis
+
+    def test_answers_a_different_question_from_plain_divergence(self):
+        # The justification for a second detector, asserted rather than argued.
+        #
+        # These are not looser and stricter versions of one another. A
+        # single-quarter break is divergence's story and emphatically not a
+        # structural one, so the two disagree outright on that shape. On a
+        # decade-long trend they may both speak, but only one of them can say
+        # how long it has run or how much it has grown -- and without those two
+        # facts the finding is just a spread, which is what left this story
+        # untold.
+        one_off = self._group(lv=[6.0] * 24, ee=[6.1] * 24, lt=[6.0] * 23 + [20.0])
+
+        assert detect_divergence(one_off) is not None
+        assert detect_structural_divergence(one_off) is None
+
+        lv, ee, lt = self._widening()
+        sustained = self._group(lv, ee, lt)
+        structural = detect_structural_divergence(sustained)
+
+        assert structural is not None
+        assert structural.fields["sustained_periods"] >= 8
+        assert structural.fields["widening_ratio"] > 1.5
+        # Whatever plain divergence makes of the same series, it has no field
+        # for duration and none for growth against the start of the record.
+        plain = detect_divergence(sustained)
+        assert plain is None or (
+            "sustained_periods" not in plain.fields and "widening_ratio" not in plain.fields
+        )
 
 
 # ---------------------------------------------------------------------------

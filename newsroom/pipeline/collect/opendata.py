@@ -168,6 +168,108 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         params={"lcstruct": "D1_D4_MD5", "unit": "EUR", "nace_r2": "B-S_X_O"},
         periods=20,
     ),
+    # --- External balances --------------------------------------------------
+    # The newsroom read no trade series at all, so the widest divergence in the
+    # Baltic external accounts was invisible to detection: Latvia's goods and
+    # services balance has been negative for most of two decades while
+    # Lithuania's ran a growing surplus, and nothing in the pipeline could see
+    # it because collection never fetched the series.
+    #
+    # The split is registered as well as the total, because the total hides the
+    # finding. All three states run a goods deficit of a broadly similar size —
+    # in 2025, 9.2% of GDP in Latvia against 8.0% in Lithuania and 6.6% in
+    # Estonia — and the entire difference between a negative Latvian headline
+    # and a positive Lithuanian one sits in services. A detector reading only
+    # the combined figure would report the divergence and could never locate
+    # it; reading the four component balances, it can.
+    #
+    # 60 quarters, not the 40 used elsewhere, because structural divergence is
+    # measured against the start of the series and 10 years is not long enough
+    # to contain this one.
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="trade_balance",
+        metric_label="the goods and services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="trade_balance",
+        params={"freq": "Q", "bop_item": "GS", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="goods_balance",
+        metric_label="the goods balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="goods_balance",
+        params={"freq": "Q", "bop_item": "G", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="services_balance",
+        metric_label="the services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="services_balance",
+        params={"freq": "Q", "bop_item": "S", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="transport_services_balance",
+        metric_label="the transport services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="transport_services",
+        params={"freq": "Q", "bop_item": "SC", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="financial_services_balance",
+        metric_label="the financial services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="financial_services",
+        params={"freq": "Q", "bop_item": "SG", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="ict_services_balance",
+        metric_label="the telecommunications, computer and information services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="ict_services",
+        params={"freq": "Q", "bop_item": "SI", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
+    EurostatDataset(
+        dataset="bop_c6_q",
+        metric="other_business_services_balance",
+        metric_label="the other business services balance",
+        unit="million EUR",
+        section="trade",
+        frequency="quarterly",
+        chart_ref="other_business_services",
+        params={"freq": "Q", "bop_item": "SJ", "stk_flow": "BAL", "partner": "WRL_REST",
+                "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
+        periods=60,
+    ),
 )
 
 

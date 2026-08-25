@@ -24,8 +24,18 @@ log = logging.getLogger(__name__)
 #: When several detectors fire on the same series, this is the order we prefer.
 #: A record is a stronger claim than the streak that produced it, and both beat
 #: a bare period-over-period move.
+#:
+#: ``structural_divergence`` sits above ``divergence`` because the two collide:
+#: they share a metric and the "Baltic" geography, so deduplication keeps
+#: exactly one of them, and on live trade data both fire on the same three
+#: series. The sustained finding is the better story of the pair — it reports
+#: how long the gap has held and how far it has grown, where the spread-based
+#: one can only describe the latest quarter — so it must win that tie. An
+#: unregistered detector falls back to 0 here and would silently lose every
+#: tie-break instead; see test_rank.py.
 DETECTOR_PRIORITY = {
-    "record_extreme": 5,
+    "record_extreme": 6,
+    "structural_divergence": 5,
     "divergence": 4,
     "seasonal_deviation": 3,
     "threshold_cross": 2,

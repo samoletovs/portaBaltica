@@ -7,7 +7,8 @@ ranking invents work. A quiet day stays quiet.
 from __future__ import annotations
 
 from newsroom.pipeline.config import RankingPolicy
-from newsroom.pipeline.rank import rank
+from newsroom.pipeline.detect import detectors as _detectors
+from newsroom.pipeline.rank import DETECTOR_PRIORITY, rank
 from newsroom.tests.pipeline.conftest import make_signal
 
 POLICY = RankingPolicy(max_articles=8, min_score=0.55, max_per_metric=1)
@@ -120,6 +121,49 @@ class TestCapacityAndDeduplication:
         second = [s.id for s in rank(signals, POLICY).selected]
 
         assert first == second
+
+
+class TestDetectorPriority:
+    """An unregistered detector loses every tie-break, silently.
+
+    ``_sort_key`` falls back to ``DETECTOR_PRIORITY.get(name, 0)``. A detector
+    added to ``detect_all`` but never added here still produces signals, still
+    passes its own unit tests, and then loses to every other detector on the
+    same metric during deduplication — which keeps exactly one signal per
+    (metric, geography). The failure looks like the detector not working.
+    """
+
+    def test_every_detector_that_can_fire_has_a_priority(self):
+        emitted = {
+            "record_extreme", "streak", "threshold_cross", "divergence",
+            "structural_divergence", "seasonal_deviation", "sharp_move",
+        }
+
+        missing = emitted - set(DETECTOR_PRIORITY)
+        assert not missing, (
+            f"these detectors fall back to priority 0 and lose every tie: {missing}"
+        )
+        # Guard the guard: the set above must keep pace with the module.
+        assert "detect_structural_divergence" in _detectors.__all__
+
+    def test_a_sustained_divergence_outranks_a_single_period_one(self):
+        # Both fire on the same metric and the same "Baltic" geography, so
+        # dedup keeps one. On live trade data this happened on three of three
+        # series, which makes the tie-break the thing that decides what gets
+        # written.
+        plain = make_signal(
+            detector="divergence", metric="services_balance", geography="Baltic",
+            score=0.85, value=1721.0,
+        )
+        structural = make_signal(
+            detector="structural_divergence", metric="services_balance",
+            geography="Baltic", score=0.85, value=1721.0,
+        )
+
+        report = rank([plain, structural], POLICY)
+
+        assert [s.detector for s in report.selected] == ["structural_divergence"]
+        assert report.deduplicated == 1
 
 
 class TestReport:

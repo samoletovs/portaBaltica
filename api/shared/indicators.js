@@ -388,6 +388,72 @@ const INDICATORS = {
     unit: 'M EUR',
     sanity: [-20000, 20000],
   },
+  // The two halves of `trade_balance`, which the combined figure hides.
+  //
+  // Read together they overturn the obvious reading of the headline chart. All
+  // three Baltic states run a goods deficit and always have — in 2025 Latvia's
+  // was 9.2% of GDP against Lithuania's 8.0% and Estonia's 6.6%, a gap far too
+  // small to explain why one headline is negative and another is not. The
+  // entire difference sits in services, and nothing on the dashboard showed it:
+  // a reader could see that Latvia diverged but had no way to see where.
+  goods_balance: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=G&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Goods balance',
+    unit: 'M EUR',
+    // A quarterly external-balance flow for an economy of roughly 10-22bn EUR
+    // per quarter. Anything outside this is a different statistic or a
+    // different unit, not a Baltic goods balance.
+    sanity: [-6000, 3000],
+  },
+  services_balance: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=S&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Services balance',
+    unit: 'M EUR',
+    sanity: [-3000, 7000],
+  },
+
+  // The four service categories that account for the divergence. In 2025 the
+  // gap between Lithuania's services surplus and Latvia's was 8.0bn EUR, and
+  // these four carry 6.9bn of it — transport 3.2bn, other business services
+  // 1.5bn, financial 1.4bn, ICT 0.7bn. They are separate indicators rather than
+  // one aggregate because the causes are unrelated: transport is the east-west
+  // transit corridor, financial is what followed ABLV's failure in 2018.
+  transport_services: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=SC&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Transport services balance',
+    unit: 'M EUR',
+    sanity: [-2000, 3000],
+  },
+  financial_services: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=SG&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Financial services balance',
+    unit: 'M EUR',
+    sanity: [-1500, 2500],
+  },
+  ict_services: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=SI&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Telecom, computer & information services balance',
+    unit: 'M EUR',
+    sanity: [-1500, 2500],
+  },
+  other_business_services: {
+    dataset: 'bop_c6_q',
+    params: 'freq=Q&bop_item=SJ&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',
+    freq: 'Q',
+    title: 'Other business services balance',
+    unit: 'M EUR',
+    sanity: [-1500, 2500],
+  },
   current_account: {
     dataset: 'bop_c6_q',
     params: 'freq=Q&bop_item=CA&stk_flow=BAL&partner=WRL_REST&currency=MIO_EUR&sectpart=S1&sector10=S1',

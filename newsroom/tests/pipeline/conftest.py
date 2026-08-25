@@ -36,6 +36,18 @@ def monthly_periods(count: int, *, start_year: int = 2020, start_month: int = 1)
     return periods
 
 
+def quarterly_periods(count: int, *, start_year: int = 2011, start_quarter: int = 1) -> list[str]:
+    periods = []
+    year, quarter = start_year, start_quarter
+    for _ in range(count):
+        periods.append(f"{year:04d}-Q{quarter}")
+        quarter += 1
+        if quarter > 4:
+            quarter = 1
+            year += 1
+    return periods
+
+
 def series_from(
     values: Sequence[float],
     *,
@@ -47,6 +59,7 @@ def series_from(
     frequency: str = "monthly",
     periods: Sequence[str] | None = None,
     source_id: str = "eurostat",
+    chart_ref: str | None = None,
 ) -> TimeSeries:
     """Build a TimeSeries from bare values, with generated monthly periods."""
     labels = list(periods) if periods is not None else monthly_periods(len(values))
@@ -61,6 +74,7 @@ def series_from(
         frequency=frequency,
         observations=tuple(Observation(p, float(v)) for p, v in zip(labels, values)),
         source=source_ref(source_id),
+        chart_ref=chart_ref,
     )
 
 

@@ -28,6 +28,10 @@ export function TradeTile() {
         <BalticCompareChart indicator="exports" title="Exports of goods" compact />
         <BalticCompareChart indicator="imports" title="Imports of goods" compact />
         <BalticCompareChart indicator="trade_balance" title="Trade balance" compact />
+        <BalticCompareChart indicator="goods_balance" title="Goods balance" compact />
+        <BalticCompareChart indicator="services_balance" title="Services balance" compact />
+        <BalticCompareChart indicator="transport_services" title="Transport services balance" compact />
+        <BalticCompareChart indicator="financial_services" title="Financial services balance" compact />
         <BalticCompareChart indicator="tourism_foreign" title="Nights spent by foreign visitors" compact />
         <BalticCompareChart indicator="tourism" title="Tourist arrivals" compact />
         <BalticCompareChart indicator="air_passengers" title="Air passengers carried" compact />

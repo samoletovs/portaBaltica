@@ -387,6 +387,171 @@ def detect_divergence(
 
 
 # ---------------------------------------------------------------------------
+# 4b. Structural divergence — sustained and widening
+# ---------------------------------------------------------------------------
+def detect_structural_divergence(
+    series_by_geography: Mapping[str, TimeSeries],
+    *,
+    min_geographies: int = 3,
+    min_history: int = 20,
+    window: int = 8,
+    min_gap_pct: float = 25.0,
+    min_widening: float = 1.5,
+) -> Signal | None:
+    """The countries have been pulling apart for years, not since last quarter.
+
+    :func:`detect_divergence` answers "did they stop moving together *this*
+    period", and it deliberately goes quiet when the three sit habitually far
+    apart — its second condition divides by the median historical spread
+    precisely so that a permanently wide metric does not file a story every day
+    for still being wide.
+
+    That silence is right for a spread report and wrong for the most
+    consequential kind of economic news, which is slow. Latvia's services
+    surplus and Lithuania's were within 350m EUR of one another in 2010 and
+    8bn EUR apart by 2025. No single quarter in that run was remarkable, every
+    quarter looked like the last, and so the widest divergence in the Baltic
+    external accounts was the one shape the pipeline could never see.
+
+    Fires only when all four hold:
+
+    1. enough common history to tell a trend from a run of luck;
+    2. the *same* country has been highest and the *same* lowest for at least
+       ``window`` consecutive periods — a stable ordering is what separates a
+       structural gap from noise straddling zero, and it is the condition that
+       does the real work on balance metrics, which have no natural scale;
+    3. the current gap is at least ``min_gap_pct`` of the mean absolute level,
+       so a gap that is merely arithmetically wide on a near-zero series does
+       not qualify;
+    4. the gap is at least ``min_widening`` times its average over the *oldest*
+       ``window`` periods — it is growing, not merely large. A gap that has
+       since inverted outright satisfies this by definition and is reported
+       as a difference rather than a ratio, because a ratio across a sign
+       change is not a number anyone can interpret.
+
+    Stays silent on a one-off spike — that is ``detect_divergence``'s story —
+    on a gap that is converging, and on one that is wide but flat.
+    """
+    usable = {geo: s for geo, s in series_by_geography.items() if len(s) >= min_history}
+    if len(usable) < min_geographies:
+        return None
+
+    common = sorted(set.intersection(*(set(s.periods) for s in usable.values())))
+    if len(common) < min_history:
+        return None
+
+    def values_at(period: str) -> dict[str, float]:
+        found = {}
+        for geo, series in usable.items():
+            observation = series.at(period)
+            if observation is not None:
+                found[geo] = observation.value
+        return found
+
+    latest_values = values_at(common[-1])
+    if len(latest_values) < len(usable):
+        return None
+    high_geo = max(latest_values, key=lambda g: latest_values[g])
+    low_geo = min(latest_values, key=lambda g: latest_values[g])
+
+    # How far back does this ordering hold, unbroken? This is the persistence
+    # test, and it is deliberately counted rather than assumed: the count goes
+    # into the article, so a reader can see how long "structural" means.
+    sustained = 0
+    for period in reversed(common):
+        values = values_at(period)
+        if len(values) < len(usable):
+            break
+        if max(values, key=lambda g: values[g]) != high_geo:
+            break
+        if min(values, key=lambda g: values[g]) != low_geo:
+            break
+        sustained += 1
+    if sustained < window:
+        return None
+
+    latest_gap = latest_values[high_geo] - latest_values[low_geo]
+    scale = statistics.fmean([abs(v) for v in latest_values.values()])
+    if scale <= 0:
+        return None
+    gap_pct = latest_gap / scale * 100.0
+    if gap_pct < min_gap_pct:
+        return None
+
+    def mean_gap(periods: Sequence[str]) -> float | None:
+        gaps = []
+        for period in periods:
+            values = values_at(period)
+            if len(values) == len(usable):
+                gaps.append(values[high_geo] - values[low_geo])
+        return statistics.fmean(gaps) if gaps else None
+
+    early_gap = mean_gap(common[:window])
+    recent_gap = mean_gap(common[-window:])
+    if early_gap is None or recent_gap is None:
+        return None
+
+    widening: float | None
+    if early_gap > 0:
+        widening = recent_gap / early_gap
+        if widening < min_widening:
+            return None
+    else:
+        # The ordering has reversed: the country now furthest ahead used to be
+        # behind. No ratio is reported, because dividing across a sign change
+        # would hand the writer a figure that means nothing.
+        widening = None
+
+    sample = next(iter(usable.values()))
+    score = _clamp(0.50 + 0.25 * _scale(gap_pct, 150) + 0.25 * _scale(sustained, 24))
+
+    fields = {
+        "gap": latest_gap,
+        "gap_pct": gap_pct,
+        "early_gap": early_gap,
+        "recent_gap": recent_gap,
+        # Both of these are quoted in the comparison basis, so both have to be
+        # declarable or the article is rejected for citing a figure we supplied
+        # ourselves. See test_basis_declarable.py.
+        "window_periods": float(window),
+        "sustained_periods": float(sustained),
+        "highest_value": latest_values[high_geo],
+        "lowest_value": latest_values[low_geo],
+    }
+    if widening is not None:
+        fields["widening_ratio"] = widening
+    fields.update({f"value_{geo.lower()}": value for geo, value in latest_values.items()})
+
+    return Signal(
+        detector="structural_divergence",
+        metric=sample.metric,
+        metric_label=sample.metric_label,
+        geography="Baltic",
+        period=common[-1],
+        value=latest_gap,
+        unit=sample.unit,
+        comparison_basis=(
+            f"the same countries' average difference of {early_gap:g} {sample.unit} "
+            f"across the first {window} {reading_word(sample.frequency, window)} "
+            f"of the series"
+        ),
+        score=score,
+        section=sample.section,
+        fields=fields,
+        sources=[s.source for s in usable.values()],
+        context={
+            "highest_geography": high_geo,
+            "lowest_geography": low_geo,
+            "period": common[-1],
+            "geographies": ", ".join(sorted(usable)),
+            "frequency": sample.frequency,
+            "direction": "widening" if widening is not None else "inverted",
+        },
+        chart_ref=sample.chart_ref,
+    )
+
+
+# ---------------------------------------------------------------------------
 # 5. Seasonal deviation
 # ---------------------------------------------------------------------------
 def detect_seasonal_deviation(
@@ -586,6 +751,9 @@ def detect_all(
         divergence = detect_divergence(group)
         if divergence is not None:
             signals.append(divergence)
+        structural = detect_structural_divergence(group)
+        if structural is not None:
+            signals.append(structural)
 
     log.info("detection produced %d signal(s) from %d series", len(signals), len(series_list))
     return signals
@@ -601,5 +769,6 @@ __all__ = [
     "detect_seasonal_deviation",
     "detect_sharp_move",
     "detect_streak",
+    "detect_structural_divergence",
     "detect_threshold_cross",
 ]
