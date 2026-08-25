@@ -7,7 +7,7 @@ const API_ENDPOINTS = [
   { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 55 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
   { method: 'GET', path: '/api/power-prices', params: '', description: 'Nord Pool day-ahead prices for all four Baltic-region bidding zones (EE, LV, LT, FI) with the spread between them and whether the market is currently coupled', cache: '15 min' },
   { method: 'GET', path: '/api/property-data', params: '', description: 'Construction permits by municipality, building energy profile', cache: '1 hour' },
-  { method: 'GET', path: '/api/port-data', params: '', description: 'Maritime: ship visits, ferry passengers, cargo volumes for 3 Latvian ports', cache: '1 hour' },
+  { method: 'GET', path: '/api/port-data', params: 'country=LV|EE|LT', description: 'Baltic port statistics from Eurostat: cargo tonnage, sea passengers, vessel arrivals, quarterly', cache: '6 hours' },
   { method: 'GET', path: '/api/business-search', params: '?q=TERM', description: 'Search 195K+ beneficial owners (UBO) by company registration number or surname', cache: '5 min' },
   { method: 'GET', path: '/api/address-search', params: '?q=TERM', description: 'Search 608K+ Latvian addresses with GPS coordinates', cache: '5 min' },
   { method: 'GET', path: '/api/eu-funds', params: '', description: 'EU Recovery & Resilience Fund: 955 projects with status', cache: '1 hour' },

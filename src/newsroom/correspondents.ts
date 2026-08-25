@@ -131,7 +131,7 @@ export const CORRESPONDENTS: Correspondent[] = [
     characteristicMove:
       'Follows a single cargo category across all three countries’ ports to show where volume shifted.',
     datasets: [
-      { sourceId: 'datagovlv', label: 'data.gov.lv — SKLOIS ship visits, cargo turnover, ferries' },
+      { sourceId: 'eurostat', label: 'Eurostat — port cargo tonnage, sea passengers, vessel arrivals' },
       { sourceId: 'eurostat', label: 'Eurostat — exports, imports, trade balance' },
       { sourceId: 'openmeteo', label: 'Open-Meteo Marine — sea state at the ports' },
     ],

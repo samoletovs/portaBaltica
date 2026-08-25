@@ -255,111 +255,63 @@ export interface PortWeather {
   precipitation: number;    // mm
 }
 
-/** Ship visit from SKLOIS data (data.gov.lv) */
-export interface ShipVisit {
-  portCode: string;
-  portName: string;
-  ship: string;             // "IMO / MMSI / SHIP_NAME"
-  visitDate: string;        // ISO date
-  type: 'cancelled' | 'rejected' | 'completed';
-  snapshotDate?: string;
+
+/** One quarterly observation, e.g. `{ period: '2025-Q4', value: 4237 }`. */
+export interface PortPoint {
+  period: string;
+  value: number | null;
 }
 
-/** Ferry passenger data (data.gov.lv) */
-export interface FerryData {
-  portCode: string;
-  previousNextPort: string;
-  flagCode: string;
-  flagName: string;
-  passengers: number;
-  snapshotDate?: string;
+/** A quarterly series for one port, or for a country that Eurostat does not break down by port. */
+export interface PortSeries {
+  /** Eurostat `rep_mar` code, e.g. `LV_0LVRIX`. */
+  code: string;
+  name: string;
+  series: PortPoint[];
+  /** Newest period carrying a value. */
+  latest: string | null;
 }
 
-/** Loaded cargo by group (data.gov.lv) */
-export interface CargoData {
-  year: string;
-  portCode: string;
-  portName: string;
-  direction: 'IN' | 'OUT';
-  cargoGroupCode: number;
-  cargoGroupName: string;
+/**
+ * One measure across a country's ports.
+ *
+ * `countryOnly` is true when Eurostat publishes no port breakdown for that
+ * country — Estonia's goods and passenger tables are national totals — so the
+ * UI can label a national figure honestly instead of passing it off as a port.
+ */
+export interface PortMeasure {
+  unit: 'THS_T' | 'THS' | 'NR';
+  countryOnly: boolean;
+  latest: string | null;
+  ports: PortSeries[];
 }
 
-/** Cargo turnover with weight in tonnes (data.gov.lv) */
-export interface CargoTurnover {
-  cargoTypeCode: string;
-  weight: number;
+/** Cargo split by type for a single quarter, in thousand tonnes. */
+export interface CargoMix {
+  period: string | null;
+  total: number | null;
+  categories: { code: string; name: string; weight: number }[];
 }
 
-/** HS (Harmonized System) chapter codes → human-readable names */
-export const CARGO_TYPE_NAMES: Record<string, string> = {
-  '02': 'Meat',
-  '03': 'Fish & Seafood',
-  '04': 'Dairy, Eggs, Honey',
-  '07': 'Edible Vegetables',
-  '08': 'Edible Fruit & Nuts',
-  '09': 'Coffee, Tea, Spices',
-  '10': 'Cereals',
-  '11': 'Milling Products',
-  '15': 'Animal/Vegetable Fats',
-  '16': 'Meat & Fish Preparations',
-  '19': 'Cereal Preparations',
-  '20': 'Vegetable Preparations',
-  '22': 'Beverages & Spirits',
-  '23': 'Food Residues & Animal Feed',
-  '25': 'Salt, Sulphur, Stone, Cement',
-  '27': 'Mineral Fuels & Oils',
-  '28': 'Inorganic Chemicals',
-  '29': 'Organic Chemicals',
-  '30': 'Pharmaceutical Products',
-  '31': 'Fertilizers',
-  '33': 'Essential Oils & Cosmetics',
-  '34': 'Soap & Surface Agents',
-  '35': 'Glues & Enzymes',
-  '38': 'Misc. Chemical Products',
-  '39': 'Plastics & Plastic Articles',
-  '44': 'Wood & Wood Articles',
-  '46': 'Woven Vegetable Materials',
-  '48': 'Paper & Paperboard',
-  '49': 'Printed Materials',
-  '52': 'Cotton',
-  '54': 'Man-made Filaments',
-  '56': 'Wadding, Felt, Nonwovens',
-  '57': 'Carpets & Textile Flooring',
-  '61': 'Knitted Apparel',
-  '68': 'Stone, Plaster, Cement Articles',
-  '69': 'Ceramic Products',
-  '70': 'Glass & Glassware',
-  '71': 'Precious Stones & Metals',
-  '72': 'Iron & Steel',
-  '73': 'Iron/Steel Articles',
-  '84': 'Machinery & Equipment',
-  '85': 'Electrical Equipment',
-  '94': 'Furniture & Lighting',
-  '95': 'Toys & Games',
-  '96': 'Misc. Manufactured Articles',
-  '99': 'Special Classification',
-  'N/A': 'Unclassified Cargo',
-};
-
-/** Combined port data from the API proxy */
+/** Baltic port statistics from Eurostat, via the API proxy. */
 export interface PortDataResponse {
-  shipVisits: ShipVisit[];
-  ferryData: FerryData[];
-  cargoData: CargoData[];
-  cargoTurnover: CargoTurnover[];
+  country: string;
+  /** Gross weight of goods handled, thousand tonnes per quarter. */
+  goods: PortMeasure;
+  /** Passengers embarked and disembarked, thousands per quarter. */
+  passengers: PortMeasure;
+  /** Vessels arriving, count per quarter. */
+  vessels: PortMeasure;
+  cargoMix: CargoMix;
   /**
-   * Date of the newest snapshot the statistics come from — not `fetchedAt`.
-   * data.gov.lv ingests these weekly CSVs into its queryable datastore well
-   * behind publication, so this can trail today by months.
+   * Newest quarter the statistics reach — not `fetchedAt`. Eurostat publishes
+   * maritime tables a quarter or two in arrears, so this always trails today
+   * and the UI states it rather than implying the figures are current.
    */
   dataAsOf?: string | null;
-  snapshotDates?: {
-    shipVisits: string[];
-    ferry: string[];
-    cargo: string[];
-    cargoTurnover: string[];
-  };
+  source?: string;
+  /** Non-empty only if a cube dimension went unpinned and a slice was guessed. */
+  assumptions?: { dimension: string; chosen: string; optionCount: number; reason: string }[];
   fetchedAt: string;
 }
 

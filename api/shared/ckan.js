@@ -129,17 +129,24 @@ async function scanFields(resourceId, fields, filters, options) {
  * The most recent resources in an already-fetched dataset that the datastore
  * will actually serve.
  *
- * `datastore_active` is load-bearing, not cosmetic. The maritime datasets
- * publish a CSV every week, but the portal's datastore ingestion runs behind
- * publication and sometimes stalls: every port dataset currently has resources
- * dated months later than the newest one `datastore_search` will answer for,
- * and querying an inactive resource id returns 404. Picking the newest
- * *active* resource is therefore the newest data that exists as far as the API
- * is concerned, and it re-syncs on its own once ingestion catches up.
+ * `datastore_active` is load-bearing, not cosmetic. The portal's ingestion runs
+ * behind publication and a resource it has not ingested returns 404 when
+ * queried, so the newest *active* resource is the newest data that exists as
+ * far as the API is concerned, and it re-syncs on its own once ingestion
+ * catches up.
  *
- * `namePrefix` selects a series within a dataset that holds several — the
- * cargo dataset interleaves `LOADCRG_*` and `CRGTURNBYTYPEYEAR_*`, so matching
- * on the dataset alone would mix two different tables together.
+ * There is a limit to what that self-healing can do, and the maritime datasets
+ * are the cautionary tale. They were read this way until the publisher began
+ * emitting weekly CSVs containing a column header and nothing else — eighteen
+ * of them. The datastore correctly refused every one, so this function kept
+ * returning the last good resource, from 2026-03-01, indefinitely and without
+ * complaint. Selecting the newest *queryable* resource cannot distinguish
+ * "upstream is briefly behind" from "upstream has stopped", which is why the
+ * port panels moved to Eurostat and why anything still read this way needs a
+ * freshness assertion above it rather than trust in the fallback.
+ *
+ * `namePrefix` selects a series within a dataset that holds several, and is
+ * null for a dataset with a single resource.
  */
 function pickLatestActive(pkg, namePrefix, count) {
   const resources = (pkg && pkg.resources) || [];

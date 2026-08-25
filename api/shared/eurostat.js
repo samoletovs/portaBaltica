@@ -100,17 +100,16 @@ function sortedCodes(category) {
 
 /**
  * Count non-null cells for a candidate set of fixed positions on the
- * non-geo/non-time dimensions.
+ * dimensions that are neither the key dimension nor time.
  */
-function coverage(data, dims, sizes, str, geoIdx, timeIdx, fixed, geoCodes, timeCount) {
-  const geoCat = data.dimension.geo.category;
+function coverage(data, dims, str, keyIdx, timeIdx, fixed, keyCat, keyCodes, timeCount) {
   let found = 0;
-  for (let g = 0; g < geoCodes.length; g++) {
+  for (let g = 0; g < keyCodes.length; g++) {
     for (let t = 0; t < timeCount; t++) {
       let idx = 0;
       for (let d = 0; d < dims.length; d++) {
         let pos;
-        if (d === geoIdx) pos = geoCat.index[geoCodes[g]];
+        if (d === keyIdx) pos = keyCat.index[keyCodes[g]];
         else if (d === timeIdx) pos = t;
         else pos = fixed[d] || 0;
         idx += pos * str[d];
@@ -123,27 +122,41 @@ function coverage(data, dims, sizes, str, geoIdx, timeIdx, fixed, geoCodes, time
 }
 
 /**
- * Parse a JSON-stat 2.0 cube into per-country series.
+ * Parse a JSON-stat 2.0 cube into one series per category of `keyDim`.
  *
- * Returns { countries, assumptions }. `assumptions` is non-empty only when the
- * query left a dimension with more than one category — which a correct
- * indicator definition never should.
+ * `geo` is only the commonest key dimension, not the only one. Eurostat's
+ * maritime tables are published per country and keyed on `rep_mar` (the
+ * reporting port) with no `geo` dimension at all, so a parser that insisted on
+ * `geo` returned an empty cube for every one of them. The strictness that
+ * matters — pinning every other dimension and reporting whatever it had to
+ * guess — is independent of which dimension is the key, so it lives here once.
+ *
+ * `wanted` filters the key categories; pass a falsy value to keep them all,
+ * which is what a cube whose codes are discovered from the response needs.
+ *
+ * Returns { series, assumptions }. `assumptions` is non-empty only when the
+ * query left a non-key dimension with more than one category — which a correct
+ * definition never should.
  */
-function parseJsonStat(data, wanted) {
-  const empty = { countries: {}, assumptions: [] };
+function parseJsonStatDim(data, keyDim, wanted) {
+  const empty = { series: {}, assumptions: [] };
   if (!data || !data.value || !data.id || !data.dimension) return empty;
 
   const dims = data.id;
   const sizes = data.size;
-  const geoIdx = dims.indexOf('geo');
+  const keyIdx = dims.indexOf(keyDim);
   const timeIdx = dims.indexOf('time');
-  if (geoIdx < 0 || timeIdx < 0) return empty;
+  if (keyIdx < 0 || timeIdx < 0) return empty;
+  if (!data.dimension[keyDim] || !data.dimension[keyDim].category) return empty;
 
-  const geoCat = data.dimension.geo.category;
+  const keyCat = data.dimension[keyDim].category;
   const timeCat = data.dimension.time.category;
-  const geoCodes = sortedCodes(geoCat).filter(function (g) { return wanted.indexOf(g) >= 0; });
+  const allKeys = sortedCodes(keyCat);
+  const keyCodes = wanted && wanted.length
+    ? allKeys.filter(function (g) { return wanted.indexOf(g) >= 0; })
+    : allKeys;
   const timeCodes = sortedCodes(timeCat);
-  if (geoCodes.length === 0 || timeCodes.length === 0) return empty;
+  if (keyCodes.length === 0 || timeCodes.length === 0) return empty;
 
   const str = strides(sizes);
   const fixed = new Array(dims.length).fill(0);
@@ -152,13 +165,13 @@ function parseJsonStat(data, wanted) {
   // Resolve unpinned dimensions greedily: for each, keep the category that
   // yields the most data. A well-specified indicator has none of these.
   for (let d = 0; d < dims.length; d++) {
-    if (d === geoIdx || d === timeIdx || sizes[d] <= 1) continue;
+    if (d === keyIdx || d === timeIdx || sizes[d] <= 1) continue;
     const codes = sortedCodes(data.dimension[dims[d]].category);
     let best = 0;
     let bestScore = -1;
     for (let c = 0; c < codes.length; c++) {
       fixed[d] = c;
-      const score = coverage(data, dims, sizes, str, geoIdx, timeIdx, fixed, geoCodes, timeCodes.length);
+      const score = coverage(data, dims, str, keyIdx, timeIdx, fixed, keyCat, keyCodes, timeCodes.length);
       if (score > bestScore) { bestScore = score; best = c; }
     }
     fixed[d] = best;
@@ -170,32 +183,42 @@ function parseJsonStat(data, wanted) {
     });
   }
 
-  const countries = {};
-  for (let g = 0; g < geoCodes.length; g++) {
-    const geo = geoCodes[g];
-    const series = [];
+  const series = {};
+  for (let g = 0; g < keyCodes.length; g++) {
+    const key = keyCodes[g];
+    const points = [];
     for (let t = 0; t < timeCodes.length; t++) {
       let idx = 0;
       for (let d = 0; d < dims.length; d++) {
         let pos;
-        if (d === geoIdx) pos = geoCat.index[geo];
+        if (d === keyIdx) pos = keyCat.index[key];
         else if (d === timeIdx) pos = timeCat.index[timeCodes[t]];
         else pos = fixed[d];
         idx += pos * str[d];
       }
       const v = valueAt(data, idx);
-      series.push({
+      points.push({
         period: timeCodes[t],
         value: v !== null && v !== undefined ? +v : null,
       });
     }
-    countries[geo] = {
-      label: (geoCat.label && geoCat.label[geo]) || geo,
-      series: series,
+    series[key] = {
+      label: (keyCat.label && keyCat.label[key]) || key,
+      series: points,
     };
   }
 
-  return { countries: countries, assumptions: assumptions };
+  return { series: series, assumptions: assumptions };
+}
+
+/**
+ * Parse a JSON-stat 2.0 cube into per-country series.
+ *
+ * Returns { countries, assumptions }.
+ */
+function parseJsonStat(data, wanted) {
+  const parsed = parseJsonStatDim(data, 'geo', wanted);
+  return { countries: parsed.series, assumptions: parsed.assumptions };
 }
 
 /**
@@ -320,6 +343,7 @@ module.exports = {
   httpText: httpText,
   httpJson: httpJson,
   parseJsonStat: parseJsonStat,
+  parseJsonStatDim: parseJsonStatDim,
   sincePeriod: sincePeriod,
   buildUrl: buildUrl,
   periodToMonthIndex: periodToMonthIndex,

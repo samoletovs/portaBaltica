@@ -21,6 +21,15 @@ Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard
 - CSP PxWeb `RUI020m` (industrial production) and `RCI020m` (producer prices) —
   the MIG_* codes return all-null series and every aggregate code is rejected
   with HTTP 400. Both indicators fall back to Eurostat.
+- data.gov.lv maritime — the three port datasets
+  (`ar-juras-parvadajumiem-...`, `pasazieru-parvadajumu-...`,
+  `parvadajamo-juras-kravu-...`) have published **header-only CSVs since
+  2026-03-08**: `REJVESLS` at 64 bytes, `PSNGFERRY` at 146, `LOADCRG` at 106,
+  eighteen weeks running. The datastore correctly refuses to ingest them, so
+  `datastore_active` never advances past the 2026-03-01 snapshot. This is a
+  discontinued feed, not a lagging one — no amount of waiting recovers it.
+  The maritime tile reads Eurostat instead (see below). Do not "fix" the port
+  panels by pointing them back at these datasets.
 
 ## Architecture
 
@@ -59,11 +68,12 @@ portaBaltica/
 │       ├── EconomyTile.tsx  # Economy & Business data
 │       ├── PropertyTile.tsx # Property & Energy data
 │       ├── EnvironmentTile.tsx # Weather, air quality, population
-│       ├── MaritimeTile.tsx # Port data (original functionality)
-│       ├── PortCard.tsx     # Individual port card
-│       ├── ShipVisitsPanel.tsx
-│       ├── FerryPanel.tsx
-│       └── CargoPanel.tsx
+│       ├── MaritimeTile.tsx # Port statistics (Eurostat) + live sea state
+│       ├── PortCard.tsx     # Individual port card (marine weather)
+│       ├── PortPanelParts.tsx   # Shared chrome for the three port panels
+│       ├── VesselTrafficPanel.tsx # Vessel arrivals, mar_tf_qm
+│       ├── PassengerPanel.tsx     # Sea passengers, mar_pa_qm
+│       └── CargoPanel.tsx         # Cargo tonnage + type mix, mar_go_qm
 ├── newsroom/               # Newsroom contracts (schema, personas, sources)
 │   └── policy/             # Published AI-use and corrections policy —
 │                           # authoritative text, rendered at /about/ai and
@@ -71,11 +81,12 @@ portaBaltica/
 ├── api/                    # Azure SWA managed functions (JS)
 │   ├── shared/
 │   │   ├── eurostat.js     # Deadline-bounded HTTP + strict JSON-stat parsing
-│   │   └── indicators.js   # Every Baltic comparison indicator, fully pinned
+│   │   ├── indicators.js   # Every Baltic comparison indicator, fully pinned
+│   │   └── ports.js        # Baltic port registry + Eurostat maritime cubes
 │   ├── baltic-compare/     # LV vs EE vs LT from Eurostat
 │   ├── historical-data/    # Latvian series: CSP PxWeb, Eurostat fallback
 │   ├── power-prices/       # Nord Pool day-ahead + zone spread
-│   ├── port-data/          # Maritime data proxy (existing)
+│   ├── port-data/          # Baltic port statistics from Eurostat (?country=)
 │   ├── economy-data/       # ECB, NordPool, CSP, business registries
 │   ├── property-data/      # Construction, energy certs, cadastral
 │   ├── environment-data/   # Weather, air quality, population
@@ -278,7 +289,9 @@ visible.
 - All API data goes through SWA managed functions (CORS proxy)
 - Cache aggressively: data.gov.lv datasets update daily/biweekly, not per-request
 - No hardcoded text — but i18n is not required yet (English only for now)
-- Maritime components (PortCard, ShipVisitsPanel, FerryPanel, CargoPanel) are preserved as-is within the Maritime tile
+- Maritime port statistics come from Eurostat, not data.gov.lv. `PortCard` (live
+  marine weather) is Latvia-only because the forecast is fetched per coordinate;
+  the three statistics panels cover LV, EE and LT.
 
 ## Typography and design
 
@@ -343,6 +356,16 @@ disclose every reader's IP address to whoever serves it.
   each indicator a `sanity` band describing what the statistic *means* — that
   band is what catches a definition pointing at the wrong dataset, which is how
   "Income inequality (Gini)" spent months plotting foreign direct investment.
+- **Eurostat maritime:** port statistics live in `api/shared/ports.js`, keyed on
+  `rep_mar` (reporting port) rather than `geo` — use `parseJsonStatDim`, not
+  `parseJsonStat`. Three cubes: `mar_go_qm_{cc}` goods (thousand **tonnes**),
+  `mar_pa_qm_{cc}` passengers (**thousands**, and `unit=THS` — `THS_PASF` looks
+  more precise and is almost entirely null), `mar_tf_qm` vessel arrivals
+  (Europe-wide, so `rep_mar` must be pinned or it answers HTTP 413). The
+  `cargo` dimension interleaves levels — `LBK_ROIL` sits inside `LBK` — so only
+  the six codes in `CARGO_MIX` may be summed. Estonia publishes goods and
+  passengers at national level only; the API reports that as `countryOnly`
+  rather than faking a port breakdown.
 - **CKAN Datastore:** `fetch('https://data.gov.lv/dati/api/3/action/datastore_search?resource_id=ID&limit=N')`.
   The portal answers HTTP 200 with `success: false` for an unknown action, so
   check `success` rather than the status code.
