@@ -38,6 +38,7 @@ from newsroom.pipeline.safety import (
 from newsroom.pipeline.write.llm import LlmWriter
 from newsroom.pipeline.write.prompts import (
     PROMPT_VERSION,
+    build_editor_revision_prompt,
     build_revision_prompt,
     build_system_prompt,
     build_user_prompt,
@@ -138,6 +139,7 @@ def generate_article(
     now: str | None = None,
     research: ResearchContext | None = None,
     max_attempts: int = MAX_ATTEMPTS,
+    editor_notes: Sequence[str] = (),
 ) -> GenerationResult:
     """Generate, gate, and allow one bounded revision. Check ``publishable``.
 
@@ -163,6 +165,13 @@ def generate_article(
     persona = persona_for_section(signal.section)
     system = build_system_prompt(signal, persona, paragraphs=paragraphs)
     user = build_user_prompt(signal, research=research)
+
+    # A rewrite the editor asked for starts from the editor's notes, not from a
+    # blank draft. Without this the desk's "revise" was a decision with no
+    # consequence: the same prompt produced the same faults and the piece was
+    # held on the second read.
+    if editor_notes:
+        user = build_editor_revision_prompt(user, editor_notes)
 
     result: GenerationResult | None = None
     prompt = user

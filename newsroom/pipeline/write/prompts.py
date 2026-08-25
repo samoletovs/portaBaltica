@@ -259,6 +259,41 @@ def build_revision_prompt(original_user_prompt: str, failure_summary: str) -> st
     )
 
 
+_EDITOR_REVISION_TEMPLATE = """{original}
+
+THE EDITOR READ YOUR DRAFT AND SENT IT BACK. Their notes:
+
+{notes}
+
+Rewrite the piece so those notes no longer apply. The editor is not asking for
+more numbers. They are asking you to say what the movement means and why it
+happened: what changed in the world, what decision or event sits behind it,
+what would have to be true for it to continue. Attribute any cause you give,
+and where you cannot establish one, say plainly that the data does not show it
+rather than reaching for a vague phrase.
+
+Every rule you were given the first time still applies without exception. In
+particular, every number in a paragraph must still appear in that paragraph's
+figures array, and you may still use only the verified figures listed above.
+"""
+
+
+def build_editor_revision_prompt(original_user_prompt: str, notes) -> str:
+    """Rewrite the piece against the desk's notes.
+
+    The editor's decision to send something back is only a decision if the
+    rewrite starts from what they said. Without this the "revise" verdict
+    regenerated from the untouched prompt, reproduced the same faults, and the
+    article was held on the second read -- an editorial loop that could not
+    converge and cost two model calls to find that out.
+    """
+    listed = "\n".join(f"- {note}" for note in notes if str(note).strip())
+    return _EDITOR_REVISION_TEMPLATE.format(
+        original=original_user_prompt,
+        notes=listed or "- the editor did not record a specific note",
+    )
+
+
 #: Fields that exist so a detector can decide a story is worth writing, and
 #: mean nothing to a reader. A z-score is how the pipeline knows June was
 #: unusual; it is not a fact about Estonian unemployment, and offering it as a

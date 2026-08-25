@@ -82,6 +82,11 @@ class DeskOutcome:
     revisions: int = 0
     notes: tuple[str, ...] = ()
     model: str | None = None
+    #: The rewritten article, when the desk sent one back and it came back
+    #: better. Not part of ``to_dict``: it is the *subject* of the audit
+    #: record, not a field in it. Without this the loop rewrote the piece and
+    #: the caller published the draft the editor had just criticised.
+    revised_article: Article | None = None
 
     @property
     def publishable(self) -> bool:
@@ -269,6 +274,7 @@ def run_desk(
             revisions=attempt,
             notes=outcome.notes,
             model=outcome.model,
+            revised_article=article,
         )
         if outcome.action is not DeskAction.REVISE:
             break
@@ -284,6 +290,7 @@ def run_desk(
             revisions=MAX_REVISIONS,
             notes=outcome.notes,
             model=outcome.model,
+            revised_article=outcome.revised_article,
         )
 
     record_decision(article, outcome)
