@@ -35,7 +35,7 @@ export default function ArticlePage() {
 
   if (load === null) {
     return (
-      <div className="mx-auto max-w-2xl space-y-3" aria-busy="true" aria-label="Loading article">
+      <div className="mx-auto max-w-measure space-y-3" aria-busy="true" aria-label="Loading article">
         <div className="news-skeleton h-8 w-3/4 animate-pulse rounded" />
         <div className="news-skeleton h-4 w-1/2 animate-pulse rounded" />
         <div className="news-skeleton h-40 animate-pulse rounded" />
@@ -45,9 +45,9 @@ export default function ArticlePage() {
 
   if (load.state === 'not-found') {
     return (
-      <div className="news-border news-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center">
-        <h1 className="news-fg text-lg font-semibold">Article not found</h1>
-        <p className="news-muted mt-2 text-sm">
+      <div className="news-border news-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center">
+        <h1 className="editorial-heading news-fg text-title font-semibold">Article not found</h1>
+        <p className="news-muted mt-3 text-callout">
           No article is published at this address.{' '}
           <Link
             to="/"
@@ -64,13 +64,13 @@ export default function ArticlePage() {
     return (
       <div
         role="alert"
-        className="news-border news-warning-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center"
+        className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center"
       >
-        <h1 className="news-warning text-lg font-semibold">This article is not available</h1>
-        <p className="news-warning mt-2 text-sm leading-relaxed">
+        <h1 className="editorial-heading news-warning text-title font-semibold">This article is not available</h1>
+        <p className="news-warning mt-3 text-callout">
           It has not passed the checks we run before publishing, so we will not show it.
         </p>
-        <p className="mt-4 text-sm">
+        <p className="mt-5 text-ui">
           <Link
             to="/"
             className="news-link news-focus underline underline-offset-4"

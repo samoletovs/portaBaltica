@@ -24,8 +24,8 @@ const NAV = [
 
 function navClass({ isActive }: { isActive: boolean }) {
   return [
-    'news-focus whitespace-nowrap border-b-2 px-1 pb-2 text-sm transition-colors',
-    isActive ? 'news-nav-active font-medium' : 'news-nav-idle border-transparent',
+    'news-focus whitespace-nowrap border-b-2 px-1 pb-2 text-ui transition-colors',
+    isActive ? 'news-nav-active font-semibold' : 'news-nav-idle border-transparent',
   ].join(' ');
 }
 
@@ -34,7 +34,7 @@ export function NewsroomLayout() {
     <div>
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <header className="news-border border-b pt-5">
-          <p className="news-subtle text-xs leading-relaxed">
+          <p className="news-subtle text-caption">
             Written by AI correspondents from open data, reviewed by an AI editor,{' '}
             {ACCOUNTABLE_PUBLISHER} accountable.{' '}
             <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
@@ -55,7 +55,7 @@ export function NewsroomLayout() {
           <Outlet />
         </main>
 
-        <footer className="news-border news-subtle border-t py-6 text-xs">
+        <footer className="news-border news-subtle border-t py-6 text-caption">
           <p>
             Original analysis of Baltic open data. We do not rewrite other outlets’ reporting —{' '}
             <Link to="/about/ai" className="news-hover underline underline-offset-2">

@@ -67,7 +67,7 @@ export default function CorrespondentPage() {
             to={`/newsroom/${entry.id}`}
             className={({ isActive }) =>
               [
-                'rounded-full border px-3 py-1 text-xs transition-colors',
+                'rounded-full border px-3.5 py-1.5 text-caption font-medium transition-colors',
                 'news-focus',
                 isActive
                   ? 'news-tab-active'
@@ -83,8 +83,8 @@ export default function CorrespondentPage() {
       <header className="flex flex-wrap items-center gap-5">
         <CorrespondentAvatar id={correspondent.id} size={88} />
         <div>
-          <h1 className="news-fg text-2xl font-semibold tracking-tight">{correspondent.name}</h1>
-          <p className="news-accent text-sm">{renderByline(correspondent)}</p>
+          <h1 className="editorial-heading news-fg text-headline font-semibold tracking-tight">{correspondent.name}</h1>
+          <p className="news-accent mt-1 text-ui">{renderByline(correspondent)}</p>
         </div>
       </header>
 
@@ -92,22 +92,22 @@ export default function CorrespondentPage() {
         aria-labelledby="what-this-is"
         className="news-border news-warning-panel mt-6 rounded-xl border px-5 py-4"
       >
-        <h2 id="what-this-is" className="news-warning text-sm font-semibold">
+        <h2 id="what-this-is" className="editorial-heading news-warning text-title font-semibold">
           {correspondent.name} is not a person
         </h2>
-        <p className="news-warning mt-2 text-sm leading-relaxed">
+        <p className="editorial news-warning mt-3 text-callout">
           {correspondent.name} is an AI system: a language model writing to a fixed brief, not a
           journalist, not a pen name for one, and not a real individual. There is nobody of this
           name. The name is invented, the expertise below describes what this correspondent is built
           to look for, and it has never held a job, studied anywhere or been anywhere.
         </p>
-        <p className="news-warning mt-2 text-sm leading-relaxed">
+        <p className="editorial news-warning mt-3 text-callout">
           It never conducts interviews, attends events, visits anywhere or speaks to sources, and it
           is never asked to recall a figure from memory. It writes sentences around numbers the
           pipeline has already retrieved and verified against the dataset. Every article it produces
           is checked before publication and refused if a check fails.
         </p>
-        <p className="news-warning mt-2 text-sm leading-relaxed">
+        <p className="editorial news-warning mt-3 text-callout">
           Every story filed here is reviewed by{' '}
           <Link to="/newsroom/saulkrasti" className="news-focus underline underline-offset-2">
             {AI_EDITOR.name}
@@ -123,17 +123,17 @@ export default function CorrespondentPage() {
       </section>
 
       <section aria-labelledby="beat-heading" className="mt-8">
-        <h2 id="beat-heading" className="news-subtle text-sm font-medium uppercase tracking-widest">
+        <h2 id="beat-heading" className="news-subtle text-caption font-semibold uppercase tracking-widest">
           The beat
         </h2>
-        <p className="news-muted mt-2 text-[17px] leading-relaxed">{correspondent.summary}</p>
+        <p className="editorial news-muted mt-3 text-prose">{correspondent.summary}</p>
         <div className="news-border news-panel mt-4 rounded-lg border px-4 py-3">
-          <h3 className="news-subtle text-xs font-medium uppercase tracking-widest">
+          <h3 className="news-subtle text-caption font-semibold uppercase tracking-widest">
             How this one writes
           </h3>
-          <p className="news-muted mt-1.5 text-sm leading-relaxed">{correspondent.styleNote}</p>
+          <p className="editorial news-muted mt-2 text-callout">{correspondent.styleNote}</p>
         </div>
-        <dl className="mt-4 space-y-2 text-sm">
+        <dl className="mt-5 space-y-2 text-ui">
           <div>
             <dt className="news-subtle inline">Notices first: </dt>
             <dd className="news-muted inline">{correspondent.noticesFirst}</dd>
@@ -164,19 +164,19 @@ export default function CorrespondentPage() {
       <section aria-labelledby="datasets-heading" className="mt-8">
         <h2
           id="datasets-heading"
-          className="news-subtle text-sm font-medium uppercase tracking-widest"
+          className="news-subtle text-caption font-semibold uppercase tracking-widest"
         >
           Works only from these datasets
         </h2>
         <ul className="mt-2 space-y-1.5">
           {correspondent.datasets.map((dataset) => (
-            <li key={dataset.sourceId} className="news-muted text-sm">
-              <span className="news-subtle font-mono text-xs">{dataset.sourceId}</span>{' '}
+            <li key={dataset.sourceId} className="news-muted text-ui">
+              <span className="news-subtle font-mono text-caption">{dataset.sourceId}</span>{' '}
               {dataset.label}
             </li>
           ))}
         </ul>
-        <p className="news-subtle mt-2 text-xs leading-relaxed">
+        <p className="news-subtle mt-3 text-caption">
           Content from a source that is not in the registry is dropped before it reaches a prompt.
         </p>
       </section>
@@ -185,7 +185,7 @@ export default function CorrespondentPage() {
         <section aria-labelledby="recent-heading" className="mt-10">
           <h2
             id="recent-heading"
-            className="news-border news-subtle border-b pb-2 text-sm font-medium uppercase tracking-widest"
+            className="news-border news-subtle border-b pb-2 text-caption font-semibold uppercase tracking-widest"
           >
             Recent articles
           </h2>

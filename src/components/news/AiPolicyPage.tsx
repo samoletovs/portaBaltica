@@ -20,7 +20,7 @@ export default function AiPolicyPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-measure">
       <Markdown source={policySource} />
       <PolicyFooter sourcePath="newsroom/policy/ai-use.md" />
     </div>

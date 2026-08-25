@@ -47,7 +47,7 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
       return (
         <code
           key={key}
-          className="news-accent-panel news-accent rounded px-1 py-0.5 font-mono text-[0.85em]"
+          className="news-accent-panel news-accent code-inline rounded px-1 py-0.5 font-mono"
         >
           {part.slice(1, -1)}
         </code>
@@ -85,11 +85,25 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
   });
 }
 
+/**
+ * Heading sizes come from the shared scale, and they descend.
+ *
+ * They did not before: h3 was rendered at `text-base` and h4 at `text-sm`,
+ * which put both at or below the size of the paragraphs they introduced. A
+ * heading that is smaller than its own body text stops reading as a heading
+ * and starts reading as a stray bold line, which is most of why these pages
+ * looked unstructured.
+ *
+ * h4 is the exception and is deliberate: it drops to a small uppercase label
+ * in the interface face. That is a different kind of object from h1–h3 — a
+ * tag on a block rather than a level of the document — so it is distinguished
+ * by treatment rather than by being another notch down an already short ramp.
+ */
 const HEADING_CLASSES: Record<number, string> = {
-  1: 'news-fg text-3xl font-semibold tracking-tight',
-  2: 'news-fg mt-10 mb-3 text-xl font-semibold tracking-tight',
-  3: 'news-fg mt-8 mb-2 text-base font-semibold',
-  4: 'news-muted mt-6 mb-2 text-sm font-semibold',
+  1: 'editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display',
+  2: 'editorial-heading news-fg mt-12 mb-4 text-title font-semibold tracking-tight',
+  3: 'editorial-heading news-fg mt-9 mb-3 text-lead font-semibold',
+  4: 'news-subtle mt-7 mb-2 text-caption font-semibold uppercase tracking-widest',
 };
 
 function Heading({ level, text }: { level: number; text: string }) {
@@ -111,7 +125,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'meta':
       return (
-        <dl className="news-border news-panel my-4 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-sm">
+        <dl className="news-border news-panel my-5 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-ui">
           {block.entries.map((entry, position) => (
             <div key={`${index}-m-${position}`} className="flex gap-2">
               <dt className="news-subtle">{entry.label}</dt>
@@ -125,13 +139,13 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'list':
       return block.ordered ? (
-        <ol className="news-muted my-4 list-decimal space-y-2 pl-6 text-[17px] leading-relaxed">
+        <ol className="editorial news-muted my-5 list-decimal space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
         </ol>
       ) : (
-        <ul className="news-muted my-4 list-disc space-y-2 pl-6 text-[17px] leading-relaxed">
+        <ul className="editorial news-muted my-5 list-disc space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
@@ -141,14 +155,14 @@ function BlockView({ block, index }: { block: Block; index: number }) {
     case 'table':
       return (
         <div className="news-border my-6 overflow-x-auto rounded-lg border">
-          <table className="w-full border-collapse text-left text-sm">
+          <table className="w-full border-collapse text-left text-ui">
             <thead>
               <tr className="news-border news-panel border-b">
                 {block.header.map((cell, position) => (
                   <th
                     key={`${index}-h-${position}`}
                     scope="col"
-                    className="news-muted px-4 py-2.5 font-medium"
+                    className="news-subtle px-4 py-2.5 text-caption font-semibold uppercase tracking-widest"
                   >
                     {renderInline(cell, `th-${index}-${position}`)}
                   </th>
@@ -179,7 +193,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
     case 'paragraph':
     default:
       return (
-        <p className="news-muted my-4 text-[17px] leading-relaxed">
+        <p className="editorial news-muted my-5 text-prose">
           {renderInline(block.text, `p-${index}`)}
         </p>
       );

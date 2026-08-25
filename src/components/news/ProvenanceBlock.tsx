@@ -58,8 +58,8 @@ function formatTimestamp(value: string | undefined): string {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="news-subtle text-xs">{label}</dt>
-      <dd className="news-muted mt-0.5 text-[13px]">{children}</dd>
+      <dt className="news-subtle text-caption font-medium uppercase tracking-wide">{label}</dt>
+      <dd className="news-muted mt-1 text-ui">{children}</dd>
     </div>
   );
 }
@@ -87,11 +87,11 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
       className="news-border news-accent-panel mt-10 overflow-hidden rounded-xl border"
     >
       <div className="news-border flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
-        <h2 id="provenance-heading" className="news-fg text-sm font-semibold tracking-tight">
+        <h2 id="provenance-heading" className="news-fg text-callout font-semibold">
           Where this came from
         </h2>
         <p
-          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption font-medium ${
             allPassed
               ? 'news-status-positive'
               : 'news-status-warning'
@@ -103,13 +103,13 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
       </div>
 
       <div className="space-y-6 px-5 py-4">
-        <p className="news-muted text-[13px] leading-relaxed">
+        <p className="news-muted text-ui">
           This record was written automatically as the article was produced. Open any dataset below
           and you can check the figures for yourself. That is what it is here for.
         </p>
 
         <div>
-          <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
+          <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
             The data behind it
           </h3>
           <ul className="space-y-3">
@@ -118,18 +118,18 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 key={`${source.source_id}-${source.dataset ?? ''}-${source.retrieved_at}`}
                 className="news-border news-panel rounded-lg border px-3 py-2.5"
               >
-                <p className="news-fg text-sm font-medium">
+                <p className="news-fg text-callout font-semibold">
                   {SOURCE_NAMES[source.source_id] ?? source.source_id}
                 </p>
                 {source.dataset && (
-                  <p className="news-muted mt-0.5 text-[13px]">
+                  <p className="news-muted mt-1 text-ui">
                     {source.dataset}
                     {source.dataset_version && (
                       <span className="news-subtle"> · version {source.dataset_version}</span>
                     )}
                   </p>
                 )}
-                <p className="news-subtle mt-1 flex flex-wrap items-center gap-x-3 text-xs">
+                <p className="news-subtle mt-1.5 flex flex-wrap items-center gap-x-3 text-caption">
                   <span>
                     Retrieved{' '}
                     <time dateTime={source.retrieved_at} className="news-muted">
@@ -154,7 +154,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
         {research && (
           <div>
-            <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
+            <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
               Reporting context consulted
             </h3>
             {research.consulted.length > 0 ? (
@@ -168,11 +168,11 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                       href={item.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="news-link news-focus text-sm font-medium underline underline-offset-2"
+                      className="news-link news-focus text-callout font-semibold underline underline-offset-2"
                     >
                       {item.title} ↗<span className="sr-only"> (opens in a new tab)</span>
                     </a>
-                    <p className="news-subtle mt-1 text-xs">
+                    <p className="news-subtle mt-1.5 text-caption">
                       {item.source_name} ·{' '}
                       {item.role === 'official_statement'
                         ? 'official statement'
@@ -183,7 +183,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 ))}
               </ul>
             ) : (
-              <p className="news-muted text-[13px]">
+              <p className="news-muted text-ui">
                 No relevant item was found in the registered feeds for this signal.
               </p>
             )}
@@ -192,28 +192,28 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
         {signal_id && (
           <div>
-            <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
+            <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
               Why this story exists
             </h3>
-            <p className="news-muted text-[13px] leading-relaxed">
+            <p className="news-muted text-ui">
               A deterministic detector, not a model, flagged this change as newsworthy and
               triggered the story.
             </p>
-            <p className="news-subtle mt-1 font-mono text-xs">{signal_id}</p>
+            <p className="news-subtle mt-1.5 font-mono text-caption">{signal_id}</p>
           </div>
         )}
 
         <div>
-          <h3 className="news-subtle mb-2 text-xs font-medium uppercase tracking-widest">
+          <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
             How it was written
           </h3>
           <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <Field label="Model">
-              <span className="font-mono text-xs">{model ?? 'None. Not generated'}</span>
+              <span className="font-mono text-ui">{model ?? 'None. Not generated'}</span>
             </Field>
             {prompt_version && (
               <Field label="Prompt version">
-                <span className="font-mono text-xs">{prompt_version}</span>
+                <span className="font-mono text-ui">{prompt_version}</span>
               </Field>
             )}
             <Field label="Written">
@@ -225,21 +225,21 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               <Field label="Approved by">
                 {approved_by}
                 {approved_at && (
-                  <span className="news-subtle block text-xs">
+                  <span className="news-subtle block text-caption">
                     <time dateTime={approved_at}>{formatTimestamp(approved_at)}</time>
                   </span>
                 )}
               </Field>
             )}
           </dl>
-          <p className="news-subtle mt-3 text-xs leading-relaxed">
+          <p className="news-subtle mt-4 text-caption">
             The model writes sentences around figures the pipeline has already verified. It is never
             asked to recall or supply a number.
           </p>
         </div>
 
         <details className="news-border group border-t pt-3">
-          <summary className="news-subtle news-hover news-focus cursor-pointer list-none text-xs font-medium uppercase tracking-widest">
+          <summary className="news-subtle news-hover news-focus cursor-pointer list-none text-caption font-semibold uppercase tracking-widest">
             <span
               aria-hidden="true"
               className="mr-1 inline-block transition-transform group-open:rotate-90"
@@ -250,7 +250,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           </summary>
           <ul className="mt-3 space-y-1.5">
             {validator.checks.map((check) => (
-              <li key={check.name} className="flex gap-2 text-[13px]">
+              <li key={check.name} className="flex gap-2 text-ui">
                 <span
                   aria-hidden="true"
                   className={check.passed ? 'news-positive' : 'news-negative'}
@@ -261,13 +261,13 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                   {CHECK_LABELS[check.name] ?? check.name}
                   <span className="sr-only">{check.passed ? ': passed' : ': failed'}</span>
                   {check.detail && (
-                    <span className="news-subtle block text-xs">{check.detail}</span>
+                    <span className="news-subtle block text-caption">{check.detail}</span>
                   )}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="news-subtle mt-3 text-xs leading-relaxed">
+          <p className="news-subtle mt-4 text-caption">
             Checked{' '}
             <time dateTime={validator.checked_at}>{formatTimestamp(validator.checked_at)}</time>. An
             article that fails any check is not published. The system fails closed.

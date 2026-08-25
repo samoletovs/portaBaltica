@@ -32,7 +32,7 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
 
   if (variant === 'compact') {
     return (
-      <p className="news-subtle text-xs">
+      <p className="news-subtle text-caption">
         <span className="news-muted">{text}</span>
         {when && (
           <>
@@ -50,11 +50,11 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
       <div className="min-w-0">
         <Link
           to={`/newsroom/${persona.id}`}
-          className="news-link news-focus text-sm font-medium underline underline-offset-4"
+          className="news-link news-focus text-ui font-semibold underline underline-offset-4"
         >
           {text}
         </Link>
-        <p className="news-subtle text-xs">
+        <p className="news-subtle text-caption">
           Written by an AI system from open data.{' '}
           <Link to="/about/ai" className="news-hover underline underline-offset-2">
             How this works

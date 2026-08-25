@@ -195,7 +195,7 @@ export function IndicatorPage() {
         </button>
 
         {/* Header */}
-        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-sans)' }}>
           {info.title}
         </h1>
         <p className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{flag} {countryLabel}</p>
