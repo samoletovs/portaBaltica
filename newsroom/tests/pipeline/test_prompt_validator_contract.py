@@ -84,8 +84,20 @@ def test_the_prompt_forbids_digits_in_the_standfirst() -> None:
     assert "MUST CONTAIN NO DIGITS" in prompts._SYSTEM_TEMPLATE
 
 
-def test_the_prompt_confines_digits_to_the_opening_paragraphs() -> None:
-    assert "ONLY THE FIRST TWO PARAGRAPHS MAY CONTAIN DIGITS" in prompts._SYSTEM_TEMPLATE
+def test_the_prompt_confines_digits_to_the_lead_paragraph() -> None:
+    """``comparison_basis_stated`` fired on body[1] in run after run.
+
+    A second paragraph that restates the movement with a figure must also
+    restate what it is measured against, in that same paragraph, and drafts
+    reliably did the first and forgot the second. Confining digits to the lead
+    removes the trap instead of asking the model to step around it, which three
+    prompt revisions failed to achieve.
+    """
+    assert "ONLY THE FIRST PARAGRAPH MAY CONTAIN DIGITS" in prompts._SYSTEM_TEMPLATE
+    assert "FIRST TWO PARAGRAPHS" not in prompts._SYSTEM_TEMPLATE, (
+        "the old two-paragraph allowance is still in the prompt; the two rules "
+        "contradict each other and the model will follow the looser one"
+    )
 
 
 def test_the_revision_prompt_says_the_check_already_failed() -> None:
