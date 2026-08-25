@@ -49,6 +49,7 @@ from typing import Mapping, Sequence
 
 from newsroom import numeric_scan
 from newsroom.pipeline.models import Block, Figure
+from newsroom.pipeline.units import unit_for_field
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +96,11 @@ def reconcile_block(
             Figure(
                 value=value,
                 signal_field=name,
-                unit=unit,
+                # The field's own unit, not the series unit. Blanket-applying
+                # signal.unit published "3.18801 EUR/MWh higher than the
+                # typical spread", where the field is a ratio and the real
+                # difference was 48.18. See newsroom/pipeline/units.py.
+                unit=unit_for_field(name, unit),
                 rendered_as=token.text,
             )
         )

@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 
 from newsroom.pipeline.models import Signal
+from newsroom.pipeline import units
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card
 
@@ -328,21 +329,13 @@ _INTERNAL_ONLY_FIELDS = frozenset({"z_score"})
 #: Fields whose value is a ratio or count rather than a measure in the signal's
 #: own unit. Labelling `deviation_pct` with the signal unit produced
 #: "2.13589% of the labour force", a number that means nothing.
-_DIMENSIONLESS_FIELDS = frozenset({"z_score", "deviation_pct", "spread_pct"})
-
-
-def _unit_for(signal: Signal, name: str) -> str:
-    if name in _DIMENSIONLESS_FIELDS or "pct" in name:
-        return "%"
-    return signal.unit
-
-
 def _format_figures(signal: Signal) -> str:
     lines = []
     for name, value in signal.fields.items():
         if name in _INTERNAL_ONLY_FIELDS:
             continue
-        lines.append(f"  - {name} = {value:g}   ({_unit_for(signal, name)})")
+        shown = units.display_value(name, float(value))
+        lines.append(f"  - {name} = {shown}   ({units.label_for_field(name, signal.unit)})")
     return "\n".join(lines)
 
 
