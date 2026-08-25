@@ -9,6 +9,7 @@ import { LinkOutCard } from './LinkOutCard';
 import { ProvenanceBlock } from './ProvenanceBlock';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { formatFigures } from '../../newsroom/format-figures';
+import { resolveChartRef } from '../../newsroom/chart-ref';
 import { soleCountry } from '../../newsroom/article-country';
 import { TierBadge } from './TierBadge';
 
@@ -108,9 +109,12 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
  * back to the section, which shows all three.
  */
 function checkItHref(article: Article, chartRef?: string): string {
-  if (!chartRef) return `/data/${article.section}`;
+  // Resolve before linking. An article published with an id the dashboard
+  // cannot serve would otherwise send the reader to a page that answers 400.
+  const resolved = resolveChartRef(chartRef);
+  if (!resolved) return `/data/${article.section}`;
   const country = soleCountry(article);
-  return country ? `/indicator/${chartRef}?country=${country}` : `/indicator/${chartRef}`;
+  return country ? `/indicator/${resolved}?country=${country}` : `/indicator/${resolved}`;
 }
 
 export function ArticleView({ article }: { article: Article }) {

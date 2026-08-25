@@ -97,7 +97,7 @@ describe('ArticleView — the provenance passport', () => {
     expect(screen.getByText('Eurostat')).toBeTruthy();
     expect(screen.getByText(/lc_lci_lev/)).toBeTruthy();
     expect(screen.getByText('gpt-4o-mini@2024-07-18')).toBeTruthy();
-    expect(screen.getByText('Andre Ovīši')).toBeTruthy();
+    expect(screen.getByText('Andre Kõpu')).toBeTruthy();
     expect(screen.getByText(/Retrieved/)).toBeTruthy();
   });
 

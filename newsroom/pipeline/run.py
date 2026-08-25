@@ -17,6 +17,7 @@ from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.collect.opendata import collect_open_data
 from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.detect import Threshold, detect_all
+from newsroom.pipeline.house_style import check_prose, review_headline
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
@@ -60,6 +61,8 @@ class RunReport:
     edited: list[EditorOutcome] = field(default_factory=list)
     research: dict[str, ResearchContext] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    #: Copy-edits the desk applied, and style problems it could only flag.
+    style_notes: list[str] = field(default_factory=list)
 
     @property
     def published(self) -> list[Article]:
@@ -145,6 +148,31 @@ async def collect_feeds(
     return items, raw_descriptions
 
 
+def apply_house_style(article: Article) -> list[str]:
+    """Copy-edits an article in place. Returns what the desk changed or flagged.
+
+    Corrections are applied; violations are recorded. Nothing here rewrites a
+    figure — `house_style.sentence_case` refuses to touch any token containing
+    a digit, so the validator's traceability guarantee is unaffected.
+    """
+    notes: list[str] = []
+
+    fixed, violations, corrections = review_headline(article.headline)
+    if fixed != article.headline:
+        article.headline = fixed
+    notes.extend(corrections)
+    notes.extend(violations)
+
+    if article.dek:
+        notes.extend(check_prose(article.dek, where="dek"))
+
+    for index, block in enumerate(article.body or []):
+        if block.text:
+            notes.extend(check_prose(block.text, where=f"body[{index}]"))
+
+    return notes
+
+
 async def run_once(
     *,
     writer: LlmWriter | None = None,
@@ -210,6 +238,16 @@ async def run_once(
             except Exception as exc:  # noqa: BLE001
                 log.exception("generation failed for signal %s", signal.id)
                 report.errors.append(f"generate {signal.id}: {exc}")
+
+        # --- 6b. the desk ---------------------------------------------------
+        # House style is applied after generation and before publication, so a
+        # Title Case headline or an em dash cannot reach a reader regardless of
+        # what the model produced. Deterministic, and therefore not something
+        # the writer can talk its way past.
+        for generated in report.generated:
+            for note in apply_house_style(generated.article):
+                log.info("house style: %s", note)
+                report.style_notes.append(note)
 
         # --- tier B/C ----------------------------------------------------
         if include_syndication and feed_items:

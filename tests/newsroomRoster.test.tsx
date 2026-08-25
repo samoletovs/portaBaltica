@@ -40,7 +40,7 @@ describe('house naming', () => {
 
   it('gives the editor and the publisher one too', () => {
     expect(AI_EDITOR.name).toBe('Dace Saulkrasti');
-    expect(ACCOUNTABLE_PUBLISHER).toBe('Andre Ovīši');
+    expect(ACCOUNTABLE_PUBLISHER).toBe('Andre Kõpu');
   });
 
   it('still discloses in every byline', () => {

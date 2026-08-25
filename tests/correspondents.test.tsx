@@ -117,7 +117,7 @@ describe('Correspondent bio page', () => {
   it('names the accountable publisher', () => {
     renderBio('kolka');
 
-    expect(screen.getByText('Andre Ovīši')).toBeTruthy();
+    expect(screen.getByText('Andre Kõpu')).toBeTruthy();
   });
 
   it('says the correspondent never interviews, visits or witnesses anything', () => {

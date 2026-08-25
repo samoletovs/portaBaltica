@@ -36,7 +36,7 @@ export const AI_EDITOR = {
  * The accountable human. Oversight only: he does not write, and does not
  * approve stories one by one — he answers for the system that does.
  */
-export const ACCOUNTABLE_PUBLISHER = 'Andre Ovīši';
+export const ACCOUNTABLE_PUBLISHER = 'Andre Kõpu';
 
 /** What he is, wherever he is named. */
 export const PUBLISHER_ROLE = 'accountable publisher';
@@ -51,7 +51,11 @@ export const PUBLISHER_ROLE = 'accountable publisher';
  * display concern rather than a rewrite of provenance: the stored JSON is
  * untouched and the archived value remains what it always was.
  */
-const PREVIOUS_PUBLISHER_NAMES = new Set(['Sam Samoletovs', 'Sam Samoletov']);
+const PREVIOUS_PUBLISHER_NAMES = new Set([
+  'Sam Samoletovs',
+  'Sam Samoletov',
+  'Andre Ovīši',
+]);
 
 /** Resolves whatever an article stored into the name to print today. */
 export function publisherName(stored?: string | null): string {

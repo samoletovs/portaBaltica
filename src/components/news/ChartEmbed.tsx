@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { Link } from 'react-router-dom';
+import { resolveChartRef } from '../../newsroom/chart-ref';
 
 /**
  * The round-trip: article → the live series the claim was made from.
@@ -50,13 +51,19 @@ interface Props {
 const COUNTRY_NAMES: Record<string, string> = { LV: 'Latvia', EE: 'Estonia', LT: 'Lithuania' };
 
 export function ChartEmbed({ indicatorId, country, caption }: Props) {
+  // An unresolvable id means no chart at all. A frame captioned "Live data"
+  // with nothing inside it is worse than silence: it tells the reader the
+  // evidence exists and then fails to produce it.
+  const resolved = resolveChartRef(indicatorId);
+  if (!resolved) return null;
+
   const seriesHref = country
-    ? `/indicator/${indicatorId}?country=${country}`
-    : `/indicator/${indicatorId}`;
+    ? `/indicator/${resolved}?country=${country}`
+    : `/indicator/${resolved}`;
 
   const fallback = (
     <div>
-      <BalticCompareChart indicator={indicatorId} compact />
+      <BalticCompareChart indicator={resolved} compact />
       <p className="news-subtle mt-2 text-xs leading-relaxed">
         {country
           ? `${COUNTRY_NAMES[country] ?? country} is not published as a separate series for this indicator, so all three Baltic countries are shown on the Eurostat measure.`
@@ -79,7 +86,7 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
           <div className="news-skeleton h-64 animate-pulse rounded-lg" aria-label="Loading chart" />
         }
       >
-        <IndicatorChart id={indicatorId} country={country} fallback={fallback} />
+        <IndicatorChart id={resolved} country={country} fallback={fallback} />
       </Suspense>
 
       <figcaption className="news-subtle mt-2 text-xs leading-relaxed">
