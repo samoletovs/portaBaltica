@@ -116,11 +116,25 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         </div>
       </div>
 
-      {/* Business pulse — Latvia only (CKAN data) */}
+      {/* Business pulse — Latvia only (data.gov.lv registries) */}
       {data && country === 'LV' && (
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <StatCard label="VAT Registered Businesses" value={data.businessPulse.newVatRegistrations.toLocaleString()} />
-          <StatCard label="Suspended Activities" value={data.businessPulse.suspendedBusinesses.toLocaleString()} color="amber" />
+        <div className="mt-3">
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard
+              label="VAT-registered businesses"
+              hint="Currently active payers in the VID VAT register"
+              value={data.businessPulse.activeVatPayers}
+            />
+            <StatCard
+              label="Suspended activities"
+              hint="Businesses barred by VID from trading: suspension decided, never lifted, and not yet expired"
+              value={data.businessPulse.suspendedBusinesses}
+              color="amber"
+            />
+          </div>
+          <p className="text-caption text-slate-600 mt-2">
+            State Revenue Service registers via data.gov.lv
+          </p>
         </div>
       )}
 
@@ -145,17 +159,26 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
   );
 }
 
-function StatCard({ label, value, change, color }: { label: string; value: string; change?: string; color?: string }) {
-  const textColor = color === 'amber' ? 'text-amber-400' : 'text-white';
+/**
+ * A single registry count.
+ *
+ * `null` renders as a dash and an explicit "unavailable", never as `0`. These
+ * numbers come from an upstream portal that answers 404 for datasets that have
+ * been renamed, and the previous version turned every such failure into a
+ * confident zero — which is how "Suspended Activities: 0" survived on the
+ * dashboard while the dataset it named did not exist.
+ */
+function StatCard({ label, hint, value, color }: { label: string; hint?: string; value: number | null; color?: string }) {
+  const available = typeof value === 'number' && Number.isFinite(value);
+  const textColor = !available ? 'text-slate-500' : color === 'amber' ? 'text-amber-400' : 'text-white';
+
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center">
-      <p className={`text-prose font-semibold font-mono ${textColor}`}>{value}</p>
+    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center" title={hint}>
+      <p className={`text-prose font-semibold font-mono ${textColor}`}>
+        {available ? value.toLocaleString() : '—'}
+      </p>
       <p className="text-caption text-slate-400">{label}</p>
-      {change && (
-        <p className={`text-caption font-mono ${change.startsWith('+') ? 'text-emerald-400' : change.startsWith('-') ? 'text-red-400' : 'text-slate-400'}`}>
-          {change}
-        </p>
-      )}
+      {!available && <p className="text-caption text-slate-600">Unavailable</p>}
     </div>
   );
 }

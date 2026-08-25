@@ -6,6 +6,7 @@ import { FerryPanel } from './FerryPanel';
 import { CargoPanel } from './CargoPanel';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { freshnessOf, formatAsOf } from '../dataFreshness';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -19,16 +20,38 @@ interface MaritimeTileProps {
   ferryData: FerryData[];
   cargoData: CargoData[];
   cargoTurnover: CargoTurnover[];
+  /** Newest snapshot the port statistics come from — not when we fetched them. */
+  dataAsOf?: string | null;
   loading: boolean;
 }
 
-export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargoTurnover, loading }: MaritimeTileProps) {
+export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargoTurnover, dataAsOf, loading }: MaritimeTileProps) {
   const { country } = useCountry();
   if (loading) return <TileSkeleton />;
 
+  const freshness = freshnessOf(dataAsOf);
+
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold text-white mb-5">Maritime</h2>
+      <div className="flex items-baseline justify-between mb-5 gap-3 flex-wrap">
+        <h2 className="balance-text text-title font-semibold text-white">Maritime</h2>
+        {/* The port weather below is live; the registry panels are not.
+            Saying which is which is the whole point of this line. */}
+        {freshness && (
+          <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+            Port statistics as of {formatAsOf(freshness.asOf)}
+          </span>
+        )}
+      </div>
+
+      {freshness?.stale && (
+        <div className="mb-3 px-3 py-2 rounded-lg text-caption text-amber-300 bg-amber-400/10 border border-amber-400/20">
+          Ship, ferry and cargo figures below are {freshness.label}. data.gov.lv has not
+          loaded a newer port snapshot into its queryable datastore since{' '}
+          {formatAsOf(freshness.asOf)}. Weather and sea state are live.
+        </div>
+      )}
+
       {country !== 'LV' && (
         <div className="mb-3 px-3 py-2 rounded-lg text-caption" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
           🇱🇻 This section shows Latvia ports only (Riga, Ventspils, Liepāja). Baltic port expansion planned.

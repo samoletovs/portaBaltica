@@ -40,11 +40,19 @@ export interface EconomyIndicator {
   unit?: string;
 }
 
+/**
+ * "Business pulse" counts from the data.gov.lv registries.
+ *
+ * `null` means the portal could not answer, and must render as such. These
+ * were plain numbers that defaulted to `0` on failure, which is how a tile
+ * reading "0 Suspended Activities" went unnoticed while the dataset behind it
+ * had never existed.
+ */
 export interface BusinessPulse {
-  newVatRegistrations: number;
-  suspendedBusinesses: number;
-  suspendedChangePercent: number;
-  newCompanies: number;
+  /** Businesses registered for VAT today — excludes the struck-off majority. */
+  activeVatPayers: number | null;
+  /** Suspension decisions still in force: not restored, and not yet lapsed. */
+  suspendedBusinesses: number | null;
 }
 
 export interface EconomyData {
@@ -340,6 +348,18 @@ export interface PortDataResponse {
   ferryData: FerryData[];
   cargoData: CargoData[];
   cargoTurnover: CargoTurnover[];
+  /**
+   * Date of the newest snapshot the statistics come from — not `fetchedAt`.
+   * data.gov.lv ingests these weekly CSVs into its queryable datastore well
+   * behind publication, so this can trail today by months.
+   */
+  dataAsOf?: string | null;
+  snapshotDates?: {
+    shipVisits: string[];
+    ferry: string[];
+    cargo: string[];
+    cargoTurnover: string[];
+  };
   fetchedAt: string;
 }
 

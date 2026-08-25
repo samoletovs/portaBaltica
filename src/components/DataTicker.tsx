@@ -44,8 +44,14 @@ export function DataTicker() {
           });
         });
 
-        // VAT businesses
-        tickers.push({ label: 'VAT businesses', value: d.businessPulse.newVatRegistrations.toLocaleString() });
+        // Registry counts — omitted entirely when the portal could not answer,
+        // rather than scrolling past as a fabricated zero.
+        if (typeof d.businessPulse?.activeVatPayers === 'number') {
+          tickers.push({ label: 'VAT businesses', value: d.businessPulse.activeVatPayers.toLocaleString() });
+        }
+        if (typeof d.businessPulse?.suspendedBusinesses === 'number') {
+          tickers.push({ label: 'Suspended', value: d.businessPulse.suspendedBusinesses.toLocaleString() });
+        }
 
         setItems(tickers);
       })

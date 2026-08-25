@@ -1,5 +1,6 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
+const businessRegistry = require('../shared/businessRegistry.js');
 const http = require('http');
 
 function httpGet(url) {
@@ -25,10 +26,8 @@ function jsonGet(url) {
   });
 }
 
-const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
 const ECB_RATES_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 const ELERING_URL = 'https://dashboard.elering.ee/api/nps/price';
-
 async function fetchECBRates() {
   try {
     const xml = await httpGet(ECB_RATES_URL);
@@ -75,18 +74,23 @@ async function fetchElectricityPrices(zone) {
   }
 }
 
-async function fetchCKANCount(datasetId) {
-  try {
-    const pkg = await jsonGet(CKAN_API + '/package_show?id=' + datasetId);
-    const resources = (pkg.result && pkg.result.resources) || [];
-    const active = resources.filter(function (r) { return r.datastore_active; });
-    if (active.length === 0) return 0;
-    const latest = active[active.length - 1];
-    const countData = await jsonGet(CKAN_API + '/datastore_search?resource_id=' + latest.id + '&limit=0');
-    return (countData.result && countData.result.total) || 0;
-  } catch (e) {
-    return 0;
-  }
+function warnUnavailable(label, err) {
+  console.warn('[economy-data] ' + label + ' unavailable: ' + ((err && err.message) || err));
+}
+
+/**
+ * Resolve a business-registry count, or `null` if the portal could not answer.
+ *
+ * `null` rather than `0` is the whole point. The previous helper caught every
+ * error and returned `0`, so a dataset that had been 404ing for months
+ * rendered as a confident "0 Suspended Activities" — a wrong number that looks
+ * exactly like a right one. A null reaches the UI as an explicit dash.
+ */
+function optionalCount(label, load) {
+  return load().catch(function (err) {
+    warnUnavailable(label, err);
+    return null;
+  });
 }
 
 // CSP PxWeb API queries for live economic indicators
@@ -230,8 +234,8 @@ module.exports = async function (context, req) {
     const [exchangeRates, electricity, vatCount, suspendedCount, indicators] = await Promise.all([
       fetchECBRates(),
       fetchElectricityPrices(zone),
-      isLatvia ? fetchCKANCount('pvn-maksataji') : Promise.resolve(0),
-      isLatvia ? fetchCKANCount('saimnieciskas-darbibas-apstiprinasana-atjaunosana') : Promise.resolve(0),
+      isLatvia ? optionalCount('VAT payers', businessRegistry.fetchActiveVatPayers) : Promise.resolve(null),
+      isLatvia ? optionalCount('Suspended activities', businessRegistry.fetchSuspendedBusinesses) : Promise.resolve(null),
       isLatvia ? fetchPxWebIndicators() : Promise.resolve([]),
     ]);
 
@@ -246,10 +250,8 @@ module.exports = async function (context, req) {
         { label: 'Unemployment', value: 'N/A', unit: '', change: '' },
       ],
       businessPulse: {
-        newVatRegistrations: vatCount,
+        activeVatPayers: vatCount,
         suspendedBusinesses: suspendedCount,
-        suspendedChangePercent: 0,
-        newCompanies: 0,
       },
       fetchedAt: new Date().toISOString(),
     };
