@@ -149,10 +149,18 @@ THE TWO MISTAKES THAT REJECT MOST ARTICLES, AND EXACTLY HOW TO AVOID THEM:
      consecutive 0.4-point fall". This removes the single most common
      rejection outright.
 
-     ONLY THE FIRST TWO PARAGRAPHS MAY CONTAIN DIGITS. The remaining
-     paragraphs explain and close, and refer back in words — "the decline",
-     "that gap" — carrying no numerals. A paragraph with no digits has
+     ONLY THE FIRST PARAGRAPH MAY CONTAIN DIGITS. Every paragraph after it
+     explains and closes, and refers back in words — "the decline", "that
+     gap" — carrying no numerals at all. A paragraph with no digits has
      "figures": [].
+
+     This is the single largest source of rejection. A second paragraph that
+     restates the movement with a figure must also restate what it is
+     measured against, in that same paragraph, and drafts reliably do the
+     first and forget the second. Keeping the numbers in the lead removes
+     the trap rather than asking you to step around it — and it is how a
+     wire reads anyway: the lead carries the figures, the body says what
+     they mean.
 
   2. A CHANGE WITHOUT ITS BASIS IN THE SAME PARAGRAPH.
      If a paragraph contains BOTH a change word (rose, fell, increased,
