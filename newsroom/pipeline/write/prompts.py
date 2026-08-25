@@ -22,7 +22,7 @@ from newsroom.pipeline.models import Signal
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card
 
-PROMPT_VERSION = "tierA-research-v4"
+PROMPT_VERSION = "tierA-research-v5"
 
 _SYSTEM_TEMPLATE = """{voice}
 
@@ -124,14 +124,40 @@ Note three things about it: both numerals are declared; the comparison basis
 ("from ... in the same month a year earlier") sits in the same sentence as the
 change; and no year, count or derived percentage appears anywhere.
 
-THE TWO MISTAKES THAT REJECT MOST ARTICLES:
+THE TWO MISTAKES THAT REJECT MOST ARTICLES, AND EXACTLY HOW TO AVOID THEM:
 
-  1. Writing a bare year. "fell from 2025 levels" contains the numeral 2025 and
-     will be rejected. Write "from a year earlier" instead. Only the period
-     labels you are given may be quoted.
-  2. Describing a change without its basis in the same sentence. "Producer
-     prices dropped sharply" is rejected. "Producer prices fell 3.2% against the
-     previous month" is not.
+  1. A BARE NUMERAL THAT IS NOT A VERIFIED FIGURE.
+     "fell from 2025 levels" contains the numeral 2025 and is rejected. So is
+     "9 of the 10 categories" and any percentage you worked out yourself.
+     Only the values in VERIFIED FIGURES and the supplied period labels may
+     appear as digits, anywhere, including in the standfirst.
+
+     THE STANDFIRST MUST CONTAIN NO DIGITS AT ALL. Say why it matters in
+     words: "the longest run of falls since the series began", not "a third
+     consecutive 0.4-point fall". This removes the single most common
+     rejection outright.
+
+     ONLY THE FIRST TWO PARAGRAPHS MAY CONTAIN DIGITS. The remaining
+     paragraphs explain and close, and refer back in words — "the decline",
+     "that gap" — carrying no numerals. A paragraph with no digits has
+     "figures": [].
+
+  2. A CHANGE WITHOUT ITS BASIS IN THE SAME PARAGRAPH.
+     If a paragraph contains BOTH a change word (rose, fell, increased,
+     declined, dropped, jumped, widened, higher, lower ...) AND a digit, that
+     same paragraph MUST contain one of these exact phrases:
+
+         "compared with"          "against the ..."
+         "than"                   "year on year"
+         "a year earlier"         "the same month"
+         "the previous month"     "since ..."
+         "from X to Y"            "relative to"
+         "the long-run average"   "the four-year average"
+
+     Copy one of them into the sentence. Do not paraphrase it into something
+     like "in a notable shift" — that is not a basis and the article is
+     rejected. If you cannot name what the change is measured against, do not
+     use a change word in that paragraph.
 
 Write {paragraphs} paragraphs. The first must carry the finding and its
 comparison basis. The last must follow your closing move. Keep it tight — this
@@ -195,9 +221,23 @@ HOW TO READ THAT:
   declared in every one of them.
 - "figure N does not match <field>=M" means you declared a figure whose value
   disagrees with the verified data. Use M exactly, or drop the claim.
-- "describes a change without naming the comparison basis" means a sentence
-  used a movement word (rose, fell, declined, up, down) without stating what
-  the comparison is against. Name the comparison basis in that same sentence.
+- "describes a change without naming the comparison basis" means a paragraph
+  contained BOTH a movement word (rose, fell, declined, up, down, widened) AND
+  a digit, without naming what the comparison is against.
+
+  Fix it one of two ways, in that same paragraph:
+    (a) insert one of these exact phrases —
+        "compared with", "against the ...", "than", "year on year",
+        "a year earlier", "the same month", "the previous month",
+        "since ...", "from X to Y", "relative to", "the long-run average"
+    (b) or remove every digit from that paragraph and describe the movement
+        in words, which makes the rule stop applying.
+
+  Do not substitute a phrase of your own that means the same thing. The check
+  looks for the wording above, and "in a marked shift" does not satisfy it.
+
+  YOU HAVE ALREADY FAILED THIS CHECK ON AN EARLIER ATTEMPT. Rewriting the same
+  paragraph with the same structure will fail it again. Change the sentence.
 
 Every rule in the brief still applies in full. The checks are not negotiable
 and will run again unchanged: an article that fails them a second time is
