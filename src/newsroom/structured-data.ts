@@ -12,7 +12,7 @@
 
 import type { Article } from '../news-types';
 import { renderByline } from './correspondents';
-import { ACCOUNTABLE_EDITOR } from './editorial';
+import { publisherName } from './editorial';
 
 export const SITE_URL = 'https://portabaltica.naurolabs.com';
 export const SITE_NAME = 'portaBaltica';
@@ -60,14 +60,14 @@ export function newsArticleJsonLd(article: Article): Record<string, unknown> | n
     author: {
       '@type': 'Organization',
       name: byline,
-      url: `${SITE_URL}/correspondents/${article.persona.id}`,
+      url: `${SITE_URL}/newsroom/${article.persona.id}`,
     },
     publisher: {
       '@type': 'Organization',
       name: SITE_NAME,
       url: SITE_URL,
     },
-    editor: { '@type': 'Person', name: article.provenance.accountable_editor ?? ACCOUNTABLE_EDITOR },
+    editor: { '@type': 'Person', name: publisherName(article.provenance.accountable_editor) },
     creativeWorkStatus: article.status === 'corrected' ? 'Corrected' : 'Published',
     ...(citations.length > 0 ? { isBasedOn: citations, citation: citations } : {}),
     ...(article.corrections?.length

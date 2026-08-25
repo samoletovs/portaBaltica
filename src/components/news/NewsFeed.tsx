@@ -17,6 +17,11 @@ export default function NewsFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
+  // The rail is a pointer to other people's work, not a second feed. Left
+  // uncapped it ran longer than our own reporting and turned the front page
+  // into a scroll. Four is enough to show there is a world outside.
+  const [showAllElsewhere, setShowAllElsewhere] = useState(false);
+  const visibleElsewhere = showAllElsewhere ? Number.POSITIVE_INFINITY : 4;
 
   usePageMeta({
     title: 'portaBaltica — Baltic open data, reported',
@@ -157,11 +162,22 @@ export default function NewsFeed() {
           {elsewhere.length === 0 ? (
             <p className="news-subtle mt-4 text-xs">Nothing filed here right now.</p>
           ) : (
-            <div className="mt-4 space-y-4">
-              {elsewhere.map((summary) => (
-                <LinkOutCardFromSummary key={summary.id ?? summary.slug} summary={summary} />
-              ))}
-            </div>
+            <>
+              <div className="mt-4 space-y-4">
+                {elsewhere.slice(0, visibleElsewhere).map((summary) => (
+                  <LinkOutCardFromSummary key={summary.id ?? summary.slug} summary={summary} />
+                ))}
+              </div>
+              {elsewhere.length > visibleElsewhere && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllElsewhere(true)}
+                  className="news-link news-focus mt-4 text-xs underline underline-offset-4"
+                >
+                  Show {elsewhere.length - visibleElsewhere} more from other outlets
+                </button>
+              )}
+            </>
           )}
         </aside>
       </div>

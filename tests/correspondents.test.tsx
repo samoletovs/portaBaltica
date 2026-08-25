@@ -89,9 +89,9 @@ describe('Correspondent bio page', () => {
   function renderBio(id: string) {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('no network in tests')));
     return render(
-      <MemoryRouter initialEntries={[`/correspondents/${id}`]}>
+      <MemoryRouter initialEntries={[`/newsroom/${id}`]}>
         <Routes>
-          <Route path="/correspondents/:id" element={<CorrespondentPage />} />
+          <Route path="/newsroom/:id" element={<CorrespondentPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -100,7 +100,7 @@ describe('Correspondent bio page', () => {
   it('states plainly that the correspondent is an AI system, not a person', () => {
     renderBio('nida');
 
-    expect(screen.getByRole('heading', { name: 'Ilze Bērziņa is not a person' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Ilze Nida is not a person' })).toBeTruthy();
     expect(screen.getByText(/is an AI system/)).toBeTruthy();
     // The names read as people now, so the denial has to be explicit rather
     // than implied by an obviously non-human name.
@@ -114,10 +114,10 @@ describe('Correspondent bio page', () => {
     expect(screen.getByText(/Elering \/ Nord Pool/)).toBeTruthy();
   });
 
-  it('names the accountable editor', () => {
+  it('names the accountable publisher', () => {
     renderBio('kolka');
 
-    expect(screen.getByText('Sam Samoletovs')).toBeTruthy();
+    expect(screen.getByText('Andre Ovīši')).toBeTruthy();
   });
 
   it('says the correspondent never interviews, visits or witnesses anything', () => {

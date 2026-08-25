@@ -3,7 +3,8 @@ import { Link, NavLink, useParams } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
 import { fetchArticleIndex } from '../../news-api';
 import {
-  ACCOUNTABLE_EDITOR,
+  ACCOUNTABLE_PUBLISHER,
+  AI_EDITOR,
   CORRESPONDENTS,
   getCorrespondent,
   renderByline,
@@ -12,6 +13,7 @@ import { usePageMeta } from '../../newsroom/usePageMeta';
 import { CorrespondentAvatar } from './CorrespondentAvatar';
 import { ArticleCard } from './NewsCard';
 import { SECTION_LABELS } from '../../newsroom/sections';
+import { NewsroomIndex } from './NewsroomIndex';
 
 /**
  * The bio page.
@@ -34,7 +36,7 @@ export default function CorrespondentPage() {
     description: correspondent
       ? `${correspondent.name} is an AI system that writes portaBaltica's ${correspondent.beat} coverage from open data. Not a person.`
       : undefined,
-    canonicalPath: id ? `/correspondents/${id}` : '/correspondents',
+    canonicalPath: id ? `/newsroom/${id}` : '/newsroom',
   });
 
   useEffect(() => {
@@ -53,27 +55,7 @@ export default function CorrespondentPage() {
   }, [correspondent]);
 
   if (!correspondent) {
-    return (
-      <div className="mx-auto max-w-2xl">
-        <h1 className="news-fg text-xl font-semibold">Correspondents</h1>
-        <p className="news-muted mt-2 text-sm">
-          Five AI correspondents write portaBaltica, each covering a beat with a declared expertise.
-        </p>
-        <ul className="mt-6 space-y-3">
-          {CORRESPONDENTS.map((entry) => (
-            <li key={entry.id}>
-              <Link
-                to={`/correspondents/${entry.id}`}
-                className="news-border news-focus flex items-center gap-3 rounded-lg border p-3"
-              >
-                <CorrespondentAvatar id={entry.id} size={40} />
-                <span className="news-muted text-sm">{renderByline(entry)}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
+    return <NewsroomIndex />;
   }
 
   return (
@@ -82,7 +64,7 @@ export default function CorrespondentPage() {
         {CORRESPONDENTS.map((entry) => (
           <NavLink
             key={entry.id}
-            to={`/correspondents/${entry.id}`}
+            to={`/newsroom/${entry.id}`}
             className={({ isActive }) =>
               [
                 'rounded-full border px-3 py-1 text-xs transition-colors',
@@ -126,8 +108,13 @@ export default function CorrespondentPage() {
           is checked before publication and refused if a check fails.
         </p>
         <p className="news-warning mt-2 text-sm leading-relaxed">
-          <strong className="font-semibold">{ACCOUNTABLE_EDITOR}</strong> is the
-          accountable editor and answers for everything published under this byline.{' '}
+          Every story filed here is reviewed by{' '}
+          <Link to="/newsroom/saulkrasti" className="news-focus underline underline-offset-2">
+            {AI_EDITOR.name}
+          </Link>
+          , the AI editor, who sends work back with notes or holds it.{' '}
+          <strong className="font-semibold">{ACCOUNTABLE_PUBLISHER}</strong> is the accountable
+          publisher and answers for everything published under this byline.{' '}
           <Link to="/about/ai" className="news-focus underline underline-offset-2">
             Read the full AI policy
           </Link>

@@ -10,9 +10,9 @@
 
 import type { PersonaId } from '../news-types';
 import type { DashboardSection } from '../types';
-import { ACCOUNTABLE_EDITOR, BYLINE_SUFFIX } from './editorial';
+import { ACCOUNTABLE_PUBLISHER, AI_EDITOR, BYLINE_SUFFIX, EDITOR_SUFFIX } from './editorial';
 
-export { ACCOUNTABLE_EDITOR, BYLINE_SUFFIX };
+export { ACCOUNTABLE_PUBLISHER, AI_EDITOR, BYLINE_SUFFIX, EDITOR_SUFFIX };
 
 export interface Correspondent {
   id: PersonaId;
@@ -40,7 +40,7 @@ export interface Correspondent {
 export const CORRESPONDENTS: Correspondent[] = [
   {
     id: 'nida',
-    name: 'Ilze Bērziņa',
+    name: 'Ilze Nida',
     beat: 'Economy & Labour',
     country: 'LV',
     expertise: [
@@ -67,7 +67,7 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'akmensrags',
-    name: 'Marek Soosaar',
+    name: 'Marek Akmeņrags',
     beat: 'Energy & Markets',
     country: 'EE',
     expertise: [
@@ -93,7 +93,7 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'kolka',
-    name: 'Gintaras Vaitkus',
+    name: 'Gintaras Kolka',
     beat: 'Maritime & Trade',
     country: 'LT',
     expertise: [
@@ -119,7 +119,7 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'ristna',
-    name: 'Kadri Lepik',
+    name: 'Kadri Ristna',
     beat: 'Environment & Climate',
     country: 'EE',
     expertise: [
@@ -145,7 +145,7 @@ export const CORRESPONDENTS: Correspondent[] = [
   },
   {
     id: 'irbene',
-    name: 'Rasa Petrauskaitė',
+    name: 'Rasa Irbene',
     beat: 'Government, EU & Society',
     country: 'LT',
     expertise: [
@@ -196,13 +196,78 @@ export const SECTION_ROUTING: Record<DashboardSection, PersonaId> = {
 /**
  * Builds the disclosing byline.
  *
- * This is the only function that may produce a byline string. It always
- * contains "AI correspondent" — a persona whose stored byline has lost the
- * disclosure gets a correct one built here rather than being rendered bare.
+ * This is the only function that may produce a byline string, and it always
+ * contains "AI correspondent".
+ *
+ * The registry — not the stored string — decides the name. A byline is baked
+ * into an article at publication, so an article filed before a correspondent
+ * was renamed still carries the old surname. Trusting that string would print
+ * two different names for one correspondent depending on which week the story
+ * ran, and would make the bio page it links to look like a stranger's. The
+ * stored byline is only used when the persona is not in the registry at all.
  */
-export function renderByline(persona: { name: string; beat?: string; byline?: string }): string {
-  const stored = persona.byline?.trim();
-  if (stored && stored.includes(BYLINE_SUFFIX)) return stored;
-  const beat = persona.beat?.trim();
-  return beat ? `${persona.name} · ${BYLINE_SUFFIX}, ${beat}` : `${persona.name} · ${BYLINE_SUFFIX}`;
+export function renderByline(persona: { id?: string; name?: string; beat?: string; byline?: string }): string {
+  const known = persona.id ? getCorrespondent(persona.id) : undefined;
+  const name = known?.name ?? persona.name?.trim();
+  const beat = known?.beat ?? persona.beat?.trim();
+
+  if (!name) {
+    const stored = persona.byline?.trim();
+    if (stored && stored.includes(BYLINE_SUFFIX)) return stored;
+    return BYLINE_SUFFIX;
+  }
+
+  return beat ? `${name} · ${BYLINE_SUFFIX}, ${beat}` : `${name} · ${BYLINE_SUFFIX}`;
 }
+
+/** The editor's line. Same disclosure rule as a byline. */
+export function renderEditorLine(): string {
+  return `${AI_EDITOR.name} · ${EDITOR_SUFFIX}`;
+}
+
+/**
+ * Everyone the reader can look up, in masthead order.
+ *
+ * Correspondents file, the editor decides, the publisher answers for it. The
+ * page that lists them is the newsroom, not a list of writers, because two of
+ * these three do not write.
+ */
+export type NewsroomRole = 'correspondent' | 'editor' | 'publisher';
+
+export interface NewsroomMember {
+  id: string;
+  name: string;
+  role: NewsroomRole;
+  /** The disclosure label printed next to the name. Empty for the human. */
+  label: string;
+  beat: string;
+  hue: number;
+}
+
+export const NEWSROOM: NewsroomMember[] = [
+  ...CORRESPONDENTS.map((c): NewsroomMember => ({
+    id: c.id,
+    name: c.name,
+    role: 'correspondent',
+    label: BYLINE_SUFFIX,
+    beat: c.beat,
+    hue: c.hue,
+  })),
+  {
+    id: AI_EDITOR.id,
+    name: AI_EDITOR.name,
+    role: 'editor',
+    label: EDITOR_SUFFIX,
+    beat: 'Editorial review',
+    hue: 12,
+  },
+  {
+    id: 'publisher',
+    name: ACCOUNTABLE_PUBLISHER,
+    role: 'publisher',
+    label: '',
+    beat: 'Accountable publisher — human',
+    hue: 210,
+  },
+];
+

@@ -1,7 +1,7 @@
 # Corrections policy
 
 **Last updated:** 2026-08-24
-**Accountable editor:** Sam Samoletovs
+**Accountable publisher:** Andre Ovīši (human)
 
 ## The rule
 

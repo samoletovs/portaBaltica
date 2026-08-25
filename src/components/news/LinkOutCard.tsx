@@ -1,4 +1,5 @@
 import type { ArticleSummary } from '../../news-types';
+import { clampSnippet, snippetText } from '../../newsroom/snippet';
 
 /**
  * Tier C — link-out only.
@@ -33,6 +34,9 @@ interface Props {
 
 export function LinkOutCard({ headline, snippet, attribution, originalUrl, publishedAt }: Props) {
   const when = publishedAt ? new Date(publishedAt) : null;
+  // Feed descriptions are HTML. Take the publisher's prose out of it and keep
+  // it short — see src/newsroom/snippet.ts for why neither step is a rewrite.
+  const quote = clampSnippet(snippetText(snippet));
 
   return (
     <article
@@ -65,9 +69,9 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         </a>
       </h3>
 
-      {snippet && (
+      {quote && (
         <blockquote className="news-muted mt-1.5 border-0 text-[13px] leading-relaxed">
-          <p>{snippet}</p>
+          <p>{quote}</p>
           <footer className="news-subtle mt-1 text-[11px]">
             Summary published by <cite className="not-italic">{attribution}</cite> in its own feed, quoted verbatim.
           </footer>

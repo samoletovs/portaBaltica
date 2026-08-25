@@ -85,7 +85,7 @@ describe('ArticleView — the byline always discloses', () => {
     renderArticle(tierAArticle());
 
     const link = screen.getByRole('link', { name: /AI correspondent/ });
-    expect(link.getAttribute('href')).toBe('/correspondents/nida');
+    expect(link.getAttribute('href')).toBe('/newsroom/nida');
   });
 });
 
@@ -97,7 +97,7 @@ describe('ArticleView — the provenance passport', () => {
     expect(screen.getByText('Eurostat')).toBeTruthy();
     expect(screen.getByText(/lc_lci_lev/)).toBeTruthy();
     expect(screen.getByText('gpt-4o-mini@2024-07-18')).toBeTruthy();
-    expect(screen.getByText('Sam Samoletovs')).toBeTruthy();
+    expect(screen.getByText('Andre Ovīši')).toBeTruthy();
     expect(screen.getByText(/Retrieved/)).toBeTruthy();
   });
 

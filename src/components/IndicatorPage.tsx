@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
 import { IndicatorChart } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
 import { useCountry } from '../CountryContext';
@@ -155,7 +156,20 @@ const INDICATOR_INFO: Record<string, { title: string; description: string; relat
 export function IndicatorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { countryLabel, flag } = useCountry();
+  const [searchParams] = useSearchParams();
+  const { countryLabel, flag, setCountry } = useCountry();
+
+  // A link from an article carries the country the story was about. Without
+  // this the page answered for whatever the dashboard's switcher was last left
+  // on, so "check it yourself" under an Estonian story could open Lithuania —
+  // which looks less like a different country than like the article being
+  // wrong. The switcher stays visible and the reader can still change it.
+  const requested = searchParams.get('country')?.toUpperCase();
+  useEffect(() => {
+    if (requested === 'LV' || requested === 'EE' || requested === 'LT') {
+      setCountry(requested);
+    }
+  }, [requested, setCountry]);
   const info = id ? INDICATOR_INFO[id] : null;
 
   if (!id || !info) {

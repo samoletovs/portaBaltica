@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Provenance, ValidatorCheckName } from '../../news-types';
-import { ACCOUNTABLE_EDITOR } from '../../newsroom/editorial';
+import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
 
 /**
  * The passport.
@@ -219,7 +219,8 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
             <Field label="Written">
               <time dateTime={generated_at}>{formatTimestamp(generated_at)}</time>
             </Field>
-            <Field label="Accountable editor">{accountable_editor ?? ACCOUNTABLE_EDITOR}</Field>
+            <Field label="Reviewed by">{AI_EDITOR.name} · AI editor</Field>
+            <Field label="Accountable publisher">{publisherName(accountable_editor)}</Field>
             {approved_by && (
               <Field label="Approved by">
                 {approved_by}
