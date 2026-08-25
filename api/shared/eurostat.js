@@ -221,10 +221,16 @@ function buildUrl(def, years, geos) {
 }
 
 /**
- * Absolute month index for a JSON-stat period label, used to compare periods of
- * different granularity on one axis. It resolves to the *last* month the period
- * covers — 2026-Q1 is March 2026, 2025 is December 2025 — because that is when
- * the observation is complete and the clock on publishing it starts.
+ * Absolute month index for a period label, used to compare periods of different
+ * granularity on one axis. It resolves to the *last* month the period covers —
+ * 2026-Q1 is March 2026, 2025 is December 2025 — because that is when the
+ * observation is complete and the clock on publishing it starts.
+ *
+ * Two vocabularies, because the dashboard reads two providers. Eurostat writes
+ * `2026-07`, `2026-Q1`, `2025-S2`; CSP PxWeb writes `2026M07`, `2026Q1`,
+ * `2025H2` for the same things. Recognising only one of them would silently
+ * report "cannot tell" for every national series, which is the answer that
+ * lets a frozen table through.
  *
  * Returns null for a label this function does not recognise, and callers must
  * treat null as "cannot tell" rather than as "fresh".
@@ -233,10 +239,50 @@ function periodToMonthIndex(period) {
   if (typeof period !== 'string') return null;
   let m;
   if ((m = /^(\d{4})-(\d{2})$/.exec(period))) return +m[1] * 12 + +m[2];
+  if ((m = /^(\d{4})M(\d{2})$/.exec(period))) return +m[1] * 12 + +m[2];
   if ((m = /^(\d{4})-?Q([1-4])$/.exec(period))) return +m[1] * 12 + +m[2] * 3;
-  if ((m = /^(\d{4})-?S([1-2])$/.exec(period))) return +m[1] * 12 + +m[2] * 6;
+  if ((m = /^(\d{4})-?[SH]([1-2])$/.exec(period))) return +m[1] * 12 + +m[2] * 6;
   if ((m = /^(\d{4})$/.exec(period))) return +m[1] * 12 + 12;
   return null;
+}
+
+/**
+ * The cadence a period label implies, so freshness can be judged for a series
+ * that arrived without a declared frequency — which is every PxWeb series.
+ */
+function periodCadence(period) {
+  if (typeof period !== 'string') return null;
+  if (/^(\d{4})(-\d{2}|M\d{2})$/.test(period)) return 'M';
+  if (/^(\d{4})-?Q[1-4]$/.test(period)) return 'Q';
+  if (/^(\d{4})-?[SH][1-2]$/.test(period)) return 'S';
+  if (/^(\d{4})$/.test(period)) return 'A';
+  return null;
+}
+
+/**
+ * Is the newest observation in `series` old enough to call the source frozen?
+ *
+ * Returns null when it cannot tell — an empty series or an unrecognised label —
+ * because "I don't know" must not read as "stale" and trigger a needless
+ * failover, nor as "fresh" and hide one.
+ */
+function isSeriesStale(series, now) {
+  if (!Array.isArray(series) || series.length === 0) return null;
+  let newest = null;
+  let newestIdx = -Infinity;
+  for (let i = 0; i < series.length; i++) {
+    const p = series[i];
+    if (!p || p.value === null || p.value === undefined) continue;
+    const idx = periodToMonthIndex(p.period);
+    if (idx === null) continue;
+    if (idx > newestIdx) { newestIdx = idx; newest = p.period; }
+  }
+  if (newest === null) return null;
+  const cadence = periodCadence(newest);
+  if (!cadence) return null;
+  const age = monthsSincePeriod(newest, now);
+  if (age === null) return null;
+  return { period: newest, age: age, cadence: cadence, allowed: MAX_AGE_MONTHS[cadence], stale: age > MAX_AGE_MONTHS[cadence] };
 }
 
 /** Age of an observation in whole months. Negative while the period is open. */
@@ -277,7 +323,9 @@ module.exports = {
   sincePeriod: sincePeriod,
   buildUrl: buildUrl,
   periodToMonthIndex: periodToMonthIndex,
+  periodCadence: periodCadence,
   monthsSincePeriod: monthsSincePeriod,
+  isSeriesStale: isSeriesStale,
   maxAgeMonths: maxAgeMonths,
   MAX_AGE_MONTHS: MAX_AGE_MONTHS,
 };
