@@ -133,30 +133,30 @@ export async function fetchAllWeather() {
 }
 
 const PORT_DATA_CACHE_KEY = 'portabaltica_port_data';
-const PORT_DATA_CACHE_TTL = 60 * 60 * 1000; // 1 hour — data.gov.lv updates biweekly
+/** Eurostat publishes maritime tables quarterly; an hour is already generous. */
+const PORT_DATA_CACHE_TTL = 60 * 60 * 1000;
 
-/** Fetch all port data (ship visits, ferry, cargo) via SWA API proxy to bypass CORS.
- *  Caches in localStorage for 1 hour to reduce API calls. */
-export async function fetchPortData(): Promise<PortDataResponse> {
-  // Check cache
+/** Fetch Baltic port statistics (cargo, passengers, vessels) via the SWA API
+ *  proxy. Cached per country in localStorage for an hour. */
+export async function fetchPortData(country: string = 'LV'): Promise<PortDataResponse> {
+  // Keyed by country: a shared key served Estonia's figures under Latvia's
+  // label for an hour after switching.
+  const cacheKey = `${PORT_DATA_CACHE_KEY}_${country.toUpperCase()}`;
+
   try {
-    const cached = localStorage.getItem(PORT_DATA_CACHE_KEY);
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < PORT_DATA_CACHE_TTL) {
-        console.log('Using cached port data');
-        return data;
-      }
+      if (Date.now() - timestamp < PORT_DATA_CACHE_TTL) return data;
     }
   } catch { /* ignore cache errors */ }
 
-  const res = await fetch('/api/port-data');
+  const res = await fetch(`/api/port-data?country=${encodeURIComponent(country.toUpperCase())}`);
   if (!res.ok) throw new Error(`Port data API failed: ${res.status}`);
   const data: PortDataResponse = await res.json();
 
-  // Save to cache
   try {
-    localStorage.setItem(PORT_DATA_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+    localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
   } catch { /* ignore storage errors */ }
 
   return data;

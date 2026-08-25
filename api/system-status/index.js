@@ -46,6 +46,19 @@ const CHECKS = [
     powers: 'All Baltic comparison charts',
   },
   {
+    name: 'Eurostat maritime',
+    // The exact slice the maritime tile reads, asserted to carry a value.
+    // A source that answers 200 with nothing in it is the failure that ended
+    // the previous maritime feed: data.gov.lv served eighteen consecutive
+    // header-only CSVs while every liveness check on the host stayed green.
+    url: es.EUROSTAT_BASE + '/mar_tf_qm?format=JSON&lang=EN&freq=Q&tonnage=TOTAL' +
+      '&vessel=TOTAL&unit=NR&rep_mar=LV_0LVRIX&lastTimePeriod=1',
+    type: 'eurostat-cube',
+    cubeKey: 'rep_mar',
+    required: true,
+    powers: 'Port cargo, passenger and vessel statistics',
+  },
+  {
     name: 'ECB Exchange Rates',
     url: 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml',
     type: 'ecb-xml',
@@ -155,6 +168,17 @@ async function runCheck(check) {
         }
       }));
       if (missing.length > 0) throw new Error('Unavailable: ' + missing.join('; '));
+    } else if (check.type === 'eurostat-cube') {
+      // Parsing is not enough: an emptied cube still parses. Require at least
+      // one real observation, which is what the tile needs to render.
+      const body = await es.httpJson(check.url, { deadlineMs: PROBE_DEADLINE_MS });
+      const parsed = es.parseJsonStatDim(body, check.cubeKey, null);
+      const carriesData = Object.keys(parsed.series).some(function (key) {
+        return parsed.series[key].series.some(function (p) {
+          return p.value !== null && p.value !== undefined;
+        });
+      });
+      if (!carriesData) throw new Error('Cube answered but carries no observation');
     } else if (check.type === 'text') {
       const text = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
       if (!text || text.length === 0) throw new Error('Empty response');

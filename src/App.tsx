@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { PORTS } from './types';
-import type { MarineWeatherForecast, PortWeather, ShipVisit, FerryData, CargoData, CargoTurnover, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
+import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
@@ -39,11 +39,7 @@ export default function App() {
 
   // Maritime data (existing)
   const [portData, setPortData] = useState<PortWeatherData[]>([]);
-  const [shipVisits, setShipVisits] = useState<ShipVisit[]>([]);
-  const [ferryData, setFerryData] = useState<FerryData[]>([]);
-  const [cargoData, setCargoData] = useState<CargoData[]>([]);
-  const [cargoTurnover, setCargoTurnover] = useState<CargoTurnover[]>([]);
-  const [portDataAsOf, setPortDataAsOf] = useState<string | null>(null);
+  const [portStats, setPortStats] = useState<PortDataResponse | null>(null);
   const [maritimeLoading, setMaritimeLoading] = useState(true);
 
   // New data sections
@@ -71,17 +67,13 @@ export default function App() {
     async function loadMaritime() {
       setMaritimeLoading(true);
       try {
-        const [weather, govData] = await Promise.all([
+        const [weather, stats] = await Promise.all([
           fetchAllWeather().catch(() => []),
-          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], dataAsOf: null, fetchedAt: '' })),
+          fetchPortData(country).catch(() => null),
         ]);
         if (cancelled) return;
         setPortData(weather);
-        setShipVisits(govData.shipVisits);
-        setFerryData(govData.ferryData);
-        setCargoData(govData.cargoData);
-        setCargoTurnover(govData.cargoTurnover ?? []);
-        setPortDataAsOf(govData.dataAsOf ?? null);
+        setPortStats(stats);
       } catch { /* non-critical */ } finally {
         if (!cancelled) setMaritimeLoading(false);
       }
@@ -208,11 +200,7 @@ export default function App() {
           {show('maritime') && (
             <MaritimeTile
               portData={portData}
-              shipVisits={shipVisits}
-              ferryData={ferryData}
-              cargoData={cargoData}
-              cargoTurnover={cargoTurnover}
-              dataAsOf={portDataAsOf}
+              stats={portStats}
               loading={maritimeLoading}
             />
           )}
@@ -227,7 +215,7 @@ export default function App() {
             <p>Economy — <a href="https://data.stat.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
             <p>Business — <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>
             <p>Environment — <a href="https://open-meteo.com/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
-            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">SKLOIS</a></p>
+            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://ec.europa.eu/eurostat/web/transport/database" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat maritime</a></p>
           </div>
           <p className="mt-4 text-slate-600">
             Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a>
