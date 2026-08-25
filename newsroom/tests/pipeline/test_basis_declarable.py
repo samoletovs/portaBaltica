@@ -58,8 +58,9 @@ def all_detector_signals() -> list[tuple[str, Signal]]:
         detect_divergence,
         detect_record_extreme,
         detect_seasonal_deviation,
+        detect_structural_divergence,
     )
-    from newsroom.tests.pipeline.conftest import monthly_periods, series_from
+    from newsroom.tests.pipeline.conftest import monthly_periods, quarterly_periods, series_from
 
     signals: list[tuple[str, Signal]] = []
 
@@ -92,6 +93,33 @@ def all_detector_signals() -> list[tuple[str, Signal]]:
     )
     if seasonal is not None:
         signals.append(("seasonal_deviation", seasonal))
+
+    # A gap that opens and compounds over 24 quarters — the shape the
+    # spread-based divergence detector is built to stay quiet about. Its basis
+    # quotes both an average difference and a count of quarters, so it has two
+    # ways to strand an undeclarable number.
+    quarters = quarterly_periods(24)
+    structural = detect_structural_divergence(
+        {
+            geo: series_from(
+                values,
+                geography=geo,
+                periods=quarters,
+                metric="services_balance",
+                metric_label="the services balance",
+                unit="million EUR",
+                section="trade",
+                frequency="quarterly",
+            )
+            for geo, values in (
+                ("LV", [300 + 8 * i for i in range(24)]),
+                ("EE", [340 + 10 * i for i in range(24)]),
+                ("LT", [250 + 95 * i for i in range(24)]),
+            )
+        }
+    )
+    if structural is not None:
+        signals.append(("structural_divergence", structural))
 
     _ = monthly_periods
     return signals
@@ -130,7 +158,12 @@ class TestEveryDetectorHonoursIt:
         # Coverage is asserted, not assumed. An input that stops triggering its
         # detector would otherwise turn this into a test of one detector while
         # still reporting green.
-        assert covered == {"divergence", "record_extreme", "seasonal_deviation"}, (
+        assert covered == {
+            "divergence",
+            "record_extreme",
+            "seasonal_deviation",
+            "structural_divergence",
+        }, (
             f"a detector stopped producing a signal, so it is no longer checked: {covered}"
         )
         offenders = {

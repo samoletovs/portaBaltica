@@ -15,6 +15,7 @@ from newsroom.pipeline.detect.detectors import (
     detect_seasonal_deviation,
     detect_sharp_move,
     detect_streak,
+    detect_structural_divergence,
     detect_threshold_cross,
 )
 from newsroom.pipeline.detect.series import Observation, TimeSeries, pct_change, robust_sigma
@@ -29,6 +30,7 @@ __all__ = [
     "detect_seasonal_deviation",
     "detect_sharp_move",
     "detect_streak",
+    "detect_structural_divergence",
     "detect_threshold_cross",
     "pct_change",
     "robust_sigma",
