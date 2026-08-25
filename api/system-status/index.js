@@ -69,6 +69,25 @@ const CHECKS = [
     powers: 'Business registry counts',
   },
   {
+    // Liveness of the portal is not the same as availability of the data we
+    // read from it, and conflating the two hid a real outage: the Economy
+    // tile asked for a dataset that had been renamed, the portal answered
+    // 404, the tile printed "0 Suspended Activities", and this page stayed
+    // green throughout because `status_show` on the same host still answered.
+    //
+    // So probe the datasets by name. `package_show` is 3–4 KB and answers in
+    // well under a second, and it 404s for a dataset that no longer exists —
+    // which is precisely the failure that went unnoticed.
+    name: 'VID business registers',
+    datasets: [
+      'saimnieciskas-darbibas-apturesana',
+      'pvn-maksataji',
+    ],
+    type: 'ckan-datasets',
+    required: true,
+    powers: 'Suspended activities and VAT-payer counts',
+  },
+  {
     name: 'CSP PxWeb',
     // The catalogue root answers in ~80ms; a table query takes seconds.
     url: 'https://data.stat.gov.lv/api/v1/en/OSP_PUB',
@@ -114,6 +133,28 @@ async function runCheck(check) {
       // CKAN answers 200 with success:false for an unknown action, which is how
       // a removed action previously read as a healthy source.
       if (body && body.success === false) throw new Error('CKAN reported failure: ' + JSON.stringify(body.error || body).slice(0, 120));
+    } else if (check.type === 'ckan-datasets') {
+      // A dataset counts as available only if it still exists *and* still has
+      // a resource the datastore will answer queries for. An ingestion that
+      // has silently stopped leaves the dataset present but unqueryable, and
+      // the count that depends on it disappears.
+      const missing = [];
+      await Promise.all(check.datasets.map(async function (dataset) {
+        try {
+          const body = await es.httpJson(
+            'https://data.gov.lv/dati/api/3/action/package_show?id=' + encodeURIComponent(dataset),
+            { deadlineMs: PROBE_DEADLINE_MS },
+          );
+          if (!body || body.success !== true) throw new Error('success:false');
+          const resources = (body.result && body.result.resources) || [];
+          if (!resources.some(function (r) { return r && r.datastore_active; })) {
+            throw new Error('no datastore-active resource');
+          }
+        } catch (err) {
+          missing.push(dataset + ' (' + ((err && err.message) || err) + ')');
+        }
+      }));
+      if (missing.length > 0) throw new Error('Unavailable: ' + missing.join('; '));
     } else if (check.type === 'text') {
       const text = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
       if (!text || text.length === 0) throw new Error('Empty response');

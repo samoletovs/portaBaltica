@@ -43,6 +43,7 @@ export default function App() {
   const [ferryData, setFerryData] = useState<FerryData[]>([]);
   const [cargoData, setCargoData] = useState<CargoData[]>([]);
   const [cargoTurnover, setCargoTurnover] = useState<CargoTurnover[]>([]);
+  const [portDataAsOf, setPortDataAsOf] = useState<string | null>(null);
   const [maritimeLoading, setMaritimeLoading] = useState(true);
 
   // New data sections
@@ -72,7 +73,7 @@ export default function App() {
       try {
         const [weather, govData] = await Promise.all([
           fetchAllWeather().catch(() => []),
-          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], fetchedAt: '' })),
+          fetchPortData().catch(() => ({ shipVisits: [], ferryData: [], cargoData: [], cargoTurnover: [], dataAsOf: null, fetchedAt: '' })),
         ]);
         if (cancelled) return;
         setPortData(weather);
@@ -80,6 +81,7 @@ export default function App() {
         setFerryData(govData.ferryData);
         setCargoData(govData.cargoData);
         setCargoTurnover(govData.cargoTurnover ?? []);
+        setPortDataAsOf(govData.dataAsOf ?? null);
       } catch { /* non-critical */ } finally {
         if (!cancelled) setMaritimeLoading(false);
       }
@@ -210,6 +212,7 @@ export default function App() {
               ferryData={ferryData}
               cargoData={cargoData}
               cargoTurnover={cargoTurnover}
+              dataAsOf={portDataAsOf}
               loading={maritimeLoading}
             />
           )}
