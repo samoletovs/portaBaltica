@@ -362,7 +362,7 @@ def parse_elering(
                 section="energy",
                 observations=means,
                 frequency="daily",
-                chart_ref="energy.electricity",
+                chart_ref=None,
                 source=source,
             )
         )
@@ -375,7 +375,7 @@ def parse_elering(
                 section="energy",
                 observations=spreads,
                 frequency="daily",
-                chart_ref="energy.electricity",
+                chart_ref=None,
                 source=source,
             )
         )

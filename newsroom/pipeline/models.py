@@ -107,6 +107,13 @@ class Signal:
     fields: Mapping[str, float]
     sources: Sequence[SourceRef]
     context: Mapping[str, str] = field(default_factory=dict)
+    #: Dashboard indicator id for the chart that backs this finding.
+    #:
+    #: Carried from the series rather than derived from ``metric``. The two are
+    #: not the same vocabulary: the metric is ``unemployment_rate``, the chart
+    #: is ``unemployment``, and using the metric produced articles whose chart
+    #: request answered 400. See test_chart_ref_contract.py.
+    chart_ref: str | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:

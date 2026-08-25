@@ -17,6 +17,7 @@ from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.collect.opendata import collect_open_data
 from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.detect import Threshold, detect_all
+from newsroom.pipeline.desk import DeskOutcome, run_desk
 from newsroom.pipeline.house_style import check_prose, review_headline
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
@@ -63,6 +64,9 @@ class RunReport:
     errors: list[str] = field(default_factory=list)
     #: Copy-edits the desk applied, and style problems it could only flag.
     style_notes: list[str] = field(default_factory=list)
+    #: One editorial decision per original article. The audit trail for what
+    #: the desk approved, sent back, or held.
+    desk: list[DeskOutcome] = field(default_factory=list)
 
     @property
     def published(self) -> list[Article]:
@@ -248,6 +252,35 @@ async def run_once(
             for note in apply_house_style(generated.article):
                 log.info("house style: %s", note)
                 report.style_notes.append(note)
+
+        # --- 6c. editorial review --------------------------------------------
+        # Every original article is read by the AI editor before a reader sees
+        # it. The validator has already established that the piece is correct;
+        # this asks whether it is worth running. The desk can only narrow what
+        # publishes — an article it does not approve is marked rejected, and
+        # isServable() refuses it on the reader side.
+        for generated in report.generated:
+            if not generated.publishable:
+                continue
+            try:
+                outcome = run_desk(
+                    generated.article,
+                    writer,
+                    style_notes=report.style_notes,
+                )
+                report.desk.append(outcome)
+                log.info(
+                    "desk %s %s: %s",
+                    outcome.action.value,
+                    generated.article.id,
+                    outcome.reason,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Fail closed: an article whose review did not complete is not
+                # an approved article.
+                log.exception("desk review failed for %s", generated.article.id)
+                generated.article.status = "rejected"
+                report.errors.append(f"desk {generated.article.id}: {exc}")
 
         # --- tier B/C ----------------------------------------------------
         if include_syndication and feed_items:
