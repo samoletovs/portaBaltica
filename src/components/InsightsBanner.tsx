@@ -41,8 +41,8 @@ export function InsightsBanner() {
     return (
       <section className="mb-6" aria-live="polite" aria-busy="true">
         <div className="flex items-center gap-3 mb-3">
-          <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
-          <span className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>Refreshing</span>
+          <h2 className="text-caption font-medium uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
+          <span className="text-caption px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>Refreshing</span>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" role="status" aria-label="Loading insights">
           {[1, 2, 3].map((placeholder) => (
@@ -63,8 +63,8 @@ export function InsightsBanner() {
   return (
     <section className="mb-6">
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
-        <span className="text-xs px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>
+        <h2 className="text-caption font-medium uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Insights</h2>
+        <span className="text-caption px-2 py-0.5 rounded" style={{ color: 'var(--text-muted)', background: 'var(--bg-card-hover)' }}>
           Live
         </span>
       </div>
@@ -78,10 +78,10 @@ export function InsightsBanner() {
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className={`w-1.5 h-1.5 rounded-full ${badge.color === 'text-emerald-400' ? 'bg-emerald-400' : badge.color === 'text-yellow-400' ? 'bg-yellow-400' : 'bg-red-400'}`} />
-                <span className={`text-xs font-medium ${badge.color}`}>{badge.label}</span>
+                <span className={`text-caption font-medium ${badge.color}`}>{badge.label}</span>
               </div>
-              <p className="text-sm font-semibold text-white mb-1">{insight.headline}</p>
-              <p className="text-xs text-slate-300 leading-relaxed">{insight.description}</p>
+              <p className="text-ui font-semibold text-white mb-1">{insight.headline}</p>
+              <p className="text-caption text-slate-300 leading-relaxed">{insight.description}</p>
             </div>
           );
         })}

@@ -4,6 +4,7 @@ import { useTheme } from '../ThemeContext';
 import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
+import { chartTick, chartTooltip } from '../utils/chartType';
 
 const COUNTRY_COLORS: Record<string, { color: string; label: string; flag: string }> = {
   LV: { color: '#38bdf8', label: 'Latvia', flag: '🇱🇻' },
@@ -65,7 +66,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   if (!data || !data.countries || Object.keys(data.countries).length === 0) {
     return (
       <div className={`rounded-xl p-4 flex items-center justify-center ${compact ? 'h-40' : 'h-64'}`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No data available{title ? ` for ${title}` : ''}</p>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>No data available{title ? ` for ${title}` : ''}</p>
       </div>
     );
   }
@@ -99,12 +100,12 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-sm font-medium text-white">{title ?? data.title}</p>
-          <p className="text-xs text-slate-500">LV vs EE vs LT · {data.unit}</p>
+          <p className="text-ui font-medium text-white">{title ?? data.title}</p>
+          <p className="text-caption text-slate-500">LV vs EE vs LT · {data.unit}</p>
         </div>
         <div className="flex items-center gap-3">
           {Object.entries(COUNTRY_COLORS).map(([geo, info]) => (
-            <div key={geo} className="flex items-center gap-1 text-xs">
+            <div key={geo} className="flex items-center gap-1 text-caption">
               <span>{info.flag}</span>
               <span className="text-slate-300">{latestValues[geo] !== null && latestValues[geo] !== undefined ? formatValue(latestValues[geo], data.unit) : '—'}</span>
             </div>
@@ -118,21 +119,21 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: chartColors.axis, fontSize: 9 }}
+              tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               interval={Math.max(0, Math.floor(chartData.length / 6))}
             />
             {!compact && (
               <YAxis
-                tick={{ fill: chartColors.axis, fontSize: 9 }}
+                tick={chartTick(chartColors.axis)}
                 tickLine={false}
                 axisLine={{ stroke: chartColors.grid }}
                 width={40}
               />
             )}
             <Tooltip
-              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
+              contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
               formatter={(v, name) => {
                 const info = COUNTRY_COLORS[name as string];
@@ -156,7 +157,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
         </ResponsiveContainer>
       </div>
 
-      <p className="text-xs text-slate-600 mt-2">Source: {data.source}</p>
+      <p className="text-caption text-slate-600 mt-2">Source: {data.source}</p>
     </div>
   );
 }

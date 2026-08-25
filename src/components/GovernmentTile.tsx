@@ -8,8 +8,8 @@ export function GovernmentTile() {
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-body)' }}>Government & fiscal</h2>
-        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat</span>
+        <h2 className="balance-text text-title font-semibold" style={{ color: 'var(--text-primary)' }}>Government & fiscal</h2>
+        <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat</span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

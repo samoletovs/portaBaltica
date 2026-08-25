@@ -88,7 +88,7 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
 /**
  * Heading sizes come from the shared scale, and they descend.
  *
- * They did not before: h3 was rendered at `text-base` and h4 at `text-sm`,
+ * They did not before: h3 was rendered at `text-callout` and h4 at `text-ui`,
  * which put both at or below the size of the paragraphs they introduced. A
  * heading that is smaller than its own body text stops reading as a heading
  * and starts reading as a stray bold line, which is most of why these pages
@@ -100,9 +100,9 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
  * by treatment rather than by being another notch down an already short ramp.
  */
 const HEADING_CLASSES: Record<number, string> = {
-  1: 'editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display',
-  2: 'editorial-heading news-fg mt-12 mb-4 text-title font-semibold tracking-tight',
-  3: 'editorial-heading news-fg mt-9 mb-3 text-lead font-semibold',
+  1: 'balance-text news-fg text-headline font-semibold tracking-tight sm:text-display',
+  2: 'balance-text news-fg mt-12 mb-4 text-title font-semibold tracking-tight',
+  3: 'balance-text news-fg mt-9 mb-3 text-lead font-semibold',
   4: 'news-subtle mt-7 mb-2 text-caption font-semibold uppercase tracking-widest',
 };
 
@@ -139,13 +139,13 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'list':
       return block.ordered ? (
-        <ol className="editorial news-muted my-5 list-decimal space-y-2 pl-6 text-prose">
+        <ol className="pretty-text news-muted my-5 list-decimal space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
         </ol>
       ) : (
-        <ul className="editorial news-muted my-5 list-disc space-y-2 pl-6 text-prose">
+        <ul className="pretty-text news-muted my-5 list-disc space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
@@ -193,7 +193,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
     case 'paragraph':
     default:
       return (
-        <p className="editorial news-muted my-5 text-prose">
+        <p className="pretty-text news-muted my-5 text-prose">
           {renderInline(block.text, `p-${index}`)}
         </p>
       );

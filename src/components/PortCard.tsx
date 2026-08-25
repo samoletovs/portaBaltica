@@ -21,11 +21,11 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-white">{port.name}</h2>
-          <p className="text-xs text-slate-400 font-mono">{port.code}</p>
+          <h2 className="text-lead font-semibold text-white">{port.name}</h2>
+          <p className="text-caption text-slate-400 font-mono">{port.code}</p>
         </div>
         <div className={`text-right`}>
-          <span className={`text-sm font-semibold ${stateInfo.color}`}>
+          <span className={`text-ui font-semibold ${stateInfo.color}`}>
             {stateInfo.emoji} {stateInfo.label}
           </span>
         </div>
@@ -43,16 +43,16 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       <div className="border-t border-slate-800/40 pt-3">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
-            <p className="text-lg font-bold text-white">{weather.temperature.toFixed(0)}°</p>
-            <p className="text-xs text-slate-400">Air</p>
+            <p className="text-callout font-semibold text-white">{weather.temperature.toFixed(0)}°</p>
+            <p className="text-caption text-slate-400">Air</p>
           </div>
           <div>
-            <p className="text-lg font-bold text-white">{weather.windSpeed.toFixed(0)}</p>
-            <p className="text-xs text-slate-400">km/h {windDirectionLabel(weather.windDirection)}</p>
+            <p className="text-callout font-semibold text-white">{weather.windSpeed.toFixed(0)}</p>
+            <p className="text-caption text-slate-400">km/h {windDirectionLabel(weather.windDirection)}</p>
           </div>
           <div>
-            <p className="text-lg font-bold text-white">{weather.cloudCover}%</p>
-            <p className="text-xs text-slate-400">Clouds</p>
+            <p className="text-callout font-semibold text-white">{weather.cloudCover}%</p>
+            <p className="text-caption text-slate-400">Clouds</p>
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       {/* 3-day wave mini-chart using simple bars */}
       {marine.hourly.waveHeight.length > 0 && (
         <div className="mt-4 border-t border-slate-800/40 pt-3">
-          <p className="text-xs text-slate-400 mb-2">Wave height — next 72h</p>
+          <p className="text-caption text-slate-400 mb-2">Wave height — next 72h</p>
           <div className="flex items-end gap-px h-12">
             {marine.hourly.waveHeight.slice(0, 72).map((h, i) => {
               const max = Math.max(...marine.hourly.waveHeight.slice(0, 72), 1);
@@ -78,7 +78,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
         </div>
       )}
 
-      <p className="text-xs text-slate-500 mt-3">{port.description}</p>
+      <p className="text-caption text-slate-500 mt-3">{port.description}</p>
     </div>
   );
 }
@@ -86,8 +86,8 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-slate-800/40 rounded-lg p-2 text-center">
-      <p className="text-sm font-bold text-white font-mono">{value}</p>
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className="text-ui font-semibold text-white font-mono">{value}</p>
+      <p className="text-caption text-slate-400">{label}</p>
     </div>
   );
 }

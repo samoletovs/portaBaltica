@@ -70,21 +70,21 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
 
     case 'quote':
       return (
-        <blockquote className="editorial news-border news-muted my-7 border-l-2 pl-5 text-lead italic">
+        <blockquote className="pretty-text news-border news-muted my-7 border-l-2 pl-5 text-lead italic">
           {block.text}
         </blockquote>
       );
 
     case 'callout':
       return (
-        <aside className="editorial news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-callout">
+        <aside className="pretty-text news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-callout">
           {formatFigures(block.text ?? '')}
         </aside>
       );
 
     case 'list':
       return (
-        <ul className="editorial news-muted my-5 list-disc space-y-2 pl-6 text-prose">
+        <ul className="pretty-text news-muted my-5 list-disc space-y-2 pl-6 text-prose">
           {(block.text ?? '').split('\n').filter(Boolean).map((item) => (
             <li key={item}>{formatFigures(item)}</li>
           ))}
@@ -94,7 +94,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
     case 'table':
     case 'paragraph':
     default:
-      return <Prose text={block.text} className="editorial news-muted my-5 text-prose" />;
+      return <Prose text={block.text} className="pretty-text news-muted my-5 text-prose" />;
   }
 }
 
@@ -164,12 +164,12 @@ export function ArticleView({ article }: { article: Article }) {
         </Link>
       </div>
 
-      <h1 className="editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display">
+      <h1 className="balance-text news-fg text-headline font-semibold tracking-tight sm:text-display">
         {formatFigures(article.headline)}
       </h1>
 
       {article.dek && (
-        <Prose text={article.dek} className="editorial news-muted mt-4 text-lead" />
+        <Prose text={article.dek} className="pretty-text news-muted mt-4 text-lead" />
       )}
 
       <div className="news-border mt-5 border-y py-4">
@@ -222,7 +222,7 @@ export function ArticleView({ article }: { article: Article }) {
             <p className="news-subtle mb-3 text-caption font-medium uppercase tracking-widest">
               Reproduced in full, unedited
             </p>
-            <div className="editorial news-muted whitespace-pre-line text-prose">
+            <div className="pretty-text news-muted whitespace-pre-line text-prose">
               {article.syndicated.full_text}
             </div>
           </div>

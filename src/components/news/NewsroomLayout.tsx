@@ -16,7 +16,10 @@ import { ACCOUNTABLE_PUBLISHER } from '../../newsroom/editorial';
  */
 
 const NAV = [
-  { to: '/', label: 'News', end: true },
+  // "Latest" rather than "News": the site header one row above already carries
+  // a News tab pointing at this same route, and two links with one label, one
+  // under the other, reads as a mistake rather than as a hierarchy.
+  { to: '/', label: 'Latest', end: true },
   { to: '/newsroom', label: 'Newsroom', end: false },
   { to: '/corrections', label: 'Corrections', end: false },
   { to: '/about/ai', label: 'How we use AI', end: false },

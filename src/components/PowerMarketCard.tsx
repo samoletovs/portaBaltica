@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { fetchPowerPrices, type PowerPriceData } from '../api';
+import { chartTick, chartTooltip } from '../utils/chartType';
 
 const ZONE_COLORS: Record<string, string> = {
   ee: '#34d399',
@@ -50,7 +51,7 @@ export function PowerMarketCard() {
   if (!data || data.series.length === 0) {
     return (
       <div className="rounded-xl p-4 flex items-center justify-center h-64" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Power market data unavailable</p>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Power market data unavailable</p>
       </div>
     );
   }
@@ -66,11 +67,11 @@ export function PowerMarketCard() {
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
       <div className="flex items-start justify-between mb-3 gap-3">
         <div>
-          <p className="text-sm font-medium text-white">Baltic power market</p>
-          <p className="text-xs text-slate-500">Day-ahead price by bidding zone · {data.unit}</p>
+          <p className="text-ui font-medium text-white">Baltic power market</p>
+          <p className="text-caption text-slate-500">Day-ahead price by bidding zone · {data.unit}</p>
         </div>
         <div
-          className={`px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap ${
+          className={`px-2 py-1 rounded-md text-caption font-medium whitespace-nowrap ${
             decoupled ? 'bg-amber-900/40 text-amber-300' : 'bg-emerald-900/40 text-emerald-300'
           }`}
           title={
@@ -86,11 +87,11 @@ export function PowerMarketCard() {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {data.zones.map((z) => (
           <div key={z.id} className="text-center">
-            <p className="text-xs text-slate-400">{z.flag} {z.label}</p>
-            <p className="text-sm font-mono font-bold" style={{ color: ZONE_COLORS[z.id] }}>
+            <p className="text-caption text-slate-400">{z.flag} {z.label}</p>
+            <p className="text-ui font-mono font-semibold" style={{ color: ZONE_COLORS[z.id] }}>
               {z.current !== null ? `€${z.current.toFixed(2)}` : '—'}
             </p>
-            <p className="text-xs text-slate-600 font-mono">
+            <p className="text-caption text-slate-600 font-mono">
               {z.min !== null && z.max !== null ? `${z.min.toFixed(0)}–${z.max.toFixed(0)}` : ''}
             </p>
           </div>
@@ -103,19 +104,19 @@ export function PowerMarketCard() {
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="label"
-              tick={{ fill: chartColors.axis, fontSize: 9 }}
+              tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               interval={Math.max(0, Math.floor(chartData.length / 8))}
             />
             <YAxis
-              tick={{ fill: chartColors.axis, fontSize: 9 }}
+              tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               width={40}
             />
             <Tooltip
-              contentStyle={{ background: chartColors.tooltipBg, border: `1px solid ${chartColors.tooltipBorder}`, borderRadius: '6px', fontSize: '11px' }}
+              contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
               formatter={(v, name) => {
                 const zone = data.zones.find((z) => z.id === name);
@@ -140,7 +141,7 @@ export function PowerMarketCard() {
         </ResponsiveContainer>
       </div>
 
-      <p className="text-xs text-slate-600 mt-2">
+      <p className="text-caption text-slate-600 mt-2">
         {decoupledShare}% of intervals decoupled today
         {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
         {' · '}Source: {data.source}

@@ -1,19 +1,21 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The type scale, enforced.
+ * The type scale, enforced across the whole site.
  *
- * The editorial surface had grown twelve font sizes — 11, 12, 13, 14, 15, 16,
- * 17, 18, 20, 24, 30 and 36px — four of them arbitrary values written inline
- * at the point of use. Nothing repeated, so nothing looked deliberate, and the
- * section headings on three pages had drifted to the same size as the body
- * text underneath them.
+ * Two systems used to run side by side. The newsroom had twelve font sizes,
+ * four of them arbitrary values written inline; the dashboard had its own
+ * eight, drawn from Tailwind's defaults. Section headings on both sides sat at
+ * or below the size of the text underneath them. Nothing repeated, so nothing
+ * looked deliberate, and crossing from a story to the dashboard felt like
+ * crossing between two products.
  *
  * A scale only stays a scale if adding a size off it is harder than using one
- * on it. These tests are that friction. They follow the pattern of
- * newsTheme.test.ts, which guards the colour tokens the same way.
+ * on it. These tests are that friction, and they cover every component rather
+ * than the news routes alone — scoping the first pass to the newsroom is what
+ * produced the mismatch.
  */
 
 const css = readFileSync(resolve('src/index.css'), 'utf8');
@@ -37,17 +39,22 @@ function leading(): Record<string, number> {
   );
 }
 
-/** Source of every editorial surface: the news components and the policy renderer. */
-function editorialSources(): { file: string; text: string }[] {
-  const directory = resolve('src/components/news');
-  const files = readdirSync(directory)
-    .filter((file) => file.endsWith('.tsx'))
-    .map((file) => ({ file, text: readFileSync(join(directory, file), 'utf8') }));
+/** Every component on the site, news and dashboard alike. */
+function allComponents(): { file: string; text: string }[] {
+  const found: { file: string; text: string }[] = [];
 
-  return [
-    ...files,
-    { file: 'markdown.tsx', text: readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8') },
-  ];
+  function walk(directory: string) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name.endsWith('.tsx')) {
+        found.push({ file: entry.name, text: readFileSync(path, 'utf8') });
+      }
+    }
+  }
+
+  walk(resolve('src'));
+  return found;
 }
 
 // The ramp, smallest to largest. Adding a step means adding it here, which is
@@ -132,8 +139,8 @@ describe('the type scale', () => {
 
     const sizes = scale();
     const remWidth = Number.parseFloat(measure![1]);
-    // Source Serif 4 averages near 0.48em per character across running prose.
-    const characters = (remWidth * 16) / (sizes.prose * 16 * 0.48);
+    // A UI sans averages near 0.5em per character across running prose.
+    const characters = (remWidth * 16) / (sizes.prose * 16 * 0.5);
 
     // Bringhurst puts a comfortable line at 45–75 characters and calls 66
     // ideal; WCAG 2.1 SC 1.4.8 caps a block of text at 80.
@@ -160,19 +167,19 @@ describe('the type scale', () => {
   });
 });
 
-describe('editorial surfaces', () => {
-  it('use the scale rather than inventing a size', () => {
+describe('every page', () => {
+  it('sizes text from the scale rather than inventing a size', () => {
     const offenders: string[] = [];
 
-    for (const { file, text } of editorialSources()) {
-      for (const [line] of text.matchAll(/^.*className=(?:"|\{\[)[^\n]*$/gm)) {
+    for (const { file, text } of allComponents()) {
+      for (const [line] of text.matchAll(/^.*className=[^\n]*$/gm)) {
         // An arbitrary size — text-[13px], text-[0.85em] — is a size that
         // exists exactly once and relates to nothing.
         if (/\btext-\[[^\]]*(?:px|rem|em)\]/.test(line)) {
           offenders.push(`${file}: ${line.trim()}`);
         }
-        // Tailwind's default ramp is a second, competing scale. The editorial
-        // surface picks one.
+        // Tailwind's default ramp is a second, competing scale. The site
+        // picks one, and it applies to the dashboard as much as the newsroom.
         if (/\btext-(?:xs|sm|base|lg|xl|2xl|3xl|4xl|5xl|6xl)\b/.test(line)) {
           offenders.push(`${file}: ${line.trim()}`);
         }
@@ -182,7 +189,46 @@ describe('editorial surfaces', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('never set a heading smaller than the prose it introduces', () => {
+  it('sets no font size in a px-valued inline style', () => {
+    // An inline `fontSize: 20` bypasses both the scale and browser zoom.
+    const offenders: string[] = [];
+
+    for (const { file, text } of allComponents()) {
+      for (const [match] of text.matchAll(/fontSize:\s*(?:\d+\b|'[\d.]+px')/g)) {
+        offenders.push(`${file}: ${match}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('uses two weights, not three', () => {
+    // `font-bold` beside `font-semibold` reads as a third weight the scale
+    // never asked for, and on a system UI face the difference is mostly noise.
+    const offenders: string[] = [];
+
+    for (const { file, text } of allComponents()) {
+      if (/\bfont-(?:bold|extrabold|black)\b/.test(text)) offenders.push(file);
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('tracks every small-caps label the same way', () => {
+    // `tracking-wider` and `tracking-widest` on the same kind of label is the
+    // sort of near-miss that makes a page look assembled rather than designed.
+    const offenders: string[] = [];
+
+    for (const { file, text } of allComponents()) {
+      for (const [line] of text.matchAll(/^.*\buppercase\b[^\n]*$/gm)) {
+        if (/\btracking-(?:wide|wider)\b/.test(line)) offenders.push(`${file}: ${line.trim()}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('never sets a heading smaller than the prose it introduces', () => {
     const sizes = scale();
     const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
 
@@ -199,77 +245,90 @@ describe('editorial surfaces', () => {
     }
 
     // h1 → h3 are levels of one document and must descend. h4 is deliberately
-    // a small uppercase label in the interface face rather than a fourth notch
-    // down the ramp, so it is excluded.
+    // a small uppercase label rather than a fourth notch down the ramp, so it
+    // is excluded.
     expect(sizeOf(headings[1])).toBeGreaterThan(sizeOf(headings[2]));
     expect(sizeOf(headings[2])).toBeGreaterThan(sizeOf(headings[3]));
     expect(sizeOf(headings[3])).toBeGreaterThan(sizes.prose);
   });
-});
 
-describe('the editorial typeface', () => {
-  it('is self-hosted, with every referenced file present', () => {
-    const references = [...css.matchAll(/url\('(\/fonts\/[^']+)'\)/g)].map((match) => match[1]);
-    expect(references.length).toBeGreaterThan(0);
+  it('gives dashboard sections the same heading step as newsroom sections', () => {
+    // The dashboard used to head each section with a 14px uppercase label,
+    // which is smaller than the cards beneath it. News and data are one
+    // product; their section headings are the same object.
+    const tiles = [
+      'EconomyTile',
+      'EnergyTile',
+      'GovernmentTile',
+      'LabourTile',
+      'TradeTile',
+      'EnvironmentTile',
+      'PropertyTile',
+      'BusinessTile',
+      'MaritimeTile',
+    ];
 
-    for (const reference of references) {
-      expect(
-        existsSync(resolve(join('public', reference))),
-        `${reference} is referenced by @font-face but not present in public/`,
-      ).toBe(true);
+    for (const tile of tiles) {
+      const text = readFileSync(resolve(`src/components/${tile}.tsx`), 'utf8');
+      const heading = text.match(/<h2[^>]*className="([^"]+)"/);
+      expect(heading, `${tile} has no h2`).not.toBeNull();
+      expect(heading![1], `${tile} section heading`).toContain('text-title');
     }
   });
+});
 
-  it('ships its licence beside the files it licenses', () => {
-    expect(existsSync(resolve('public/fonts/source-serif-4-OFL.txt'))).toBe(true);
+describe('the typeface', () => {
+  it('is one family for the whole site', () => {
+    // A previous pass set articles in a serif and left the dashboard on the UI
+    // face. Across a product a reader crosses constantly, that read as two
+    // sites rather than as two registers.
+    expect(css).not.toMatch(/--font-serif:/);
+    expect(css).toMatch(/--font-sans:\s*system-ui/);
+    expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
   });
 
   it('never fetches a font from a third party', () => {
-    // A remote font would be blocked by `font-src 'self' data:` anyway, and
-    // requesting one discloses every reader's IP address to whoever serves it.
+    // The CSP is `font-src 'self' data:`, so a remote font would be blocked —
+    // and requesting one discloses every reader's IP address to whoever serves
+    // it, which a news site read in the EU should not do for a typeface.
     expect(css).not.toMatch(/@import\s+url\(['"]?https?:/);
     expect(css).not.toMatch(/url\(['"]?https?:\/\/[^)]*\.(?:woff2?|ttf|otf)/);
-  });
 
-  it('keeps the serif for prose and the platform face for the interface', () => {
-    expect(css).toMatch(/\.editorial\s*\{[^}]*font-family:\s*var\(--font-serif\)/);
-    expect(css).toMatch(/\.editorial-heading\s*\{[^}]*font-family:\s*var\(--font-serif\)/);
-    expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
-    expect(css).toMatch(/--font-sans:\s*system-ui/);
+    const html = readFileSync(resolve('index.html'), 'utf8');
+    expect(html).not.toMatch(/fonts\.(?:googleapis|gstatic)\.com/);
   });
 
   it('names no font it does not actually serve', () => {
-    // --font-body named Inter for the whole life of the site while the CSP
+    // `--font-body` named Inter for the whole life of the site while the CSP
     // blocked the request that would have loaded it, so every reader got the
     // system stack and nobody saw the design as drawn.
+    const platformFaces = new Set([
+      'Segoe UI',
+      'Helvetica Neue',
+      'Noto Sans',
+      'SF Mono',
+      'Cascadia Mono',
+      'Segoe UI Mono',
+    ]);
+
     const families = [...css.matchAll(/^\s*--font-[a-z]+:\s*([^;]+);/gm)].map(
       (match) => match[1],
-    );
-    const declared = new Set(
-      [...css.matchAll(/font-family:\s*'([^']+)'/g)].map((match) => match[1]),
     );
 
     for (const family of families) {
       for (const [, quoted] of family.matchAll(/"([^"]+)"/g)) {
-        // Anything quoted is a specific face rather than a generic or a
-        // platform keyword. It must either be one we serve, or a face the
-        // operating system is known to provide.
-        const platformFaces = [
-          'Segoe UI',
-          'Helvetica Neue',
-          'Noto Sans',
-          'Georgia',
-          'Cambria',
-          'Times New Roman',
-          'SF Mono',
-          'Cascadia Mono',
-          'Segoe UI Mono',
-        ];
-        if (platformFaces.includes(quoted)) continue;
         expect(
-          declared.has(quoted),
-          `${quoted} is named in a font stack but no @font-face serves it`,
+          platformFaces.has(quoted),
+          `${quoted} is named in a font stack but nothing serves it`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it('sets no font family outside the tokens', () => {
+    for (const { file, text } of allComponents()) {
+      for (const [match, value] of text.matchAll(/fontFamily:\s*'([^']+)'/g)) {
+        expect(value, `${file}: ${match}`).toMatch(/^var\(--font-/);
       }
     }
   });

@@ -92,7 +92,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
       <div className="mb-6 flex justify-end">
         <button
           onClick={restartTutorial}
-          className="text-xs px-3 py-1.5 rounded transition-colors"
+          className="text-caption px-3 py-1.5 rounded transition-colors"
           style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
           aria-label="Restart guided tour"
         >
@@ -110,15 +110,15 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-tertiary)' }}>
+          <p className="text-caption uppercase tracking-widest mb-1" style={{ color: 'var(--text-tertiary)' }}>
             Guided tour
           </p>
-          <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{step.title}</h2>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{step.description}</p>
+          <h2 className="text-callout font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{step.title}</h2>
+          <p className="text-ui" style={{ color: 'var(--text-secondary)' }}>{step.description}</p>
         </div>
         <button
           onClick={closeTutorial}
-          className="text-xs px-2 py-1 rounded transition-colors"
+          className="text-caption px-2 py-1 rounded transition-colors"
           style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card-hover)' }}
         >
           Skip tour
@@ -126,13 +126,13 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
           Step {stepIndex + 1} of {STEPS.length}
         </p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-            className="text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-40"
+            className="text-caption px-3 py-1.5 rounded transition-colors disabled:opacity-40"
             style={{ color: 'var(--text-secondary)', background: 'var(--bg-card-hover)' }}
             disabled={stepIndex === 0}
           >
@@ -140,7 +140,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
           </button>
           <button
             onClick={() => (isLastStep ? closeTutorial() : setStepIndex((i) => i + 1))}
-            className="text-xs px-3 py-1.5 rounded transition-colors"
+            className="text-caption px-3 py-1.5 rounded transition-colors"
             style={{ color: '#fff', background: 'var(--text-secondary)' }}
           >
             {isLastStep ? 'Finish' : 'Next'}

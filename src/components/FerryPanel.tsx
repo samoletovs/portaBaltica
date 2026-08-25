@@ -8,8 +8,8 @@ export function FerryPanel({ data }: FerryPanelProps) {
   if (data.length === 0) {
     return (
       <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-        <h3 className="text-lg font-bold text-white mb-4">🛳️ Ferry Traffic</h3>
-        <p className="text-slate-400 text-sm">No recent ferry data available. Published biweekly by the Ministry of Transport.</p>
+        <h3 className="text-callout font-semibold text-white mb-4">Ferry Traffic</h3>
+        <p className="text-slate-400 text-ui">No recent ferry data available. Published biweekly by the Ministry of Transport.</p>
       </section>
     );
   }
@@ -26,9 +26,9 @@ export function FerryPanel({ data }: FerryPanelProps) {
 
   return (
     <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-      <h3 className="text-lg font-bold text-white mb-2">🛳️ Ferry Traffic</h3>
-      <p className="text-2xl font-bold text-slate-300 mb-4">
-        {totalPassengers.toLocaleString()} <span className="text-sm font-normal text-slate-400">passengers (latest period)</span>
+      <h3 className="text-callout font-semibold text-white mb-2">Ferry Traffic</h3>
+      <p className="text-title font-semibold text-slate-300 mb-4">
+        {totalPassengers.toLocaleString()} <span className="text-ui font-normal text-slate-400">passengers (latest period)</span>
       </p>
 
       <div className="space-y-2">
@@ -38,7 +38,7 @@ export function FerryPanel({ data }: FerryPanelProps) {
             const pct = (info.passengers / totalPassengers) * 100;
             return (
               <div key={route}>
-                <div className="flex items-center justify-between text-sm mb-1">
+                <div className="flex items-center justify-between text-ui mb-1">
                   <span className="text-slate-200">{route}</span>
                   <span className="text-white font-mono">{info.passengers.toLocaleString()}</span>
                 </div>
@@ -48,7 +48,7 @@ export function FerryPanel({ data }: FerryPanelProps) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">Flag: {info.flag}</p>
+                <p className="text-caption text-slate-500 mt-0.5">Flag: {info.flag}</p>
               </div>
             );
           })}

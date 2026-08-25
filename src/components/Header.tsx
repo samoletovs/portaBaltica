@@ -49,13 +49,13 @@ export function Header() {
         {/* Top bar */}
         <div className="flex items-center justify-between h-14">
           <div className="flex items-center gap-3">
-            <Link to="/" className="text-base font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            <Link to="/" className="text-callout font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               porta<span style={{ color: '#0ea5e9' }}>Baltica</span>
             </Link>
-            <span className="hidden sm:inline text-xs font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>
+            <span className="hidden sm:inline text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+            <span className="text-caption font-mono" style={{ color: 'var(--text-secondary)' }}>
               {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
               <span style={{ color: 'var(--text-muted)' }} className="ml-1">{tzAbbr}</span>
             </span>
@@ -65,7 +65,7 @@ export function Header() {
                 <button
                   key={c}
                   onClick={() => setCountry(c)}
-                  className="px-2 py-1 text-xs transition-colors"
+                  className="px-2 py-1 text-caption transition-colors"
                   style={{
                     background: country === c ? 'var(--text-secondary)' : 'var(--bg-card)',
                     color: country === c ? '#fff' : 'var(--text-secondary)',
@@ -83,7 +83,7 @@ export function Header() {
                 <button
                   key={y}
                   onClick={() => setYears(y)}
-                  className="px-2 py-1 text-xs transition-colors"
+                  className="px-2 py-1 text-caption transition-colors"
                   style={{
                     background: years === y ? 'var(--text-secondary)' : 'var(--bg-card)',
                     color: years === y ? '#fff' : 'var(--text-secondary)',
@@ -102,7 +102,7 @@ export function Header() {
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             >
-              <span className="text-sm">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              <span className="text-ui">{theme === 'dark' ? '☀️' : '🌙'}</span>
             </button>
           </div>
         </div>
@@ -113,7 +113,7 @@ export function Header() {
             <Link
               key={s.id}
               to={s.path}
-              className="px-4 py-2.5 text-sm whitespace-nowrap transition-colors border-b-2"
+              className="px-4 py-2.5 text-ui whitespace-nowrap transition-colors border-b-2"
               style={{
                 borderColor: activeSection === s.id ? 'var(--text-secondary)' : 'transparent',
                 color: activeSection === s.id ? 'var(--text-primary)' : 'var(--text-secondary)',

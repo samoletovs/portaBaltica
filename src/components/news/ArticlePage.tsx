@@ -46,7 +46,7 @@ export default function ArticlePage() {
   if (load.state === 'not-found') {
     return (
       <div className="news-border news-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center">
-        <h1 className="editorial-heading news-fg text-title font-semibold">Article not found</h1>
+        <h1 className="balance-text news-fg text-title font-semibold">Article not found</h1>
         <p className="news-muted mt-3 text-callout">
           No article is published at this address.{' '}
           <Link
@@ -66,7 +66,7 @@ export default function ArticlePage() {
         role="alert"
         className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center"
       >
-        <h1 className="editorial-heading news-warning text-title font-semibold">This article is not available</h1>
+        <h1 className="balance-text news-warning text-title font-semibold">This article is not available</h1>
         <p className="news-warning mt-3 text-callout">
           It has not passed the checks we run before publishing, so we will not show it.
         </p>

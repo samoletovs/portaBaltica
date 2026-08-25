@@ -6,6 +6,7 @@ import { useCountry, type Country } from '../CountryContext';
 import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
+import { chartTick, chartTooltip } from '../utils/chartType';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -209,16 +210,16 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       aria-label={`View ${title} details`}
     >
       <div className="flex items-start justify-between mb-1">
-        <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
-        <span className="text-xs opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>→</span>
+        <p className="text-caption font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
+        <span className="text-caption opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>→</span>
       </div>
 
       <div className="flex items-baseline gap-2 mb-3">
-        <span className="text-xl font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
+        <span className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
           {fmt(summary.latest)}
         </span>
         {summary.change !== null && (
-          <span className={`text-xs font-mono ${changeColor}`}>
+          <span className={`text-caption font-mono ${changeColor}`}>
             {isPositiveChange ? '▲' : '▼'}{fmt(Math.abs(summary.change))}
           </span>
         )}
@@ -244,7 +245,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               isAnimationActive={false}
             />
             <Tooltip
-              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
+              contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis }}
               formatter={(v) => [fmt(v as number), title]}
               labelFormatter={(l) => formatPeriod(String(l))}
@@ -254,10 +255,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       </div>
 
       <div className="flex items-center justify-between mt-1.5">
-        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-caption font-mono" style={{ color: 'var(--text-muted)' }}>
           {formatPeriod(chartData[0]?.period ?? '')}
         </span>
-        <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-caption font-mono" style={{ color: 'var(--text-muted)' }}>
           {formatPeriod(chartData[chartData.length - 1]?.period ?? '')}
         </span>
       </div>
@@ -417,7 +418,7 @@ export function IndicatorChart({
           <button
             key={y}
             onClick={() => setYears(y)}
-            className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+            className={`px-3 py-1 text-caption rounded-lg transition-colors ${
               years === y ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200 bg-slate-800/40'
             }`}
           >
@@ -439,21 +440,21 @@ export function IndicatorChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
             <XAxis
               dataKey="period"
-              tick={{ fill: chartColors.axis, fontSize: 10 }}
+              tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               interval={Math.max(0, Math.floor(chartData.length / 8))}
               tickFormatter={(v: string) => formatPeriod(v)}
             />
             <YAxis
-              tick={{ fill: chartColors.axis, fontSize: 10 }}
+              tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               width={60}
               tickFormatter={(v: number) => fmt(v)}
             />
             <Tooltip
-              contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '12px' }}
+              contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
               formatter={(v) => [fmt(v as number), data?.title ?? '']}
               labelFormatter={(l) => formatPeriod(String(l))}
@@ -479,7 +480,7 @@ export function IndicatorChart({
         <StatBox label="Max" value={fmt(summary.max)} />
       </div>
 
-      <p className="text-xs text-slate-500 mt-3">
+      <p className="text-caption text-slate-500 mt-3">
         Source: {data.source} · {summary.count} data points
       </p>
     </div>
@@ -490,8 +491,8 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
   const textColor = highlight === 'green' ? 'text-emerald-400' : highlight === 'red' ? 'text-red-400' : 'text-white';
   return (
     <div className="bg-slate-800/40 rounded-lg p-3 text-center">
-      <p className={`text-sm font-bold font-mono ${textColor}`}>{value}</p>
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`text-ui font-semibold font-mono ${textColor}`}>{value}</p>
+      <p className="text-caption text-slate-400">{label}</p>
     </div>
   );
 }

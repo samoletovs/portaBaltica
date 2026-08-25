@@ -25,14 +25,14 @@ export function SystemStatusFooter() {
       >
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${status.status === 'healthy' ? 'bg-emerald-400' : status.status === 'degraded' ? 'bg-yellow-400' : 'bg-red-400'}`} />
-          <span className={`text-sm font-medium ${statusColor}`}>
+          <span className={`text-ui font-medium ${statusColor}`}>
             System {status.status}
           </span>
-          <span className="text-xs text-slate-500">
+          <span className="text-caption text-slate-500">
             {status.dataSources.healthy}/{status.dataSources.total} data sources · {status.apis.total} APIs · {status.version}
           </span>
         </div>
-        <span className="text-xs text-slate-500">{expanded ? '▲' : '▼'}</span>
+        <span className="text-caption text-slate-500">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
@@ -40,10 +40,10 @@ export function SystemStatusFooter() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Data source health */}
             <div>
-              <p className="text-xs text-slate-400 mb-2">Data Sources</p>
+              <p className="text-caption text-slate-400 mb-2">Data Sources</p>
               <div className="space-y-1">
                 {status.dataSources.checks.map((check) => (
-                  <div key={check.name} className="flex items-center justify-between text-xs">
+                  <div key={check.name} className="flex items-center justify-between text-caption">
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${check.status === 'healthy' ? 'bg-emerald-400' : 'bg-red-400'}`} />
                       <span className="text-slate-300">{check.name}</span>
@@ -56,8 +56,8 @@ export function SystemStatusFooter() {
 
             {/* Self-sustaining metrics */}
             <div>
-              <p className="text-xs text-slate-400 mb-2">Moonshot Status</p>
-              <div className="space-y-1.5 text-xs">
+              <p className="text-caption text-slate-400 mb-2">Moonshot Status</p>
+              <div className="space-y-1.5 text-caption">
                 <div className="flex justify-between">
                   <span className="text-slate-300">Infrastructure cost</span>
                   <span className="text-white font-mono">{status.selfSustaining.monthlyInfrastructureCost}/mo</span>

@@ -22,8 +22,8 @@ export function CargoPanel({ data, turnover }: CargoPanelProps) {
   if (data.length === 0 && turnover.length === 0) {
     return (
       <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-        <h3 className="text-lg font-bold text-white mb-4">📦 Port Cargo</h3>
-        <p className="text-slate-400 text-sm">No cargo data available.</p>
+        <h3 className="text-callout font-semibold text-white mb-4">Port Cargo</h3>
+        <p className="text-slate-400 text-ui">No cargo data available.</p>
       </section>
     );
   }
@@ -35,11 +35,11 @@ export function CargoPanel({ data, turnover }: CargoPanelProps) {
   return (
     <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-bold text-white">📦 Port Cargo</h3>
+        <h3 className="text-callout font-semibold text-white">Port Cargo</h3>
         <div className="flex gap-1 bg-slate-800/50 rounded-lg p-0.5">
           <button
             onClick={() => { setSelectedPort('all'); setShowAll(false); }}
-            className={`px-2 py-1 text-xs rounded-md transition-colors ${selectedPort === 'all' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`px-2 py-1 text-caption rounded-md transition-colors ${selectedPort === 'all' ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
           >
             All Ports
           </button>
@@ -47,7 +47,7 @@ export function CargoPanel({ data, turnover }: CargoPanelProps) {
             <button
               key={p}
               onClick={() => { setSelectedPort(p); setShowAll(false); }}
-              className={`px-2 py-1 text-xs rounded-md transition-colors ${selectedPort === p ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`px-2 py-1 text-caption rounded-md transition-colors ${selectedPort === p ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
             >
               {PORT_NAMES[p] ?? p}
             </button>
@@ -67,7 +67,7 @@ export function CargoPanel({ data, turnover }: CargoPanelProps) {
 /* ── All Ports: aggregate tonnage bar chart ── */
 
 function TonnageView({ turnover, showAll, onToggle, year }: { turnover: CargoTurnover[]; showAll: boolean; onToggle: () => void; year: string }) {
-  if (turnover.length === 0) return <p className="text-slate-400 text-sm">No tonnage data available.</p>;
+  if (turnover.length === 0) return <p className="text-slate-400 text-ui">No tonnage data available.</p>;
 
   const byType = turnover.reduce<Record<string, number>>((acc, t) => {
     acc[t.cargoTypeCode] = (acc[t.cargoTypeCode] || 0) + t.weight;
@@ -86,11 +86,11 @@ function TonnageView({ turnover, showAll, onToggle, year }: { turnover: CargoTur
   return (
     <div>
       <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-2xl font-bold text-white font-mono">{fmt(totalWeight)}</span>
-        <span className="text-sm text-slate-400">total tonnes</span>
-        <span className="text-xs text-slate-500">({sorted.length} categories)</span>
+        <span className="text-title font-semibold text-white font-mono">{fmt(totalWeight)}</span>
+        <span className="text-ui text-slate-400">total tonnes</span>
+        <span className="text-caption text-slate-500">({sorted.length} categories)</span>
       </div>
-      <p className="text-xs text-slate-500 mb-3">Imports + Exports combined · All Latvian ports · Biweekly{year ? ` (${year})` : ''}</p>
+      <p className="text-caption text-slate-500 mb-3">Imports + Exports combined · All Latvian ports · Biweekly{year ? ` (${year})` : ''}</p>
 
       <div className="space-y-1.5">
         {display.map((item, idx) => (
@@ -99,7 +99,7 @@ function TonnageView({ turnover, showAll, onToggle, year }: { turnover: CargoTur
       </div>
 
       {hiddenCount > 0 && (
-        <button onClick={onToggle} className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+        <button onClick={onToggle} className="mt-2 text-caption text-slate-400 hover:text-slate-200 transition-colors">
           {showAll ? '▲ Show top 10' : `▼ Show all ${sorted.length} categories (+${hiddenCount} more)`}
         </button>
       )}
@@ -127,22 +127,22 @@ function PortDetailView({ data, portName, showAll, onToggle, year }: {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-1">
-        <span className="text-xl font-bold text-white">{portName}</span>
-        <span className="text-emerald-400 text-sm font-medium">↓ {imports.length} imports</span>
-        <span className="text-orange-400 text-sm font-medium">↑ {exports.length} exports</span>
+        <span className="text-lead font-semibold text-white">{portName}</span>
+        <span className="text-emerald-400 text-ui font-medium">↓ {imports.length} imports</span>
+        <span className="text-orange-400 text-ui font-medium">↑ {exports.length} exports</span>
       </div>
-      <p className="text-xs text-slate-500 mb-3">Cargo categories handled at this port{year ? ` · ${year}` : ''}</p>
+      <p className="text-caption text-slate-500 mb-3">Cargo categories handled at this port{year ? ` · ${year}` : ''}</p>
 
       <div className="space-y-0.5">
         {display.map((item, i) => (
           <div key={i} className="flex items-center gap-2 py-1 border-b border-slate-800/20 last:border-0">
-            <span className={`text-xs font-bold w-5 ${item.dir === 'IN' ? 'text-emerald-400' : 'text-orange-400'}`}>
+            <span className={`text-caption font-semibold w-5 ${item.dir === 'IN' ? 'text-emerald-400' : 'text-orange-400'}`}>
               {item.dir === 'IN' ? '↓' : '↑'}
             </span>
-            <span className="text-sm text-slate-200 flex-1" title={item.cargoGroupName}>
+            <span className="text-ui text-slate-200 flex-1" title={item.cargoGroupName}>
               {truncate(item.cargoGroupName, 45)}
             </span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${item.dir === 'IN' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-orange-900/30 text-orange-400'}`}>
+            <span className={`text-caption px-1.5 py-0.5 rounded ${item.dir === 'IN' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-orange-900/30 text-orange-400'}`}>
               {item.dir === 'IN' ? 'Import' : 'Export'}
             </span>
           </div>
@@ -150,7 +150,7 @@ function PortDetailView({ data, portName, showAll, onToggle, year }: {
       </div>
 
       {hiddenCount > 0 && (
-        <button onClick={onToggle} className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+        <button onClick={onToggle} className="mt-2 text-caption text-slate-400 hover:text-slate-200 transition-colors">
           {showAll ? '▲ Show less' : `▼ Show all ${allItems.length} cargo groups (+${hiddenCount} more)`}
         </button>
       )}
@@ -167,7 +167,7 @@ function Bar({ name, weight, maxWeight, totalWeight, idx }: { name: string; weig
   const share = ((weight / totalWeight) * 100).toFixed(1);
   return (
     <div>
-      <div className="flex items-center justify-between text-xs mb-0.5">
+      <div className="flex items-center justify-between text-caption mb-0.5">
         <span className="text-slate-200 truncate max-w-[55%]" title={name}>{name}</span>
         <div className="flex items-center gap-2">
           <span className="text-slate-400">{share}%</span>
