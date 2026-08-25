@@ -44,6 +44,23 @@ _YEAR_CONTEXT: Final[str] = (
     r"the|year|years|early|late|mid|through"
 )
 
+#: Named infrastructure whose name ends in a numeral.
+#:
+#: "Estlink 1" is a cable, not a quantity, but the identifier rule below only
+#: masks digits glued to letters ("COVID-19"), so a space was enough to make
+#: the scanner read the name as the figure 1. Articles were then rejected for
+#: an "invented number" that was part of a proper noun, which blocked every
+#: Baltic power-market story — the interconnectors are the subject.
+#:
+#: An explicit list rather than a general "capitalised word followed by a
+#: small integer" rule, because that rule would also mask "Latvia 500" and
+#: hand back a way to launder a real quantity. A name missing from this list
+#: fails closed: the article is rejected, exactly as it is today.
+_NAMED_ENTITIES: Final[str] = (
+    r"Estlink|EstLink|NordBalt|LitPol(?:\s+Link)?|Balticconnector|"
+    r"Nord\s+Stream|Baltic\s+Pipe|Rail\s+Baltica|Harmony\s+Link"
+)
+
 _SCALE_WORDS: Final[Mapping[str, float]] = {
     "k": 1e3,
     "thousand": 1e3,
@@ -127,6 +144,14 @@ _EXCLUSION_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"(?:\s*(?:CET|CEST|EET|EEST|UTC|GMT))?\b",
         # A bare year, only in an explicit calendar context.
         rf"\b(?:{_YEAR_CONTEXT})\s+(?:early\s+|late\s+|mid-?\s*)?(?:19|20)\d{{2}}\b",
+        # Named infrastructure ending in a numeral: Estlink 1, Nord Stream 2.
+        # Bounded to two digits, and refused when a unit follows, so that
+        # "Estlink 2 GW of capacity" stays a measurable claim rather than
+        # becoming a way to launder one behind a name.
+        rf"\b(?:{_NAMED_ENTITIES})\s?\d{{1,2}}\b"
+        r"(?!\s*(?:%|percent|per\s+cent|pct|"
+        r"[kKmMgGtT]?[WwJj]h?\b|"
+        r"EUR|USD|GBP|million|billion|thousand|tonnes?|tons?|km|MWh|GWh|TWh))",
         # Identifiers that glue letters to digits: COVID-19, gpt-4o-mini, A1.
         # Currency codes are excused so "EUR500m" stays a checkable figure.
         r"\b(?!(?:EUR|USD|GBP|CHF|SEK|NOK|DKK|PLN)(?=\s?\d))"

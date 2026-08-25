@@ -12,11 +12,29 @@ what lets the whole module avoid date parsing.
 
 from __future__ import annotations
 
+import re
 import statistics
 from dataclasses import dataclass
 from typing import Iterator, Sequence
 
 from newsroom.pipeline.models import SourceRef
+
+_MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+
+_ORDINALS = ("first", "second", "third", "fourth")
 
 
 @dataclass(frozen=True)
@@ -90,6 +108,26 @@ class TimeSeries:
         """
         _, _, rest = period.partition("-")
         return rest or period
+
+    def season_label(self, period: str) -> str:
+        """``season_key`` as something a reader can read, and a writer can quote.
+
+        The key is an index. Printed into prose it produced "for the same point
+        in the year (08)", where 08 is a month that the numeric scanner reads as
+        the figure 8 -- a number the writer is asked to restate but cannot
+        declare, because no signal field holds it. That silently blocked every
+        seasonal article. See test_basis_declarable.py.
+        """
+        key = self.season_key(period)
+        if re.fullmatch(r"\d{2}", key):
+            return _MONTH_NAMES[int(key) - 1] if 1 <= int(key) <= 12 else key
+        if match := re.fullmatch(r"(\d{2})-(\d{2})", key):
+            month, day = int(match.group(1)), int(match.group(2))
+            if 1 <= month <= 12:
+                return f"{day} {_MONTH_NAMES[month - 1]}"
+        if match := re.fullmatch(r"[Qq]([1-4])", key):
+            return f"the {_ORDINALS[int(match.group(1)) - 1]} quarter"
+        return key
 
     def same_season_history(self, period: str) -> tuple[Observation, ...]:
         """Prior-year observations for the same point in the year."""

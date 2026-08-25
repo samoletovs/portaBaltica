@@ -345,6 +345,11 @@ def detect_divergence(
         "spread_vs_typical": ratio,
         "highest_value": latest_values[high_geo],
         "lowest_value": latest_values[low_geo],
+        # The comparison basis says "across N earlier periods", so N is a
+        # number the writer is handed and will reasonably repeat. Anything
+        # quotable from the basis has to be declarable, or the article is
+        # rejected for using a figure we ourselves supplied.
+        "periods_compared": float(len(historical)),
     }
     fields.update({f"value_{geo.lower()}": value for geo, value in latest_values.items()})
 
@@ -428,7 +433,7 @@ def detect_seasonal_deviation(
             # model faithfully repeated 7.08 and the validator rejected it as
             # invented. The pipeline was setting the model up to fail.
             f"the {len(baseline)}-year average of {mean:g} {series.unit} for the same "
-            f"point in the year ({series.season_key(latest.period)})"
+            f"point in the year, {series.season_label(latest.period)}"
         ),
         score=score,
         section=series.section,
