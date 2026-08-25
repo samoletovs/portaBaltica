@@ -4,7 +4,7 @@ import type { ArticleSummary } from '../../news-types';
 import { fetchArticleIndex } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
 import { ArticleCard, FeedItem } from './NewsCard';
-import { LinkOutCardFromSummary } from './LinkOutCard';
+import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
 
 type Filter = 'all' | string;
@@ -17,11 +17,6 @@ export default function NewsFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
-  // The rail is a pointer to other people's work, not a second feed. Left
-  // uncapped it ran longer than our own reporting and turned the front page
-  // into a scroll. Four is enough to show there is a world outside.
-  const [showAllElsewhere, setShowAllElsewhere] = useState(false);
-  const visibleElsewhere = showAllElsewhere ? Number.POSITIVE_INFINITY : 4;
 
   usePageMeta({
     title: 'portaBaltica | Baltic open data, reported',
@@ -148,38 +143,7 @@ export default function NewsFeed() {
           </section>
         </div>
 
-        <aside aria-labelledby="elsewhere-heading">
-          <h2
-            id="elsewhere-heading"
-            className="news-border news-subtle border-b pb-2 text-xs font-medium uppercase tracking-widest"
-          >
-            Elsewhere in the Baltics
-          </h2>
-          <p className="news-subtle mt-2 text-xs leading-relaxed">
-            Other outlets’ reporting. Headline and their own summary only. We link out rather than
-            reproduce.
-          </p>
-          {elsewhere.length === 0 ? (
-            <p className="news-subtle mt-4 text-xs">Nothing filed here right now.</p>
-          ) : (
-            <>
-              <div className="mt-4 space-y-4">
-                {elsewhere.slice(0, visibleElsewhere).map((summary) => (
-                  <LinkOutCardFromSummary key={summary.id ?? summary.slug} summary={summary} />
-                ))}
-              </div>
-              {elsewhere.length > visibleElsewhere && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllElsewhere(true)}
-                  className="news-link news-focus mt-4 text-xs underline underline-offset-4"
-                >
-                  Show {elsewhere.length - visibleElsewhere} more from other outlets
-                </button>
-              )}
-            </>
-          )}
-        </aside>
+        <ElsewhereRail items={elsewhere} />
       </div>
     </div>
   );
