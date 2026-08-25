@@ -47,7 +47,7 @@ from newsroom.pipeline.write.llm import LlmWriter
 
 log = logging.getLogger(__name__)
 
-DESK_PROMPT_VERSION = "desk-v1"
+DESK_PROMPT_VERSION = "desk-v2"
 
 #: One revision. See the module docstring for why it is not more.
 MAX_REVISIONS = 1
@@ -133,6 +133,27 @@ Judge only these things:
    ("may be attributed to various factors") are worse than saying nothing.
 4. Does it read like a newspaper? Plain, active, specific. No essay scaffolding,
    no journalese, no hedging that survives being deleted.
+
+ON "WHY IT MATTERS", WHICH IS WHERE YOU ARE HARSHEST AND MOST OFTEN WRONG:
+
+Rules 1 and 3 pull against each other, and 3 wins. This wire reports from open
+statistical data. It usually cannot establish WHY a series moved, and it is
+forbidden from guessing. So do not send a piece back for failing to explain a
+cause it has no source for. Asking for that is asking for the fabrication rule
+3 exists to prevent, and it is the most common mistake you make.
+
+"Why it matters" is answerable from the data alone, and that is enough:
+- is this a record, or ordinary movement in a series that moves?
+- how big is it against its own history?
+- which country, which sector, which measure?
+- what would the next release have to show to confirm or overturn it?
+
+A piece that states its basis, is accurate, says plainly that the data does not
+show what drove the change, and reads like a wire, RUNS. That is a complete
+data-wire story. Withholding it does not protect the reader from anything.
+
+Reject for triviality only when the finding itself is not worth a reader's
+attention -- not because the piece declined to speculate about it.
 
 You may NOT ask for a figure that is not already in the article. The writer is
 forbidden from supplying numbers from memory, so a note asking for one is a note

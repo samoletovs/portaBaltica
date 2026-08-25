@@ -15,6 +15,8 @@ from typing import Any, Sequence
 import pytest
 
 from newsroom.pipeline.desk import (
+    DESK_PROMPT_VERSION,
+    SYSTEM_PROMPT,
     DeskAction,
     MAX_REVISIONS,
     record_decision,
@@ -223,3 +225,39 @@ class TestRecordDecision:
 
         assert article.provenance["editor"]["notes"] == ["trivial move"]
         assert article.provenance["editor"]["prompt_version"]
+
+
+class TestTheDeskDoesNotDemandFabrication:
+    """The desk rejected 8 of 8 articles on five consecutive live runs.
+
+    Its notes were consistent: "does not explain why the rise matters",
+    "implications for consumers", "vague assertions about causation". Rules 1
+    and 3 of its brief pull against each other -- one asks why it matters, the
+    other forbids asserting what the data does not support -- and this wire
+    reports from statistical series that usually cannot establish a cause.
+
+    Enforcing both is a deadlock by construction, and the way out is not to
+    lower the accuracy bar but to stop asking for the one thing the writer is
+    forbidden to supply.
+    """
+
+    def test_the_brief_forbids_asking_for_an_unsourced_cause(self):
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+        assert "do not send a piece back for failing to explain a cause it has no source for" in collapsed
+
+    def test_the_brief_says_a_piece_without_a_known_cause_can_run(self):
+        assert "RUNS" in SYSTEM_PROMPT
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+        assert "does not show what drove the change" in collapsed
+    def test_the_brief_still_forbids_unsupported_assertions(self):
+        # The point is not to relax accuracy. Rule 3 must survive intact.
+        assert "Is anything asserted that the data does not support?" in SYSTEM_PROMPT
+
+    def test_triviality_is_still_grounds_for_rejection(self):
+        assert "Reject for triviality" in SYSTEM_PROMPT
+
+    def test_the_prompt_version_moved_with_the_brief(self):
+        # Provenance records the desk prompt version. Changing what the editor
+        # is asked without changing the version makes two different editorial
+        # standards indistinguishable in the audit trail.
+        assert DESK_PROMPT_VERSION != "desk-v1"
