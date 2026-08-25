@@ -23,6 +23,27 @@ describe('OnboardingTutorial', () => {
     expect(onSectionChange).toHaveBeenCalledWith('economy');
   });
 
+  it('lets the reader use the section tabs while the tour is open', () => {
+    const onSectionChange = vi.fn();
+    const { rerender } = render(
+      <OnboardingTutorial activeSection="all" onSectionChange={onSectionChange} />,
+    );
+    onSectionChange.mockClear();
+
+    // The reader clicks the Economy tab; the dashboard re-renders on the new
+    // route. The tour must not drag them back to its own step's section.
+    rerender(<OnboardingTutorial activeSection="economy" onSectionChange={onSectionChange} />);
+
+    expect(onSectionChange).not.toHaveBeenCalled();
+  });
+
+  it('does not move a reader who arrived on a section link', () => {
+    const onSectionChange = vi.fn();
+    render(<OnboardingTutorial activeSection="maritime" onSectionChange={onSectionChange} />);
+
+    expect(onSectionChange).not.toHaveBeenCalled();
+  });
+
   it('marks tutorial complete when skipped', () => {
     render(<OnboardingTutorial activeSection="all" onSectionChange={vi.fn()} />);
 
