@@ -63,10 +63,18 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
   const step = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
 
-  useEffect(() => {
-    if (!isOpen || !step.section || activeSection === step.section) return;
-    onSectionChange(step.section);
-  }, [activeSection, isOpen, onSectionChange, step.section]);
+  // The tour moves the dashboard only when the reader moves the tour. It used
+  // to do this in an effect keyed on `activeSection`, which made it a
+  // *controller* of state it does not own: any section the reader chose while
+  // the tour was open differed from the current step's section, so the effect
+  // fired and navigated them straight back. The section tabs looked dead for
+  // every first-time visitor, because the tour is open by default.
+  function goToStep(index: number) {
+    const next = STEPS[index];
+    if (!next) return;
+    setStepIndex(index);
+    if (next.section && next.section !== activeSection) onSectionChange(next.section);
+  }
 
   const closeTutorial = useCallback(() => {
     markOnboardingComplete();
@@ -83,8 +91,8 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
   }, [closeTutorial, isOpen]);
 
   function restartTutorial() {
-    setStepIndex(0);
     setIsOpen(true);
+    goToStep(0);
   }
 
   if (!isOpen) {
@@ -131,7 +139,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
         </p>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+            onClick={() => goToStep(Math.max(0, stepIndex - 1))}
             className="text-caption px-3 py-1.5 rounded transition-colors disabled:opacity-40"
             style={{ color: 'var(--text-secondary)', background: 'var(--bg-card-hover)' }}
             disabled={stepIndex === 0}
@@ -139,7 +147,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
             Back
           </button>
           <button
-            onClick={() => (isLastStep ? closeTutorial() : setStepIndex((i) => i + 1))}
+            onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
             className="text-caption px-3 py-1.5 rounded transition-colors"
             style={{ color: '#fff', background: 'var(--text-secondary)' }}
           >
