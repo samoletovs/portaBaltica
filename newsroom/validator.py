@@ -45,9 +45,39 @@ CHECK_NAMES: Final[tuple[str, ...]] = (
 )
 
 #: How far a declared figure may sit from the signal value it claims to come
-#: from. Zero. Rounding is a rendering concern, handled where prose is compared
-#: to figures; a figure itself must be the number the source published.
-FIGURE_VALUE_TOLERANCE: Final[float] = 0.0
+#: from: exactly what correct rounding permits at the precision the figure was
+#: declared to.
+#:
+#: This was zero, on the reasoning that "rounding is a rendering concern, handled
+#: where prose is compared to figures; a figure itself must be the number the
+#: source published". Held against the rest of the pipeline, that made the wire
+#: unpublishable. A run on 2026-08-25 selected eight signals, wrote eight
+#: articles, spent three drafts on each, and published none — all twenty-four
+#: drafts failed here and nowhere else.
+#:
+#: The reason is not that the model is careless. ``pipeline.units.display_value``
+#: rounds every derived field to two decimals *before showing it to the writer*,
+#: deliberately, because "five decimal places on a derived ratio is noise that
+#: reads as false precision". So the pipeline handed the writer one number and
+#: this check demanded another:
+#:
+#:     shown to the writer      demanded here      rejection
+#:     3.19                     3.18801            figure 3.19 does not match
+#:     449.09                   449.091            figure 449.09 does not match
+#:     6.17                     6.175              figure 6.17 does not match
+#:
+#: Every article was rejected for using precisely the value it was given. Zero
+#: tolerance caught no fabricated number; it caught the pipeline disagreeing with
+#: itself, and it cost the entire output while doing so.
+#:
+#: So the rule is now the same one ``numeric_scan`` already applies between prose
+#: and figures: a number must be the source number, written at the precision it
+#: was written to. 277.78 for 277.778 passes. 280 for 277.778 does not, and
+#: neither does anything else that misstates the source once rounded back.
+def figure_value_tolerance(declared: object) -> float:
+    """Half a unit in the last decimal place ``declared`` committed to."""
+    return numeric_scan.rendering_tolerance(numeric_scan.decimals_written(declared))
+
 
 SYNDICATED_TIERS: Final[frozenset[str]] = frozenset({"B", "C"})
 
@@ -231,7 +261,8 @@ def _as_number(value: Any) -> float | None:
 
 
 def check_figures_traceable(context: ValidationContext) -> CheckResult:
-    """Every declared figure must resolve to the signal payload, exactly.
+    """Every declared figure must resolve to the signal payload, and be that
+    number written at the precision it was declared to.
 
     This is the anti-drift check. ``no_invented_numbers`` proves the prose
     matches the figures; this proves the figures match the source. Without both,
@@ -287,10 +318,11 @@ def check_figures_traceable(context: ValidationContext) -> CheckResult:
             problems.append(f"body[{index}]: figure has non-numeric value {figure.get('value')!r}")
             continue
 
-        if abs(declared - resolved_number) > FIGURE_VALUE_TOLERANCE:
+        tolerance = figure_value_tolerance(figure.get("value"))
+        if abs(declared - resolved_number) > tolerance:
             problems.append(
                 f"body[{index}]: figure {declared!r} does not match "
-                f"{signal_field}={resolved_number!r} (tolerance {FIGURE_VALUE_TOLERANCE})"
+                f"{signal_field}={resolved_number!r} (tolerance {tolerance:g})"
             )
 
     if problems:
@@ -838,7 +870,6 @@ def stamp_verdict(
 
 __all__ = [
     "CHECK_NAMES",
-    "FIGURE_VALUE_TOLERANCE",
     "CheckResult",
     "ValidationContext",
     "ValidatorError",
@@ -852,6 +883,7 @@ __all__ = [
     "check_no_lived_experience_claims",
     "check_no_rewrite_of_restricted_source",
     "check_snippet_verbatim",
+    "figure_value_tolerance",
     "is_servable",
     "resolve_signal_field",
     "stamp_verdict",
