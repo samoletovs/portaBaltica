@@ -176,6 +176,7 @@ class TestDivergence:
         assert signal.geography == "Baltic"
         assert signal.context["highest_geography"] == "LV"
         assert signal.fields["spread_vs_typical"] > 2.0
+        assert signal.fields["comparison_period_count"] == 7.0
 
     def test_should_stay_silent_when_the_countries_move_together(self):
         group = self._group(
@@ -284,6 +285,7 @@ class TestSharpMove:
 
         assert signal is not None
         assert signal.fields["move_vs_typical"] > 2.5
+        assert signal.fields["comparison_period_count"] == 9.0
         assert signal.context["direction"] == "up"
 
     def test_should_stay_silent_on_a_routine_wiggle_in_a_volatile_series(self):

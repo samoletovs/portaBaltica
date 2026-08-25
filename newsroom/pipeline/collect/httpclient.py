@@ -76,6 +76,7 @@ class ConditionalState:
         etag: str | None,
         last_modified: str | None,
         archive_name: str | None,
+        retrieved_at: str | None = None,
     ) -> None:
         entry = dict(self._data.get(url, {}))
         entry["fetched_at"] = isoformat(utcnow())
@@ -85,6 +86,8 @@ class ConditionalState:
             entry["last_modified"] = last_modified
         if archive_name:
             entry["archive_name"] = archive_name
+        if retrieved_at:
+            entry["retrieved_at"] = retrieved_at
         self._data[url] = entry
 
     def flush(self) -> None:
@@ -204,6 +207,7 @@ class CollectorHttp:
             etag=item.etag,
             last_modified=item.last_modified,
             archive_name=item.archive_name,
+            retrieved_at=item.retrieved_at,
         )
         return FetchResult(source_id, url, item)
 
@@ -224,8 +228,12 @@ class CollectorHttp:
 
         state = self._state.get(url)
         archive_name = state.get("archive_name")
-        fetched_at = state.get("fetched_at")
-        if not isinstance(archive_name, str) or not isinstance(fetched_at, str):
+        retrieved_at = state.get("retrieved_at")
+        if not isinstance(archive_name, str):
+            return None
+        if not isinstance(retrieved_at, str):
+            retrieved_at = _retrieved_at_from_archive_name(archive_name)
+        if retrieved_at is None:
             return None
         try:
             body = self._archive.read(archive_name)
@@ -235,14 +243,13 @@ class CollectorHttp:
         return RawItem(
             source_id=source_id,
             url=url,
-            retrieved_at=fetched_at,
+            retrieved_at=retrieved_at,
             content_type="application/octet-stream",
             body=body,
             from_cache=True,
             etag=state.get("etag"),
             last_modified=state.get("last_modified"),
         )
-
     async def _request_with_backoff(
         self,
         source_id: str,
@@ -277,6 +284,16 @@ class CollectorHttp:
                 await self._sleep(delay)
         log.error("%s: giving up after %d attempts (%s)", source_id, self._max_retries, last_error)
         return None
+
+
+def _retrieved_at_from_archive_name(archive_name: str) -> str | None:
+    filename = Path(archive_name).name
+    stamp = filename.split("-", 1)[0]
+    try:
+        moment = datetime.strptime(stamp, "%Y%m%dT%H%M%SZ")
+    except ValueError:
+        return None
+    return isoformat(moment.replace(tzinfo=timezone.utc))
 
 
 def _retry_after_seconds(response: httpx.Response) -> float | None:

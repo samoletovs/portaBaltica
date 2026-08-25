@@ -340,6 +340,7 @@ def detect_divergence(
         "spread_pct": spread_pct,
         "typical_spread": typical,
         "spread_vs_typical": ratio,
+        "comparison_period_count": float(len(historical)),
         "highest_value": latest_values[high_geo],
         "lowest_value": latest_values[low_geo],
     }
@@ -523,6 +524,7 @@ def detect_sharp_move(
             "change_pct": abs(change_pct),
             "typical_move": sigma,
             "move_vs_typical": z,
+            "comparison_period_count": float(len(deltas)),
         },
         sources=[series.source],
         context={

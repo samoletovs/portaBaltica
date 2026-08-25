@@ -48,6 +48,7 @@ def test_should_reject_a_number_found_only_in_research_context() -> None:
 
     result = generate_article(make_signal(), StubWriter(payload), research=research)
 
+    assert "9.1" not in build_user_prompt(make_signal(), research=research)
     assert not result.publishable
     assert result.article.status == "rejected"
     traceability = next(
@@ -147,6 +148,18 @@ def test_should_include_official_summary_but_not_prior_coverage_summary() -> Non
     assert "REPORTER'S ORIGINAL EXPLANATION" not in prompt
 
 
+def test_should_neutralise_unverified_change_claims_in_official_context() -> None:
+    research = _official_research(
+        summary="The unemployment rate decreased, but employment did not improve."
+    )
+
+    prompt = build_user_prompt(make_signal(), research=research)
+
+    assert "rate decreased" not in prompt
+    assert "not improve" not in prompt
+    assert "changed" in prompt
+
+
 def test_should_not_select_an_item_that_matches_only_the_geography() -> None:
     unrelated = FeedItem(
         source_id="baltictimes",
@@ -183,3 +196,28 @@ def test_should_not_select_stale_context_for_a_current_signal() -> None:
     )
 
     assert research.items == ()
+
+
+def test_should_prefer_the_newest_equally_relevant_official_release() -> None:
+    def release(guid: str, published: str) -> FeedItem:
+        return FeedItem(
+            source_id="statistics_estonia_news",
+            title="Estonian labour market update",
+            link=f"https://stat.ee/en/{guid}",
+            description="Official unemployment and employment context.",
+            published=published,
+            guid=guid,
+            raw_blob=f"2026-08-24/statistics_estonia_news/{guid}.raw",
+            retrieved_at="2026-08-24T11:00:00Z",
+        )
+
+    research = research_signal(
+        make_signal(geography="EE"),
+        [
+            release("older", "Mon, 01 Jun 2026 05:00:00 +0000"),
+            release("newest", "Fri, 14 Aug 2026 05:00:00 +0000"),
+        ],
+        max_items=1,
+    )
+
+    assert research.items[0].url.endswith("/newest")

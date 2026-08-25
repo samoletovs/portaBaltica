@@ -24,6 +24,18 @@ ResearchRole = Literal["official_statement", "prior_coverage"]
 
 _WORD = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
 _SPACE = re.compile(r"\s+")
+_NUMERIC_TOKEN = re.compile(
+    r"(?<!\w)[+-]?(?:\d+(?:[.,]\d+)?|\.\d+)(?:%|st|nd|rd|th)?(?!\w)"
+    r"|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten)\b",
+    re.IGNORECASE,
+)
+_CHANGE_TOKEN = re.compile(
+    r"\b(?:rose|rise[sn]?|rising|fell|fall(?:s|en|ing)?|climb(?:ed|s|ing)?|"
+    r"drop(?:ped|s|ping)?|increase[sd]?|increasing|decrease[sd]?|decreasing|"
+    r"grew|grow(?:s|ing|th)?|decline[sd]?|declining|improve[ds]?|"
+    r"higher|lower|stronger|weaker|cheaper|dearer)\b",
+    re.IGNORECASE,
+)
 _COUNTRY_TERMS = {
     "LV": {"latvia", "latvian", "riga"},
     "EE": {"estonia", "estonian", "tallinn"},
@@ -72,6 +84,14 @@ def _plain_text(value: str) -> str:
     return _SPACE.sub(" ", " ".join(parser.parts)).strip()
 
 
+def _redact_unverified_numbers(value: str) -> str:
+    return _NUMERIC_TOKEN.sub("[unverified number omitted]", value)
+
+
+def _neutralise_unverified_changes(value: str) -> str:
+    return _CHANGE_TOKEN.sub("changed", value)
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchItem:
     source_id: str
@@ -87,13 +107,12 @@ class ResearchItem:
         record = {
             "source": self.source_name,
             "role": self.role,
-            "title": self.title,
-            "url": self.url,
+            "title": _redact_unverified_numbers(self.title),
         }
         if self.summary is not None:
-            record["official_summary"] = self.summary
-        if self.published:
-            record["published"] = self.published
+            record["official_summary"] = _neutralise_unverified_changes(
+                _redact_unverified_numbers(self.summary)
+            )
         return record
 
     def provenance_record(self) -> dict[str, str]:
@@ -185,6 +204,11 @@ def _is_timely(signal: Signal, item: FeedItem) -> bool:
     return published >= period - timedelta(days=config.RESEARCH_MAX_AGE_DAYS)
 
 
+def _published_sort_value(value: str | None) -> float:
+    published = _published_at(value)
+    return published.timestamp() if published is not None else 0.0
+
+
 def research_signal(
     signal: Signal,
     feed_items: Iterable[FeedItem],
@@ -206,7 +230,14 @@ def research_signal(
         if relevance >= config.RESEARCH_MIN_RELEVANCE:
             candidates.append((relevance, item))
 
-    candidates.sort(key=lambda pair: (-pair[0], pair[1].source_id, pair[1].guid))
+    candidates.sort(
+        key=lambda pair: (
+            -pair[0],
+            -_published_sort_value(pair[1].published),
+            pair[1].source_id,
+            pair[1].guid,
+        )
+    )
     selected: list[ResearchItem] = []
     per_source: dict[str, int] = {}
     for _, item in candidates:

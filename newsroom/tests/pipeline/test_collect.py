@@ -128,6 +128,42 @@ class TestCacheTtl:
         assert second.item.body == b"payload"
         assert second.item.from_cache is True
 
+    async def test_should_reuse_the_archived_payload_after_a_process_restart(self, tmp_path):
+        calls = []
+
+        def handler(request):
+            calls.append(request.url)
+            return httpx.Response(200, content=b"cached feed")
+
+        archive = RawArchive(local_dir=tmp_path / "archive", account_url="")
+        state_path = tmp_path / "state.json"
+        first = CollectorHttp(
+            archive,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(state_path),
+            sleep=_no_sleep,
+        )
+        async with first:
+            await first.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        second = CollectorHttp(
+            archive,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(state_path),
+            sleep=_no_sleep,
+        )
+        async with second:
+            cached = await second.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        assert len(calls) == 1
+        assert cached.item is not None
+        assert cached.item.body == b"cached feed"
+        assert cached.item.from_cache is True
+
     async def test_should_request_again_once_the_ttl_has_expired(self, tmp_path):
         calls = []
 

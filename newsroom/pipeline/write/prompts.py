@@ -41,16 +41,16 @@ THE NUMBER RULES — these override every stylistic instruction above:
    paragraphs, all three of those blocks must declare it. A figure declared in
    an earlier block does NOT cover a later one — the check is run block by
    block and the article is rejected for the block that omitted it.
-3b. The headline and the standfirst are checked too. A number in either must be
-   declared in some block's "figures".
-4. You may round a figure when you render it in the sentence — write "4.2%" for
-   4.23 — but "value" must stay the number you were given.
-5. Whenever you quantify a change, name what it is measured against in the same
-   paragraph. The COMPARISON BASIS is given to you; use it. A later paragraph
-   may refer back to "the decline" without repeating the basis, provided it
-   carries no figure.
+3b. Put no numerals in the headline or standfirst. Those fields have no
+   per-block "figures" array, so a value there cannot be bound locally.
+4. Never round a figure. Render the exact digits shown in VERIFIED FIGURES and
+   copy the same value into the block's "figures" array.
+5. Whenever you describe a change, name what it is measured against in the same
+   paragraph. The COMPARISON BASIS is given to you; use it.
 6. Do not state a date, year, count or percentage that is not in VERIFIED
    FIGURES or in the supplied period labels.
+7. Put no numerals in the headline or dek. Those fields have no per-block
+   "figures" array, so even a verified value there cannot be bound safely.
 
 REPORTING TASK:
 - Lead with what changed and why it matters, not a recital of arithmetic.
@@ -59,6 +59,10 @@ REPORTING TASK:
   the verified data itself proves.
 - Prior-coverage entries are orientation leads only. Do not repeat, quote,
   paraphrase or imitate their headlines or reporting.
+- Use change words (rose, fell, increased, decreased, declined, up, down,
+  higher, lower or above) only in the opening body paragraph, where the supplied
+  COMPARISON BASIS must appear. Do not use any of those words in the headline,
+  dek, or later context, impact or what-to-watch paragraphs, even hypothetically.
 - End with what evidence or release would confirm, complicate or reverse the
   explanation.
 
@@ -73,8 +77,8 @@ WHAT YOU ARE NOT:
 
 OUTPUT — a single JSON object, no markdown:
 {{
-  "headline": "12-140 characters, specific, no clickbait, no invented number",
-  "dek": "one sentence, under 300 characters, why this matters",
+  "headline": "12-140 characters, specific, no clickbait, no numerals",
+  "dek": "one sentence, under 300 characters, why this matters, no numerals",
   "blocks": [
     {{
       "text": "a paragraph",
@@ -100,7 +104,8 @@ comparison basis you were told to restate.
   fails the article. A block whose text contains no numbers has "figures": [].
 
 Before you answer, re-read each paragraph and check that every digit you wrote
-appears in that paragraph's figures array.
+appears in that paragraph's figures array. Then scan every paragraph after the
+first and remove every change word listed above.
 
 Write {paragraphs} paragraphs. The first must carry the finding and its
 comparison basis. The last must follow your closing move. Keep it tight — this
@@ -208,6 +213,8 @@ _DIMENSIONLESS_FIELDS = frozenset({"z_score", "deviation_pct", "spread_pct"})
 def _unit_for(signal: Signal, name: str) -> str:
     if name in _DIMENSIONLESS_FIELDS or "pct" in name:
         return "%"
+    if name.endswith(("_count", "_length")):
+        return "count"
     return signal.unit
 
 
@@ -247,7 +254,7 @@ def build_user_prompt(
             (
                 instruction_for(fenced_research),
                 "Use official_statement summaries only with attribution. "
-                "For prior_coverage, use only the source and URL as a lead; never "
+                "For prior_coverage, use only the source and title as a lead; never "
                 "repeat or paraphrase the outlet's text.",
                 fenced_research.render(),
             )
