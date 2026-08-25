@@ -14,22 +14,25 @@
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
     <link rel="alternate" type="application/rss+xml" title="portaBaltica" href="/rss.xml" />
     <!--
-      No Google Fonts. Two reasons, and the first is that they never worked:
-      our CSP is `style-src 'self' 'unsafe-inline'` and `font-src 'self' data:`,
-      so the browser has been blocking these requests for the site's entire
-      life and quietly falling back to the system stack. Every page load spent
-      two failed requests and two console errors to render exactly what it
-      renders now.
+      No Google Fonts, and now no reason to want them.
 
-      The second reason is why we are not simply widening the CSP: fetching
-      fonts from Google discloses every reader's IP address to a third party
-      on page load. German courts have held that to be a GDPR violation, and a
-      news site read in the EU is the last place to take that risk for a
-      typeface. If we want Inter, we self-host it.
+      Two reasons this site never fetched a font from Google, and the first is
+      that it never worked: our CSP is `style-src 'self' 'unsafe-inline'` and
+      `font-src 'self' data:`, so the browser blocked those requests for the
+      site's entire life and quietly fell back to the system stack. Every page
+      load spent two failed requests and two console errors to render exactly
+      what it rendered anyway.
 
-      src/index.css still names "Inter" first, so a reader who has it locally
-      gets it, and everyone else gets system-ui — which is what they already
-      saw.
+      The second reason is why we did not simply widen the CSP: fetching fonts
+      from Google discloses every reader's IP address to a third party on page
+      load. German courts have held that to be a GDPR violation, and a news
+      site read in the EU is the last place to take that risk for a typeface.
+
+      So the editorial face is self-hosted instead. Source Serif 4, SIL OFL,
+      served from /fonts under the CSP we already have — see the @font-face
+      block at the top of src/index.css, and the licence beside the files.
+      Interface text stays on the platform's own UI face, which is what the
+      site was already rendering and is the right answer for chrome regardless.
     -->
     <script>
       // Prevent theme flash: set data-theme before CSS applies

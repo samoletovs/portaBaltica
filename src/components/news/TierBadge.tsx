@@ -24,7 +24,7 @@ export function TierBadge({ tier }: { tier: ArticleTier }) {
   return (
     <span
       title={style.title}
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider ${style.className}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-caption font-semibold uppercase tracking-widest ${style.className}`}
     >
       {style.label}
     </span>

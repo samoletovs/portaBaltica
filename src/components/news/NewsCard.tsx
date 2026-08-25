@@ -25,16 +25,18 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
           : 'news-border border-b pb-5'
       }
     >
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
         <TierBadge tier={summary.tier} />
-        <span className="news-subtle text-[11px] uppercase tracking-widest">{section}</span>
+        <span className="news-subtle text-caption font-medium uppercase tracking-widest">
+          {section}
+        </span>
       </div>
 
       <h2
         className={
           isLead
-            ? 'news-fg text-2xl font-semibold leading-tight tracking-tight sm:text-3xl'
-            : 'news-fg text-lg font-medium leading-snug'
+            ? 'editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display'
+            : 'editorial-heading news-fg text-lead font-semibold'
         }
       >
         <Link
@@ -46,7 +48,13 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       </h2>
 
       {summary.dek && (
-        <p className={isLead ? 'news-muted mt-3 text-base leading-relaxed' : 'news-muted mt-1.5 text-sm leading-relaxed'}>
+        <p
+          className={
+            isLead
+              ? 'editorial news-muted mt-3 text-lead'
+              : 'editorial news-muted mt-2 text-callout'
+          }
+        >
           {summary.dek}
         </p>
       )}
@@ -55,7 +63,7 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
         {summary.persona ? (
           <Byline persona={summary.persona} timestamp={summary.published_at} />
         ) : (
-          <p className="news-subtle text-xs">
+          <p className="news-subtle text-caption">
             {summary.syndicated?.attribution
               ? `Reproduced verbatim from ${summary.syndicated.attribution}`
               : 'Reproduced verbatim'}

@@ -25,14 +25,14 @@ function NotServable() {
   return (
     <div
       role="alert"
-      className="news-border news-warning-panel mx-auto max-w-2xl rounded-xl border px-6 py-8 text-center"
+      className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center"
     >
-      <h1 className="news-warning text-lg font-semibold">This article is not available</h1>
-      <p className="news-warning mt-2 text-sm leading-relaxed">
+      <h1 className="news-warning text-title font-semibold">This article is not available</h1>
+      <p className="news-warning mt-3 text-callout">
         It has not passed the checks we run before publishing, so we will not show it. Nothing is
         served from this portal without a passing validator verdict.
       </p>
-      <p className="mt-4 text-sm">
+      <p className="mt-4 text-ui">
         <Link
           to="/"
           className="news-link news-focus underline underline-offset-4"
@@ -70,21 +70,21 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
 
     case 'quote':
       return (
-        <blockquote className="news-border news-muted my-6 border-l-2 pl-4 text-lg italic leading-relaxed">
+        <blockquote className="editorial news-border news-muted my-7 border-l-2 pl-5 text-lead italic">
           {block.text}
         </blockquote>
       );
 
     case 'callout':
       return (
-        <aside className="news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-sm leading-relaxed">
+        <aside className="editorial news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-callout">
           {formatFigures(block.text ?? '')}
         </aside>
       );
 
     case 'list':
       return (
-        <ul className="news-muted my-4 list-disc space-y-1 pl-6 text-[17px] leading-relaxed">
+        <ul className="editorial news-muted my-5 list-disc space-y-2 pl-6 text-prose">
           {(block.text ?? '').split('\n').filter(Boolean).map((item) => (
             <li key={item}>{formatFigures(item)}</li>
           ))}
@@ -94,7 +94,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
     case 'table':
     case 'paragraph':
     default:
-      return <Prose text={block.text} className="news-muted my-4 text-[17px] leading-relaxed" />;
+      return <Prose text={block.text} className="editorial news-muted my-5 text-prose" />;
   }
 }
 
@@ -129,8 +129,8 @@ export function ArticleView({ article }: { article: Article }) {
   if (article.tier === 'C') {
     const syndicated = article.syndicated;
     return (
-      <div className="mx-auto max-w-2xl">
-        <p className="news-muted mb-4 text-sm">
+      <div className="mx-auto max-w-measure">
+        <p className="news-muted mb-4 text-ui">
           This is an external story. portaBaltica did not write it and does not reproduce it.
         </p>
         {syndicated && (
@@ -151,25 +151,25 @@ export function ArticleView({ article }: { article: Article }) {
     .filter((ref): ref is string => Boolean(ref));
 
   return (
-    <article className="mx-auto max-w-2xl">
+    <article className="mx-auto max-w-measure">
       <JsonLd data={newsArticleJsonLd(article)} />
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TierBadge tier={article.tier} />
         <Link
           to={`/data/${article.section}`}
-          className="news-link news-focus text-xs uppercase tracking-widest underline underline-offset-4"
+          className="news-link news-focus text-caption font-medium uppercase tracking-widest underline underline-offset-4"
         >
           {SECTION_LABELS[article.section] ?? article.section}
         </Link>
       </div>
 
-      <h1 className="news-fg text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+      <h1 className="editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display">
         {formatFigures(article.headline)}
       </h1>
 
       {article.dek && (
-        <Prose text={article.dek} className="news-muted mt-3 text-lg leading-relaxed" />
+        <Prose text={article.dek} className="editorial news-muted mt-4 text-lead" />
       )}
 
       <div className="news-border mt-5 border-y py-4">
@@ -180,7 +180,7 @@ export function ArticleView({ article }: { article: Article }) {
             timestamp={article.published_at}
           />
         ) : (
-          <p className="news-muted text-sm">
+          <p className="news-muted text-ui">
             Reproduced verbatim from {article.syndicated?.attribution ?? 'the original publisher'}. No
             portaBaltica byline: we did not write this.
           </p>
@@ -192,10 +192,10 @@ export function ArticleView({ article }: { article: Article }) {
           aria-label="Corrections to this article"
           className="news-border news-warning-panel mt-6 rounded-lg border px-4 py-3"
         >
-          <h2 className="news-warning text-xs font-semibold uppercase tracking-widest">Corrected</h2>
+          <h2 className="news-warning text-caption font-semibold uppercase tracking-widest">Corrected</h2>
           <ul className="mt-2 space-y-2">
             {article.corrections.map((correction) => (
-              <li key={correction.corrected_at} className="news-warning text-sm">
+              <li key={correction.corrected_at} className="news-warning text-ui">
                 <time dateTime={correction.corrected_at}>
                   {new Date(correction.corrected_at).toLocaleDateString('en-GB', {
                     day: 'numeric',
@@ -206,7 +206,7 @@ export function ArticleView({ article }: { article: Article }) {
                 {': '}
                 {correction.description}
                 {correction.previous_value && (
-                  <span className="block text-xs">
+                  <span className="block text-caption">
                     Previously: {correction.previous_value}
                   </span>
                 )}
@@ -219,10 +219,10 @@ export function ArticleView({ article }: { article: Article }) {
       <div className="mt-6">
         {article.tier === 'B' && article.syndicated?.full_text ? (
           <div className="news-border news-panel rounded-lg border p-5">
-            <p className="news-subtle mb-3 text-xs uppercase tracking-widest">
+            <p className="news-subtle mb-3 text-caption font-medium uppercase tracking-widest">
               Reproduced in full, unedited
             </p>
-            <div className="news-muted whitespace-pre-line text-[17px] leading-relaxed">
+            <div className="editorial news-muted whitespace-pre-line text-prose">
               {article.syndicated.full_text}
             </div>
           </div>
@@ -238,7 +238,7 @@ export function ArticleView({ article }: { article: Article }) {
       </div>
 
       {article.tier === 'A' && (
-        <p className="news-border news-panel news-muted mt-8 rounded-lg border px-4 py-3 text-sm">
+        <p className="news-border news-panel news-muted mt-8 rounded-lg border px-4 py-3 text-ui">
           Every figure above is on the dashboard, live.{' '}
           <Link
             to={checkItHref(article, chartRefs[0])}

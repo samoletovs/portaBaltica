@@ -44,7 +44,7 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       data-tier="C"
       aria-label={`External story from ${attribution}`}
     >
-      <p className="news-subtle mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest">
+      <p className="news-subtle mb-1.5 flex items-center gap-2 text-caption font-semibold uppercase tracking-widest">
         <span aria-hidden="true">↗</span>
         <span>{attribution}</span>
         {when && (
@@ -57,7 +57,7 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         )}
       </p>
 
-      <h3 className="news-fg text-[15px] font-medium leading-snug">
+      <h3 className="news-fg text-callout font-semibold">
         <a
           href={originalUrl}
           target="_blank"
@@ -70,15 +70,15 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       </h3>
 
       {quote && (
-        <blockquote className="news-muted mt-1.5 border-0 text-[13px] leading-relaxed">
+        <blockquote className="news-muted mt-2 border-0 text-ui">
           <p>{quote}</p>
-          <footer className="news-subtle mt-1 text-[11px]">
+          <footer className="news-subtle mt-1 text-caption">
             Summary published by <cite className="not-italic">{attribution}</cite> in its own feed, quoted verbatim.
           </footer>
         </blockquote>
       )}
 
-      <p className="news-subtle mt-2 text-[11px] leading-relaxed">
+      <p className="news-subtle mt-2 text-caption">
         Their reporting, not ours. We would rather you read it on their site.
       </p>
     </article>

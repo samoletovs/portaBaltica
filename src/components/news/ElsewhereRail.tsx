@@ -65,11 +65,11 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
     <aside aria-labelledby="elsewhere-heading">
       <h2
         id="elsewhere-heading"
-        className="news-border news-subtle border-b pb-2 text-xs font-medium uppercase tracking-widest"
+        className="news-border news-subtle border-b pb-2 text-caption font-semibold uppercase tracking-widest"
       >
         Elsewhere in the Baltics
       </h2>
-      <p className="news-subtle mt-2 text-xs leading-relaxed">
+      <p className="news-subtle mt-2 text-caption">
         Other outlets’ reporting. Headline and their own summary only. We link out rather than
         reproduce.
       </p>
@@ -85,7 +85,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
             onClick={() => choose(ALL)}
             aria-pressed={outlet === ALL}
             className={[
-              'news-focus rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+              'news-focus rounded-full border px-3 py-1 text-caption font-medium transition-colors',
               outlet === ALL ? 'news-tab-active' : 'news-tab-inactive news-hover',
             ].join(' ')}
           >
@@ -102,7 +102,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
               // announces as "EUobserver2".
               aria-label={`${name}, ${count} ${count === 1 ? 'story' : 'stories'}`}
               className={[
-                'news-focus rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+                'news-focus rounded-full border px-3 py-1 text-caption font-medium transition-colors',
                 outlet === name ? 'news-tab-active' : 'news-tab-inactive news-hover',
               ].join(' ')}
             >
@@ -119,7 +119,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
       </p>
 
       {shown.length === 0 ? (
-        <p className="news-subtle mt-4 text-xs">Nothing filed here right now.</p>
+        <p className="news-subtle mt-4 text-caption">Nothing filed here right now.</p>
       ) : (
         <>
           <div className="mt-4 space-y-4">
@@ -131,7 +131,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="news-link news-focus mt-4 text-xs underline underline-offset-4"
+              className="news-link news-focus mt-4 text-caption font-medium underline underline-offset-4"
             >
               Show {hidden} more{outlet === ALL ? ' from other outlets' : ` from ${outlet}`}
             </button>

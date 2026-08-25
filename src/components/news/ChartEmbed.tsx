@@ -64,7 +64,7 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
   const fallback = (
     <div>
       <BalticCompareChart indicator={resolved} compact />
-      <p className="news-subtle mt-2 text-xs leading-relaxed">
+      <p className="news-subtle mt-2 text-caption">
         {country
           ? `${COUNTRY_NAMES[country] ?? country} is not published as a separate series for this indicator, so all three Baltic countries are shown on the Eurostat measure.`
           : 'All three Baltic countries on the Eurostat measure.'}
@@ -75,8 +75,8 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
   return (
     <figure className="news-border news-panel my-8 rounded-xl border p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="news-subtle text-xs font-medium uppercase tracking-widest">Live data</p>
-        <Link to={seriesHref} className="news-link news-focus text-xs underline underline-offset-4">
+        <p className="news-subtle text-caption font-semibold uppercase tracking-widest">Live data</p>
+        <Link to={seriesHref} className="news-link news-focus text-caption font-medium underline underline-offset-4">
           Open the full series →
         </Link>
       </div>
@@ -89,7 +89,7 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
         <IndicatorChart id={resolved} country={country} fallback={fallback} />
       </Suspense>
 
-      <figcaption className="news-subtle mt-2 text-xs leading-relaxed">
+      <figcaption className="news-subtle mt-2 text-caption">
         {caption ??
           'This chart updates independently of the article. It is the same series the story was written from.'}
       </figcaption>

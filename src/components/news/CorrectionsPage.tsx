@@ -47,27 +47,27 @@ export default function CorrectionsPage() {
       : null;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-measure">
       <Markdown source={policySource} />
 
       <section aria-labelledby="the-log" className="mt-10">
-        <h2 id="the-log" className="news-fg text-xl font-semibold tracking-tight">
+        <h2 id="the-log" className="editorial-heading news-fg text-title font-semibold tracking-tight">
           The log
         </h2>
 
         {entries !== null && publishedCount !== null && (
           <dl className="news-border news-panel-muted mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-3">
             <div className="news-panel px-4 py-3">
-              <dt className="news-subtle text-xs uppercase tracking-widest">Corrections</dt>
-              <dd className="news-fg mt-0.5 font-mono text-lg">{entries.length}</dd>
+              <dt className="news-subtle text-caption font-semibold uppercase tracking-widest">Corrections</dt>
+              <dd className="news-fg mt-1 font-mono text-title">{entries.length}</dd>
             </div>
             <div className="news-panel px-4 py-3">
-              <dt className="news-subtle text-xs uppercase tracking-widest">Articles published</dt>
-              <dd className="news-fg mt-0.5 font-mono text-lg">{publishedCount}</dd>
+              <dt className="news-subtle text-caption font-semibold uppercase tracking-widest">Articles published</dt>
+              <dd className="news-fg mt-1 font-mono text-title">{publishedCount}</dd>
             </div>
             <div className="news-panel px-4 py-3">
-              <dt className="news-subtle text-xs uppercase tracking-widest">Per hundred</dt>
-              <dd className="news-fg mt-0.5 font-mono text-lg">{perHundred ?? '—'}</dd>
+              <dt className="news-subtle text-caption font-semibold uppercase tracking-widest">Per hundred</dt>
+              <dd className="news-fg mt-1 font-mono text-title">{perHundred ?? '—'}</dd>
             </div>
           </dl>
         )}
@@ -75,7 +75,7 @@ export default function CorrectionsPage() {
         {entries === null ? (
           <div className="news-skeleton mt-4 h-24 animate-pulse rounded-lg" aria-busy="true" />
         ) : entries.length === 0 ? (
-          <p className="news-border news-panel news-muted mt-4 rounded-lg border px-5 py-6 text-sm leading-relaxed">
+          <p className="news-border news-panel news-muted mt-4 rounded-lg border px-5 py-6 text-callout">
             No corrections have been issued yet. This log is published whether or not it has
             entries, so that its emptiness is verifiable rather than assumed.
           </p>
@@ -88,7 +88,7 @@ export default function CorrectionsPage() {
               >
                 <time
                   dateTime={entry.corrected_at}
-                  className="news-warning text-xs uppercase tracking-widest"
+                  className="news-warning text-caption font-semibold uppercase tracking-widest"
                 >
                   {new Date(entry.corrected_at).toLocaleDateString('en-GB', {
                     day: 'numeric',
@@ -96,7 +96,7 @@ export default function CorrectionsPage() {
                     year: 'numeric',
                   })}
                 </time>
-                <h3 className="news-fg mt-1 text-base font-medium">
+                <h3 className="editorial-heading news-fg mt-1.5 text-lead font-semibold">
                   <Link
                     to={`/article/${entry.slug}`}
                     className="news-link news-focus underline underline-offset-4"
@@ -104,9 +104,9 @@ export default function CorrectionsPage() {
                     {entry.headline}
                   </Link>
                 </h3>
-                <p className="news-muted mt-1 text-sm leading-relaxed">{entry.description}</p>
+                <p className="editorial news-muted mt-2 text-callout">{entry.description}</p>
                 {entry.previous_value && (
-                  <p className="news-subtle mt-1 text-xs">Previously: {entry.previous_value}</p>
+                  <p className="news-subtle mt-1.5 text-caption">Previously: {entry.previous_value}</p>
                 )}
               </li>
             ))}

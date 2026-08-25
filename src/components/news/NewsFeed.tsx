@@ -80,7 +80,7 @@ export default function NewsFeed() {
               onClick={() => setFilter(section)}
               aria-pressed={filter === section}
               className={[
-                'rounded-full border px-3 py-1 text-xs transition-colors',
+                'rounded-full border px-3.5 py-1.5 text-caption font-medium transition-colors',
                 'news-focus',
                 filter === section
                   ? 'news-tab-active'
@@ -97,15 +97,15 @@ export default function NewsFeed() {
         <div>
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-10 text-center">
-              <h1 className="news-fg text-lg font-medium">
+              <h1 className="editorial-heading news-fg text-title font-semibold">
                 {failed ? 'The front page could not be loaded' : 'Nothing to report yet today'}
               </h1>
-              <p className="news-muted mx-auto mt-2 max-w-md text-sm leading-relaxed">
+              <p className="editorial news-muted mx-auto mt-3 max-w-md text-callout">
                 {failed
                   ? 'Published articles are served as static files. If this persists, the dashboard is unaffected.'
                   : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
               </p>
-              <p className="mt-4 text-sm">
+              <p className="mt-5 text-ui">
                 <Link
                   to="/data"
                   className="news-link news-focus underline underline-offset-4"
@@ -127,12 +127,12 @@ export default function NewsFeed() {
           )}
 
           <section className="news-border news-accent-panel mt-10 rounded-xl border px-5 py-4">
-            <h2 className="news-fg text-sm font-semibold">The dashboard is the evidence</h2>
-            <p className="news-muted mt-1.5 text-sm leading-relaxed">
+            <h2 className="news-fg text-callout font-semibold">The dashboard is the evidence</h2>
+            <p className="news-muted mt-2 text-ui">
               Every figure in our reporting comes from a series you can open, filter and check
               yourself. More than 30 Baltic indicators, updated independently of the article.
             </p>
-            <p className="mt-3 text-sm">
+            <p className="mt-3 text-ui">
               <Link
                 to="/data"
                 className="news-link news-focus underline underline-offset-4"

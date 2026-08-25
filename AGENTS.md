@@ -280,6 +280,40 @@ visible.
 - No hardcoded text — but i18n is not required yet (English only for now)
 - Maritime components (PortCard, ShipVisitsPanel, FerryPanel, CargoPanel) are preserved as-is within the Maritime tile
 
+## Typography
+
+Every editorial surface — `src/components/news/**` and `src/newsroom/markdown.tsx`
+— sizes text from the named scale in `src/index.css`, never from Tailwind's
+default ramp and never from an arbitrary value:
+
+| Step | Size | Job |
+|---|---|---|
+| `text-caption` | 12px | eyebrows, badges, meta, footnotes |
+| `text-ui` | 14px | nav, controls, labels, dense prose |
+| `text-callout` | 16px | card deks, rail headlines, secondary prose |
+| `text-prose` | 18px | article and policy prose |
+| `text-lead` | 22px | deks and standfirsts |
+| `text-title` | 28px | section headings |
+| `text-headline` | 34px | page and card headlines |
+| `text-display` | 40px | the lead story, article `h1` |
+
+Two families, and the split is load-bearing: `.editorial` / `.editorial-heading`
+put prose and headlines in **Source Serif 4** (self-hosted, SIL OFL, in
+`public/fonts`), everything else stays on the platform's UI face. A reader
+should be able to tell an article from an interface without reading either.
+Reading columns use `max-w-measure`, which is ~68 characters at 18px.
+
+`tests/typography.test.ts` enforces all of this: it fails on an arbitrary
+`text-[13px]`, on a raw `text-sm` in a news component, on a heading that is not
+larger than the prose beneath it, and on a `@font-face` whose file is missing.
+
+**Two traps.** Tailwind v4 reads `--text-*` as the font-size namespace, but
+`:root` in `index.css` also defines `--text-primary`, `--text-body` and friends
+as *colours*, and those are emitted later so they win — which is why the
+editorial step is `--text-prose` and not `--text-body`. And nothing here may
+fetch a font from a third party: the CSP is `font-src 'self' data:`, and a
+remote font would disclose every reader's IP address to whoever serves it.
+
 ## Data source patterns
 
 - **Eurostat:** every Baltic comparison indicator is defined in
