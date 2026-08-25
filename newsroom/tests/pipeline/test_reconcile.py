@@ -141,3 +141,36 @@ class TestRounding:
         reconcile_block(block, {"latest": 122.0})
 
         assert block.figures == []
+
+
+class TestTheUnitItAttaches:
+    """A reconciled figure must carry the field's own unit, not the series'.
+
+    Blanket-applying signal.unit published "3.18801 EUR/MWh higher than the
+    typical spread", where spread_vs_typical is a ratio and the real
+    difference was 48.18. Nothing in this file asserted the unit, so a
+    mutation restoring the blanket unit survived.
+    """
+
+    def test_a_ratio_field_is_declared_without_a_unit(self):
+        block = Block(type="paragraph", text="The spread is 3.19 times the usual.", figures=[])
+
+        reconcile_block(block, {"spread_vs_typical": 3.18801}, unit="EUR/MWh")
+
+        assert len(block.figures) == 1
+        assert block.figures[0].signal_field == "spread_vs_typical"
+        assert block.figures[0].unit is None, "a ratio is not a quantity in EUR/MWh"
+
+    def test_a_count_field_is_declared_without_a_unit(self):
+        block = Block(type="paragraph", text="across 119 earlier daily readings", figures=[])
+
+        reconcile_block(block, {"periods_compared": 119.0}, unit="EUR/MWh")
+
+        assert block.figures[0].unit is None
+
+    def test_a_real_measure_keeps_the_series_unit(self):
+        block = Block(type="paragraph", text="The spread reached 70.2 on the day.", figures=[])
+
+        reconcile_block(block, {"spread": 70.2}, unit="EUR/MWh")
+
+        assert block.figures[0].unit == "EUR/MWh"
