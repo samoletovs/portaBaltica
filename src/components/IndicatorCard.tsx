@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from 'react';
+import { useState, useEffect, useId, type ReactNode } from 'react';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
@@ -266,7 +266,16 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 }
 
 // Full chart for indicator detail pages
-export function IndicatorChart({ id, country: countryOverride }: { id: string; country?: Country }) {
+export function IndicatorChart({
+  id,
+  country: countryOverride,
+  fallback,
+}: {
+  id: string;
+  country?: Country;
+  /** Rendered instead of the no-data message when the series comes back empty. */
+  fallback?: ReactNode;
+}) {
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(10);
@@ -380,6 +389,11 @@ export function IndicatorChart({ id, country: countryOverride }: { id: string; c
     return <div className="h-64 bg-slate-900/50 rounded-xl animate-pulse" />;
   }
   if (!data || data.series.length === 0) {
+    // Callers that have something better to show than an apology pass a
+    // fallback. Under an article that is the three-country Eurostat series:
+    // an empty panel captioned "Live data" tells the reader nothing, and the
+    // stock message points at a comparison chart that only exists on /data.
+    if (fallback !== undefined) return <>{fallback}</>;
     return (
       <p style={{ color: 'var(--text-secondary)' }}>
         {country !== 'LV'

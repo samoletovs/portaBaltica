@@ -10,7 +10,7 @@ import { NewsroomLayout } from '../src/components/news/NewsroomLayout';
 import { CorrespondentAvatar } from '../src/components/news/CorrespondentAvatar';
 import { Byline } from '../src/components/news/Byline';
 import { CORRESPONDENTS, renderByline } from '../src/newsroom/correspondents';
-import { ACCOUNTABLE_EDITOR } from '../src/newsroom/editorial';
+import { ACCOUNTABLE_PUBLISHER } from '../src/newsroom/editorial';
 
 /**
  * The policy is published, so these are not style preferences — they are
@@ -97,8 +97,8 @@ describe('/about/ai renders the published policy, not a paraphrase of it', () =>
     renderPage(<AiPolicyPage />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'How portaBaltica uses AI' })).toBeTruthy();
-    expect(screen.getByText('Accountable editor')).toBeTruthy();
-    expect(screen.getByText('Sam Samoletovs')).toBeTruthy();
+    expect(screen.getByText('Accountable publisher')).toBeTruthy();
+    expect(screen.getByText('Andre Ovīši (human)')).toBeTruthy();
   });
 
   it('carries the binding sentences verbatim', () => {
@@ -144,12 +144,29 @@ describe('newsroom masthead disclosure', () => {
     const { container } = renderPage(<NewsroomLayout />);
     const text = container.textContent ?? '';
 
-    expect(text).toContain('edited by a disclosed AI editor');
-    expect(text).toContain(`${ACCOUNTABLE_EDITOR} is accountable for everything published here`);
-    expect(text).not.toContain(`edited by ${ACCOUNTABLE_EDITOR}`);
+    // Three claims, and the reader has to be able to tell them apart: a machine
+    // wrote it, a different machine reviewed it, a named human answers for it.
+    expect(text).toMatch(/written by AI correspondents/i);
+    expect(text).toMatch(/reviewed by an AI editor/i);
+    expect(text).toContain(ACCOUNTABLE_PUBLISHER);
+
+    // The load-bearing negative: the human must never be described as doing the
+    // editing. Collapsing the two would let a reader believe a person read
+    // every article before it ran, which is the opposite of what happens.
+    expect(text).not.toMatch(new RegExp(`(edited|reviewed|written) by ${ACCOUNTABLE_PUBLISHER}`, 'i'));
+
     expect(screen.getByRole('link', { name: 'What that means' }).getAttribute('href')).toBe(
       '/about/ai',
     );
+  });
+
+  it('keeps the masthead to one line and four destinations', () => {
+    // It previously ran to three sentences and a second row of links, which
+    // pushed the lead story most of the way down the first screen.
+    renderPage(<NewsroomLayout />);
+
+    const nav = screen.getByRole('navigation', { name: 'Sections' });
+    expect(nav.querySelectorAll('a')).toHaveLength(4);
   });
 });
 

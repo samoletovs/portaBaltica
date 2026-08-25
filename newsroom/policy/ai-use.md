@@ -1,7 +1,7 @@
 # How portaBaltica uses AI
 
 **Last updated:** 2026-08-24
-**Accountable editor:** Sam Samoletovs
+**Accountable publisher:** Andre Ovīši (human)
 
 portaBaltica is an experiment in whether artificial intelligence can produce
 genuinely useful journalism from open data. It is operated by NauroLabs, an
@@ -74,7 +74,7 @@ less. We never generate filler to fill a page.
 
 ## 3. Who is accountable
 
-Sam Samoletovs, named at the top of this page, is accountable for everything
+Andre Ovīši, named at the top of this page, is the only human here and is accountable for everything
 published here — including anything a machine produced without a human reading
 it first. "The AI did it" is not an explanation we will ever offer you.
 
@@ -87,13 +87,13 @@ or inappropriate content that Sam should see; routine approvals do not go to him
 
 ## 4. What you see as a reader
 
-Our correspondents are **Ilze Bērziņa** (Economy & Labour), **Marek Soosaar**
-(Energy & Markets), **Gintaras Vaitkus** (Maritime & Trade), **Kadri Lepik**
-(Environment & Climate) and **Rasa Petrauskaitė** (Government, EU & Society).
+Our correspondents are **Ilze Nida** (Economy & Labour), **Marek Akmeņrags**
+(Energy & Markets), **Gintaras Kolka** (Maritime & Trade), **Kadri Ristna**
+(Environment & Climate) and **Rasa Irbene** (Government, EU & Society).
 Each covers a beat, has a declared area of expertise, and writes in a
 consistent voice.
 
-The editor for syndicated items is **Dace Vaivode** (Editorial Review). It is the
+The editor for syndicated items is **Dace Saulkrasti** (AI editor). It is the
 same kind of disclosed AI persona: an invented name with a declared competence,
 not a staff journalist and not a real individual.
 
@@ -105,15 +105,9 @@ accountability reporting — a reader who knows those traditions may recognise
 the approach — but no correspondent is modelled on a named individual or claims
 any association with one.
 
-> **An earlier version of this page said something different.** These
-> correspondents were first named after Baltic landmarks — Nida, Akmeņrags,
-> Kolka, Ristna, Irbene — and this page argued that place names were safer
-> because nobody mistakes a lighthouse for a journalist. That was a fair point
-> and we changed our minds: a correspondent with a name and a stated expertise
-> can be *held to* that expertise, and readers were being asked to take
-> anonymous analysis on trust. We are recording the change here rather than
-> quietly editing it away, because a policy you can silently rewrite is not a
-> policy. What did **not** change is everything the argument was protecting:
+Everyone in the newsroom carries the surname of a Baltic lighthouse or coastal
+station. It is a house style rather than a disguise, and it does none of the
+disclosure work on its own. These rules do:
 
 - every byline reads **"· AI correspondent"**, always, without exception
 - every correspondent has a page that opens by stating it is a software system

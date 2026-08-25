@@ -122,6 +122,12 @@ body {
   outline: 2px solid var(--news-accent);
   outline-offset: 2px;
 }
+/* Masthead nav: an underline only, so the four destinations read as a row of
+   sections rather than as a row of buttons competing with the headlines. */
+.news-nav-active { color: var(--news-fg); border-color: var(--news-accent); }
+.news-nav-idle { color: var(--news-muted); }
+.news-nav-idle:hover { color: var(--news-fg); }
+
 .news-tab-active {
   color: var(--news-fg);
   border-color: var(--news-accent);

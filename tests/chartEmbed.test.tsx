@@ -81,11 +81,23 @@ describe('ChartEmbed', () => {
     expect((await screen.findByTestId('chart')).getAttribute('data-country')).toBe('LV');
   });
 
-  it('links to the full series for the same indicator it charted', async () => {
+  it('links to the full series for the same indicator and the same country', async () => {
     renderEmbed({ indicatorId: 'unemployment', country: 'EE' });
 
     const chart = await screen.findByTestId('chart');
     expect(chart.getAttribute('data-indicator')).toBe('unemployment');
+
+    // The link used to carry no country, so it landed on whatever the
+    // dashboard switcher was last left on — the same class of mismatch this
+    // file exists to prevent, just one click later. Following it from an
+    // Estonian story could open Lithuania.
+    const link = screen.getByRole('link', { name: /Open the full series/ });
+    expect(link.getAttribute('href')).toBe('/indicator/unemployment?country=EE');
+  });
+
+  it('omits the country from the link when the story has no single one', async () => {
+    renderEmbed({ indicatorId: 'unemployment' });
+
     const link = screen.getByRole('link', { name: /Open the full series/ });
     expect(link.getAttribute('href')).toBe('/indicator/unemployment');
   });

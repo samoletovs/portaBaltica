@@ -41,6 +41,12 @@ function LegacySectionRedirect() {
   return <Navigate to="/" replace />
 }
 
+/** Old correspondent URLs keep working, and land on the same person. */
+function LegacyCorrespondentRedirect() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={id ? `/newsroom/${id}` : '/newsroom'} replace />
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
@@ -55,8 +61,13 @@ createRoot(document.getElementById('root')!).render(
                     <Route element={<NewsroomLayout />}>
                       <Route index element={<NewsFeed />} />
                       <Route path="/article/:slug" element={<ArticlePage />} />
-                      <Route path="/correspondents" element={<CorrespondentPage />} />
-                      <Route path="/correspondents/:id" element={<CorrespondentPage />} />
+                      <Route path="/newsroom" element={<CorrespondentPage />} />
+                      <Route path="/newsroom/:id" element={<CorrespondentPage />} />
+                      {/* The masthead used to live at /correspondents. Those URLs
+                          are in shared links and in search results, so they move
+                          rather than break. */}
+                      <Route path="/correspondents" element={<Navigate to="/newsroom" replace />} />
+                      <Route path="/correspondents/:id" element={<LegacyCorrespondentRedirect />} />
                       <Route path="/about/ai" element={<AiPolicyPage />} />
                       <Route path="/corrections" element={<CorrectionsPage />} />
                     </Route>

@@ -49,7 +49,7 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
       <CorrespondentAvatar id={persona.id} size={44} />
       <div className="min-w-0">
         <Link
-          to={`/correspondents/${persona.id}`}
+          to={`/newsroom/${persona.id}`}
           className="news-link news-focus text-sm font-medium underline underline-offset-4"
         >
           {text}

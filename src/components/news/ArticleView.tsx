@@ -8,6 +8,7 @@ import { JsonLd } from './JsonLd';
 import { LinkOutCard } from './LinkOutCard';
 import { ProvenanceBlock } from './ProvenanceBlock';
 import { SECTION_LABELS } from '../../newsroom/sections';
+import { formatFigures } from '../../newsroom/format-figures';
 import { soleCountry } from '../../newsroom/article-country';
 import { TierBadge } from './TierBadge';
 
@@ -42,6 +43,23 @@ function NotServable() {
   );
 }
 
+/**
+ * Prose with over-precise decimals shortened for reading.
+ *
+ * The exact value stays in the title attribute rather than being discarded, so
+ * the rounding is recoverable by anyone who wants the full figure.
+ */
+function Prose({ text, className }: { text?: string; className: string }) {
+  if (!text) return null;
+  const readable = formatFigures(text);
+  const rounded = readable !== text;
+  return (
+    <p className={className} title={rounded ? text : undefined}>
+      {readable}
+    </p>
+  );
+}
+
 function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' | 'LT' }) {
   switch (block.type) {
     case 'chart':
@@ -59,7 +77,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
     case 'callout':
       return (
         <aside className="news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-sm leading-relaxed">
-          {block.text}
+          {formatFigures(block.text ?? '')}
         </aside>
       );
 
@@ -67,7 +85,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
       return (
         <ul className="news-muted my-4 list-disc space-y-1 pl-6 text-[17px] leading-relaxed">
           {(block.text ?? '').split('\n').filter(Boolean).map((item) => (
-            <li key={item}>{item}</li>
+            <li key={item}>{formatFigures(item)}</li>
           ))}
         </ul>
       );
@@ -75,8 +93,24 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
     case 'table':
     case 'paragraph':
     default:
-      return <p className="news-muted my-4 text-[17px] leading-relaxed">{block.text}</p>;
+      return <Prose text={block.text} className="news-muted my-4 text-[17px] leading-relaxed" />;
   }
+}
+
+/**
+ * Where "check it yourself" should land.
+ *
+ * The indicator page answers for one country at a time, and without a country
+ * on the link it answers for whatever the dashboard's switcher was last left
+ * on. Under a story about Estonia that could open Lithuania — which does not
+ * read as a different country so much as an article that cannot be trusted.
+ * Single-country stories therefore carry their country; Baltic-wide ones fall
+ * back to the section, which shows all three.
+ */
+function checkItHref(article: Article, chartRef?: string): string {
+  if (!chartRef) return `/data/${article.section}`;
+  const country = soleCountry(article);
+  return country ? `/indicator/${chartRef}?country=${country}` : `/indicator/${chartRef}`;
 }
 
 export function ArticleView({ article }: { article: Article }) {
@@ -127,11 +161,11 @@ export function ArticleView({ article }: { article: Article }) {
       </div>
 
       <h1 className="news-fg text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
-        {article.headline}
+        {formatFigures(article.headline)}
       </h1>
 
       {article.dek && (
-        <p className="news-muted mt-3 text-lg leading-relaxed">{article.dek}</p>
+        <Prose text={article.dek} className="news-muted mt-3 text-lg leading-relaxed" />
       )}
 
       <div className="news-border mt-5 border-y py-4">
@@ -203,7 +237,7 @@ export function ArticleView({ article }: { article: Article }) {
         <p className="news-border news-panel news-muted mt-8 rounded-lg border px-4 py-3 text-sm">
           Every figure above is on the dashboard, live.{' '}
           <Link
-            to={chartRefs[0] ? `/indicator/${chartRefs[0]}` : `/data/${article.section}`}
+            to={checkItHref(article, chartRefs[0])}
             className="news-link news-focus underline underline-offset-4"
           >
             Check it yourself →
