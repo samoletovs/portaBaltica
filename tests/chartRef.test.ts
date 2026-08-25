@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { createRequire } from 'node:module';
 import { DASHBOARD_INDICATORS, resolveChartRef } from '../src/newsroom/chart-ref';
+
+const require_ = createRequire(import.meta.url);
+const INDICATORS = require_('../api/shared/indicators.js');
 
 /**
  * The join between an article and the chart that backs it.
@@ -68,5 +72,52 @@ describe('resolveChartRef', () => {
         expect(DASHBOARD_INDICATORS.has(result)).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * The mirror this module claims to be.
+ *
+ * "Mirrors api/shared/indicators.js" was a comment, not an assertion, and the
+ * two lists drifted apart in both directions: six ids here named nothing the
+ * API serves, and twenty-three indicators the API does serve were missing.
+ * Both failures are invisible at runtime — one renders an empty chart frame,
+ * the other renders no chart where an article promised one.
+ */
+describe('chart vocabulary matches the indicator registry', () => {
+  const registry: string[] = Object.keys(INDICATORS);
+
+  it('serves every id it advertises', () => {
+    const phantom = [...DASHBOARD_INDICATORS].filter((id) => !registry.includes(id));
+    expect(
+      phantom,
+      'these ids pass resolveChartRef but /api/baltic-compare answers 400 for them, ' +
+        'which renders a "Live data" panel containing nothing'
+    ).toEqual([]);
+  });
+
+  it('advertises every id it serves', () => {
+    const missing = registry.filter((id) => !DASHBOARD_INDICATORS.has(id));
+    expect(
+      missing,
+      'the dashboard serves these but resolveChartRef rejects them, so an article ' +
+        'citing one has its chart silently dropped'
+    ).toEqual([]);
+  });
+
+  it('points every alias at an id the dashboard actually serves', () => {
+    // An alias to a retired id is the original bug wearing a different hat.
+    for (const legacy of ['gov_debt', 'renewable_share', 'new_vehicles', 'tourist_arrivals']) {
+      const resolved = resolveChartRef(legacy);
+      expect(resolved, `${legacy} should resolve to a live indicator`).toBeDefined();
+      expect(registry).toContain(resolved);
+    }
+  });
+
+  it('declines the legacy ids that have no real counterpart', () => {
+    // building_permits and biz_confidence were never served by anything. The
+    // honest answer is no chart, not the nearest-looking one.
+    expect(resolveChartRef('building_permits')).toBeUndefined();
+    expect(resolveChartRef('biz_confidence')).toBeUndefined();
   });
 });

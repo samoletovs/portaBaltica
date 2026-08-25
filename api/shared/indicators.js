@@ -36,37 +36,83 @@ const INDICATORS = {
     unit: 'EUR',
     sanity: [5000, 60000],
   },
+  // Eurostat moved HICP from ECOICOP ver.1 to ver.2. The ver.1 tables
+  // (prc_hicp_manr, prc_hicp_midx, prc_hicp_mmor) were frozen on 2026-02-06
+  // with 2025-12 as their last period — they still answer HTTP 200 and still
+  // list every old code, so nothing failed and four charts quietly went eight
+  // months stale. The ver.2 table renames the dimension `coicop` -> `coicop18`,
+  // renames all-items CP00 -> TOTAL, and folds the index and the rates of
+  // change into one cube, so `unit` must now be pinned to RCH_A to get the
+  // annual rate that prc_hicp_manr used to return on its own.
   inflation: {
-    dataset: 'prc_hicp_manr',
-    params: 'coicop=CP00&freq=M',
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=TOTAL&unit=RCH_A&freq=M',
     freq: 'M',
     title: 'HICP Inflation',
     unit: '% YoY',
     sanity: [-10, 40],
   },
   energy_inflation: {
-    dataset: 'prc_hicp_manr',
-    params: 'coicop=NRG&freq=M',
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=NRG&unit=RCH_A&freq=M',
     freq: 'M',
     title: 'Energy inflation',
     unit: '% YoY',
     sanity: [-60, 100],
   },
   food_inflation: {
-    dataset: 'prc_hicp_manr',
-    params: 'coicop=FOOD&freq=M',
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=FOOD&unit=RCH_A&freq=M',
     freq: 'M',
     title: 'Food inflation',
     unit: '% YoY',
     sanity: [-30, 50],
   },
   core_inflation: {
-    dataset: 'prc_hicp_manr',
-    params: 'coicop=TOT_X_NRG_FOOD&freq=M',
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=TOT_X_NRG_FOOD&unit=RCH_A&freq=M',
     freq: 'M',
     title: 'Core inflation (excl. energy & food)',
     unit: '% YoY',
     sanity: [-10, 30],
+  },
+  services_inflation: {
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=SERV&unit=RCH_A&freq=M',
+    freq: 'M',
+    title: 'Services inflation',
+    unit: '% YoY',
+    sanity: [-10, 30],
+  },
+  goods_inflation: {
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=GD&unit=RCH_A&freq=M',
+    freq: 'M',
+    title: 'Goods inflation',
+    unit: '% YoY',
+    sanity: [-20, 40],
+  },
+  admin_prices: {
+    // Prices set or approved by government rather than by the market. In the
+    // Baltics this is where energy policy shows up as a consumer price, and it
+    // diverges sharply between the three — which the headline rate hides.
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=AP&unit=RCH_A&freq=M',
+    freq: 'M',
+    title: 'Administered prices',
+    unit: '% YoY',
+    sanity: [-30, 60],
+  },
+  home_energy_inflation: {
+    // Electricity, gas, solid fuels and heat — the household energy bill.
+    // The band is wide because it genuinely was: this series ran well above
+    // 100% across the Baltics during the 2022 energy shock.
+    dataset: 'prc_hicp_minr',
+    params: 'coicop18=ELC_GAS&unit=RCH_A&freq=M',
+    freq: 'M',
+    title: 'Home energy inflation',
+    unit: '% YoY',
+    sanity: [-70, 200],
   },
   ppi: {
     dataset: 'sts_inpp_m',
@@ -155,6 +201,17 @@ const INDICATORS = {
     title: 'Youth unemployment (under 25)',
     unit: '%',
     sanity: [2, 50],
+  },
+  employment_rate: {
+    // The 20-64 band is the one the EU employment target is written against,
+    // and it moves independently of unemployment: a falling participation rate
+    // can flatter the unemployment rate while employment itself shrinks.
+    dataset: 'lfsi_emp_q',
+    params: 'freq=Q&indic_em=EMP_LFS&s_adj=SA&sex=T&age=Y20-64&unit=PC_POP',
+    freq: 'Q',
+    title: 'Employment rate (20-64)',
+    unit: '%',
+    sanity: [40, 90],
   },
   job_vacancy: {
     // indic_em=JOBRATE is not a code; the job vacancy rate is JVR.
@@ -293,6 +350,16 @@ const INDICATORS = {
     unit: '% of individuals',
     sanity: [10, 95],
   },
+  online_shoppers: {
+    // Individuals who bought online in the last 12 months. Digital skills say
+    // what people can do; this says what they actually do with it.
+    dataset: 'isoc_ec_ib20',
+    params: 'freq=A&ind_type=IND_TOTAL&indic_is=I_BLT12&unit=PC_IND',
+    freq: 'A',
+    title: 'Online shoppers',
+    unit: '% of individuals',
+    sanity: [10, 95],
+  },
 
   // ---- Trade & external ------------------------------------------------
   exports: {
@@ -406,6 +473,49 @@ const INDICATORS = {
     title: 'Passenger cars per 1000 inhabitants',
     unit: 'per 1000',
     sanity: [100, 900],
+  },
+  air_passengers: {
+    // Passengers carried, all schedules, national and international. The
+    // dashboard already covers sea freight; this is the other half of how
+    // people and goods actually reach the Baltics.
+    dataset: 'avia_paoc',
+    params: 'freq=Q&unit=PAS&tra_meas=PAS_CRD&tra_cov=TOTAL&schedule=TOTAL',
+    freq: 'Q',
+    title: 'Air passengers carried',
+    unit: 'passengers/quarter',
+    sanity: [1000, 50000000],
+  },
+  ghg_emissions: {
+    // All NACE activities plus households, seasonally adjusted, in CO2
+    // equivalent. Quarterly air emissions accounts are the only greenhouse gas
+    // series that moves fast enough to sit next to quarterly GDP.
+    dataset: 'env_ac_aigg_q',
+    params: 'freq=Q&s_adj=SA&nace_r2=TOTAL_HH&airpol=GHG&unit=THS_T',
+    freq: 'Q',
+    title: 'Greenhouse gas emissions',
+    unit: 'thousand tonnes CO2-eq',
+    sanity: [100, 50000],
+  },
+
+  // ---- Business demography ---------------------------------------------
+  // The monthly table sts_rb_m carries Latvia only — Estonia and Lithuania
+  // report these to the quarterly table, so a Baltic comparison has to use
+  // sts_rb_q or it silently renders one country.
+  business_registrations: {
+    dataset: 'sts_rb_q',
+    params: 'freq=Q&indic_bt=REG&nace_r2=B-S_X_O_S94&s_adj=SCA&unit=I21',
+    freq: 'Q',
+    title: 'New business registrations',
+    unit: 'index (2021=100)',
+    sanity: [10, 400],
+  },
+  bankruptcies: {
+    dataset: 'sts_rb_q',
+    params: 'freq=Q&indic_bt=BKRT&nace_r2=B-S_X_O_S94&s_adj=SCA&unit=I21',
+    freq: 'Q',
+    title: 'Bankruptcy declarations',
+    unit: 'index (2021=100)',
+    sanity: [10, 500],
   },
 };
 
