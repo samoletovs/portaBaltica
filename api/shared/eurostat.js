@@ -99,11 +99,36 @@ function sortedCodes(category) {
 }
 
 /**
- * Count non-null cells for a candidate set of fixed positions on the
- * non-geo/non-time dimensions.
+ * The dimension a cube uses to name countries.
+ *
+ * Almost every Eurostat table calls it `geo`, so that is tried first. Maritime
+ * tables call it `rep_mar` — the *reporting* maritime country — and a parser
+ * that only knew `geo` rejected them outright, which is why port freight, the
+ * one statistic most obviously in this dashboard's remit, was absent from it.
+ *
+ * The list is explicit rather than inferred. Guessing "whichever dimension
+ * holds country-shaped codes" would happily pick `partner` on a bilateral
+ * trade cube and silently report the wrong side of the flow. Adding an entry
+ * here means having checked a real response.
  */
-function coverage(data, dims, sizes, str, geoIdx, timeIdx, fixed, geoCodes, timeCount) {
-  const geoCat = data.dimension.geo.category;
+const COUNTRY_DIMENSIONS = ['geo', 'rep_mar'];
+
+function findCountryDimension(dims, dimension) {
+  for (let i = 0; i < COUNTRY_DIMENSIONS.length; i++) {
+    const name = COUNTRY_DIMENSIONS[i];
+    const idx = dims.indexOf(name);
+    if (idx >= 0 && dimension[name] && dimension[name].category) {
+      return { name: name, index: idx, category: dimension[name].category };
+    }
+  }
+  return null;
+}
+
+/**
+ * Count non-null cells for a candidate set of fixed positions on the
+ * non-country/non-time dimensions.
+ */
+function coverage(data, dims, sizes, str, geoCat, geoIdx, timeIdx, fixed, geoCodes, timeCount) {
   let found = 0;
   for (let g = 0; g < geoCodes.length; g++) {
     for (let t = 0; t < timeCount; t++) {
@@ -135,11 +160,12 @@ function parseJsonStat(data, wanted) {
 
   const dims = data.id;
   const sizes = data.size;
-  const geoIdx = dims.indexOf('geo');
+  const country = findCountryDimension(dims, data.dimension);
   const timeIdx = dims.indexOf('time');
-  if (geoIdx < 0 || timeIdx < 0) return empty;
+  if (!country || timeIdx < 0) return empty;
 
-  const geoCat = data.dimension.geo.category;
+  const geoIdx = country.index;
+  const geoCat = country.category;
   const timeCat = data.dimension.time.category;
   const geoCodes = sortedCodes(geoCat).filter(function (g) { return wanted.indexOf(g) >= 0; });
   const timeCodes = sortedCodes(timeCat);
@@ -158,7 +184,7 @@ function parseJsonStat(data, wanted) {
     let bestScore = -1;
     for (let c = 0; c < codes.length; c++) {
       fixed[d] = c;
-      const score = coverage(data, dims, sizes, str, geoIdx, timeIdx, fixed, geoCodes, timeCodes.length);
+      const score = coverage(data, dims, sizes, str, geoCat, geoIdx, timeIdx, fixed, geoCodes, timeCodes.length);
       if (score > bestScore) { bestScore = score; best = c; }
     }
     fixed[d] = best;
@@ -214,8 +240,11 @@ function sincePeriod(freq, years) {
 }
 
 function buildUrl(def, years, geos) {
+  // The query parameter has to name the same dimension the cube does, so a
+  // maritime table is filtered with rep_mar=LV and everything else with geo=LV.
+  const geoDim = def.geoDim || 'geo';
   return EUROSTAT_BASE + '/' + def.dataset +
-    '?' + geos.map(function (g) { return 'geo=' + g; }).join('&') +
+    '?' + geos.map(function (g) { return geoDim + '=' + g; }).join('&') +
     '&' + def.params +
     '&sinceTimePeriod=' + sincePeriod(def.freq, years);
 }
@@ -317,6 +346,7 @@ function maxAgeMonths(def) {
 
 module.exports = {
   EUROSTAT_BASE: EUROSTAT_BASE,
+  COUNTRY_DIMENSIONS: COUNTRY_DIMENSIONS,
   httpText: httpText,
   httpJson: httpJson,
   parseJsonStat: parseJsonStat,

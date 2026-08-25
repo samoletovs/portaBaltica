@@ -53,7 +53,8 @@ export const DASHBOARD_INDICATORS = new Set([
   'tourism_foreign', 'hotel_occupancy', 'elec_production',
   'elec_renewable_gen', 'renewables', 'elec_price_household',
   'elec_price_industry', 'vehicles', 'air_passengers', 'ghg_emissions',
-  'business_registrations', 'bankruptcies',
+  'business_registrations', 'bankruptcies', 'port_freight',
+  'port_freight_growth',
 ]);
 
 /**

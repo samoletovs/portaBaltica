@@ -34,6 +34,8 @@ const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 /**
  * Build a JSON-stat 2.0 cube. `live` names the coordinate on each extra
  * dimension that actually carries data; every other coordinate is null.
+ * `countryDim` renames the country axis, because not every Eurostat table
+ * calls it `geo`.
  */
 function cube(opts: {
   extraDims: Record<string, string[]>;
@@ -41,8 +43,10 @@ function cube(opts: {
   geos: string[];
   times: string[];
   valueFor: (geo: string, time: string) => number;
+  countryDim?: string;
 }) {
-  const dimIds = [...Object.keys(opts.extraDims), 'geo', 'time'];
+  const geoDim = opts.countryDim ?? 'geo';
+  const dimIds = [...Object.keys(opts.extraDims), geoDim, 'time'];
   const catsFor = (codes: string[]) => {
     const index: Record<string, number> = {};
     codes.forEach((c, i) => { index[c] = i; });
@@ -51,11 +55,11 @@ function cube(opts: {
 
   const dimension: Record<string, unknown> = {};
   for (const [id, codes] of Object.entries(opts.extraDims)) dimension[id] = catsFor(codes);
-  dimension.geo = catsFor(opts.geos);
+  dimension[geoDim] = catsFor(opts.geos);
   dimension.time = catsFor(opts.times);
 
   const size = dimIds.map((id) =>
-    id === 'geo' ? opts.geos.length : id === 'time' ? opts.times.length : opts.extraDims[id].length);
+    id === geoDim ? opts.geos.length : id === 'time' ? opts.times.length : opts.extraDims[id].length);
 
   const strides: number[] = new Array(dimIds.length);
   let mult = 1;
@@ -68,7 +72,7 @@ function cube(opts: {
       let onLiveSlice = true;
       for (let d = 0; d < dimIds.length; d++) {
         const id = dimIds[d];
-        if (id === 'geo') { idx += g * strides[d]; continue; }
+        if (id === geoDim) { idx += g * strides[d]; continue; }
         if (id === 'time') { idx += t * strides[d]; continue; }
         const pos = opts.extraDims[id].indexOf(opts.live[id]);
         if (pos < 0) onLiveSlice = false;
@@ -93,7 +97,7 @@ describe('indicator registry', () => {
       'life_expectancy', 'elec_price_household', 'hotel_occupancy', 'economic_sentiment',
       'services_inflation', 'goods_inflation', 'admin_prices', 'home_energy_inflation',
       'employment_rate', 'online_shoppers', 'air_passengers', 'ghg_emissions',
-      'business_registrations', 'bankruptcies',
+      'business_registrations', 'bankruptcies', 'port_freight', 'port_freight_growth',
     ];
     for (const id of referenced) {
       expect(INDICATORS, `indicator "${id}" is referenced by a component`).toHaveProperty(id);
@@ -341,6 +345,59 @@ describe('parseJsonStat', () => {
     const out = es.parseJsonStat({ id: ['time'], size: [1], value: { 0: 1 }, dimension: {} }, ['LV']);
     expect(out.countries).toEqual({});
     expect(out.assumptions).toEqual([]);
+  });
+
+  it('reads a cube that names its country axis rep_mar', () => {
+    // Maritime tables key on the reporting maritime country, not `geo`. The
+    // parser used to bail out on them entirely, which is why port freight —
+    // the statistic this site is named after — could not be charted at all.
+    const data = cube({
+      countryDim: 'rep_mar',
+      extraDims: { unit: ['THS_T', 'RT4'] },
+      live: { unit: 'THS_T' },
+      geos: ['LV', 'EE', 'LT'],
+      times: ['2025-Q2', '2025-Q3'],
+      valueFor: (geo) => ({ LV: 7452, EE: 4300, LT: 11005 })[geo] as number,
+    });
+
+    const out = es.parseJsonStat(data, ['LV', 'EE', 'LT']);
+    expect(out.countries.LV.series.map((p: { value: number | null }) => p.value)).toEqual([7452, 7452]);
+    expect(out.countries.LT.series[1].value).toBe(11005);
+    // `unit` was left open, so the parser still has to say it chose one.
+    expect(out.assumptions.map((a: { dimension: string }) => a.dimension)).toEqual(['unit']);
+  });
+
+  it('will not mistake a non-country dimension for the country axis', () => {
+    // `partner` holds country-shaped codes on a bilateral trade cube. Guessing
+    // from the shape of the codes would report the wrong side of the flow.
+    const data = cube({
+      countryDim: 'partner',
+      extraDims: {},
+      live: {},
+      geos: ['LV'],
+      times: ['2025'],
+      valueFor: () => 1,
+    });
+    expect(es.parseJsonStat(data, ['LV']).countries).toEqual({});
+  });
+});
+
+describe('buildUrl', () => {
+  it('filters on the dimension the cube actually uses', () => {
+    const maritime = es.buildUrl(
+      { dataset: 'mar_qg_qm_cwh', params: 'freq=Q&unit=THS_T', geoDim: 'rep_mar', freq: 'Q' },
+      5,
+      ['LV', 'EE']
+    );
+    expect(maritime).toContain('rep_mar=LV');
+    expect(maritime).toContain('rep_mar=EE');
+    expect(maritime).not.toContain('geo=');
+  });
+
+  it('still defaults to geo for everything else', () => {
+    const url = es.buildUrl(INDICATORS.gdp, 5, ['LV']);
+    expect(url).toContain('geo=LV');
+    expect(url).not.toContain('rep_mar');
   });
 
   it('keeps gaps as null instead of shifting later periods forward', () => {

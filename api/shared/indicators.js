@@ -517,6 +517,36 @@ const INDICATORS = {
     unit: 'index (2021=100)',
     sanity: [10, 500],
   },
+
+  // ---- Maritime --------------------------------------------------------
+  // Gross weight of goods handled in the country's main ports. Eurostat keys
+  // these tables on `rep_mar` (the reporting maritime country) rather than
+  // `geo`, which is why the dashboard's most on-topic statistic was missing
+  // from it until the parser learned to look for either.
+  //
+  // Maritime statistics publish roughly two quarters behind, outside the
+  // default quarterly allowance, so the tolerance is declared here rather than
+  // left to trip the freshness gate every quarter.
+  port_freight: {
+    dataset: 'mar_qg_qm_cwh',
+    params: 'freq=Q&unit=THS_T',
+    geoDim: 'rep_mar',
+    freq: 'Q',
+    title: 'Port freight handled',
+    unit: 'thousand tonnes/quarter',
+    sanity: [100, 60000],
+    maxAgeMonths: 18,
+  },
+  port_freight_growth: {
+    dataset: 'mar_qg_qm_cwh',
+    params: 'freq=Q&unit=RT4',
+    geoDim: 'rep_mar',
+    freq: 'Q',
+    title: 'Port freight growth',
+    unit: '% YoY',
+    sanity: [-60, 80],
+    maxAgeMonths: 18,
+  },
 };
 
 module.exports = INDICATORS;
