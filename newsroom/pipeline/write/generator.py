@@ -24,6 +24,7 @@ from typing import Any
 from newsroom.pipeline.ids import new_ulid, slugify
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
 from newsroom.pipeline.research import ResearchContext
+from newsroom.pipeline.write.reconcile import reconcile_figures
 from newsroom.pipeline.safety import (
     RewriteNotPermittedError,
     Verdict,
@@ -189,6 +190,7 @@ def generate_article(
         summary = result.verdict.failure_summary() or "failed shape checks"
         if attempt == attempts:
             log.warning("article rejected for signal %s: %s", signal.id, summary)
+            _log_rejection_forensics(result, signal)
         else:
             log.info(
                 "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, summary
@@ -197,6 +199,27 @@ def generate_article(
 
     assert result is not None  # the loop runs at least once
     return result
+
+
+def _log_rejection_forensics(result: GenerationResult, signal: Signal) -> None:
+    """Log enough to diagnose a rejection without a rerun.
+
+    Rejected drafts are not persisted, so for three production runs the only
+    evidence of why nothing published was a one-line summary naming a bare
+    token such as ``'119' not in figures``. That was not enough to tell an
+    invented number from a mis-filed one, and two plausible fixes were shipped
+    against a guess before the real cause was found. This prints the block
+    text, what it declared and what the detector actually verified, so the
+    failure is reconstructible from the log alone.
+    """
+    try:
+        fields = ", ".join(f"{k}={v}" for k, v in sorted(signal.fields.items()))
+        log.warning("  signal fields: %s", fields)
+        for index, block in enumerate(result.article.body):
+            declared = ", ".join(f"{f.rendered_as or f.value}<-{f.signal_field}" for f in block.figures)
+            log.warning("  body[%d] declared [%s] text: %s", index, declared, block.text[:400])
+    except Exception:  # diagnostics must never break a run
+        log.exception("failed to log rejection forensics")
 
 
 def _article_from_payload(
@@ -213,6 +236,14 @@ def _article_from_payload(
     headline = str(payload.get("headline") or "").strip()
     dek = str(payload.get("dek") or "").strip() or None
     blocks = _coerce_blocks(payload, signal)
+
+    # The model reliably writes numbers it was given and then forgets to file
+    # them in the block's figures array. Do that bookkeeping in code. It can
+    # only ever attach values from the detector's verified payload, so an
+    # invented number stays undeclared and the validator still rejects it.
+    notes = reconcile_figures(blocks, signal.fields, unit=signal.unit)
+    if notes:
+        log.info("reconciled %d figure(s) for signal %s: %s", len(notes), signal.id, "; ".join(notes))
 
     article = Article(
         id=new_ulid(),
