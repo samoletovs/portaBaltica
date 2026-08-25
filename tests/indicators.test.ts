@@ -205,6 +205,59 @@ describe('period freshness', () => {
     expect(es.monthsSincePeriod('2026', now)).toBe(-4);
   });
 
+  it('reads the PxWeb period vocabulary as well as the Eurostat one', () => {
+    // CSP writes 2026M07 / 2026Q1 / 2025H2 for what Eurostat calls
+    // 2026-07 / 2026-Q1 / 2025-S2. Understanding only one dialect meant every
+    // national series answered "cannot tell", which is the answer that lets a
+    // frozen table through unnoticed — CSP's unemployment table sat at 2025M12.
+    expect(es.periodToMonthIndex('2026M07')).toBe(es.periodToMonthIndex('2026-07'));
+    expect(es.periodToMonthIndex('2026Q1')).toBe(es.periodToMonthIndex('2026-Q1'));
+    expect(es.periodToMonthIndex('2025H2')).toBe(es.periodToMonthIndex('2025-S2'));
+  });
+
+  it('infers cadence from the period label', () => {
+    expect(es.periodCadence('2026M07')).toBe('M');
+    expect(es.periodCadence('2026-07')).toBe('M');
+    expect(es.periodCadence('2026Q1')).toBe('Q');
+    expect(es.periodCadence('2025H2')).toBe('S');
+    expect(es.periodCadence('2025')).toBe('A');
+    expect(es.periodCadence('whenever')).toBeNull();
+  });
+
+  it('flags a series whose newest observation has stopped moving', () => {
+    const now = new Date('2026-08-25T00:00:00Z');
+    const monthly = (last: string) => [{ period: last, value: 7 }];
+
+    expect(es.isSeriesStale(monthly('2025M12'), now)).toMatchObject({
+      period: '2025M12', cadence: 'M', stale: true,
+    });
+    expect(es.isSeriesStale(monthly('2026M07'), now)).toMatchObject({
+      cadence: 'M', stale: false,
+    });
+  });
+
+  it('ignores trailing nulls when deciding how current a series is', () => {
+    // PxWeb pads the tail of a table with nulls. Reading the last row rather
+    // than the last *observation* would call a live series stale and trigger a
+    // pointless failover.
+    const now = new Date('2026-08-25T00:00:00Z');
+    const padded = [
+      { period: '2026M06', value: 6.8 },
+      { period: '2026M07', value: null },
+      { period: '2026M08', value: null },
+    ];
+    expect(es.isSeriesStale(padded, now)).toMatchObject({ period: '2026M06', stale: false });
+  });
+
+  it('says "cannot tell" rather than guessing on unusable input', () => {
+    // null must not read as stale (needless failover) or as fresh (hidden freeze).
+    const now = new Date('2026-08-25T00:00:00Z');
+    expect(es.isSeriesStale([], now)).toBeNull();
+    expect(es.isSeriesStale(null, now)).toBeNull();
+    expect(es.isSeriesStale([{ period: '2026M06', value: null }], now)).toBeNull();
+    expect(es.isSeriesStale([{ period: 'sometime', value: 3 }], now)).toBeNull();
+  });
+
   it('allows a slower upstream to declare its own tolerance', () => {
     expect(es.maxAgeMonths({ freq: 'M' })).toBe(es.MAX_AGE_MONTHS.M);
     expect(es.maxAgeMonths({ freq: 'A' })).toBe(es.MAX_AGE_MONTHS.A);

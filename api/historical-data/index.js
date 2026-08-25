@@ -70,6 +70,10 @@ var INDICATORS = {
     source: 'CSP Latvia (PxWeb)',
   },
   unemployment: {
+    // CSP's NBB150m stopped at 2025M12 while Eurostat's une_rt_m kept
+    // publishing monthly. The two track within ~0.2pp on overlapping months —
+    // both are the seasonally adjusted LFS rate — so Eurostat is a legitimate
+    // stand-in, and `source` names whichever one actually answered.
     path: '/EMP/NBBA/NBBB/NBB150m',
     query: [
       { code: 'SEX', selection: { filter: 'item', values: ['T'] } },
@@ -80,6 +84,7 @@ var INDICATORS = {
     unit: '%',
     title: 'Unemployment Rate',
     source: 'CSP Latvia (PxWeb)',
+    eurostatFallback: 'unemployment',
   },
   house_prices: {
     path: '/VEK/PC/PCI/PCI050c',
@@ -448,14 +453,33 @@ module.exports = async function (context, req) {
     }
   }
 
-  if (!series && def.eurostatFallback) {
+  // A national table that has stopped updating was the failure this endpoint
+  // could not see. `series` comes back non-null, so the fallback below never
+  // fired, and the card rendered eight-month-old unemployment with nothing to
+  // say so — CSP's NBB150m stopped at 2025M12 while Eurostat kept publishing.
+  // Emptiness and staleness are the same failure at different speeds, so they
+  // now take the same escape route.
+  var freshness = es.isSeriesStale(series);
+
+  if ((!series || (freshness && freshness.stale)) && def.eurostatFallback) {
     try {
       var fallback = await fetchEurostatSeries(def.eurostatFallback, years || 10);
-      series = fallback.series;
-      unit = fallback.unit;
-      source = fallback.source;
+      var fallbackFreshness = es.isSeriesStale(fallback.series);
+      // Only switch if Eurostat is genuinely further ahead. Trading a stale
+      // national series for an equally stale European one buys nothing and
+      // costs the longer national history.
+      var better = !series || !freshness ||
+        (fallbackFreshness && fallbackFreshness.age < freshness.age);
+      if (better) {
+        series = fallback.series;
+        unit = fallback.unit;
+        source = fallback.source;
+        freshness = fallbackFreshness;
+      }
     } catch (e) {
-      series = null;
+      // Keep the stale national series if there is one: old data under an
+      // honest `source` beats an empty card.
+      if (!series) series = null;
     }
   }
 
@@ -487,6 +511,16 @@ module.exports = async function (context, req) {
       source: source,
       series: series,
       summary: summarise(series),
+      // How current the served series actually is, so a consumer never has to
+      // parse period labels to find out.
+      //
+      // src/dataFreshness.ts deliberately computes port-data staleness at
+      // render time instead, because that response is cached for hours in
+      // localStorage and a baked-in flag would under-report the age. The
+      // reasoning does not carry here: this is measured in whole months
+      // against a one-hour edge cache, so the number cannot drift before it
+      // expires. The period label is a fact about the data and never drifts.
+      freshness: freshness,
       fetchedAt: new Date().toISOString(),
     }),
   };
