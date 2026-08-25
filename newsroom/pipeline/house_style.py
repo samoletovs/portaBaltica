@@ -102,6 +102,18 @@ EMPTY_HEDGES = (
     "suggests a positive",
     "indicating a potential",
     "it remains to be seen",
+    # Named causes that name nothing. Each of these appeared in a draft the
+    # editor sent back for "vague assertions about causation", and each is a
+    # way of sounding like an explanation while supplying none. If the data
+    # does not show why, the piece should say that instead.
+    "market dynamics",
+    "underlying pressures",
+    "underlying factors",
+    "economic conditions",
+    "broader trends",
+    "a range of factors",
+    "a number of factors",
+    "several factors",
 )
 
 

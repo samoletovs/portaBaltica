@@ -22,7 +22,7 @@ from newsroom.pipeline.models import Signal
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card
 
-PROMPT_VERSION = "tierA-research-v5"
+PROMPT_VERSION = "tierA-research-v6"
 
 _SYSTEM_TEMPLATE = """{voice}
 
@@ -59,6 +59,18 @@ REPORTING TASK:
   the verified data itself proves.
 - Prior-coverage entries are orientation leads only. Do not repeat, quote,
   paraphrase or imitate their headlines or reporting.
+- WHEN NO RESEARCH IS SUPPLIED, YOU DO NOT KNOW WHY THIS HAPPENED. Say so, in
+  one plain sentence, and stop. "The data does not show what drove the change"
+  is publishable. Gesturing at a cause you cannot name is not, and it is the
+  single most common reason the editor sends a piece back. Never write that a
+  movement "reflects", "indicates", "highlights", "underscores" or "points to"
+  something the figures do not establish. Never attribute a change to "market
+  dynamics", "various factors", "underlying pressures", "economic conditions"
+  or any phrase of that shape: they say nothing and read as padding.
+- Say why the movement MATTERS even when you cannot say why it happened: who
+  it lands on, what it changes in practice, whether it is a record or routine.
+  That is the significance the editor is asking for, and it is available from
+  the verified data alone.
 - End with what evidence or release would confirm, complicate or reverse the
   explanation.
 

@@ -36,6 +36,28 @@ _MONTH_NAMES = (
 
 _ORDINALS = ("first", "second", "third", "fourth")
 
+#: What one observation is, per frequency, singular and plural.
+_READING_WORDS = {
+    "daily": ("daily reading", "daily readings"),
+    "monthly": ("month", "months"),
+    "quarterly": ("quarter", "quarters"),
+    "annual": ("year", "years"),
+}
+
+
+def reading_word(frequency: str, count: int) -> str:
+    """What one observation in this series is, in words a reader can picture.
+
+    The divergence basis said "across 119 earlier periods". In one live run
+    the editor sent two articles back for the same reason -- "does not specify
+    the period over which the earlier periods were measured" -- and it was
+    right. "Period" is our word for a row in a table, not a unit of time. A
+    reader cannot tell 119 days from 119 quarters, and neither could the
+    writer, so it hedged and the desk refused it.
+    """
+    singular, plural = _READING_WORDS.get(frequency, ("reading", "readings"))
+    return singular if count == 1 else plural
+
 
 @dataclass(frozen=True)
 class Observation:

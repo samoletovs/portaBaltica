@@ -28,9 +28,12 @@ publish, with a rejection message that names a bare token and explains nothing.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from newsroom import numeric_scan
+from newsroom.pipeline.detect.series import reading_word
 from newsroom.pipeline.models import Signal
 from newsroom.tests.pipeline.conftest import make_signal
 
@@ -140,6 +143,53 @@ class TestEveryDetectorHonoursIt:
             "these detectors quote a number the writer cannot declare, which "
             f"silently blocks publication: {offenders}"
         )
+
+
+class TestTheBasisSaysWhatItCounted:
+    """A basis that counts observations must name what it counted.
+
+    "across 119 earlier periods" cost two rejections in a single live run:
+
+        desk reject: ... does not specify the period over which the earlier
+                     periods were measured
+
+    "Period" is our word for a row in a table. A reader cannot tell 119 days
+    from 119 quarters, and neither could the writer, so it hedged and the desk
+    refused it. The count is meaningless without its unit.
+    """
+
+    _BARE_COUNT = re.compile(r"\b\d+\s+(?:earlier\s+)?periods?\b", re.IGNORECASE)
+
+    def test_no_detector_counts_in_bare_periods(self):
+        for name, signal in all_detector_signals():
+            assert not self._BARE_COUNT.search(signal.comparison_basis), (
+                f"{name} counts in bare 'periods', which names no unit of time: "
+                f"{signal.comparison_basis!r}"
+            )
+
+    def test_the_divergence_basis_names_its_unit_of_time(self):
+        by_name = dict(all_detector_signals())
+        basis = by_name["divergence"].comparison_basis
+
+        assert re.search(
+            r"\b\d+\s+earlier\s+(?:daily readings?|months?|quarters?|years?|readings?)\b", basis
+        ), f"basis does not say what it counted: {basis!r}"
+
+    @pytest.mark.parametrize(
+        "frequency,count,expected",
+        [
+            ("daily", 119, "daily readings"),
+            ("daily", 1, "daily reading"),
+            ("monthly", 12, "months"),
+            ("quarterly", 4, "quarters"),
+            ("annual", 5, "years"),
+            # An unknown frequency must still say something truthful rather
+            # than falling back to "periods".
+            ("hourly", 3, "readings"),
+        ],
+    )
+    def test_reading_word_names_a_unit_a_reader_can_picture(self, frequency, count, expected):
+        assert reading_word(frequency, count) == expected
 
 
 @pytest.mark.parametrize(
