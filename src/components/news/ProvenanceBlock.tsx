@@ -58,7 +58,7 @@ function formatTimestamp(value: string | undefined): string {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="news-subtle text-caption font-medium uppercase tracking-wide">{label}</dt>
+      <dt className="news-subtle text-caption font-medium uppercase tracking-widest">{label}</dt>
       <dd className="news-muted mt-1 text-ui">{children}</dd>
     </div>
   );

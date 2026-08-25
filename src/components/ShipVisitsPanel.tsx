@@ -20,8 +20,8 @@ export function ShipVisitsPanel({ visits }: ShipVisitsPanelProps) {
   if (visits.length === 0) {
     return (
       <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-        <h3 className="text-lg font-bold text-white mb-2">🚢 Vessel Activity</h3>
-        <p className="text-slate-400 text-sm">No vessel data available. Published biweekly by the Ministry of Transport.</p>
+        <h3 className="text-callout font-semibold text-white mb-2">Vessel Activity</h3>
+        <p className="text-slate-400 text-ui">No vessel data available. Published biweekly by the Ministry of Transport.</p>
       </section>
     );
   }
@@ -45,17 +45,17 @@ export function ShipVisitsPanel({ visits }: ShipVisitsPanelProps) {
 
   return (
     <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-      <h3 className="text-lg font-bold text-white mb-1">🚢 Vessel Activity</h3>
+      <h3 className="text-callout font-semibold text-white mb-1">Vessel Activity</h3>
       <div className="flex items-center gap-2 mb-1">
-        <span className="inline-block bg-amber-900/40 text-amber-300 text-xs px-2 py-0.5 rounded-full border border-amber-700/30">
+        <span className="inline-block bg-amber-900/40 text-amber-300 text-caption px-2 py-0.5 rounded-full border border-amber-700/30">
           Cancelled & Rejected Only
         </span>
       </div>
-      <p className="text-xs text-slate-400 mb-3">
+      <p className="text-caption text-slate-400 mb-3">
         Vessels whose port visits were cancelled or rejected. Source: SKLOIS (Latvia Maritime Single Window).
         {dateRange && <> Period: <span className="text-slate-300">{dateRange}</span></>}
       </p>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-caption text-slate-500 mb-3">
         Note: actual arrivals/departures are not available as open data — SKLOIS only publishes cancellations.
       </p>
 
@@ -63,16 +63,16 @@ export function ShipVisitsPanel({ visits }: ShipVisitsPanelProps) {
         const showCount = expanded ? portVisits.length : Math.min(portVisits.length, 5);
         return (
           <div key={portName} className="mb-4 last:mb-0">
-            <h4 className="text-sm font-semibold text-slate-200 mb-2">{portName}</h4>
+            <h4 className="text-ui font-semibold text-slate-200 mb-2">{portName}</h4>
             <div className="space-y-1">
               {portVisits.slice(0, showCount).map((v, i) => {
                 const ship = parseShipInfo(v.ship);
                 return (
-                  <div key={i} className="flex items-center gap-3 text-sm py-1 border-b border-slate-800/30 last:border-0">
-                    <span className="text-amber-400 text-xs">✕</span>
+                  <div key={i} className="flex items-center gap-3 text-ui py-1 border-b border-slate-800/30 last:border-0">
+                    <span className="text-amber-400 text-caption">✕</span>
                     <span className="text-white font-medium truncate flex-1">{ship.name}</span>
-                    <span className="text-slate-400 font-mono text-xs">{ship.imo}</span>
-                    <span className="text-slate-500 text-xs whitespace-nowrap">
+                    <span className="text-slate-400 font-mono text-caption">{ship.imo}</span>
+                    <span className="text-slate-500 text-caption whitespace-nowrap">
                       {v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : ''}
                     </span>
                   </div>
@@ -86,13 +86,13 @@ export function ShipVisitsPanel({ visits }: ShipVisitsPanelProps) {
       {uniqueVisits.length > 10 && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-2 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+          className="mt-2 text-caption text-slate-400 hover:text-slate-200 transition-colors"
         >
           {expanded ? '▲ Show less' : `▼ Show all ${uniqueVisits.length} vessels`}
         </button>
       )}
 
-      <p className="text-xs text-slate-600 mt-3">{uniqueVisits.length} unique vessels across {Object.keys(byPort).length} ports</p>
+      <p className="text-caption text-slate-600 mt-3">{uniqueVisits.length} unique vessels across {Object.keys(byPort).length} ports</p>
     </section>
   );
 }

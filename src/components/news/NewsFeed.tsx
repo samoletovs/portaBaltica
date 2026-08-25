@@ -97,10 +97,10 @@ export default function NewsFeed() {
         <div>
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-10 text-center">
-              <h1 className="editorial-heading news-fg text-title font-semibold">
+              <h1 className="balance-text news-fg text-title font-semibold">
                 {failed ? 'The front page could not be loaded' : 'Nothing to report yet today'}
               </h1>
-              <p className="editorial news-muted mx-auto mt-3 max-w-md text-callout">
+              <p className="pretty-text news-muted mx-auto mt-3 max-w-md text-callout">
                 {failed
                   ? 'Published articles are served as static files. If this persists, the dashboard is unaffected.'
                   : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}

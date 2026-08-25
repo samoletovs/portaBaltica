@@ -177,7 +177,7 @@ export function IndicatorPage() {
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-4 py-12">
           <p className="text-slate-400">Unknown indicator.</p>
-          <button onClick={() => navigate('/')} className="text-slate-300 underline mt-2 text-sm">← Back to dashboard</button>
+          <button onClick={() => navigate('/')} className="text-slate-300 underline mt-2 text-ui">← Back to dashboard</button>
         </div>
       </div>
     );
@@ -185,21 +185,21 @@ export function IndicatorPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+      <main id="main" className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Breadcrumb */}
         <button
           onClick={() => navigate('/')}
-          className="text-sm text-slate-400 hover:text-slate-200 mb-4 inline-flex items-center gap-1"
+          className="text-ui text-slate-400 hover:text-slate-200 mb-4 inline-flex items-center gap-1"
         >
           ← Back to dashboard
         </button>
 
         {/* Header */}
-        <h1 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'var(--font-sans)' }}>
+        <h1 className="balance-text text-headline sm:text-display font-semibold text-white mb-3">
           {info.title}
         </h1>
-        <p className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{flag} {countryLabel}</p>
-        <p className="text-sm mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{info.description}</p>
+        <p className="text-ui mb-1" style={{ color: 'var(--text-secondary)' }}>{flag} {countryLabel}</p>
+        <p className="text-ui mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{info.description}</p>
 
         {/* Main chart */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 mb-6">
@@ -209,7 +209,7 @@ export function IndicatorPage() {
         {/* Baltic comparison */}
         {EUROSTAT_MAP[id] && (
           <div className="mb-8">
-            <h2 className="text-lg font-bold text-white mb-3">Baltic Comparison</h2>
+            <h2 className="balance-text text-title font-semibold text-white mb-4">Baltic Comparison</h2>
             <BalticCompareChart indicator={EUROSTAT_MAP[id]} title={`${info.title} — Latvia vs Estonia vs Lithuania`} />
           </div>
         )}
@@ -217,7 +217,7 @@ export function IndicatorPage() {
         {/* Related indicators */}
         {info.related.length > 0 && (
           <div>
-            <h2 className="text-lg font-bold text-white mb-3">Related Indicators</h2>
+            <h2 className="balance-text text-title font-semibold text-white mb-4">Related Indicators</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {info.related.map((relId) => {
                 const rel = INDICATOR_INFO[relId];
@@ -228,8 +228,8 @@ export function IndicatorPage() {
                     onClick={() => navigate(`/indicator/${relId}`)}
                     className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left hover:border-slate-600/60 transition-colors"
                   >
-                    <p className="text-sm font-medium text-white">{rel.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Click to explore →</p>
+                    <p className="text-ui font-medium text-white">{rel.title}</p>
+                    <p className="text-caption text-slate-400 mt-0.5">Click to explore →</p>
                   </button>
                 );
               })}
@@ -238,14 +238,14 @@ export function IndicatorPage() {
         )}
 
         {/* Footer */}
-        <p className="text-xs mt-8" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-caption mt-8" style={{ color: 'var(--text-muted)' }}>
           {EUROSTAT_MAP[id]
             ? 'Data from Eurostat. Updated according to Eurostat publication calendar.'
             : `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`
           }{' '}
           All data is publicly available under open license.
         </p>
-      </div>
+      </main>
     </div>
   );
 }

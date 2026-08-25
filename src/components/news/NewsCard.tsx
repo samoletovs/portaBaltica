@@ -35,8 +35,8 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       <h2
         className={
           isLead
-            ? 'editorial-heading news-fg text-headline font-semibold tracking-tight sm:text-display'
-            : 'editorial-heading news-fg text-lead font-semibold'
+            ? 'balance-text news-fg text-headline font-semibold tracking-tight sm:text-display'
+            : 'balance-text news-fg text-lead font-semibold'
         }
       >
         <Link
@@ -51,8 +51,8 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
         <p
           className={
             isLead
-              ? 'editorial news-muted mt-3 text-lead'
-              : 'editorial news-muted mt-2 text-callout'
+              ? 'pretty-text news-muted mt-3 text-lead'
+              : 'pretty-text news-muted mt-2 text-callout'
           }
         >
           {summary.dek}

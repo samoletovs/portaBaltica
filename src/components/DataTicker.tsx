@@ -58,11 +58,11 @@ export function DataTicker() {
     <div className="overflow-hidden" style={{ borderBottom: '1px solid var(--border-card)' }}>
       <div className="ticker-track flex items-center gap-8 py-1.5 whitespace-nowrap">
           {[...items, ...items].map((item, i) => (
-            <span key={i} className="flex items-center gap-1.5 text-xs font-mono shrink-0">
+            <span key={i} className="flex items-center gap-1.5 text-caption font-mono shrink-0">
               <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.value}</span>
               {item.change && (
-                <span style={{ color: item.positive ? '#059669' : '#dc2626', fontSize: '10px' }}>
+                <span style={{ color: item.positive ? '#059669' : '#dc2626' }}>
                   {item.change}
                 </span>
               )}

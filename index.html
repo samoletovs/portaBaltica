@@ -14,25 +14,25 @@
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
     <link rel="alternate" type="application/rss+xml" title="portaBaltica" href="/rss.xml" />
     <!--
-      No Google Fonts, and now no reason to want them.
+      No webfonts at all, which is deliberate rather than an omission.
 
-      Two reasons this site never fetched a font from Google, and the first is
-      that it never worked: our CSP is `style-src 'self' 'unsafe-inline'` and
-      `font-src 'self' data:`, so the browser blocked those requests for the
-      site's entire life and quietly fell back to the system stack. Every page
-      load spent two failed requests and two console errors to render exactly
-      what it rendered anyway.
+      This site used to request Inter from Google Fonts. That never worked: our
+      CSP is `style-src 'self' 'unsafe-inline'` and `font-src 'self' data:`, so
+      the browser blocked the request for the site's entire life and quietly
+      fell back to the system stack. Every page load spent two failed requests
+      and two console errors to render exactly what it rendered anyway.
 
-      The second reason is why we did not simply widen the CSP: fetching fonts
-      from Google discloses every reader's IP address to a third party on page
-      load. German courts have held that to be a GDPR violation, and a news
-      site read in the EU is the last place to take that risk for a typeface.
+      We did not simply widen the CSP, because fetching fonts from Google
+      discloses every reader's IP address to a third party on page load. German
+      courts have held that to be a GDPR violation, and a news site read in the
+      EU is the last place to take that risk for a typeface.
 
-      So the editorial face is self-hosted instead. Source Serif 4, SIL OFL,
-      served from /fonts under the CSP we already have — see the @font-face
-      block at the top of src/index.css, and the licence beside the files.
-      Interface text stays on the platform's own UI face, which is what the
-      site was already rendering and is the right answer for chrome regardless.
+      Self-hosting an editorial serif was tried and reverted: it split the site
+      into two families, one for the newsroom and one for the dashboard, which
+      read as two products rather than as two registers. The type scale in
+      src/index.css carries the hierarchy instead, and text renders in the
+      platform's own UI face — which is what readers have been seeing all
+      along, costs nothing to serve, and is the right answer for an interface.
     -->
     <script>
       // Prevent theme flash: set data-theme before CSS applies

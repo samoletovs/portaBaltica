@@ -28,9 +28,9 @@ export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargo
 
   return (
     <section>
-      <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Maritime</h2>
+      <h2 className="balance-text text-title font-semibold text-white mb-5">Maritime</h2>
       {country !== 'LV' && (
-        <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
+        <div className="mb-3 px-3 py-2 rounded-lg text-caption" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
           🇱🇻 This section shows Latvia ports only (Riga, Ventspils, Liepāja). Baltic port expansion planned.
         </div>
       )}
@@ -60,7 +60,7 @@ export function MaritimeTile({ portData, shipVisits, ferryData, cargoData, cargo
 function TileSkeleton() {
   return (
     <section>
-      <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+      <h2 className="text-callout font-semibold text-white mb-4 flex items-center gap-2">
         <span className="text-slate-400">⚓</span> Maritime
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

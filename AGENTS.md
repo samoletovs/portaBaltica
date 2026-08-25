@@ -280,39 +280,58 @@ visible.
 - No hardcoded text — but i18n is not required yet (English only for now)
 - Maritime components (PortCard, ShipVisitsPanel, FerryPanel, CargoPanel) are preserved as-is within the Maritime tile
 
-## Typography
+## Typography and design
 
-Every editorial surface — `src/components/news/**` and `src/newsroom/markdown.tsx`
-— sizes text from the named scale in `src/index.css`, never from Tailwind's
-default ramp and never from an arbitrary value:
+**Every component on the site** — the newsroom under `src/components/news/**` and
+`src/newsroom/markdown.tsx`, *and* the dashboard under `src/components/**` —
+sizes text from the named scale in `src/index.css`. Never Tailwind's default
+ramp, never an arbitrary value:
 
 | Step | Size | Job |
 |---|---|---|
-| `text-caption` | 12px | eyebrows, badges, meta, footnotes |
-| `text-ui` | 14px | nav, controls, labels, dense prose |
-| `text-callout` | 16px | card deks, rail headlines, secondary prose |
+| `text-caption` | 12px | eyebrows, badges, meta, footnotes, axis labels |
+| `text-ui` | 14px | nav, controls, labels, table cells, dense prose |
+| `text-callout` | 16px | card and panel titles, deks, secondary prose |
 | `text-prose` | 18px | article and policy prose |
-| `text-lead` | 22px | deks and standfirsts |
-| `text-title` | 28px | section headings |
-| `text-headline` | 34px | page and card headlines |
-| `text-display` | 40px | the lead story, article `h1` |
+| `text-lead` | 22px | standfirsts, feed item headlines, port names |
+| `text-title` | 28px | section headings, news and dashboard alike |
+| `text-headline` | 34px | page headlines |
+| `text-display` | 40px | the lead story, article `h1`, page `h1` |
 
-Two families, and the split is load-bearing: `.editorial` / `.editorial-heading`
-put prose and headlines in **Source Serif 4** (self-hosted, SIL OFL, in
-`public/fonts`), everything else stays on the platform's UI face. A reader
-should be able to tell an article from an interface without reading either.
-Reading columns use `max-w-measure`, which is ~68 characters at 18px.
+One family for the whole site, resolving to the platform's own UI face. An
+earlier pass set articles in Source Serif 4 and left the dashboard on the UI
+face, on the theory that a reader should be able to tell journalism from an
+interface. That is right for a newspaper and wrong here: this is a dashboard
+with a newsroom attached, readers cross between the two constantly, and two
+families across that boundary read as inconsistency rather than as register.
+Hierarchy is carried by size, weight and colour instead.
 
-`tests/typography.test.ts` enforces all of this: it fails on an arbitrary
-`text-[13px]`, on a raw `text-sm` in a news component, on a heading that is not
-larger than the prose beneath it, and on a `@font-face` whose file is missing.
+Two weights only — regular and `font-semibold`. `font-bold` beside semibold
+reads as a third weight the scale never asked for. Small-caps labels are always
+`tracking-widest`; `tracking-wider` on the same kind of label is the near-miss
+that makes a page look assembled rather than designed.
+
+Every page opens the same way: an `h1` at `text-display`, sections at
+`text-title` beneath it. The dashboard used to have no page heading at all and
+headed each tile with a 14px uppercase label — smaller than the cards under it.
+Reading columns use `max-w-measure`, ~68 characters at 18px.
+
+Charts draw outside the DOM, so recharts sizes live in
+`src/utils/chartType.ts` (`chartTick`, `chartTooltip`) rather than inline at
+each call site. They had drifted to four sizes for two jobs.
+
+`tests/typography.test.ts` enforces all of it across every `.tsx` in `src/`: it
+fails on an arbitrary `text-[13px]`, a raw `text-sm` anywhere, an inline
+px `fontSize`, a third weight, mixed tracking, a heading no larger than its
+prose, a dashboard section heading that is not `text-title`, and a font family
+set outside the tokens.
 
 **Two traps.** Tailwind v4 reads `--text-*` as the font-size namespace, but
 `:root` in `index.css` also defines `--text-primary`, `--text-body` and friends
-as *colours*, and those are emitted later so they win — which is why the
-editorial step is `--text-prose` and not `--text-body`. And nothing here may
-fetch a font from a third party: the CSP is `font-src 'self' data:`, and a
-remote font would disclose every reader's IP address to whoever serves it.
+as *colours*, and those are emitted later so they win — which is why the prose
+step is `--text-prose` and not `--text-body`. And nothing here may fetch a font
+from a third party: the CSP is `font-src 'self' data:`, and a remote font would
+disclose every reader's IP address to whoever serves it.
 
 ## Data source patterns
 

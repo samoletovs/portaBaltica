@@ -83,7 +83,7 @@ export default function CorrespondentPage() {
       <header className="flex flex-wrap items-center gap-5">
         <CorrespondentAvatar id={correspondent.id} size={88} />
         <div>
-          <h1 className="editorial-heading news-fg text-headline font-semibold tracking-tight">{correspondent.name}</h1>
+          <h1 className="balance-text news-fg text-headline font-semibold tracking-tight">{correspondent.name}</h1>
           <p className="news-accent mt-1 text-ui">{renderByline(correspondent)}</p>
         </div>
       </header>
@@ -92,22 +92,22 @@ export default function CorrespondentPage() {
         aria-labelledby="what-this-is"
         className="news-border news-warning-panel mt-6 rounded-xl border px-5 py-4"
       >
-        <h2 id="what-this-is" className="editorial-heading news-warning text-title font-semibold">
+        <h2 id="what-this-is" className="balance-text news-warning text-title font-semibold">
           {correspondent.name} is not a person
         </h2>
-        <p className="editorial news-warning mt-3 text-callout">
+        <p className="pretty-text news-warning mt-3 text-callout">
           {correspondent.name} is an AI system: a language model writing to a fixed brief, not a
           journalist, not a pen name for one, and not a real individual. There is nobody of this
           name. The name is invented, the expertise below describes what this correspondent is built
           to look for, and it has never held a job, studied anywhere or been anywhere.
         </p>
-        <p className="editorial news-warning mt-3 text-callout">
+        <p className="pretty-text news-warning mt-3 text-callout">
           It never conducts interviews, attends events, visits anywhere or speaks to sources, and it
           is never asked to recall a figure from memory. It writes sentences around numbers the
           pipeline has already retrieved and verified against the dataset. Every article it produces
           is checked before publication and refused if a check fails.
         </p>
-        <p className="editorial news-warning mt-3 text-callout">
+        <p className="pretty-text news-warning mt-3 text-callout">
           Every story filed here is reviewed by{' '}
           <Link to="/newsroom/saulkrasti" className="news-focus underline underline-offset-2">
             {AI_EDITOR.name}
@@ -126,12 +126,12 @@ export default function CorrespondentPage() {
         <h2 id="beat-heading" className="news-subtle text-caption font-semibold uppercase tracking-widest">
           The beat
         </h2>
-        <p className="editorial news-muted mt-3 text-prose">{correspondent.summary}</p>
+        <p className="pretty-text news-muted mt-3 text-prose">{correspondent.summary}</p>
         <div className="news-border news-panel mt-4 rounded-lg border px-4 py-3">
           <h3 className="news-subtle text-caption font-semibold uppercase tracking-widest">
             How this one writes
           </h3>
-          <p className="editorial news-muted mt-2 text-callout">{correspondent.styleNote}</p>
+          <p className="pretty-text news-muted mt-2 text-callout">{correspondent.styleNote}</p>
         </div>
         <dl className="mt-5 space-y-2 text-ui">
           <div>

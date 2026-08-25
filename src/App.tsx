@@ -140,11 +140,31 @@ export default function App() {
 
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;
 
+  // The dashboard had no page heading at all: it opened straight into a tile,
+  // so it began a level below where every news page begins, and the highlighted
+  // tab was the only thing telling you where you were. The h1 names the page and
+  // the tiles stay h2 beneath it, so both halves of the site now start the same
+  // way and at the same size.
+  //
+  // The dek deliberately does not name the active section. It did, and on a
+  // single-section route that put the word "Maritime" immediately above a
+  // heading reading "Maritime" — the section is already stated by the h2 below
+  // and by the tab above, so saying it a third time was noise.
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <main id="main" className="pt-6 pb-16">
 
         <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
+
+        <header className="mb-8">
+          <h1 className="balance-text text-headline sm:text-display font-semibold" style={{ color: 'var(--text-primary)' }}>
+            Baltic data
+          </h1>
+          <p className="pretty-text mt-3 text-callout" style={{ color: 'var(--text-secondary)' }}>
+            Live open data for Latvia, Estonia and Lithuania — the same series our reporting is
+            written from, updated independently of it.
+          </p>
+        </header>
 
         {/* AI Insights */}
         <InsightsBanner />
@@ -199,7 +219,7 @@ export default function App() {
         <SystemStatusFooter />
 
         {/* Footer */}
-        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-xs text-slate-500">
+        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-caption text-slate-500">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
             <p>Economy — <a href="https://data.stat.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
             <p>Business — <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>

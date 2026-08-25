@@ -88,12 +88,12 @@ export function IndicatorTable() {
   return (
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-800/40">
-        <h3 className="text-sm font-medium text-white">{countryLabel} key indicators</h3>
-        <p className="text-xs text-slate-500">Click any row for analysis</p>
+        <h3 className="text-callout font-semibold text-white">{countryLabel} key indicators</h3>
+        <p className="text-caption text-slate-500">Click any row for analysis</p>
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-xs text-slate-400 border-b border-slate-800/30">
+      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-caption text-slate-400 border-b border-slate-800/30">
         <span>Indicator</span>
         <span className="text-right">Latest</span>
         <span className="hidden sm:block text-right">Previous</span>
@@ -116,16 +116,16 @@ export function IndicatorTable() {
             aria-label={`View ${row.title} details`}
           >
             <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
-              <span className="text-sm text-white group-hover:text-slate-200 transition-colors truncate shrink">{row.title}</span>
-              <span className="text-xs text-slate-500 shrink-0">{row.unit}</span>
+              <span className="text-ui text-white group-hover:text-slate-200 transition-colors truncate shrink">{row.title}</span>
+              <span className="text-caption text-slate-500 shrink-0">{row.unit}</span>
             </div>
-            <span className="text-xs sm:text-sm text-right text-white font-mono self-center">
+            <span className="text-caption sm:text-ui text-right text-white font-mono self-center">
               {formatValue(row.summary.latest, row.unit)}
             </span>
-            <span className="hidden sm:block text-sm text-right text-slate-400 font-mono self-center">
+            <span className="hidden sm:block text-ui text-right text-slate-400 font-mono self-center">
               {formatValue(row.summary.previous, row.unit)}
             </span>
-            <span className={`text-xs sm:text-sm text-right font-mono self-center ${changeColor}`}>
+            <span className={`text-caption sm:text-ui text-right font-mono self-center ${changeColor}`}>
               {row.summary.change !== null
                 ? `${isUp ? '▲' : '▼'} ${formatValue(Math.abs(row.summary.change), row.unit)}`
                 : '—'}

@@ -51,7 +51,7 @@ export default function CorrectionsPage() {
       <Markdown source={policySource} />
 
       <section aria-labelledby="the-log" className="mt-10">
-        <h2 id="the-log" className="editorial-heading news-fg text-title font-semibold tracking-tight">
+        <h2 id="the-log" className="balance-text news-fg text-title font-semibold tracking-tight">
           The log
         </h2>
 
@@ -96,7 +96,7 @@ export default function CorrectionsPage() {
                     year: 'numeric',
                   })}
                 </time>
-                <h3 className="editorial-heading news-fg mt-1.5 text-lead font-semibold">
+                <h3 className="balance-text news-fg mt-1.5 text-lead font-semibold">
                   <Link
                     to={`/article/${entry.slug}`}
                     className="news-link news-focus underline underline-offset-4"
@@ -104,7 +104,7 @@ export default function CorrectionsPage() {
                     {entry.headline}
                   </Link>
                 </h3>
-                <p className="editorial news-muted mt-2 text-callout">{entry.description}</p>
+                <p className="pretty-text news-muted mt-2 text-callout">{entry.description}</p>
                 {entry.previous_value && (
                   <p className="news-subtle mt-1.5 text-caption">Previously: {entry.previous_value}</p>
                 )}

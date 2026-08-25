@@ -6,6 +6,7 @@ import { IndicatorTable } from './IndicatorTable';
 import { useTheme } from '../ThemeContext';
 
 import { useCountry } from '../CountryContext';
+import { chartTick, chartTooltip } from '../utils/chartType';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -18,8 +19,8 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--text-body)' }}>Economy & markets</h2>
-        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat + live feeds</span>
+        <h2 className="balance-text text-title font-semibold" style={{ color: 'var(--text-primary)' }}>Economy & markets</h2>
+        <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat + live feeds</span>
       </div>
 
       {/* Key macro indicators */}
@@ -42,10 +43,10 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         {/* Electricity — hourly bar chart */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Electricity</p>
+            <p className="text-caption text-slate-400 font-medium uppercase tracking-widest">Electricity</p>
             {data && (
-              <p className="text-xl font-semibold text-white font-mono">
-                €{data.electricityCurrent.toFixed(2)}<span className="text-xs font-normal text-slate-500 ml-1">/MWh</span>
+              <p className="text-lead font-semibold text-white font-mono">
+                €{data.electricityCurrent.toFixed(2)}<span className="text-caption font-normal text-slate-500 ml-1">/MWh</span>
               </p>
             )}
           </div>
@@ -60,7 +61,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
             return (
               <>
-                <div className="flex items-center gap-3 mb-2 text-xs">
+                <div className="flex items-center gap-3 mb-2 text-caption">
                   <span className="text-emerald-400">Low €{minPrice.toFixed(2)}</span>
                   <span className="text-red-400">High €{maxPrice.toFixed(2)}</span>
                   {data.electricityCurrent < 0 && (
@@ -73,9 +74,9 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                       const h = new Date(p.timestamp).getHours();
                       return { hour: `${h}:00`, price: p.price, isCurrent: h === now };
                     })}>
-                      <XAxis dataKey="hour" tick={{ fill: chartColors.axis, fontSize: 9 }} tickLine={false} axisLine={false} interval={5} />
+                      <XAxis dataKey="hour" tick={chartTick(chartColors.axis)} tickLine={false} axisLine={false} interval={5} />
                       <Tooltip
-                        contentStyle={{ background: chartColors.tooltipBg, border: '1px solid ' + chartColors.tooltipBorder, borderRadius: '6px', fontSize: '11px' }}
+                        contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
                         formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}
                         labelFormatter={(label) => `Today ${label}`}
                       />
@@ -88,21 +89,21 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
           })() : (
             <div className="h-28 animate-pulse bg-slate-800/30 rounded" />
           )}
-          <p className="text-xs text-slate-600 mt-1">NordPool day-ahead · Elering API</p>
+          <p className="text-caption text-slate-600 mt-1">NordPool day-ahead · Elering API</p>
         </div>
 
         {/* Exchange rates table */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
-          <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-3">Exchange rates</p>
+          <p className="text-caption text-slate-400 font-medium uppercase tracking-widest mb-3">Exchange rates</p>
           {data ? (
             <div className="space-y-1">
               {data.exchangeRates.map((rate) => (
                 <div key={rate.currency} className="flex items-center justify-between py-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-300 font-medium">EUR/{rate.currency}</span>
-                    <span className="text-xs text-slate-500">{rate.name}</span>
+                    <span className="text-ui text-slate-300 font-medium">EUR/{rate.currency}</span>
+                    <span className="text-caption text-slate-500">{rate.name}</span>
                   </div>
-                  <span className="text-sm font-mono text-white">{rate.rate.toFixed(4)}</span>
+                  <span className="text-ui font-mono text-white">{rate.rate.toFixed(4)}</span>
                 </div>
               ))}
             </div>
@@ -111,7 +112,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 bg-slate-700/30 rounded" />)}
             </div>
           )}
-          <p className="text-xs text-slate-600 mt-2">ECB official rates · Updated daily 16:00 CET</p>
+          <p className="text-caption text-slate-600 mt-2">ECB official rates · Updated daily 16:00 CET</p>
         </div>
       </div>
 
@@ -125,7 +126,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
       {/* Baltic comparison */}
       <div>
-        <h3 className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-3">Baltic comparison</h3>
+        <h3 className="text-caption text-slate-400 font-medium uppercase tracking-widest mb-3">Baltic comparison</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <BalticCompareChart indicator="gdp" title="GDP growth" compact />
           <BalticCompareChart indicator="unemployment" title="Unemployment" compact />
@@ -148,10 +149,10 @@ function StatCard({ label, value, change, color }: { label: string; value: strin
   const textColor = color === 'amber' ? 'text-amber-400' : 'text-white';
   return (
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center">
-      <p className={`text-lg font-semibold font-mono ${textColor}`}>{value}</p>
-      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`text-prose font-semibold font-mono ${textColor}`}>{value}</p>
+      <p className="text-caption text-slate-400">{label}</p>
       {change && (
-        <p className={`text-xs font-mono ${change.startsWith('+') ? 'text-emerald-400' : change.startsWith('-') ? 'text-red-400' : 'text-slate-400'}`}>
+        <p className={`text-caption font-mono ${change.startsWith('+') ? 'text-emerald-400' : change.startsWith('-') ? 'text-red-400' : 'text-slate-400'}`}>
           {change}
         </p>
       )}
