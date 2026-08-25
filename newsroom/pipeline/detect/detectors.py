@@ -100,6 +100,7 @@ def detect_record_extreme(
         ),
         score=score,
         section=series.section,
+        chart_ref=series.chart_ref,
         fields={
             "latest_value": latest.value,
             "previous_record_value": previous.value,
@@ -176,6 +177,7 @@ def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
         ),
         score=score,
         section=series.section,
+        chart_ref=series.chart_ref,
         fields={
             "latest_value": latest.value,
             "streak_length": float(run),
@@ -253,6 +255,7 @@ def detect_threshold_cross(
             ),
             score=score,
             section=series.section,
+        chart_ref=series.chart_ref,
             fields={
                 "latest_value": latest.value,
                 "previous_value": previous.value,
@@ -429,6 +432,7 @@ def detect_seasonal_deviation(
         ),
         score=score,
         section=series.section,
+        chart_ref=series.chart_ref,
         fields={
             "latest_value": latest.value,
             "seasonal_mean": mean,
@@ -516,6 +520,7 @@ def detect_sharp_move(
         ),
         score=score,
         section=series.section,
+        chart_ref=series.chart_ref,
         fields={
             "latest_value": latest.value,
             "previous_value": previous.value,

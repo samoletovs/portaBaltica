@@ -101,3 +101,81 @@ def test_metric_names_are_unique() -> None:
     metrics = [s.metric for s in EUROSTAT_DATASETS]
 
     assert len(metrics) == len(set(metrics)), f"duplicate metric names: {metrics}"
+
+
+# ---------------------------------------------------------------------------
+# The whole chain, not just the collector
+#
+# The first version of this file checked EUROSTAT_DATASETS and stopped there.
+# That was not enough twice over: the Elering collector also emitted a dotted
+# ref, and — worse — the value never reached the article at all, because Signal
+# had no chart_ref field and the generator fell back to signal.metric. Every
+# collector-level assertion passed while the published article carried
+# "unemployment_rate".
+#
+# A contract test that checks one end of a contract is not a contract test.
+# ---------------------------------------------------------------------------
+
+
+def test_no_collector_emits_a_dotted_ref() -> None:
+    """Covers every collector in the module, not the Eurostat list alone."""
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "newsroom" / "pipeline" / "collect" / "opendata.py"
+    ).read_text(encoding="utf-8")
+
+    dotted = re.findall(r'chart_ref="([^"]*\.[^"]*)"', source)
+
+    assert dotted == [], f"dotted chart_refs cannot resolve: {dotted}"
+
+
+def test_signal_carries_chart_ref_separately_from_metric() -> None:
+    """The field must exist, or the generator silently falls back to the metric."""
+    from newsroom.pipeline.models import Signal
+
+    assert "chart_ref" in Signal.__dataclass_fields__, (
+        "Signal has no chart_ref field, so the collector's value is dropped "
+        "between detection and writing"
+    )
+
+
+def test_generated_article_uses_the_chart_ref_not_the_metric() -> None:
+    """The end of the chain: what actually lands in the article JSON.
+
+    This is the assertion that would have caught the live defect. The metric
+    and the chart id differ on purpose, so a generator using the wrong one is
+    immediately visible.
+    """
+    from newsroom.pipeline.write.generator import _coerce_blocks
+    from newsroom.pipeline.models import Signal, SourceRef
+
+    signal = Signal(
+        detector="record_extreme",
+        metric="unemployment_rate",
+        metric_label="unemployment rate",
+        geography="EE",
+        period="2026-06",
+        value=6.6,
+        unit="%",
+        comparison_basis="the same month a year earlier",
+        score=0.9,
+        section="labour",
+        fields={"value": 6.6},
+        sources=(
+            SourceRef(
+                source_id="eurostat",
+                dataset="une_rt_m",
+                retrieved_at="2026-08-25T06:00:00Z",
+            ),
+        ),
+        chart_ref="unemployment",
+    )
+
+    blocks = _coerce_blocks({"blocks": [{"text": "Unemployment fell to 6.6%."}]}, signal)
+    chart = next(b for b in blocks if b.chart_ref)
+
+    assert chart.chart_ref == "unemployment", (
+        f"article carries chart_ref={chart.chart_ref!r}; the dashboard cannot "
+        f"serve the metric name, only the indicator id"
+    )
+    assert chart.chart_ref in dashboard_indicator_ids()

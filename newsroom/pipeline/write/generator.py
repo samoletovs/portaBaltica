@@ -113,7 +113,7 @@ def _coerce_blocks(payload: dict[str, Any], signal: Signal) -> list[Block]:
     if blocks and signal.metric:
         chart = next((b for b in blocks if b.chart_ref), None)
         if chart is None:
-            blocks.append(Block(type="chart", chart_ref=signal.metric))
+            blocks.append(Block(type="chart", chart_ref=signal.chart_ref or signal.metric))
     return blocks
 
 
