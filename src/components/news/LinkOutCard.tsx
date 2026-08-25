@@ -78,17 +78,6 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
         </blockquote>
       )}
 
-      <a
-        href={originalUrl}
-        target="_blank"
-        rel="noopener noreferrer external"
-        className="news-tier-accent news-focus mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors"
-      >
-        Read this at {attribution}
-        <span aria-hidden="true">↗</span>
-        <span className="sr-only">(opens in a new tab)</span>
-      </a>
-
       <p className="news-subtle mt-2 text-[11px] leading-relaxed">
         Their reporting, not ours — and we would rather you read it on their site.
       </p>

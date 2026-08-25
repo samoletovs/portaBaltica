@@ -98,7 +98,7 @@ describe('/about/ai renders the published policy, not a paraphrase of it', () =>
 
     expect(screen.getByRole('heading', { level: 1, name: 'How portaBaltica uses AI' })).toBeTruthy();
     expect(screen.getByText('Accountable publisher')).toBeTruthy();
-    expect(screen.getByText('Andre Ovīši (human)')).toBeTruthy();
+    expect(screen.getByText('Andre Kõpu (human)')).toBeTruthy();
   });
 
   it('carries the binding sentences verbatim', () => {

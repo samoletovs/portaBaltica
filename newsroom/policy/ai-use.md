@@ -1,7 +1,7 @@
 # How portaBaltica uses AI
 
 **Last updated:** 2026-08-24
-**Accountable publisher:** Andre Ovīši (human)
+**Accountable publisher:** Andre Kõpu (human)
 
 portaBaltica is an experiment in whether artificial intelligence can produce
 genuinely useful journalism from open data. It is operated by NauroLabs, an
@@ -74,7 +74,7 @@ less. We never generate filler to fill a page.
 
 ## 3. Who is accountable
 
-Andre Ovīši, named at the top of this page, is the only human here and is accountable for everything
+Andre Kõpu, named at the top of this page, is the only human here and is accountable for everything
 published here — including anything a machine produced without a human reading
 it first. "The AI did it" is not an explanation we will ever offer you.
 
