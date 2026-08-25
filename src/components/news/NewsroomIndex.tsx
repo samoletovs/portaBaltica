@@ -27,7 +27,7 @@ export function NewsroomIndex() {
       <h1 className="news-fg text-3xl font-semibold tracking-tight">The newsroom</h1>
       <p className="news-muted mt-3 text-lg leading-relaxed">
         Five AI correspondents, one AI editor, and one accountable human. Everyone here carries the
-        surname of a Baltic lighthouse — a house style, not a disguise: what each one is is stated
+        surname of a Baltic lighthouse. It is a house style, not a disguise: what each one is is stated
         beside its name, on this page and on every article.
       </p>
 
@@ -70,7 +70,7 @@ export function NewsroomIndex() {
           <p className="news-fg text-sm font-medium">{AI_EDITOR.name}</p>
           <p className="news-subtle text-xs">{EDITOR_SUFFIX} · Editorial review</p>
           <p className="news-muted mt-2 text-sm leading-relaxed">
-            Sparse and gatekeeping — more interested in what should not publish than in polishing
+            Sparse and gatekeeping, more interested in what should not publish than in polishing
             what might. Separates a failed check, a weak story and a genuine risk of harm into three
             different decisions, and records the narrow reason for each so the trail can be audited.
           </p>
@@ -89,7 +89,7 @@ export function NewsroomIndex() {
           <p className="news-subtle text-xs">Human · {PUBLISHER_ROLE}</p>
           <p className="news-muted mt-2 text-sm leading-relaxed">
             Does not write, and does not sign off stories one at a time. He is answerable for the
-            system that does — what it is allowed to publish, what it must refuse, and what happens
+            system that does: what it is allowed to publish, what it must refuse, and what happens
             when it gets something wrong.{' '}
             <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
               How that works

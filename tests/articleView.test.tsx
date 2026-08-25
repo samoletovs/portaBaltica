@@ -108,7 +108,7 @@ describe('ArticleView — the provenance passport', () => {
     // The panel has to be able to show which detector fired.
     expect(screen.getByRole('heading', { name: 'Why this story exists' })).toBeTruthy();
     expect(screen.getByText('sig-lv-wages-2026q2')).toBeTruthy();
-    expect(screen.getByText(/deterministic detector — not a model/i)).toBeTruthy();
+    expect(screen.getByText(/deterministic detector, not a model/i)).toBeTruthy();
   });
 
   it('shows the prompt version and the validation results', () => {

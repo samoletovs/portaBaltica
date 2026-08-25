@@ -22,7 +22,7 @@ from newsroom.pipeline.models import Signal
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card
 
-PROMPT_VERSION = "tierA-research-v3"
+PROMPT_VERSION = "tierA-research-v4"
 
 _SYSTEM_TEMPLATE = """{voice}
 
@@ -101,6 +101,37 @@ comparison basis you were told to restate.
 
 Before you answer, re-read each paragraph and check that every digit you wrote
 appears in that paragraph's figures array.
+
+KEEP THE NUMBER COUNT LOW. Aim for one figure per paragraph and never more than
+two. Every extra numeral is another chance to write one you cannot support, and
+a paragraph that carries a single well-explained figure reads better than one
+that lists four. Express relationships in words — "roughly a third higher",
+"barely moved", "the widest gap since the series began" — rather than deriving
+a new numeral.
+
+A CORRECT PARAGRAPH LOOKS LIKE THIS. Study the pairing of text and figures:
+
+  {{
+    "text": "Estonian unemployment fell to 6.6% in June, from 7.1% in the same
+             month a year earlier.",
+    "figures": [
+      {{"value": 6.6, "signal_field": "latest", "unit": "%", "rendered_as": "6.6%"}},
+      {{"value": 7.1, "signal_field": "year_ago", "unit": "%", "rendered_as": "7.1%"}}
+    ]
+  }}
+
+Note three things about it: both numerals are declared; the comparison basis
+("from ... in the same month a year earlier") sits in the same sentence as the
+change; and no year, count or derived percentage appears anywhere.
+
+THE TWO MISTAKES THAT REJECT MOST ARTICLES:
+
+  1. Writing a bare year. "fell from 2025 levels" contains the numeral 2025 and
+     will be rejected. Write "from a year earlier" instead. Only the period
+     labels you are given may be quoted.
+  2. Describing a change without its basis in the same sentence. "Producer
+     prices dropped sharply" is rejected. "Producer prices fell 3.2% against the
+     previous month" is not.
 
 Write {paragraphs} paragraphs. The first must carry the finding and its
 comparison basis. The last must follow your closing move. Keep it tight — this

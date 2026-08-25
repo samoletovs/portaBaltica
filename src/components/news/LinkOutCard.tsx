@@ -79,7 +79,7 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       )}
 
       <p className="news-subtle mt-2 text-[11px] leading-relaxed">
-        Their reporting, not ours — and we would rather you read it on their site.
+        Their reporting, not ours. We would rather you read it on their site.
       </p>
     </article>
   );

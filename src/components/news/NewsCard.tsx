@@ -57,7 +57,7 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
         ) : (
           <p className="news-subtle text-xs">
             {summary.syndicated?.attribution
-              ? `Reproduced verbatim — ${summary.syndicated.attribution}`
+              ? `Reproduced verbatim from ${summary.syndicated.attribution}`
               : 'Reproduced verbatim'}
           </p>
         )}

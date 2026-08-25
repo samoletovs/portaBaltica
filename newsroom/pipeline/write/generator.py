@@ -46,18 +46,30 @@ log = logging.getLogger(__name__)
 
 MAX_COMPLETION_TOKENS = 900
 
-# Two drafts, never more. The first is usually rejected for bookkeeping — a
-# figure written in the prose but not declared — which a writer fixes when
-# shown the complaint. A second failure means the model is not going to get
-# there, and paying for a third attempt buys nothing.
+# Three drafts. The first is usually rejected for bookkeeping — a figure written
+# in the prose but not declared — which a writer fixes when shown the complaint.
 #
-# Cost is not the constraint it was once assumed to be. Measured in production:
-# ~2,600 prompt + ~490 completion tokens per article, which on gpt-4o-mini is
-# about $0.0007. At 8 articles a day a revision on every single one adds
-# roughly $0.20 a month against a €150 subscription. The comment this replaces
-# justified having no revision loop at all on cost grounds; it was wrong by
-# three orders of magnitude, and the price was that a run published nothing.
-MAX_ATTEMPTS = 2
+# The previous comment here asserted that "a second failure means the model is
+# not going to get there, and paying for a third attempt buys nothing". The
+# production run of 2026-08-25 disproved it. Eight signals were selected and
+# eight articles were rejected, and the log shows the drafts converging rather
+# than stalling:
+#
+#   858b  attempt 1: 2 faults  ->  attempt 2: 1 fault  -> out of attempts
+#   098d  attempt 1: 2 faults  ->  attempt 2: 1 fault  -> out of attempts
+#   b416  attempt 1: 3 faults  ->  attempt 2: 2 faults -> out of attempts
+#
+# Every one of those ran out of attempts while still improving. The wire
+# published nothing original that day, not because the model could not get
+# there but because it was stopped one draft short.
+#
+# Cost is not the constraint. ~2,600 prompt + ~490 completion tokens per article
+# on gpt-4o-mini is about $0.0007. A third attempt on every article of an
+# eight-article day is roughly $0.20 a month.
+#
+# This does not weaken anything: the validator gates every attempt identically,
+# and a draft that never passes is still never published.
+MAX_ATTEMPTS = 3
 
 _COUNTRY_ALIASES = {"LV": "LV", "EE": "EE", "LT": "LT", "Baltic": "Baltic", "EU27_2020": "EU"}
 

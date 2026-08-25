@@ -21,7 +21,7 @@ export default function CorrectionsPage() {
   const [publishedCount, setPublishedCount] = useState<number | null>(null);
 
   usePageMeta({
-    title: 'Corrections — portaBaltica',
+    title: 'Corrections | portaBaltica',
     description:
       'Our corrections policy and the complete public log: what was wrong, what it now says, and when it changed.',
     canonicalPath: '/corrections',

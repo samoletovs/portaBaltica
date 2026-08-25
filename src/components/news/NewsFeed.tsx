@@ -24,7 +24,7 @@ export default function NewsFeed() {
   const visibleElsewhere = showAllElsewhere ? Number.POSITIVE_INFINITY : 4;
 
   usePageMeta({
-    title: 'portaBaltica — Baltic open data, reported',
+    title: 'portaBaltica | Baltic open data, reported',
     description:
       'Original data journalism from Baltic open data: economy, energy, maritime, environment and government, with every figure traceable to its dataset.',
     canonicalPath: '/',
@@ -135,7 +135,7 @@ export default function NewsFeed() {
             <h2 className="news-fg text-sm font-semibold">The dashboard is the evidence</h2>
             <p className="news-muted mt-1.5 text-sm leading-relaxed">
               Every figure in our reporting comes from a series you can open, filter and check
-              yourself — 30+ Baltic indicators, updated independently of the article.
+              yourself. More than 30 Baltic indicators, updated independently of the article.
             </p>
             <p className="mt-3 text-sm">
               <Link
@@ -156,7 +156,7 @@ export default function NewsFeed() {
             Elsewhere in the Baltics
           </h2>
           <p className="news-subtle mt-2 text-xs leading-relaxed">
-            Other outlets’ reporting. Headline and their own summary only — we link out rather than
+            Other outlets’ reporting. Headline and their own summary only. We link out rather than
             reproduce.
           </p>
           {elsewhere.length === 0 ? (

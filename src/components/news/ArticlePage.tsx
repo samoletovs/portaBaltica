@@ -27,7 +27,7 @@ export default function ArticlePage() {
   const article = load?.state === 'ok' ? load.article : null;
 
   usePageMeta({
-    title: article ? `${article.headline} — portaBaltica` : 'portaBaltica',
+    title: article ? `${article.headline} | portaBaltica` : 'portaBaltica',
     description: article?.dek,
     canonicalPath: slug ? `/article/${slug}` : undefined,
     index: Boolean(article),
