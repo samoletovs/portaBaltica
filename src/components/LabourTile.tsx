@@ -21,11 +21,13 @@ export function LabourTile() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BalticCompareChart indicator="youth_unemployment" title="Youth unemployment (U25)" compact />
+        <BalticCompareChart indicator="employment_rate" title="Employment rate (20-64)" compact />
         <BalticCompareChart indicator="job_vacancy" title="Job vacancy rate" compact />
         <BalticCompareChart indicator="minimum_wage" title="Minimum wage" compact />
         <BalticCompareChart indicator="gdp_per_capita" title="GDP per capita" compact />
         <BalticCompareChart indicator="life_expectancy" title="Life expectancy at birth" compact />
         <BalticCompareChart indicator="digital_skills" title="Basic digital skills" compact />
+        <BalticCompareChart indicator="online_shoppers" title="Online shoppers" compact />
       </div>
     </section>
   );

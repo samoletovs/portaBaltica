@@ -21,15 +21,39 @@
 //      renders no chart at all. An absent chart is honest; an empty frame
 //      captioned "Live data" is not.
 
-/** Chart ids the dashboard can serve. Mirrors api/shared/indicators.js. */
+/**
+ * Chart ids the dashboard can serve. Mirrors api/shared/indicators.js, and
+ * tests/chartRef.test.ts asserts that mirror rather than trusting this comment.
+ *
+ * It had drifted in both directions at once, which is worse than either alone.
+ * Six ids here were served by nothing — `gov_debt`, `renewable_share`,
+ * `new_vehicles`, `tourist_arrivals`, `building_permits`, `biz_confidence` —
+ * so a ref naming one passed this gate, reached
+ * /api/baltic-compare?indicator=gov_debt, came back 400, and produced exactly
+ * the empty "Live data" frame this module exists to prevent. Meanwhile
+ * twenty-three ids the API does serve were absent, so an article citing
+ * `gov_deficit` or `life_expectancy` had its chart silently dropped.
+ *
+ * The four that had a real counterpart moved to ALIASES. `building_permits`
+ * and `biz_confidence` have none, so they resolve to undefined and render no
+ * chart — mapping them to a near-miss would put a chart under a claim it does
+ * not support.
+ */
 export const DASHBOARD_INDICATORS = new Set([
   'gdp', 'gdp_per_capita', 'inflation', 'energy_inflation', 'food_inflation',
-  'core_inflation', 'ppi', 'industrial', 'retail', 'construction',
-  'house_prices', 'interest_rate', 'consumer_confidence', 'economic_sentiment',
-  'unemployment', 'youth_unemployment', 'job_vacancy', 'salary', 'wages_mfg',
-  'wages_it', 'population', 'exports', 'imports', 'trade_balance', 'gov_debt',
-  'gov_revenue', 'renewable_share', 'building_permits', 'new_vehicles',
-  'tourist_arrivals', 'hotel_occupancy', 'biz_confidence',
+  'core_inflation', 'services_inflation', 'goods_inflation', 'admin_prices',
+  'home_energy_inflation', 'ppi', 'industrial', 'retail', 'construction',
+  'house_prices', 'interest_rate', 'consumer_confidence',
+  'economic_sentiment', 'unemployment', 'youth_unemployment',
+  'employment_rate', 'job_vacancy', 'salary', 'wages_mfg', 'wages_it',
+  'minimum_wage', 'gov_debt_gdp', 'gov_revenue', 'gov_deficit', 'inequality',
+  'poverty_risk', 'life_expectancy', 'population', 'net_migration',
+  'birth_rate', 'rd_spending', 'digital_skills', 'online_shoppers',
+  'exports', 'imports', 'trade_balance', 'current_account', 'tourism',
+  'tourism_foreign', 'hotel_occupancy', 'elec_production',
+  'elec_renewable_gen', 'renewables', 'elec_price_household',
+  'elec_price_industry', 'vehicles', 'air_passengers', 'ghg_emissions',
+  'business_registrations', 'bankruptcies',
 ]);
 
 /**
@@ -43,6 +67,11 @@ const ALIASES: Record<string, string> = {
   'labour.unemployment': 'unemployment',
   hicp_annual_rate: 'inflation',
   'economy.inflation': 'inflation',
+  // Ids this module used to accept as if the dashboard served them.
+  gov_debt: 'gov_debt_gdp',
+  renewable_share: 'renewables',
+  new_vehicles: 'vehicles',
+  tourist_arrivals: 'tourism',
 };
 
 /**

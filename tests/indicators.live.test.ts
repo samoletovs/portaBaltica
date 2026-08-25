@@ -17,6 +17,12 @@
  *     table and rendered 8.9 for Latvia; a Gini index cannot be 8.9, and the
  *     [20, 45] band says so.
  *
+ * A third assertion was added after both of those passed for eight months on a
+ * dataset that had stopped moving: when HICP migrated to ECOICOP ver.2, the
+ * ver.1 tables kept serving well-formed, in-band, fully pinned values from
+ * 2025-12 and never advanced again. Freshness is the only property that
+ * distinguishes a live series from a fossil.
+ *
  * It lives in the live suite because it depends on Eurostat being reachable,
  * and a gate that red-lights a correct pull request because a European
  * statistics API was slow teaches people to bypass gates.
@@ -36,6 +42,7 @@ type IndicatorDef = {
   title: string;
   unit: string;
   sanity: [number, number];
+  maxAgeMonths?: number;
 };
 
 type Point = { period: string; value: number | null };
@@ -77,6 +84,33 @@ describe('Eurostat indicator contracts (live)', () => {
       ).toBeGreaterThanOrEqual(def.sanity[0]);
       expect(latest.value).toBeLessThanOrEqual(def.sanity[1]);
     }
+
+    // Freshness is measured on the country that is furthest ahead: one national
+    // statistics office reporting late is normal, all three stopping at the same
+    // period is a dataset Eurostat has retired in place.
+    const newest = GEOS
+      .map((geo) => {
+        const points = (parsed.countries[geo]?.series ?? []).filter((p: Point) => p.value !== null);
+        return points.length ? points[points.length - 1].period : null;
+      })
+      .filter((p): p is string => p !== null)
+      .reduce<string | null>(
+        (best, p) => (best === null || es.periodToMonthIndex(p) > es.periodToMonthIndex(best) ? p : best),
+        null
+      );
+
+    expect(newest, `${id} produced no datable period`).not.toBeNull();
+    const age = es.monthsSincePeriod(newest, new Date());
+    expect(age, `${id} returned an unparseable period label "${newest}"`).not.toBeNull();
+
+    const allowed = es.maxAgeMonths(def);
+    expect(
+      age,
+      `${id} (${def.dataset}) has not advanced past ${newest} — about ${age} months ago, against a ` +
+        `${allowed}-month allowance for ${def.freq}-frequency data. Every other assertion here passes, ` +
+        'which is exactly what a dataset that has been frozen in place looks like: check whether Eurostat ' +
+        'has migrated it to a successor table, as it did moving HICP to ECOICOP ver.2.'
+    ).toBeLessThanOrEqual(allowed);
   }, 45_000);
 });
 

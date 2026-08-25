@@ -91,6 +91,9 @@ describe('indicator registry', () => {
       'wages_mfg', 'wages_it', 'job_vacancy', 'current_account', 'elec_production',
       'gdp_per_capita', 'inequality', 'youth_unemployment', 'trade_balance', 'gov_deficit',
       'life_expectancy', 'elec_price_household', 'hotel_occupancy', 'economic_sentiment',
+      'services_inflation', 'goods_inflation', 'admin_prices', 'home_energy_inflation',
+      'employment_rate', 'online_shoppers', 'air_passengers', 'ghg_emissions',
+      'business_registrations', 'bankruptcies',
     ];
     for (const id of referenced) {
       expect(INDICATORS, `indicator "${id}" is referenced by a component`).toHaveProperty(id);
@@ -145,6 +148,73 @@ describe('indicator registry', () => {
   it('measures life expectancy at birth rather than at age one', () => {
     expect(INDICATORS.life_expectancy.params).toContain('age=Y_LT1');
     expect(INDICATORS.life_expectancy.params).not.toMatch(/age=Y1(&|$)/);
+  });
+
+  it('does not source HICP from the frozen ECOICOP ver.1 tables', () => {
+    // Eurostat migrated HICP to ECOICOP ver.2 and froze the ver.1 tables on
+    // 2026-02-06 with 2025-12 as their final period. They still answer HTTP 200,
+    // still list every old code, and still return plausible numbers — so all
+    // four inflation charts stayed green while going eight months stale.
+    const frozen = /^prc_hicp_(manr|midx|mmor|cann|cind)$/;
+    const offenders = entries.filter(([, def]) => frozen.test(def.dataset));
+    expect(
+      offenders.map(([id]) => id),
+      'these datasets stopped being updated when HICP moved to ECOICOP ver.2; use prc_hicp_minr'
+    ).toEqual([]);
+  });
+
+  it('queries HICP with the ECOICOP ver.2 dimension and a pinned unit', () => {
+    const hicp = entries.filter(([, def]) => def.dataset === 'prc_hicp_minr');
+    expect(hicp.length, 'the dashboard renders at least one inflation series').toBeGreaterThan(0);
+    for (const [id, def] of hicp) {
+      // ver.2 renamed the classification dimension and folded the index and the
+      // rates of change into one cube. Leaving `unit` open would let the parser
+      // pick an index and render it under a "% YoY" label.
+      expect(def.params, `${id} must select on coicop18, not the ver.1 coicop`).toMatch(/coicop18=/);
+      expect(def.params, `${id} still uses the ver.1 coicop dimension`).not.toMatch(/(^|&)coicop=/);
+      expect(def.params, `${id} must pin unit=RCH_A to get an annual rate of change`).toMatch(/unit=RCH_A/);
+    }
+  });
+});
+
+describe('period freshness', () => {
+  it('resolves a period label to the last month it covers', () => {
+    // Comparing granularities on one axis: an annual observation for 2025 is
+    // not complete until December 2025.
+    expect(es.periodToMonthIndex('2026-07')).toBe(2026 * 12 + 7);
+    expect(es.periodToMonthIndex('2026-Q1')).toBe(2026 * 12 + 3);
+    expect(es.periodToMonthIndex('2026Q1')).toBe(2026 * 12 + 3);
+    expect(es.periodToMonthIndex('2025-S2')).toBe(2025 * 12 + 12);
+    expect(es.periodToMonthIndex('2025')).toBe(2025 * 12 + 12);
+  });
+
+  it('refuses to guess at a label it does not recognise', () => {
+    // Returning 0 here would read as "brand new" and hide a frozen series.
+    expect(es.periodToMonthIndex('last week')).toBeNull();
+    expect(es.periodToMonthIndex('2026-Q5')).toBeNull();
+    expect(es.periodToMonthIndex(undefined)).toBeNull();
+    expect(es.monthsSincePeriod('nonsense', new Date('2026-08-25T00:00:00Z'))).toBeNull();
+  });
+
+  it('measures age in months from the end of the period', () => {
+    const now = new Date('2026-08-25T00:00:00Z');
+    expect(es.monthsSincePeriod('2026-07', now)).toBe(1);
+    expect(es.monthsSincePeriod('2025-12', now)).toBe(8); // the frozen HICP case
+    expect(es.monthsSincePeriod('2026-Q2', now)).toBe(2);
+    // A period still open reads as negative rather than as stale.
+    expect(es.monthsSincePeriod('2026', now)).toBe(-4);
+  });
+
+  it('allows a slower upstream to declare its own tolerance', () => {
+    expect(es.maxAgeMonths({ freq: 'M' })).toBe(es.MAX_AGE_MONTHS.M);
+    expect(es.maxAgeMonths({ freq: 'A' })).toBe(es.MAX_AGE_MONTHS.A);
+    expect(es.maxAgeMonths({ freq: 'M', maxAgeMonths: 40 })).toBe(40);
+  });
+
+  it('would have failed the frozen HICP tables at a monthly cadence', () => {
+    // The regression this guard exists for, stated as an assertion.
+    const now = new Date('2026-08-25T00:00:00Z');
+    expect(es.monthsSincePeriod('2025-12', now)).toBeGreaterThan(es.maxAgeMonths({ freq: 'M' }));
   });
 });
 

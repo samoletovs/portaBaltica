@@ -1,7 +1,7 @@
 /**
  * Shared Eurostat access layer.
  *
- * Two jobs, both learned from a live audit of the deployed dashboard:
+ * Three jobs, all learned from live audits of the deployed dashboard:
  *
  * 1. `httpJson` gives every upstream call a hard deadline. The old per-call
  *    `timeout` option only armed a socket idle timer, so a source that accepted
@@ -17,6 +17,13 @@
  *    parser now picks the slice that actually carries data and reports every
  *    such choice in `assumptions`, so an unpinned dimension is visible in the
  *    API response and can be asserted against in tests.
+ *
+ * 3. `monthsSincePeriod` / `maxAgeMonths` measure whether a series is still
+ *    moving. Points-returned and sanity-band checks both pass forever against a
+ *    dataset Eurostat has stopped updating: when HICP migrated to ECOICOP ver.2
+ *    the ver.1 tables kept answering HTTP 200, kept listing every old code, and
+ *    kept returning perfectly plausible values — from 2025-12, for eight months.
+ *    Freshness is the only assertion that catches that.
  */
 
 const https = require('https');
@@ -213,6 +220,55 @@ function buildUrl(def, years, geos) {
     '&sinceTimePeriod=' + sincePeriod(def.freq, years);
 }
 
+/**
+ * Absolute month index for a JSON-stat period label, used to compare periods of
+ * different granularity on one axis. It resolves to the *last* month the period
+ * covers — 2026-Q1 is March 2026, 2025 is December 2025 — because that is when
+ * the observation is complete and the clock on publishing it starts.
+ *
+ * Returns null for a label this function does not recognise, and callers must
+ * treat null as "cannot tell" rather than as "fresh".
+ */
+function periodToMonthIndex(period) {
+  if (typeof period !== 'string') return null;
+  let m;
+  if ((m = /^(\d{4})-(\d{2})$/.exec(period))) return +m[1] * 12 + +m[2];
+  if ((m = /^(\d{4})-?Q([1-4])$/.exec(period))) return +m[1] * 12 + +m[2] * 3;
+  if ((m = /^(\d{4})-?S([1-2])$/.exec(period))) return +m[1] * 12 + +m[2] * 6;
+  if ((m = /^(\d{4})$/.exec(period))) return +m[1] * 12 + 12;
+  return null;
+}
+
+/** Age of an observation in whole months. Negative while the period is open. */
+function monthsSincePeriod(period, now) {
+  const idx = periodToMonthIndex(period);
+  if (idx === null) return null;
+  const d = now || new Date();
+  return (d.getUTCFullYear() * 12 + d.getUTCMonth() + 1) - idx;
+}
+
+/**
+ * Longest a series may go without a new observation before we call it frozen
+ * rather than merely lagging.
+ *
+ * Deliberately generous — roughly twice the worst real publication lag observed
+ * across the registry — because this is a gate, and a gate that red-lights a
+ * correct pull request because Eurostat was a fortnight late teaches people to
+ * bypass gates. It is sized to catch a dataset that has stopped moving, which
+ * is what actually happened: the ECOICOP ver.1 HICP tables were frozen at
+ * 2025-12 and every monthly inflation chart sat eight months out of date while
+ * every existing assertion stayed green.
+ *
+ * An indicator whose upstream is legitimately slower may override with
+ * `maxAgeMonths`, which is a declaration a reviewer can weigh.
+ */
+const MAX_AGE_MONTHS = { M: 6, Q: 12, S: 18, A: 30 };
+
+function maxAgeMonths(def) {
+  if (def && typeof def.maxAgeMonths === 'number') return def.maxAgeMonths;
+  return (def && MAX_AGE_MONTHS[def.freq]) || 30;
+}
+
 module.exports = {
   EUROSTAT_BASE: EUROSTAT_BASE,
   httpText: httpText,
@@ -220,4 +276,8 @@ module.exports = {
   parseJsonStat: parseJsonStat,
   sincePeriod: sincePeriod,
   buildUrl: buildUrl,
+  periodToMonthIndex: periodToMonthIndex,
+  monthsSincePeriod: monthsSincePeriod,
+  maxAgeMonths: maxAgeMonths,
+  MAX_AGE_MONTHS: MAX_AGE_MONTHS,
 };

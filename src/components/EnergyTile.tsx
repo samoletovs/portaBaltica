@@ -30,6 +30,9 @@ export function EnergyTile() {
         <BalticCompareChart indicator="elec_price_household" title="Electricity price (households)" compact />
         <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry)" compact />
         <BalticCompareChart indicator="renewables" title="Renewable energy share" compact />
+        <BalticCompareChart indicator="home_energy_inflation" title="Home energy inflation" compact />
+        <BalticCompareChart indicator="admin_prices" title="Administered prices" compact />
+        <BalticCompareChart indicator="ghg_emissions" title="Greenhouse gas emissions" compact />
       </div>
     </section>
   );
