@@ -26,7 +26,13 @@ import statistics
 from dataclasses import dataclass
 from typing import Mapping, Sequence
 
-from newsroom.pipeline.detect.series import Observation, TimeSeries, pct_change, robust_sigma
+from newsroom.pipeline.detect.series import (
+    Observation,
+    TimeSeries,
+    pct_change,
+    reading_word,
+    robust_sigma,
+)
 from newsroom.pipeline.models import Signal
 
 log = logging.getLogger(__name__)
@@ -363,7 +369,8 @@ def detect_divergence(
         unit=sample.unit,
         comparison_basis=(
             f"the median spread of {typical:g} {sample.unit} between the same countries "
-            f"across {len(historical)} earlier periods"
+            f"across the {len(historical)} earlier "
+            f"{reading_word(sample.frequency, len(historical))} in the series"
         ),
         score=score,
         section=sample.section,
