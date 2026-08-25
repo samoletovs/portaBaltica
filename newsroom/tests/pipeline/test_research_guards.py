@@ -201,18 +201,18 @@ def test_should_not_select_stale_context_for_a_current_signal() -> None:
 def test_should_prefer_the_newest_equally_relevant_official_release() -> None:
     def release(guid: str, published: str) -> FeedItem:
         return FeedItem(
-            source_id="statistics_estonia_news",
-            title="Estonian labour market update",
-            link=f"https://stat.ee/en/{guid}",
+            source_id="latvijas_banka_news",
+            title="Latvian labour market update",
+            link=f"https://bank.lv/en/{guid}",
             description="Official unemployment and employment context.",
             published=published,
             guid=guid,
-            raw_blob=f"2026-08-24/statistics_estonia_news/{guid}.raw",
+            raw_blob=f"2026-08-24/latvijas_banka_news/{guid}.raw",
             retrieved_at="2026-08-24T11:00:00Z",
         )
 
     research = research_signal(
-        make_signal(geography="EE"),
+        make_signal(geography="LV"),
         [
             release("older", "Mon, 01 Jun 2026 05:00:00 +0000"),
             release("newest", "Fri, 14 Aug 2026 05:00:00 +0000"),
