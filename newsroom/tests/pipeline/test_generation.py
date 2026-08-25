@@ -130,13 +130,40 @@ class TestFailsClosed:
 
         assert not result.publishable
 
-    def test_should_drop_a_malformed_figure_and_then_reject_the_article(self):
+    def test_should_never_use_a_malformed_figure_value(self):
+        # The article may still publish, because reconciliation re-derives the
+        # figure from the detector's verified payload. What must never happen
+        # is the malformed value itself surviving into the output.
         payload = json.loads(json.dumps(GOOD_PAYLOAD))
         payload["blocks"][0]["figures"] = [{"value": "not a number", "signal_field": "latest_value"}]
 
         result = generate_article(make_signal(), StubWriter(payload))
 
+        fields = make_signal().fields
+        for block in result.article.body:
+            for figure in block.figures:
+                assert figure.value != "not a number"
+                assert isinstance(figure.value, float)
+                assert figure.signal_field in fields, (
+                    "every surviving figure must name a field the detector verified"
+                )
+                assert figure.value == pytest.approx(fields[figure.signal_field])
+
+    def test_should_reject_when_a_dropped_figure_leaves_an_unverifiable_number(self):
+        # The fail-closed case. A malformed figure is dropped, and the number it
+        # was supposed to justify is not in the signal payload, so nothing can
+        # honestly declare it. Reconciliation must not paper over this.
+        payload = json.loads(json.dumps(GOOD_PAYLOAD))
+        payload["blocks"][0]["text"] = (
+            "Latvia's unemployment rate reached 9.9% in July, above the previous "
+            "record of 6.5% and the highest in the series."
+        )
+        payload["blocks"][0]["figures"] = [{"value": "not a number", "signal_field": "latest_value"}]
+
+        result = generate_article(make_signal(), StubWriter(payload))
+
         assert not result.publishable
+        assert result.article.status == "rejected"
 
     def test_should_refuse_before_calling_the_model_for_a_restricted_source(self):
         signal = make_signal(
