@@ -716,6 +716,38 @@ class TestMaritimeIsKeyedOnTheReportingPort:
         assert all(s.geo_dimension == "geo" for s in others)
         assert all(s.geographies is None for s in others)
 
+    def test_should_not_read_a_passenger_cube_as_a_national_total(self):
+        """A tripwire, not a ban. Adding passengers means updating this test.
+
+        ``mar_pa_qm_lv`` looks like the obvious companion to the goods series
+        and is a trap. Riga stopped filing passenger returns after 2021-Q4 —
+        the last four quarters it reported are literal zeroes, and the cube
+        queried entirely unpinned returns no non-null cell for it since. So
+        Latvia's *national* passenger total has been exactly equal to Ventspils
+        since 2022-Q1.
+
+        Every gate in this pipeline would pass a sentence built on that.
+        "Latvian sea passengers fell to X" would be traceable, uninvented and
+        correctly compared — and would be a claim about one port presented as a
+        claim about a country, set against Estonia's entire coastline. No
+        validator can see that, which is why it is caught here instead.
+
+        If you are adding passengers: carry the discontinuity explicitly (the
+        API marks such ports ``discontinued``, so it is readable rather than
+        inferred), then change this test to assert that handling.
+        """
+        passengers = [
+            s.dataset for s in EUROSTAT_DATASETS if s.dataset.startswith("mar_pa_qm")
+        ]
+
+        assert not passengers, (
+            f"{passengers} reads Eurostat's sea-passenger cube. Latvia's national "
+            f"total has equalled Ventspils alone since 2022-Q1 because Riga stopped "
+            f"filing after 2021-Q4, so a national LV/EE/LT comparison compares one "
+            f"Latvian port against Estonia's whole coastline. Handle the "
+            f"discontinuity explicitly, then update this test."
+        )
+
 
 class TestTheBusinessBeatHasASource:
     """``business`` routed to a correspondent who could never file.

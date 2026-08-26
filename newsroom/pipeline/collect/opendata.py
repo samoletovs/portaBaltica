@@ -314,6 +314,21 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     # composition story is real and worth having; it needs its own handling for
     # the asymmetry rather than being smuggled in here.
     #
+    # AND DO NOT ADD PASSENGERS WITHOUT READING THIS. `mar_pa_qm_lv` looks like
+    # the obvious companion series and it is a trap. Riga stopped filing
+    # passenger returns after 2021-Q4 — the last four quarters it reported are
+    # literal zeroes, and the cube queried entirely unpinned returns no non-null
+    # cell for it since. So Latvia's *national* passenger total has been exactly
+    # equal to Ventspils since 2022-Q1.
+    #
+    # Every gate here would pass a sentence built on that. "Latvian sea
+    # passengers fell to X" is traceable, uninvented, and correctly compared —
+    # and is a statement about one port presented as a statement about a
+    # country. Set against Estonia's whole coastline it is not a comparison at
+    # all. The API marks such ports `discontinued`, so the asymmetry is
+    # readable rather than something to infer; a passenger series has to carry
+    # it explicitly or not exist.
+    #
     # 48 quarters, verified live: LV and EE run 2014-Q1..2025-Q4 and LT to
     # 2026-Q1. The two-quarter publication lag is inherent to the source, so
     # this beat is analysis rather than breaking news — roughly four stories a

@@ -249,12 +249,40 @@ class TestTheScheduleSettingIsHonoured:
     def test_the_timer_reads_the_app_setting(self):
         source = (NEWSROOM_DIR / "function_app.py").read_text(encoding="utf-8")
 
-        assert 'schedule="%NEWSROOM_SCHEDULE%"' in source, (
+        assert "schedule=config.SCHEDULE" in source, (
             "the timer hardcodes its cron again; the app setting is inert"
         )
-        assert "0 0 14 * * *" in source, "the default must survive an unset setting"
 
-    def test_config_exposes_the_same_setting(self):
+    def test_the_timer_does_not_use_host_interpolation(self):
+        """``%NEWSROOM_SCHEDULE%`` looks equivalent and is not.
+
+        The host resolves ``%NAME%`` against application settings and has no
+        default syntax, so on an app where the setting is missing the trigger
+        binding fails and the function never registers — a publish that exits
+        zero while leaving the wire dead. Reading the same setting from the
+        environment in Python keeps the knob and keeps a working default.
+        """
+        source = (NEWSROOM_DIR / "function_app.py").read_text(encoding="utf-8")
+
+        assert "%NEWSROOM_SCHEDULE%" not in source.replace(
+            "``%NEWSROOM_SCHEDULE%``", ""
+        ), "host interpolation cannot fall back, so a missing setting kills the timer"
+
+    def test_config_supplies_a_working_default(self, monkeypatch):
+        import importlib
+
         from newsroom.pipeline import config
 
-        assert config.SCHEDULE
+        monkeypatch.delenv("NEWSROOM_SCHEDULE", raising=False)
+        reloaded = importlib.reload(config)
+        try:
+            assert reloaded.SCHEDULE == "0 0 14 * * *"
+        finally:
+            importlib.reload(config)
+
+    def test_the_run_report_states_the_same_schedule_the_timer_uses(self):
+        """So the report cannot disagree with the trigger about what is in force."""
+        from newsroom.pipeline import config
+        from newsroom.pipeline.run import RunReport
+
+        assert build_run_report(RunReport(), trigger="timer")["schedule"] == config.SCHEDULE
