@@ -3,6 +3,7 @@ from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
 import { PowerMarketCard } from './PowerMarketCard';
+import { GridStatePanel } from './GridStatePanel';
 
 export function EnergyTile() {
   const { countryLabel, flag } = useCountry();
@@ -20,7 +21,13 @@ export function EnergyTile() {
         <IndicatorCard id="renewable_share" title="Renewable energy" unit="%" />
       </div>
 
-      <PowerMarketCard />
+      {/* The price and the physical situation that sets it, side by side. The
+          dashboard plotted a day-ahead price for months without ever showing
+          whether the grid was short. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <PowerMarketCard />
+        <GridStatePanel />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BalticCompareChart indicator="construction" title="Construction output" compact />

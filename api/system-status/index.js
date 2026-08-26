@@ -71,8 +71,11 @@ const OVERALL_BUDGET_MS = 8000;
 const OPEN_METEO_TTL_MS = 5 * 60 * 1000;
 const OPEN_METEO_GRACE_MS = 25 * 60 * 1000;
 
-function httpOptions() {
-  return { deadlineMs: PROBE_DEADLINE_MS, retries: PROBE_RETRIES };
+function httpOptions(check) {
+  return {
+    deadlineMs: (check && check.deadlineMs) || PROBE_DEADLINE_MS,
+    retries: PROBE_RETRIES,
+  };
 }
 
 /**
@@ -163,7 +166,7 @@ function numberOr(value, fallback) {
  */
 async function probe(check) {
   if (check.type === 'ecb-xml') {
-    const xml = await es.httpText(check.url, httpOptions());
+    const xml = await es.httpText(check.url, httpOptions(check));
     const hasEnvelope = /<\s*(?:\w+:)?Envelope\b/i.test(xml);
     const hasCube = /<\s*(?:\w+:)?Cube\b/i.test(xml);
     if (!hasEnvelope || !hasCube) throw new Error('ECB XML missing required elements (envelope and/or cube)');
@@ -171,7 +174,7 @@ async function probe(check) {
   }
 
   if (check.type === 'ckan') {
-    const body = await es.httpJson(check.url, httpOptions());
+    const body = await es.httpJson(check.url, httpOptions(check));
     // CKAN answers 200 with success:false for an unknown action, which is how
     // a removed action previously read as a healthy source.
     if (body && body.success === false) {
@@ -191,7 +194,7 @@ async function probe(check) {
       try {
         const body = await es.httpJson(
           'https://data.gov.lv/dati/api/3/action/package_show?id=' + encodeURIComponent(dataset),
-          httpOptions(),
+          httpOptions(check),
         );
         if (!body || body.success !== true) throw new Error('success:false');
         const resources = (body.result && body.result.resources) || [];
@@ -211,14 +214,14 @@ async function probe(check) {
     // Parsing is not enough: an emptied cube still parses. A cube carrying no
     // observation at all is a fault; a cube whose newest observation is merely
     // old is a staleness question, and the caller answers it.
-    const body = await es.httpJson(check.url, httpOptions());
+    const body = await es.httpJson(check.url, httpOptions(check));
     const observation = cubeHealth.newestObservation(body, check.cubeKey);
     if (observation === null) throw new Error('Cube answered but carries no observation');
     return observation;
   }
 
   if (check.type === 'elering') {
-    const body = await es.httpJson(check.url, httpOptions());
+    const body = await es.httpJson(check.url, httpOptions(check));
     if (body && body.success === false) throw new Error('Elering reported failure');
     const observation = freshness.extract.elering(body);
     if (observation === null) throw new Error('Elering answered with no priced intervals');
@@ -236,7 +239,7 @@ async function probe(check) {
       OPEN_METEO_TTL_MS,
       OPEN_METEO_GRACE_MS,
       async function () {
-        const body = await es.httpJson(check.url, httpOptions());
+        const body = await es.httpJson(check.url, httpOptions(check));
         if (!body || !body.current) throw new Error('Open-Meteo answered without a current reading');
         return freshness.extract.openMeteo(body);
       },
@@ -254,7 +257,7 @@ async function probe(check) {
   }
 
   if (check.type === 'pxweb-metadata') {
-    const body = await es.httpJson(check.url, httpOptions());
+    const body = await es.httpJson(check.url, httpOptions(check));
     if (!body || !Array.isArray(body.variables)) throw new Error('PxWeb answered without table metadata');
     return freshness.extract.pxwebMetadata(body);
   }
@@ -268,7 +271,7 @@ async function probe(check) {
     // remember to flip a flag.
     let body;
     try {
-      body = await es.httpJson(check.url, httpOptions());
+      body = await es.httpJson(check.url, httpOptions(check));
     } catch (err) {
       if (/HTTP 404/.test(err.message)) {
         return {
@@ -284,12 +287,12 @@ async function probe(check) {
   }
 
   if (check.type === 'text') {
-    const text = await es.httpText(check.url, httpOptions());
+    const text = await es.httpText(check.url, httpOptions(check));
     if (!text || text.length === 0) throw new Error('Empty response');
     return null;
   }
 
-  await es.httpJson(check.url, httpOptions());
+  await es.httpJson(check.url, httpOptions(check));
   return null;
 }
 
@@ -406,7 +409,7 @@ function overallStatus(results) {
 const API_ENDPOINTS = [
   '/api/baltic-compare', '/api/historical-data', '/api/economy-data',
   '/api/property-data', '/api/environment-data', '/api/power-prices',
-  '/api/port-data', '/api/business-search', '/api/eu-funds',
+  '/api/live-grid', '/api/port-data', '/api/business-search', '/api/eu-funds',
   '/api/address-search', '/api/ai-insights', '/api/system-status',
 ];
 
