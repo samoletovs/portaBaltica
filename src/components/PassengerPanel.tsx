@@ -1,5 +1,5 @@
 import type { PortMeasure } from '../types';
-import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote } from './PortPanelParts';
+import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
 
 /**
  * Sea passengers embarked and disembarked at each main port, per quarter.
@@ -13,6 +13,10 @@ import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote } from './
  * publish real zeroes elsewhere and those *are* shown. Carrying a port's
  * last-known figure forward next to current ones would be the worse failure:
  * a four-year-old number formatted identically to this quarter's.
+ *
+ * `DormantPorts` then says which ports that removed, and when each last
+ * reported. Silently dropping Latvia's main passenger port leaves a reader
+ * believing Ventspils is the whole story.
  */
 export function PassengerPanel({ measure }: { measure: PortMeasure }) {
   const title = 'Passenger Traffic';
@@ -25,6 +29,7 @@ export function PassengerPanel({ measure }: { measure: PortMeasure }) {
     <PanelShell title={title}>
       <MeasureHeadline measure={measure} />
       <PortBars measure={measure} />
+      <DormantPorts measure={measure} />
       <p className="text-caption text-slate-500 mt-2">Excludes cruise passengers.</p>
       <PanelNote measure={measure} table="mar_pa_qm" />
     </PanelShell>

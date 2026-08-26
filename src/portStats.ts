@@ -115,6 +115,76 @@ export function unitLabel(unit: PortUnit): string {
   return 'vessels arriving';
 }
 
+/** The same thing in two or three words, for use mid-sentence in a footnote. */
+export function measureNoun(unit: PortUnit): string {
+  if (unit === 'THS_T') return 'cargo';
+  if (unit === 'THS') return 'passengers';
+  return 'vessel arrivals';
+}
+
+/**
+ * Ports present in the response that did not report in the displayed quarter.
+ *
+ * These are the ones the bars silently drop. Riga filed no sea passengers after
+ * 2021-Q4 — confirmed against the unpinned `mar_pa_qm_LV` cube, which carries
+ * zero non-null cells for it across every unit, direction and partner since
+ * 2022 — so it vanishes from a chart headed "Q4 2025" with nothing to tell the
+ * reader it was ever there. Dropping it is right; dropping it silently leaves a
+ * reader believing Latvia's passenger traffic is simply Ventspils.
+ *
+ * Driven by each port's own `latest`, never the block's.
+ */
+export function dormantPorts(measure: PortMeasure): PortSeries[] {
+  const period = measure.latest;
+  if (!period) return [];
+  return measure.ports
+    .filter(port => port.latest !== null && valueAt(port, period) === null)
+    .sort((a, b) => (b.latest ?? '').localeCompare(a.latest ?? ''));
+}
+
+/**
+ * Months a period trails another, or null if either is unreadable.
+ *
+ * Mirrors `periodToMonthIndex` in `api/shared/eurostat.js`: a quarter resolves
+ * to the last month it covers, so 2025-Q4 is December 2025.
+ */
+function monthsBetween(period: string, reference: string): number | null {
+  const idx = (p: string): number | null => {
+    const q = /^(\d{4})-?Q([1-4])$/.exec(p);
+    if (q) return +q[1] * 12 + +q[2] * 3;
+    const m = /^(\d{4})-(\d{2})$/.exec(p);
+    if (m) return +m[1] * 12 + +m[2];
+    const y = /^(\d{4})$/.exec(p);
+    if (y) return +y[1] * 12 + 12;
+    return null;
+  };
+  const a = idx(period);
+  const b = idx(reference);
+  return a === null || b === null ? null : b - a;
+}
+
+/**
+ * A port that has stopped reporting rather than merely fallen a quarter behind.
+ *
+ * Twelve months, matching `DISCONTINUED_AFTER_MONTHS` in `api/port-data` and
+ * `PORT_DATA_STALE_AFTER_MONTHS` here, so the two layers draw the line in the
+ * same place.
+ *
+ * Recomputed on the client rather than trusted from the payload alone, for the
+ * same reason `dataFreshness.ts` recomputes age: `/api/port-data` is cached for
+ * hours at the edge and longer in localStorage, so a response predating this
+ * field must still render honestly. The API sends `discontinued` too, for
+ * consumers that are not this UI.
+ */
+export const DISCONTINUED_AFTER_MONTHS = 12;
+
+export function isDiscontinued(port: PortSeries, measure: PortMeasure): boolean {
+  if (port.discontinued !== undefined) return port.discontinued;
+  if (!port.latest || !measure.latest) return false;
+  const behind = monthsBetween(port.latest, measure.latest);
+  return behind !== null && behind >= DISCONTINUED_AFTER_MONTHS;
+}
+
 /** Signed percentage, e.g. `+4.2%`. */
 export function formatPct(pct: number): string {
   const rounded = Math.abs(pct) < 0.05 ? 0 : pct;

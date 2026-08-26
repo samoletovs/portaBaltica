@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { PortMeasure, CargoMix } from '../types';
 import { formatPeriod } from '../dataFreshness';
 import { formatMeasure } from '../portStats';
-import { PanelEmpty, MeasureHeadline, PortBars, PanelNote } from './PortPanelParts';
+import { PanelEmpty, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
 
 /**
  * Gross weight of goods handled, by port and by cargo type.
@@ -10,9 +10,17 @@ import { PanelEmpty, MeasureHeadline, PortBars, PanelNote } from './PortPanelPar
  * The type breakdown reads only the six categories that partition the total.
  * Eurostat's `cargo` dimension interleaves levels — `LBK` is liquid bulk and
  * `LBK_ROIL` is refined oil *inside* it — so charting the dimension as
- * delivered double-counts every tonne. Estonia publishes no breakdown at all,
- * only a total, so the toggle is hidden rather than offering a view that would
- * render empty.
+ * delivered double-counts every tonne.
+ *
+ * Estonia publishes no breakdown at all. `mar_go_qm_ee` carries exactly one
+ * cargo code, `TOTAL`, against Latvia's 36 and Lithuania's 38: Estonia reports
+ * only aggregate tonnage under the EU maritime statistics regulation. The
+ * toggle is therefore hidden — offering a view that renders empty is worse than
+ * not offering it — but hiding it *silently* was its own small dishonesty, and
+ * one the design book already had on its list: an Estonian reader saw a panel
+ * that simply lacked a control their Latvian counterpart had, with no way to
+ * tell a settled fact about the source from a chart that had broken. So the
+ * absence is now stated, and stated differently from a fetch that failed.
  */
 export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoMix }) {
   const [view, setView] = useState<'port' | 'type'>('port');
@@ -20,9 +28,21 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
 
   const hasPorts = measure.ports.length > 0 && measure.latest !== null;
   const hasMix = mix.categories.length > 0;
+  // Older cached responses predate the field; an empty mix without one is the
+  // case this used to conflate, so treat it as unknown rather than assert.
+  const breakdown = mix.breakdown ?? (hasMix ? 'published' : undefined);
 
   if (!hasPorts && !hasMix) {
-    return <PanelEmpty title={title} reason="No cargo volumes reported for these ports." />;
+    return (
+      <PanelEmpty
+        title={title}
+        reason={
+          breakdown === 'unavailable'
+            ? 'Cargo volumes could not be loaded from Eurostat just now.'
+            : 'No cargo volumes reported for these ports.'
+        }
+      />
+    );
   }
 
   const showing = !hasMix ? 'port' : !hasPorts ? 'type' : view;
@@ -43,9 +63,22 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
         <>
           <MeasureHeadline measure={measure} />
           <PortBars measure={measure} />
+          <DormantPorts measure={measure} />
         </>
       ) : (
         <CargoMixView mix={mix} />
+      )}
+
+      {breakdown === 'unpublished' && (
+        <p className="text-caption mt-2" style={{ color: 'var(--data-warning)' }}>
+          Eurostat publishes no cargo-type breakdown for this country — its table reports a single
+          total and no categories — so there is no split by cargo type to show.
+        </p>
+      )}
+      {breakdown === 'unavailable' && hasPorts && (
+        <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
+          The cargo-type breakdown could not be loaded just now.
+        </p>
       )}
 
       <PanelNote measure={measure} table="mar_go_qm" />

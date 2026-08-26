@@ -25,6 +25,9 @@ import {
   valueAt,
   yearOnYear,
   periodsOf,
+  dormantPorts,
+  isDiscontinued,
+  measureNoun,
 } from '../src/portStats';
 
 function measure(
@@ -176,5 +179,75 @@ describe('formatPct', () => {
 
   it('does not sign a change that rounds to nothing', () => {
     expect(formatPct(0.01)).toBe('0.0%');
+  });
+});
+
+describe('dormantPorts and isDiscontinued', () => {
+  /** A port with its own latest, independent of the block's. */
+  function port(name: string, latest: string | null, points: [string, number | null][], discontinued?: boolean) {
+    return {
+      code: name.toUpperCase(),
+      name,
+      latest,
+      series: points.map(([period, value]) => ({ period, value })),
+      ...(discontinued === undefined ? {} : { discontinued }),
+    };
+  }
+
+  const riga = port('Riga', '2021-Q4', [['2021-Q4', 0], ['2024-Q4', null], ['2025-Q4', null]]);
+  const ventspils = port('Ventspils', '2025-Q4', [['2024-Q4', 53], ['2025-Q4', 56]]);
+
+  const passengers: PortMeasure = {
+    unit: 'THS', countryOnly: false, latest: '2025-Q4', ports: [ventspils, riga],
+  };
+
+  it('finds the port the bars silently drop', () => {
+    // Riga has no value for the quarter on screen, so `PortBars` filters it
+    // out. That is correct and it is invisible, which is the problem.
+    expect(dormantPorts(passengers).map(p => p.name)).toEqual(['Riga']);
+  });
+
+  it('leaves a fully reporting measure alone', () => {
+    const complete: PortMeasure = { ...passengers, ports: [ventspils] };
+    expect(dormantPorts(complete)).toEqual([]);
+  });
+
+  it('finds nothing when there is no quarter to compare against', () => {
+    expect(dormantPorts({ ...passengers, latest: null })).toEqual([]);
+  });
+
+  it('calls a port that has filed nothing for over a year discontinued', () => {
+    // Riga: 2021-Q4 against a block at 2025-Q4 is 48 months.
+    expect(isDiscontinued(riga, passengers)).toBe(true);
+  });
+
+  it('does not call a port a quarter or two behind discontinued', () => {
+    // Eurostat's maritime tables run one to two quarters in arrears as normal
+    // operation, and individual ports slip a quarter routinely. Labelling that
+    // a closure would tell a reader a working port had shut.
+    const late = port('Liepāja', '2025-Q2', [['2025-Q2', 12], ['2025-Q4', null]]);
+    expect(isDiscontinued(late, passengers)).toBe(false);
+  });
+
+  it('draws the line at four quarters, exactly', () => {
+    const onTheLine = port('Edge', '2024-Q4', [['2024-Q4', 1]]);
+    const justInside = port('Inside', '2025-Q1', [['2025-Q1', 1]]);
+    expect(isDiscontinued(onTheLine, passengers)).toBe(true);
+    expect(isDiscontinued(justInside, passengers)).toBe(false);
+  });
+
+  it('trusts the API flag when the payload carries one', () => {
+    // The server computes this too, so consumers that are not this UI get an
+    // honest answer. Where both exist they must agree, and the payload wins.
+    expect(isDiscontinued(port('Flagged', '2025-Q3', [['2025-Q3', 1]], true), passengers)).toBe(true);
+    expect(isDiscontinued(port('Flagged', '2019-Q1', [['2019-Q1', 1]], false), passengers)).toBe(false);
+  });
+});
+
+describe('measureNoun', () => {
+  it('names each measure in a form that fits mid-sentence', () => {
+    expect(measureNoun('THS_T')).toBe('cargo');
+    expect(measureNoun('THS')).toBe('passengers');
+    expect(measureNoun('NR')).toBe('vessel arrivals');
   });
 });

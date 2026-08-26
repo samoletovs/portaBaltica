@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { freshnessOf, formatPeriod, PORT_DATA_STALE_AFTER_MONTHS } from '../src/dataFreshness';
+import { freshnessOf, formatPeriod, periodCoverage, PORT_DATA_STALE_AFTER_MONTHS } from '../src/dataFreshness';
 
 // End of August 2026.
 const NOW = Date.parse('2026-08-25T00:00:00Z');
@@ -95,5 +95,36 @@ describe('formatPeriod', () => {
 
   it('passes through anything it cannot parse', () => {
     expect(formatPeriod('unknown')).toBe('unknown');
+  });
+});
+
+describe('periodCoverage', () => {
+  /**
+   * The maritime tile draws three Eurostat tables published independently, and
+   * they drift. Dating all three by the newest of them is the shared-as-of
+   * problem the per-panel dates exist to avoid, moved up one level: a reader
+   * told "Port statistics for Q1 2026" reads the cargo and passenger panels —
+   * still on Q4 2025 — as current.
+   */
+  it('states one quarter when every measure reached it', () => {
+    expect(periodCoverage('2025-Q4', '2025-Q4')).toEqual({ label: 'Q4 2025', spans: false });
+  });
+
+  it('states the span when they did not', () => {
+    // Lithuania reached 2026-Q1 on vessels while its goods table was a quarter
+    // behind. Claiming Q1 2026 for the whole tile over-dates two of three.
+    expect(periodCoverage('2025-Q4', '2026-Q1'))
+      .toEqual({ label: 'Q4 2025 to Q1 2026', spans: true });
+  });
+
+  it('falls back to the single period when the older bound is missing', () => {
+    // A response cached from before `dataFrom` existed must still date itself.
+    expect(periodCoverage(null, '2025-Q4')).toEqual({ label: 'Q4 2025', spans: false });
+    expect(periodCoverage(undefined, '2025-Q4')).toEqual({ label: 'Q4 2025', spans: false });
+  });
+
+  it('returns null when there is no period, which must not read as current', () => {
+    expect(periodCoverage('2025-Q4', null)).toBeNull();
+    expect(periodCoverage(null, null)).toBeNull();
   });
 });

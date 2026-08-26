@@ -1,5 +1,5 @@
 import type { PortMeasure } from '../types';
-import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote } from './PortPanelParts';
+import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
 
 /**
  * Vessels arriving in each main port, per quarter.
@@ -22,6 +22,7 @@ export function VesselTrafficPanel({ measure }: { measure: PortMeasure }) {
     <PanelShell title={title}>
       <MeasureHeadline measure={measure} />
       <PortBars measure={measure} />
+      <DormantPorts measure={measure} />
       <PanelNote measure={measure} table="mar_tf_qm" />
     </PanelShell>
   );

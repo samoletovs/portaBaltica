@@ -6,7 +6,7 @@ import { PassengerPanel } from './PassengerPanel';
 import { CargoPanel } from './CargoPanel';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
-import { freshnessOf, formatPeriod } from '../dataFreshness';
+import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -26,6 +26,11 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
   if (loading) return <TileSkeleton />;
 
   const freshness = freshnessOf(stats?.dataAsOf);
+  // The three maritime tables are published independently and do drift apart —
+  // the Europe-wide vessel cube was padded to 2026-Q2 while Latvian goods
+  // stopped at 2025-Q4. Heading the tile with the newest of them dates all
+  // three panels to a quarter two of them have not reached.
+  const coverage = periodCoverage(stats?.dataFrom, stats?.dataAsOf);
 
   return (
     <section>
@@ -33,15 +38,21 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
         <h2 className="balance-text text-title font-semibold text-white">Maritime</h2>
         {/* The port weather below is live; the statistics are quarterly and
             always in arrears. Saying which is which is the whole point. */}
-        {freshness && (
+        {coverage && (
           <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-            Port statistics for {formatPeriod(freshness.period)}
+            Port statistics for {coverage.label}{coverage.spans ? ', by measure' : ''}
           </span>
         )}
       </div>
 
       {freshness?.stale && (
-        <div className="mb-3 px-3 py-2 rounded-lg text-caption text-amber-300 bg-amber-400/10 border border-amber-400/20">
+        // `text-amber-300` is not remapped by the theme layer in `index.css` —
+        // that layer covers the 400 step and not the 300 — so in light mode
+        // this shipped at 1.44:1 against white. A staleness warning nobody can
+        // read is worse than none, because the page then looks confident.
+        // `--data-warning` is defined per theme and is legible on both.
+        <div className="mb-3 px-3 py-2 rounded-lg text-caption bg-amber-400/10 border border-amber-400/20"
+          style={{ color: 'var(--data-warning)' }}>
           Cargo, passenger and vessel figures below are {freshness.label}. Eurostat has published
           nothing newer for {countryLabel} than {formatPeriod(freshness.period)}. Weather and sea
           state are live.

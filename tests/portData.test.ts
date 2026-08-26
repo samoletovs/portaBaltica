@@ -209,3 +209,26 @@ describe('the series definitions', () => {
     }
   });
 });
+
+describe('the port registry', () => {
+  it('excludes the "other ports" bucket Eurostat mixes in with the named ones', () => {
+    // `mar_pa_qm_lv` returns LV, LV_0LVRIX, LV_0LVVNT *and* LV_0LV888 —
+    // "Latvia, other ports", which is all zeroes every quarter. It is not a
+    // port, it has no name a reader would recognise, and charting it puts an
+    // empty bar under a made-up label. `loadPortSeries` intersects the cube's
+    // codes with this registry, which is what keeps it out; a change to that
+    // filter would let it back in silently.
+    const codes = ports.PORTS.LV.map((p: { code: string }) => p.code);
+    expect(codes).not.toContain('LV_0LV888');
+    expect(codes).not.toContain('LV');
+
+    for (const country of ports.COUNTRIES) {
+      for (const port of ports.PORTS[country]) {
+        expect(port.code, `${port.code} must be a specific port, not an aggregate`)
+          .not.toMatch(/888$/);
+        expect(port.code).not.toBe(country);
+        expect(port.name.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});

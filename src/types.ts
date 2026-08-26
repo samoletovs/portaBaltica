@@ -270,6 +270,16 @@ export interface PortSeries {
   series: PortPoint[];
   /** Newest period carrying a value. */
   latest: string | null;
+  /** Months this port's newest filing trails the newest any port reached. */
+  monthsBehind?: number | null;
+  /**
+   * True when the port has filed nothing for over a year — it has stopped
+   * reporting, rather than merely being a quarter late. Riga's sea passenger
+   * series ends at 2021-Q4 behind four literal zeroes, which is a route that
+   * closed; a port one quarter in arrears is a table that has not caught up.
+   * A reader shown a chart missing a port must be able to tell which.
+   */
+  discontinued?: boolean;
 }
 
 /**
@@ -286,11 +296,26 @@ export interface PortMeasure {
   ports: PortSeries[];
 }
 
-/** Cargo split by type for a single quarter, in thousand tonnes. */
+/**
+ * Cargo split by type for a single quarter, in thousand tonnes.
+ *
+ * `breakdown` distinguishes the three reasons `categories` can be empty, which
+ * an empty array alone cannot:
+ *
+ *   - `published` — the categories are here.
+ *   - `unpublished` — Eurostat publishes no cargo-type breakdown for this
+ *     country at all. `mar_go_qm_ee` carries exactly one cargo code, `TOTAL`,
+ *     so Estonia has a total and no components and always will. Saying so is
+ *     the difference between a reader believing our chart broke and a reader
+ *     learning something true about the source.
+ *   - `unavailable` — the fetch failed. Possibly transient, and not the same
+ *     claim at all.
+ */
 export interface CargoMix {
   period: string | null;
   total: number | null;
   categories: { code: string; name: string; weight: number }[];
+  breakdown?: 'published' | 'unpublished' | 'unavailable';
 }
 
 /** Baltic port statistics from Eurostat, via the API proxy. */
@@ -309,6 +334,13 @@ export interface PortDataResponse {
    * and the UI states it rather than implying the figures are current.
    */
   dataAsOf?: string | null;
+  /**
+   * The quarter every measure has reached. Equal to `dataAsOf` when the three
+   * tables are in step, older when they have drifted apart — Eurostat publishes
+   * them independently, so the tile must state a span rather than date all
+   * three panels to the newest one.
+   */
+  dataFrom?: string | null;
   source?: string;
   /** Non-empty only if a cube dimension went unpinned and a slice was guessed. */
   assumptions?: { dimension: string; chosen: string; optionCount: number; reason: string }[];
