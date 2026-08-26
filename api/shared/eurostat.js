@@ -45,7 +45,9 @@ function httpText(url, options) {
     };
 
     const timer = setTimeout(function () {
-      finish(new Error('Deadline ' + deadlineMs + 'ms exceeded for ' + url));
+      const err = new Error('Deadline ' + deadlineMs + 'ms exceeded for ' + url);
+      err.transient = true;
+      finish(err);
     }, deadlineMs);
 
     const req = https.get(url, {
@@ -62,13 +64,59 @@ function httpText(url, options) {
       res.on('error', finish);
     });
 
-    req.on('timeout', function () { finish(new Error('Timeout: ' + url)); });
-    req.on('error', finish);
+    req.on('timeout', function () {
+      const err = new Error('Timeout: ' + url);
+      err.transient = true;
+      finish(err);
+    });
+    req.on('error', function (err) {
+      // A refused, reset or unresolvable connection is worth one more go for
+      // the same reason a hung one is: it says nothing about whether the
+      // source is healthy, only about this particular socket.
+      err.transient = true;
+      finish(err);
+    });
   });
 }
 
+/**
+ * One retry for a connection that hung, refused or reset — never for an answer.
+ *
+ * Measured against production: the Open-Meteo probe returned in 17–63ms when it
+ * worked and in *exactly* 5000ms when it did not, roughly one call in three,
+ * while the same endpoint answered in 119–222ms from a laptop. A response that
+ * lands precisely on the deadline is a socket that was accepted and then said
+ * nothing — not a slow source. The most likely cause is the shared Azure egress
+ * address being rate-limited by Open-Meteo's per-IP free tier, which no amount
+ * of waiting fixes but a fresh connection usually does.
+ *
+ * Only transient failures are retried. An HTTP 404 or a malformed body is an
+ * answer, and asking again just spends another second to be told the same
+ * thing. `retries` defaults to 0, so no existing caller changes behaviour.
+ */
+function withRetry(fn, retries) {
+  const attempts = Math.max(1, (retries || 0) + 1);
+  let attempt = 0;
+
+  const tryOnce = function () {
+    attempt++;
+    return fn().catch(function (err) {
+      if (attempt >= attempts || !err || !err.transient) throw err;
+      return tryOnce();
+    });
+  };
+
+  return tryOnce();
+}
+
+function httpTextRetrying(url, options) {
+  const opts = options || {};
+  if (!opts.retries) return httpText(url, opts);
+  return withRetry(function () { return httpText(url, opts); }, opts.retries);
+}
+
 function httpJson(url, options) {
-  return httpText(url, options).then(function (text) {
+  return httpTextRetrying(url, options).then(function (text) {
     try {
       return JSON.parse(text);
     } catch (e) {
@@ -340,8 +388,9 @@ function maxAgeMonths(def) {
 
 module.exports = {
   EUROSTAT_BASE: EUROSTAT_BASE,
-  httpText: httpText,
+  httpText: httpTextRetrying,
   httpJson: httpJson,
+  withRetry: withRetry,
   parseJsonStat: parseJsonStat,
   parseJsonStatDim: parseJsonStatDim,
   sincePeriod: sincePeriod,

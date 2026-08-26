@@ -25,12 +25,20 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
   const { country, countryLabel } = useCountry();
   if (loading) return <TileSkeleton />;
 
-  const freshness = freshnessOf(stats?.dataAsOf);
   // The three maritime tables are published independently and do drift apart —
   // the Europe-wide vessel cube was padded to 2026-Q2 while Latvian goods
   // stopped at 2025-Q4. Heading the tile with the newest of them dates all
   // three panels to a quarter two of them have not reached.
   const coverage = periodCoverage(stats?.dataFrom, stats?.dataAsOf);
+
+  // Staleness is judged on the *oldest* measure, not the newest. Keying it on
+  // `dataAsOf` meant one current table could hold the warning off while another
+  // panel sat years behind: the reader would be looking at frozen figures under
+  // a tile that had decided everything was fine. The oldest bound is the one
+  // capable of misleading, so it is the one that decides whether to warn.
+  const oldest = stats?.dataFrom ?? stats?.dataAsOf;
+  const newest = stats?.dataAsOf;
+  const freshness = freshnessOf(oldest);
 
   return (
     <section>
@@ -53,9 +61,21 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
         // `--data-warning` is defined per theme and is legible on both.
         <div className="mb-3 px-3 py-2 rounded-lg text-caption bg-amber-400/10 border border-amber-400/20"
           style={{ color: 'var(--data-warning)' }}>
-          Cargo, passenger and vessel figures below are {freshness.label}. Eurostat has published
-          nothing newer for {countryLabel} than {formatPeriod(freshness.period)}. Weather and sea
-          state are live.
+          {coverage?.spans && newest ? (
+            // Naming only the oldest would be false about the measures that are
+            // current, and naming only the newest is what hid the problem.
+            <>
+              The oldest figures below are {freshness.label}, at {formatPeriod(freshness.period)};
+              the newest reach {formatPeriod(newest)}. Each panel states its own quarter.
+              Weather and sea state are live.
+            </>
+          ) : (
+            <>
+              Cargo, passenger and vessel figures below are {freshness.label}. Eurostat has
+              published nothing newer for {countryLabel} than {formatPeriod(freshness.period)}.
+              Weather and sea state are live.
+            </>
+          )}
         </div>
       )}
 
