@@ -400,7 +400,12 @@ class TestOneArticlePerEvent:
 
         assert len(report.selected) == 1
         assert report.selected[0].metric == "day_ahead_power_price"
-        assert report.same_event == 1
+        # Which of the two folds caught it is an implementation detail and has
+        # moved: keying the release fold on the family means a Baltic-wide pair
+        # is absorbed there, and the event fold now covers the geographies the
+        # release fold passes through. The contract is one story, not which
+        # counter incremented.
+        assert report.same_release + report.same_event == 1
 
     def test_should_leave_unrelated_metrics_alone(self):
         """A metric standing on its own is its own family.
@@ -431,6 +436,115 @@ class TestOneArticlePerEvent:
                         geography="Baltic", period="2026-08-24"),
             make_signal(score=0.85, metric="day_ahead_power_spread",
                         geography="Baltic", period="2026-08-25"),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 2
+
+
+class TestOneReleaseIsOneStoryHoweverManyWaysItIsRead:
+    """Seven nested balance-of-payments series are one release.
+
+    The goods-and-services balance IS goods plus services, and services is
+    transport plus financial plus telecoms plus other business services — so
+    the same euro appears in three of them. On the live collection they
+    produced **26 of 47 signals** and took three of the eight slots, which is
+    why maritime's best signal, a container record scoring 0.95, landed
+    seventh of eight and was the first thing lost to any jitter.
+
+    Folding them fixed the front page without a section quota: measured over
+    the same 47 signals, trade goes from three slots to one and maritime from
+    nothing to four articles, two of them on the first run's page.
+    """
+
+    BOP = (
+        "trade_balance",
+        "goods_balance",
+        "services_balance",
+        "transport_services_balance",
+        "financial_services_balance",
+        "ict_services_balance",
+        "other_business_services_balance",
+    )
+
+    @pytest.mark.parametrize("metric", BOP)
+    def test_every_component_belongs_to_the_family(self, metric):
+        assert family_of(metric) == "external_balance"
+
+    def test_one_release_yields_one_article(self):
+        signals = [
+            make_signal(score=0.90 + index / 100, metric=metric,
+                        geography="Baltic", period="2026-Q1")
+            for index, metric in enumerate(self.BOP)
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 1
+
+    def test_the_strongest_component_wins_not_the_headline_total(self):
+        """The split exists because "the total hides the finding".
+
+        All three states run a similar goods deficit and the entire divergence
+        sits in services, so collection keeps the components deliberately.
+        Folding must preserve that: the wire should say "the transport services
+        balance diverged", not fall back to the vaguer headline number.
+        """
+        signals = [
+            make_signal(score=0.70, metric="trade_balance",
+                        geography="Baltic", period="2026-Q1"),
+            make_signal(score=0.99, metric="transport_services_balance",
+                        geography="Baltic", period="2026-Q1"),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert [s.metric for s in report.selected] == ["transport_services_balance"]
+
+    def test_a_later_run_does_not_publish_another_component(self):
+        """Within a run they were folded; across runs they were not.
+
+        Live, that produced transport services on run 1, financial services on
+        run 2, services on run 3 and the headline total on run 4 — four
+        articles about one quarter of one release, on four consecutive runs.
+        Same bug as the country fold, in the same shape, needing the same fix.
+        """
+        published = {finding_key("transport_services_balance", "Baltic", "2026-Q1")}
+
+        report = rank(
+            [
+                make_signal(score=0.99, metric="financial_services_balance",
+                            geography="Baltic", period="2026-Q1"),
+                make_signal(score=0.98, metric="goods_balance",
+                            geography="EE", period="2026-Q1"),
+            ],
+            POLICY,
+            published=published,
+        )
+
+        assert report.selected == []
+        assert report.already_published == 2
+
+    def test_a_new_quarter_is_a_new_release(self):
+        published = {finding_key("transport_services_balance", "Baltic", "2026-Q1")}
+
+        report = rank(
+            [make_signal(score=0.9, metric="goods_balance",
+                         geography="Baltic", period="2026-Q2")],
+            POLICY,
+            published=published,
+        )
+
+        assert len(report.selected) == 1
+
+    def test_an_unrelated_metric_is_untouched(self):
+        """Only declared families fold. A metric on its own is its own family."""
+        signals = [
+            make_signal(score=0.9, metric="unemployment_rate",
+                        geography="Baltic", period="2026-06"),
+            make_signal(score=0.85, metric="goods_balance",
+                        geography="Baltic", period="2026-06"),
         ]
 
         report = rank(signals, POLICY)

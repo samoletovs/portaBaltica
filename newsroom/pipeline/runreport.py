@@ -76,6 +76,16 @@ def _history_blob(finished_at: str) -> str:
     return f"runs/{day}/{stamp}.json"
 
 
+def _sections_of(articles: Any) -> dict[str, int]:
+    """How many articles each beat filed, highest first."""
+    counts: dict[str, int] = {}
+    for article in articles or ():
+        section = getattr(article, "section", None)
+        if isinstance(section, str) and section:
+            counts[section] = counts.get(section, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
 def build_run_report(
     report: Any,
     *,
@@ -105,9 +115,9 @@ def build_run_report(
         except TypeError:
             return 0
 
-    published = list(getattr(report, "published", ()) or ())
-    rejected = list(getattr(report, "rejected", ()) or ())
-    desk = list(getattr(report, "desk", ()) or ())
+    published = list(getattr(report, "published", ()) or [])
+    rejected = list(getattr(report, "rejected", ()) or [])
+    desk = list(getattr(report, "desk", ()) or [])
 
     desk_actions: dict[str, int] = {}
     for outcome in desk:
@@ -170,6 +180,12 @@ def build_run_report(
             "last_original_at": last_original_at,
             "runs_without_originals": runs_without_originals,
         },
+        # Which beats made the page. A front page is a shape, not just a count:
+        # three trade stories and no maritime is not one an editor would lay
+        # out, and until the balance-of-payments family map landed that is
+        # exactly what the ranking produced. Reported so the effect is
+        # observable rather than assumed.
+        "sections": _sections_of(published),
         "desk": desk_actions,
         "published_slugs": [getattr(a, "slug", "") for a in published][:50],
         "rejected_slugs": [getattr(a, "slug", "") for a in rejected][:50],
