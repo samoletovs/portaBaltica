@@ -45,7 +45,9 @@ function httpText(url, options) {
     };
 
     const timer = setTimeout(function () {
-      finish(new Error('Deadline ' + deadlineMs + 'ms exceeded for ' + url));
+      const err = new Error('Deadline ' + deadlineMs + 'ms exceeded for ' + url);
+      err.transient = true;
+      finish(err);
     }, deadlineMs);
 
     const req = https.get(url, {
@@ -54,7 +56,17 @@ function httpText(url, options) {
     }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return finish(new Error('HTTP ' + res.statusCode + ' from ' + url));
+        const err = new Error('HTTP ' + res.statusCode + ' from ' + url);
+        err.status = res.statusCode;
+        // A 5xx or a 429 is the server saying "not now", which is the textbook
+        // retryable answer — and the one a rate limiter in front of a source
+        // actually returns. Observed live: Elering answered HTTP 503 through
+        // Cloudflare three times in ten seconds and then served eight clean
+        // requests, which was long enough for the status page to call a healthy
+        // source dead. Every other 4xx is an answer about the request itself
+        // and asking again only spends another second to hear it repeated.
+        if (res.statusCode === 429 || res.statusCode >= 500) err.transient = true;
+        return finish(err);
       }
       let data = '';
       res.on('data', function (chunk) { data += chunk; });
@@ -62,13 +74,72 @@ function httpText(url, options) {
       res.on('error', finish);
     });
 
-    req.on('timeout', function () { finish(new Error('Timeout: ' + url)); });
-    req.on('error', finish);
+    req.on('timeout', function () {
+      const err = new Error('Timeout: ' + url);
+      err.transient = true;
+      finish(err);
+    });
+    req.on('error', function (err) {
+      // A refused, reset or unresolvable connection is worth one more go for
+      // the same reason a hung one is: it says nothing about whether the
+      // source is healthy, only about this particular socket.
+      err.transient = true;
+      finish(err);
+    });
   });
 }
 
+/**
+ * One retry for a connection that hung, refused, reset, or was turned away.
+ *
+ * Two live failures motivate this, and they look nothing alike:
+ *
+ *   - The Open-Meteo probe returned in 17–63ms when it worked and in *exactly*
+ *     5000ms when it did not, roughly one call in three, while the same
+ *     endpoint answered in 119–222ms from a laptop. A response landing
+ *     precisely on the deadline is a socket that was accepted and then said
+ *     nothing — not a slow source. The likeliest cause is the shared Azure
+ *     egress address meeting a per-IP free-tier limit, which no amount of
+ *     waiting fixes but a fresh connection usually does.
+ *   - Elering answered HTTP 503 through Cloudflare three times in ten seconds
+ *     and then served eight consecutive clean requests. A rate limiter says
+ *     429 or 503 rather than hanging, so covering only timeouts would have
+ *     missed the very hypothesis the retry was built for.
+ *
+ * Only transient failures are retried. An HTTP 404 or a malformed body is an
+ * answer; asking again spends another second to hear the same thing.
+ * `retries` defaults to 0, so no existing caller changes behaviour.
+ *
+ * The pause is short on purpose. It gives a rate limiter a moment to forget
+ * without pushing two attempts past the status page's own budget.
+ */
+const RETRY_PAUSE_MS = 200;
+
+function withRetry(fn, retries) {
+  const attempts = Math.max(1, (retries || 0) + 1);
+  let attempt = 0;
+
+  const tryOnce = function () {
+    attempt++;
+    return fn().catch(function (err) {
+      if (attempt >= attempts || !err || !err.transient) throw err;
+      return new Promise(function (resolve) {
+        setTimeout(resolve, RETRY_PAUSE_MS);
+      }).then(tryOnce);
+    });
+  };
+
+  return tryOnce();
+}
+
+function httpTextRetrying(url, options) {
+  const opts = options || {};
+  if (!opts.retries) return httpText(url, opts);
+  return withRetry(function () { return httpText(url, opts); }, opts.retries);
+}
+
 function httpJson(url, options) {
-  return httpText(url, options).then(function (text) {
+  return httpTextRetrying(url, options).then(function (text) {
     try {
       return JSON.parse(text);
     } catch (e) {
@@ -340,8 +411,9 @@ function maxAgeMonths(def) {
 
 module.exports = {
   EUROSTAT_BASE: EUROSTAT_BASE,
-  httpText: httpText,
+  httpText: httpTextRetrying,
   httpJson: httpJson,
+  withRetry: withRetry,
   parseJsonStat: parseJsonStat,
   parseJsonStatDim: parseJsonStatDim,
   sincePeriod: sincePeriod,
