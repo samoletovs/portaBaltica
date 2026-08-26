@@ -131,14 +131,21 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Azure Functions Core Tools
-        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
-
       - name: Publish
-        working-directory: newsroom
-        # Remote build so the wheels are built on the platform that will run
-        # them rather than on the runner.
-        run: func azure functionapp publish portabaltica-func --python --build remote
+        # `Azure/functions-action` rather than installing Azure Functions Core
+        # Tools from npm: this runner's package proxy serves lockfile-resolved
+        # installs but rejects an arbitrary `npm install -g` with E401, and the
+        # official action needs no toolchain of its own. It also understands
+        # Flex Consumption's deployment endpoint, which a zip-deploy does not.
+        uses: Azure/functions-action@v1
+        with:
+          app-name: portabaltica-func
+          package: newsroom
+          # Build the wheels on the platform that will run them. The runner is
+          # x64 Linux and so is the host, but the Python patch level differs,
+          # and a locally-built wheel pinned to the wrong one fails to import at
+          # start-up rather than at deploy time.
+          remote-build: true
 
       - name: Confirm the host came back with the timer registered
         # A publish that exits zero and leaves the app unable to load its
