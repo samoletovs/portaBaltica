@@ -68,14 +68,26 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         params={"s_adj": "SA", "age": "TOTAL", "sex": "T", "unit": "PC_ACT"},
     ),
     EurostatDataset(
-        dataset="prc_hicp_manr",
+        # ECOICOP ver.2. The ver.1 tables (prc_hicp_manr and friends) were
+        # frozen on 2026-02-06 with 2025-12 as their last period, and they still
+        # answer HTTP 200 and still list all 467 old codes — so nothing failed,
+        # nothing logged, and the newsroom went on reading December 2025 as
+        # though it were this month's inflation. api/shared/indicators.js was
+        # migrated for the dashboard in #60; this copy was not, which is the
+        # drift test_collector_matches_dashboard.py now exists to prevent.
+        #
+        # ver.2 renames the dimension coicop -> coicop18, renames all-items
+        # CP00 -> TOTAL, and folds the index and the rates of change into one
+        # cube, so unit must be pinned to RCH_A to get the annual rate that
+        # prc_hicp_manr used to return on its own.
+        dataset="prc_hicp_minr",
         metric="hicp_annual_rate",
         metric_label="annual consumer price inflation (HICP)",
         unit="%",
         section="economy",
         frequency="monthly",
         chart_ref="inflation",
-        params={"coicop": "CP00", "unit": "RCH_A"},
+        params={"coicop18": "TOTAL", "unit": "RCH_A"},
     ),
     # --- Added coverage -----------------------------------------------------
     # The newsroom read two series while the dashboard already published
