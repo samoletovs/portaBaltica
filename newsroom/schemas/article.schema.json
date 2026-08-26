@@ -123,6 +123,21 @@
           }
         },
         "signal_id": { "type": "string", "description": "The deterministic signal that triggered this story." },
+        "signal_detector": { "type": "string", "description": "Which detector fired." },
+        "signal_finding": { "type": "string", "description": "metric|geography|period — the reading itself, which ranking suppresses on next run so the wire does not retell a story it has already told." },
+        "comparison_basis": { "type": "string", "description": "What the finding is measured against, in the detector's own words." },
+        "attempts": { "type": "integer", "minimum": 1, "description": "How many drafts this took. A rising average means the prompt, not the model, needs work." },
+        "rejection": {
+          "type": "object",
+          "description": "Why a rejected draft was refused, on the artifact itself. Establishing what was killing the wire once required parsing 200 blobs, because a rejected draft recorded that it failed and nothing about what failed.",
+          "required": ["gate", "checks", "detail"],
+          "additionalProperties": false,
+          "properties": {
+            "gate": { "enum": ["validator", "article_shape"] },
+            "checks": { "type": "array", "items": { "type": "string" } },
+            "detail": { "type": "string" }
+          }
+        },
         "model": { "type": "string", "description": "e.g. gpt-4o-mini@2024-07-18. Null for tier B and C, which involve no generation." },
         "prompt_version": { "type": "string" },
         "research": {

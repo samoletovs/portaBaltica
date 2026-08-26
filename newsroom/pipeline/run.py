@@ -35,6 +35,7 @@ from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.analyst import AnalystBrief, analyse
 from newsroom.pipeline.context import ContextPack, build_context, enrich_signal
 from newsroom.pipeline.detect import Threshold, detect_all
+from newsroom.pipeline.decisions import DecisionLedger
 from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
 from newsroom.pipeline import house_style
 from newsroom.pipeline.detect.series import TimeSeries
@@ -507,12 +508,32 @@ async def run_once(
             except Exception as exc:  # noqa: BLE001
                 log.warning("could not read published slugs (%s); editing all cards", exc)
                 live = set()
-            report.syndicated = [card for card in cards if card.slug not in live]
+            # And the refusals. A card the editor rejected never reaches the
+            # index, so `live` cannot see it and it was re-read on every run —
+            # 103 of 111 tier C rejections in one window were Azure
+            # content-filter refusals on Ukraine and Russia coverage, 59 unique
+            # headlines, re-sent three times a day to be refused again.
+            #
+            # Remembered rather than filtered by topic. A Baltic wire that
+            # quietly drops military stories has an editorial problem, not a
+            # cost one; remembering that THIS CARD was refused leaves the next
+            # story from the same outlet to be read on its merits.
+            ledger = DecisionLedger(store)
+            try:
+                refused = await ledger.refused_slugs()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("could not read the decision ledger (%s)", exc)
+                refused = set()
+            decided = live | refused
+            report.syndicated = [card for card in cards if card.slug not in decided]
             report.syndication_skipped = len(cards) - len(report.syndicated)
             if report.syndication_skipped:
                 log.info(
-                    "syndication: %d card(s) already published, %d to decide",
+                    "syndication: %d card(s) already decided (%d published, "
+                    "%d previously refused), %d to decide",
                     report.syndication_skipped,
+                    len(live),
+                    len(refused),
                     len(report.syndicated),
                 )
             try:
@@ -520,6 +541,16 @@ async def run_once(
             except Exception as exc:  # noqa: BLE001
                 log.exception("editor stage failed")
                 report.errors.append(f"editor: {exc}")
+            else:
+                # Record only what cannot change. See `decisions.py`.
+                by_id = {card.id: card for card in report.syndicated}
+                try:
+                    await ledger.remember(
+                        (getattr(by_id.get(outcome.article_id), "slug", ""), outcome)
+                        for outcome in report.edited
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("could not update the decision ledger (%s)", exc)
 
         # --- 11. publish ---------------------------------------------------
         await _store_all(store, report)
