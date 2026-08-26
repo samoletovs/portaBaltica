@@ -342,7 +342,17 @@ async def run_once(
                 min_score=DEFAULT_RANKING.min_score,
                 max_per_metric=DEFAULT_RANKING.max_per_metric,
             )
-        report.ranking = rank(report.signals, policy)
+        # What this wire has already run. Read before ranking so a repeat is
+        # suppressed before it costs a research pass, an analyst brief, up to
+        # three writer drafts and up to three desk reads. The index has deduped
+        # itself for a while, which fixed the front page and not the bill.
+        try:
+            already_published = await store.published_findings()
+        except Exception as exc:  # noqa: BLE001 — a missing history is not fatal
+            log.warning("could not read published findings (%s); nothing suppressed", exc)
+            already_published = set()
+
+        report.ranking = rank(report.signals, policy, published=already_published)
 
         # --- 4. context -------------------------------------------------
         # Everything else the newsroom retrieved this run that bears on each

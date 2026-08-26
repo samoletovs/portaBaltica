@@ -26,6 +26,7 @@ from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline.context import ContextPack
 from newsroom.pipeline.house_style import StyleReport, apply_house_style
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
+from newsroom.pipeline.rank import finding_key
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.units import unit_for_field
 from newsroom.pipeline.write.reconcile import drop_unusable_figures, reconcile_figures
@@ -370,6 +371,11 @@ def _article_from_payload(
             "sources": [ref.to_json() for ref in signal.sources],
             "signal_id": signal.id,
             "signal_detector": signal.detector,
+            # What makes two articles the same story across runs: the reading, not
+            # the telling. `signal_id` hashes the detector and the value in as well,
+            # so a revision or a second detector on the same reading mints a new one
+            # and the wire republishes. See `rank.finding_key`.
+            "signal_finding": finding_key(signal.metric, signal.geography, signal.period),
             "comparison_basis": signal.comparison_basis,
             "model": writer.model_name,
             "prompt_version": PROMPT_VERSION,

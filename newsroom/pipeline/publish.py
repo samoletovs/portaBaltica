@@ -412,6 +412,25 @@ class ArticleStore:
             kept.append(entry)
         return kept
 
+    async def published_findings(self) -> set[str]:
+        """Findings already on the front page, for ranking to suppress.
+
+        Read from the index rather than kept in a separate ledger, because the
+        index is already the durable, blob-authoritative record of what this
+        wire has published and a second store would be a second thing to drift.
+
+        Entries written before ``signal_finding`` existed carry none, and are
+        simply absent from the result: an unknown history means nothing is
+        suppressed, which fails towards publishing a duplicate rather than
+        towards silently withholding a story.
+        """
+        entries = await asyncio.to_thread(self._read_existing_index)
+        return {
+            entry["signal_finding"]
+            for entry in entries
+            if isinstance(entry.get("signal_finding"), str) and entry["signal_finding"]
+        }
+
     async def write_index(self, articles: Sequence[Article]) -> str:
         """A compact index of servable articles, for the frontend to fetch.
 
@@ -460,6 +479,13 @@ class ArticleStore:
                 # sharing one signal are two tellings of the same finding, not
                 # two stories, and the index dedupes on it below.
                 "signal_id": (a.provenance or {}).get("signal_id"),
+                # The reading itself — metric, geography, period — which is what
+                # ranking suppresses on next run. Broader than `signal_id` on
+                # purpose: see `rank.finding_key`. Absent on entries written
+                # before this field existed, and those are simply not
+                # suppressed, which fails towards publishing rather than
+                # towards silence.
+                "signal_finding": (a.provenance or {}).get("signal_finding"),
             }
             for a in articles
             if is_servable(a)

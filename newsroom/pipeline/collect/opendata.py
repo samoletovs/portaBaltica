@@ -370,6 +370,61 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         )
         for country in BALTIC
     ),
+    # --- Maritime, by cargo type --------------------------------------------
+    # Total throughput moves slowly and says little; the story is which cargo
+    # moved. "Dry bulk at Klaipeda: the highest third quarter since before the
+    # pandemic" is a piece, and it needs the composition rather than the total.
+    #
+    # LATVIA AND LITHUANIA ONLY, and this is the asymmetry that has to be
+    # explicit rather than discovered. Estonia publishes `cargo=TOTAL` and
+    # nothing else: the cube answers HTTP 200 for `cargo=DBK`, returns all 48
+    # quarters in its time dimension, and carries ZERO values in them — checked
+    # live for DBK, LBK and LCNT. Nothing errors. `parse_jsonstat` drops a
+    # series with no observations, so Estonia contributes no series at all
+    # rather than an empty one, which is the safe outcome; asking for it anyway
+    # would spend three requests a run to learn that again.
+    #
+    # A consequence worth stating: `detect_divergence` needs three geographies
+    # and will therefore never fire on a cargo category. That is correct, not a
+    # gap. The composition story is a single-port one — a record, a run, a
+    # seasonal departure — and ranking folds the Latvian and Lithuanian
+    # readings of one category into one article anyway.
+    #
+    # Four categories, not the six that partition the total. `RO_MNSP` is a
+    # technical split of ro-ro traffic and `OTH` is the residual bucket; a
+    # record high in "other cargo" is not a story, and both would consume wire
+    # capacity that the four real ones deserve.
+    *(
+        EurostatDataset(
+            dataset=f"mar_go_qm_{country.lower()}",
+            metric=f"port_goods_{slug}",
+            metric_label=f"seaborne {label} handled in the country's ports",
+            unit="thousand tonnes",
+            section="maritime",
+            frequency="quarterly",
+            # Same reason as the total above: there is no port indicator on
+            # /api/baltic-compare to point at.
+            chart_ref=None,
+            params={
+                "freq": "Q",
+                "direct": "TOTAL",
+                "cargo": code,
+                "unit": "THS_T",
+                "par_mar": "TOTAL",
+                "rep_mar": country,
+            },
+            periods=48,
+            geo_dimension="rep_mar",
+            geographies=(),
+        )
+        for country in ("LV", "LT")
+        for code, slug, label in (
+            ("LBK", "liquid_bulk", "liquid bulk"),
+            ("DBK", "dry_bulk", "dry bulk"),
+            ("LCNT", "containers", "containerised cargo"),
+            ("RO_MSP", "roro", "roll-on/roll-off freight"),
+        )
+    ),
     # --- Business demography ------------------------------------------------
     # `business` routed to a correspondent who could never file: personas.yaml
     # assigns the beat, and no series anywhere in the pipeline carried
