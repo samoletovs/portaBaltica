@@ -1,5 +1,6 @@
 import type { EnvironmentData } from '../types';
 import { useCountry } from '../CountryContext';
+import { TileHeader } from './TileHeader';
 
 interface EnvironmentTileProps {
   data: EnvironmentData | null;
@@ -42,7 +43,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold mb-6" style={{ color: 'var(--text-primary)' }}>Environment <span className="font-normal" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel}</span></h2>
+      <TileHeader title="Environment" meta={`${flag} ${countryLabel} · Open-Meteo`} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Weather */}
@@ -145,9 +146,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 function TileSkeleton() {
   return (
     <section>
-      <h2 className="text-callout font-semibold text-white mb-4 flex items-center gap-2">
-        <span className="text-slate-400">🌤️</span> Environment & Daily Life
-      </h2>
+      <TileHeader title="Environment" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2 animate-pulse">
           <div className="h-3 bg-slate-700/30 rounded w-1/4 mb-4" />

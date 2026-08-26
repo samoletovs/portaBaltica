@@ -50,6 +50,25 @@ function markOnboardingComplete() {
   }
 }
 
+/**
+ * The guided tour.
+ *
+ * It used to render as a banner above everything on `/data`, so the first thing
+ * a first-time visitor saw was an explanation of the product rather than the
+ * product - about 60px of it on a desktop and proportionally more on a phone,
+ * pushing the data it was describing below the fold. A tour that displaces the
+ * thing it is touring is working against itself.
+ *
+ * So it is out of the document flow entirely. The trigger is a chip in the page
+ * header, taking no vertical space of its own, and the tour is a panel anchored
+ * to the bottom of the viewport: present, dismissible, and never between the
+ * reader and the first chart.
+ *
+ * It is deliberately not a modal. It does not trap focus and it does not cover
+ * the page, because nothing here is urgent enough to interrupt someone - the
+ * reader can ignore it and keep scrolling, which is the whole point of moving
+ * it out of the flow.
+ */
 export function OnboardingTutorial({ activeSection, onSectionChange }: OnboardingTutorialProps) {
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -76,6 +95,9 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
     if (next.section && next.section !== activeSection) onSectionChange(next.section);
   }
 
+  // Closing writes the flag, so a returning reader never sees it again - and
+  // that is true of finishing, skipping and pressing Escape alike. There is no
+  // way to dismiss it that leaves it to come back tomorrow.
   const closeTutorial = useCallback(() => {
     markOnboardingComplete();
     setIsOpen(false);
@@ -92,67 +114,74 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
 
   function restartTutorial() {
     setIsOpen(true);
-    goToStep(0);
+    setStepIndex(0);
   }
 
   if (!isOpen) {
     return (
-      <div className="mb-6 flex justify-end">
-        <button
-          onClick={restartTutorial}
-          className="text-caption px-3 py-2 rounded transition-colors"
-          style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
-          aria-label="Restart guided tour"
-        >
-          Take a tour
-        </button>
-      </div>
+      <button
+        onClick={restartTutorial}
+        className="target-inline text-caption px-3 py-2 rounded transition-colors shrink-0"
+        style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+        aria-label="Restart guided tour"
+      >
+        Take a tour
+      </button>
     );
   }
 
   return (
     <section
-      className="mb-6 rounded-xl p-4 sm:p-6"
-      style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+      className="fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:p-0 sm:w-96"
       aria-label="Dashboard onboarding tutorial"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-caption uppercase tracking-widest mb-1" style={{ color: 'var(--text-tertiary)' }}>
-            Guided tour
-          </p>
-          <h2 className="text-callout font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{step.title}</h2>
-          <p className="text-ui" style={{ color: 'var(--text-secondary)' }}>{step.description}</p>
+      <div
+        className="rounded-xl p-4"
+        style={{ background: 'var(--bg-raised)', border: '1px solid var(--border-card)', boxShadow: '0 8px 24px rgba(0, 0, 0, 0.28)' }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-caption uppercase tracking-widest mb-1" style={{ color: 'var(--text-tertiary)' }}>
+              Guided tour
+            </p>
+            <h2 className="text-callout font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{step.title}</h2>
+            <p className="text-ui" style={{ color: 'var(--text-secondary)' }}>{step.description}</p>
+          </div>
+          <button
+            onClick={closeTutorial}
+            className="target-inline text-caption px-2 py-1 rounded transition-colors shrink-0"
+            style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card)' }}
+          >
+            Skip tour
+          </button>
         </div>
-        <button
-          onClick={closeTutorial}
-          className="text-caption px-2 py-1 rounded transition-colors"
-          style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card-hover)' }}
-        >
-          Skip tour
-        </button>
-      </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-          Step {stepIndex + 1} of {STEPS.length}
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => goToStep(Math.max(0, stepIndex - 1))}
-            className="text-caption px-3 py-2 rounded transition-colors disabled:opacity-40"
-            style={{ color: 'var(--text-secondary)', background: 'var(--bg-card-hover)' }}
-            disabled={stepIndex === 0}
-          >
-            Back
-          </button>
-          <button
-            onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
-            className="text-caption px-3 py-2 rounded transition-colors"
-            style={{ color: '#fff', background: 'var(--text-secondary)' }}
-          >
-            {isLastStep ? 'Finish' : 'Next'}
-          </button>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+            Step {stepIndex + 1} of {STEPS.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goToStep(Math.max(0, stepIndex - 1))}
+              className="target-inline text-caption px-3 py-2 rounded transition-colors disabled:opacity-40"
+              style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)' }}
+              disabled={stepIndex === 0}
+            >
+              Back
+            </button>
+            {/* The primary action used to be white on `--text-secondary` - a
+                *text* token pressed into service as a fill. In the dark theme
+                that is white on a mid grey-blue, around 2:1, so the one button
+                the tour most wants pressed was its least legible element. The
+                accent panel is what DESIGN.md 1.5 reserves for a primary call
+                to action. */}
+            <button
+              onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
+              className="target-inline news-accent-panel news-fg text-caption font-semibold px-3 py-2 rounded transition-colors"
+            >
+              {isLastStep ? 'Finish' : 'Next'}
+            </button>
+          </div>
         </div>
       </div>
     </section>

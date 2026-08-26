@@ -365,6 +365,25 @@ article[id] {
   scroll-margin-top: 5rem;
 }
 
+/* A dashboard section, as a fragment link target. The rail that sits above it
+   is sticky and about 44px tall, so a jump has to clear that rail rather than
+   land underneath it — the same SC 2.4.11 requirement as above, measured for
+   this control rather than for the masthead. */
+.dash-section {
+  scroll-margin-top: 4rem;
+}
+
+/* Jumping between sections of a 13,000px page is disorienting when it teleports
+   — a reader loses which direction they moved in. Smooth scrolling supplies
+   that, and `prefers-reduced-motion` switches it off below, which matters more
+   here than for a hover state: scroll animation is a documented vestibular
+   trigger. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 /* ─── Touch targets ────────────────────────────────────────────────────────
    WCAG 2.2 SC 2.5.8 Target Size (Minimum, AA) asks for 24×24 CSS px; SC 2.5.5
    (AAA) and both Apple's HIG and Material ask for 44×44. Measured across the
@@ -679,15 +698,30 @@ button,
 }
 
 /* ─── Horizontal scroll affordance ───────────────────────────────────────────
-   A strip that scrolls sideways must look like one. The ticker and the
-   insights row both clipped their content dead at the edge — mid-digit, in the
-   ticker's case — which reads as breakage rather than as more content.
+   A strip that scrolls sideways must look like one. The ticker, the section
+   tabs and the insights row all clipped their content dead at the edge —
+   mid-digit in the ticker's case and mid-character on the last tab at 375px —
+   which reads as breakage rather than as more content.
 
    A mask rather than a gradient overlay, so it works over whatever surface the
-   strip happens to sit on and needs no matching background colour. */
-.edge-fade-x {
+   strip happens to sit on and needs no matching background colour.
+
+   `.edge-fade-x` fades both ends unconditionally and is for something that
+   always scrolls, which is the ticker and only the ticker. Everything else
+   uses `useOverflowFade`, because a permanent fade on a row that fits dims its
+   first and last item to solve a problem that is not there. */
+.edge-fade-x,
+.edge-fade-start.edge-fade-end {
   -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
   mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+}
+.edge-fade-start {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%);
+  mask-image: linear-gradient(to right, transparent, #000 3%);
+}
+.edge-fade-end {
+  -webkit-mask-image: linear-gradient(to right, #000 97%, transparent);
+  mask-image: linear-gradient(to right, #000 97%, transparent);
 }
 
 /* Card shadows for depth in light mode */

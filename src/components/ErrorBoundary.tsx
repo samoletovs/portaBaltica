@@ -1,6 +1,13 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 
-interface Props { children: ReactNode }
+interface Props {
+  children: ReactNode;
+  /**
+   * What to show instead of the full-page message. A boundary around one
+   * dashboard section wants to replace that section, not the viewport.
+   */
+  fallback?: (error: Error) => ReactNode;
+}
 interface State { hasError: boolean; error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -19,6 +26,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback(this.state.error ?? new Error('Unknown error'));
+      }
       return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans, system-ui, sans-serif)', background: 'var(--bg-page, #0a0f1a)', color: 'var(--text-primary, #fff)' }}>
           <div style={{ textAlign: 'center', maxWidth: 420, padding: 32 }}>
