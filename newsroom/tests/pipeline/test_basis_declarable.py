@@ -78,14 +78,29 @@ def ambiguous_tokens(signal: Signal) -> list[str]:
 def all_detector_signals() -> list[tuple[str, Signal]]:
     """Real output from every detector, built from its own kind of input."""
     from newsroom.pipeline.detect import (
+        Threshold,
         detect_divergence,
         detect_record_extreme,
         detect_seasonal_deviation,
+        detect_sharp_move,
+        detect_streak,
         detect_structural_divergence,
+        detect_threshold_cross,
     )
     from newsroom.tests.pipeline.conftest import monthly_periods, quarterly_periods, series_from
 
     signals: list[tuple[str, Signal]] = []
+
+    def power(values, **kwargs):
+        return series_from(
+            values,
+            periods=monthly_periods(len(values)),
+            metric="wholesale_power_price",
+            metric_label="the wholesale power price",
+            unit="EUR/MWh",
+            section="energy",
+            **kwargs,
+        )
 
     divergence = detect_divergence(
         {
@@ -117,6 +132,32 @@ def all_detector_signals() -> list[tuple[str, Signal]]:
     if seasonal is not None:
         signals.append(("seasonal_deviation", seasonal))
 
+    # Two years of ordinary power-price noise and then a spike. The basis
+    # counts the periods it measured volatility over, so it can strand that
+    # count exactly as the divergence basis once did.
+    sharp = detect_sharp_move(
+        power(
+            [
+                58.0, 61.0, 59.5, 62.0, 60.5, 63.0, 59.0, 61.5, 60.0, 62.5, 58.5, 61.0,
+                59.0, 62.0, 60.0, 63.5, 61.0, 59.5, 62.0, 60.5, 61.5, 59.0, 62.0, 88.0,
+            ]
+        )
+    )
+    if sharp is not None:
+        signals.append(("sharp_move", sharp))
+
+    # Five straight monthly rises. The basis counts the run.
+    streak = detect_streak(power([58.0, 59.2, 60.4, 62.1, 64.3, 67.0]))
+    if streak is not None:
+        signals.append(("streak", streak))
+
+    crossing = detect_threshold_cross(
+        power([88.0, 121.0]),
+        [Threshold("hundred-euro", 100.0, weight=0.6, unit_label="EUR/MWh")],
+    )
+    if crossing is not None:
+        signals.append(("threshold_cross", crossing))
+
     # A gap that opens and compounds over 24 quarters — the shape the
     # spread-based divergence detector is built to stay quiet about. Its basis
     # quotes both an average difference and a count of quarters, so it has two
@@ -144,8 +185,25 @@ def all_detector_signals() -> list[tuple[str, Signal]]:
     if structural is not None:
         signals.append(("structural_divergence", structural))
 
-    _ = monthly_periods
     return signals
+
+
+#: Every detector this contract covers. Asserted rather than assumed: an input
+#: that stopped triggering its detector would otherwise turn these into a test
+#: of the detectors that still fire, while still reporting green.
+#:
+#: ``sharp_move``, ``streak`` and ``threshold_cross`` were absent for their
+#: whole existence, and ``sharp_move`` was in breach the entire time — its
+#: basis counted "the preceding N periods" with no field holding N.
+DETECTORS_UNDER_CONTRACT = {
+    "divergence",
+    "record_extreme",
+    "seasonal_deviation",
+    "sharp_move",
+    "streak",
+    "threshold_cross",
+    "structural_divergence",
+}
 
 
 class TestTheBasisIsAlwaysDeclarable:
@@ -181,12 +239,7 @@ class TestEveryDetectorHonoursIt:
         # Coverage is asserted, not assumed. An input that stops triggering its
         # detector would otherwise turn this into a test of one detector while
         # still reporting green.
-        assert covered == {
-            "divergence",
-            "record_extreme",
-            "seasonal_deviation",
-            "structural_divergence",
-        }, (
+        assert covered == DETECTORS_UNDER_CONTRACT, (
             f"a detector stopped producing a signal, so it is no longer checked: {covered}"
         )
         offenders = {
@@ -207,12 +260,7 @@ class TestEveryDetectorHonoursIt:
         symptom was identical: an undeclared numeral and a rejected article.
         """
         produced = all_detector_signals()
-        assert {name for name, _ in produced} == {
-            "divergence",
-            "record_extreme",
-            "seasonal_deviation",
-            "structural_divergence",
-        }
+        assert {name for name, _ in produced} == DETECTORS_UNDER_CONTRACT
         offenders = {
             name: (signal.comparison_basis, ambiguous, sorted(signal.fields))
             for name, signal in produced
@@ -230,6 +278,22 @@ class TestEveryDetectorHonoursIt:
         by_name = dict(all_detector_signals())
 
         assert "five-year average" in by_name["seasonal_deviation"].comparison_basis
+
+    def test_the_sharp_move_basis_exposes_the_periods_it_measured(self):
+        """The count in "over the preceding N months" must be a field.
+
+        Undeclared, it was not merely unquotable. ``reconcile`` files a numeral
+        the writer forgot when exactly one verified field justifies it, and the
+        validator's rounding rule means a ``latest_value`` of 9.5 justifies the
+        token ``10``. So on a series where the count landed within half a unit
+        of another field, the count was filed against that field and published
+        with it — a figure whose stated provenance is simply not where it came
+        from, which no gate downstream can see.
+        """
+        sharp = dict(all_detector_signals())["sharp_move"]
+
+        assert "periods_compared" in sharp.fields
+        assert undeclarable_tokens(sharp) == []
 
 
 class TestTheBasisSaysWhatItCounted:
