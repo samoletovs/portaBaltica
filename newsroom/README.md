@@ -65,6 +65,11 @@ convention.
    │                  divergence, seasonal deviation. Emits Signal objects
    │                  with a newsworthiness score. Pure functions, unit-tested.
    │
+   ├─ 2b. MEASURE     the measurement floor. Is the movement resolvable at all?
+   │                  A move below the series' own precision — or below the
+   │                  declared floor for a sampled survey — is dropped, not
+   │                  scored down. See "The measurement floor" below.
+   │
    ├─ 3. RANK         top N signals by score, floor applied.
    │                  Quiet day ⇒ fewer articles. Never pad to hit a quota:
    │                  padding is precisely what "scaled content abuse" means.
@@ -88,8 +93,76 @@ convention.
    │                  notified only for dangerous, harmful or inappropriate
    │                  material.
    │
-   └─ 8. PUBLISH      article JSON → Blob → SWA serves it statically
+   ├─ 8. PUBLISH      article JSON → Blob → SWA serves it statically
+   │
+   └─ 9. WATCH        the revision watch. Re-reads every series behind a figure
+                      already published, against the vintage it was published
+                      on. A restated figure appends a public correction to the
+                      live article and to corrections.json. This is the only
+                      stage that acts on articles already out.
 ```
+
+### The measurement floor
+
+Every detector asks whether a movement is *large* or *unusual*. None of them
+asked whether it was **measurable**, and those are different questions.
+
+The wire published "Estonia's Unemployment Rate Declines to 6.6% in June 2026"
+off a one-tenth move in a Labour Force Survey estimate. That is not a decline,
+it is the same number measured twice. Worse, the sigma-based guard in
+`detect_sharp_move` *inverts* on a stable series: the calmer the history, the
+smaller the sigma, so the more impressive a rounding-width wiggle looks.
+
+`pipeline/significance.py` applies two floors and takes the larger:
+
+- **publication resolution**, read off the data — a series printed to one
+  decimal place cannot express 0.05, so a computed 0.05 is our arithmetic and
+  not Estonia's economy;
+- **survey resolution**, declared per metric in `SURVEY_FLOORS` for series that
+  are sample estimates. These are editorial thresholds and say so; they are not
+  a claim to have recovered Eurostat's published standard error.
+
+A finding below the floor is **dropped, never down-weighted.** A score can be
+rescued by a quiet day, which is exactly when the wire would otherwise run it.
+
+Adding a detector without registering it in `DIFFERENCE_FIELD` or
+`NOT_A_MOVEMENT` raises, rather than silently exempting it — the gate must not
+stop guarding the moment someone extends it.
+
+### The revision watch
+
+161 articles had been published and **zero** corrections issued. That was not a
+record of accuracy; nothing in the pipeline could compare a figure it published
+last week against what the source says today, so there was no mechanism by which
+the wire could ever discover it was wrong.
+
+`pipeline/vintage.py` keeps a ledger of every published figure and the reading
+that justified it — metric, geography, period, value, and the *vintage*, meaning
+the retrieval time. `pipeline/revisions.py` compares that ledger against each
+run's freshly collected series, reusing the measurement floor as its tolerance:
+one definition of "a difference that counts", applied in both directions.
+
+Three rules that are load-bearing rather than stylistic:
+
+1. **The prose is not rewritten.** Every number in a body block is bound by the
+   validator to a verified signal field; swapping one breaks that binding, and
+   it also edits the past. The correction states both readings and their dates.
+2. **The status stays `published`.** The schema offers `corrected`, and using it
+   would be the obvious move and a serious bug: `is_servable` and the frontend's
+   `isServable` both require `published`, so an article would vanish from the
+   site at the moment it was corrected. An unpublish disguised as a correction
+   is still an unpublish.
+3. **A source revision is not our error, and the wording says which it is.**
+   Conflating them trains readers to discount both.
+
+`corrections.json` is a **bare JSON array**, because `fetchCorrections` in
+`src/news-api.ts` does `if (!Array.isArray(raw)) return []`. Wrapping it the way
+`index.json` is wrapped would empty the public log with no error anywhere. That
+file had been documented in the frontend since it was written and never
+produced by anything, so `/corrections` reported "no corrections have been
+issued yet" as a permanent condition rather than a true one — the third time
+this repository has shipped a frontend built to a contract the backend never
+fulfilled, after `chart_ref` and the desk's `revise` verdict.
 
 ### Why generation is batch, not per-request
 
@@ -159,6 +232,9 @@ newsroom/
 ├── numeric_scan.py            # numeric tokenising for no_invented_numbers
 ├── validator.py               # the gate: every check in the schema enum
 ├── pipeline/research.py       # bounded context from cached registered feeds
+├── pipeline/significance.py   # the measurement floor: is the move resolvable?
+├── pipeline/vintage.py        # ledger of published figures and their vintages
+├── pipeline/revisions.py      # the revision watch and the public correction
 ├── requirements.txt           # pyyaml, jsonschema, pytest — no Azure SDK
 └── tests/                     # negative fixtures first; see test_invariants.py
 
@@ -180,7 +256,13 @@ infrastructure/main.bicep      # Functions + Storage + Foundry role assignment
 4. **Never pad to hit a volume target.** Target is 3–8 substantial articles a
    day *when the data warrants it*.
 5. **Corrections are public and append-only.** If we get something wrong, the
-   article shows it and the corrections log records it.
+   article shows it and the corrections log records it. An article is never
+   deleted to resolve a complaint: wrong stories are corrected in public, right
+   ones stay up. The published account of RuntimeWire quietly removing accurate
+   stories when their subjects asked is the failure this rule exists to name in
+   advance, while it is still cheap to refuse.
+6. **A difference below the measurement floor is not a small story.** It is the
+   absence of one. Never make it survivable by weighting.
 
 ## Deploying
 

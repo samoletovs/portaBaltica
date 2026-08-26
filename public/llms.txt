@@ -1,0 +1,73 @@
+# portaBaltica
+
+> A Baltic open-data wire. Every article under our own byline is original
+> analysis of public statistics for Latvia, Estonia and Lithuania, written from
+> a deterministically detected signal in a dataset we retrieved and can point
+> back to. We do not rewrite other outlets' reporting.
+
+## What we are, in one paragraph
+
+portaBaltica publishes data journalism about the Baltic states and a live
+dashboard of the series behind it. Articles are written by disclosed AI
+correspondents from verified figures; the correspondents are named after Baltic
+lighthouses rather than given human names, because a reader can mistake an
+invented person for a staff journalist and nobody mistakes a lighthouse for one.
+Every byline says "AI correspondent". A named human editor is accountable for
+what the system publishes.
+
+## How to cite us
+
+Cite the article URL, not the dashboard. Each article states the dataset, the
+retrieval time and the comparison the finding is measured against, so a claim
+can be checked rather than taken on trust. If you quote a figure, quote the
+vintage with it: statistical agencies revise, and our corrections log records
+when a figure we published has been restated by its source.
+
+- Articles: https://portabaltica.naurolabs.com/article/{slug}
+- Machine-readable index: https://portabaltica.naurolabs.com/rss.xml
+- Sitemap: https://portabaltica.naurolabs.com/sitemap.xml
+
+## What is reliable here, and what is not
+
+- **Figures in our articles are pipeline-verified.** No number reaches an
+  article without binding to a field in the source payload; a validator rejects
+  prose containing a numeric token that is not traceable to one. The model is
+  never asked to recall or supply a figure.
+- **Explanations are attributed or absent.** Where an article suggests a cause,
+  it names the source of that suggestion. Where it does not know, it says so
+  rather than speculating.
+- **Findings are gated on measurability.** A movement smaller than the source's
+  own resolution — a tenth of a point in a sampled survey, say — is not
+  reported as a change. This is why our volume is low on quiet days.
+- **Corrections are public and append-only:**
+  https://portabaltica.naurolabs.com/corrections
+- **We do not forecast.** An article may say what the next release would show.
+  It will not tell you what will happen.
+
+## AI disclosure
+
+Articles under a portaBaltica byline are AI-generated text on matters of public
+interest, disclosed under EU AI Act Article 50. The machine-readable marking is
+carried in each article's JSON-LD as the IPTC digital source type
+`trainedAlgorithmicMedia`. Third-party material we link to is not ours and is
+not marked as generated.
+
+Full policy: https://portabaltica.naurolabs.com/about/ai
+
+## Key pages
+
+- [Front page](https://portabaltica.naurolabs.com/): the wire
+- [Dashboard](https://portabaltica.naurolabs.com/data): the live series behind the articles
+- [AI policy](https://portabaltica.naurolabs.com/about/ai): how the newsroom works and what it will not do
+- [Corrections](https://portabaltica.naurolabs.com/corrections): the complete log
+
+## Data sources
+
+Eurostat dissemination API, data.gov.lv (CKAN), CSP PxWeb (Latvia), Elering
+(Nord Pool day-ahead power), the European Central Bank, and Open-Meteo. Each
+article names the specific dataset it used.
+
+## Contact
+
+sam@naurolabs.com — including for corrections, and for anyone named in an
+article who wishes to respond.

@@ -138,6 +138,124 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    def _read_published(self, slug: str) -> dict[str, Any] | None:
+        """The stored JSON for a published article, or ``None``.
+
+        Returns the raw document rather than an :class:`Article`. A correction
+        annotates a story that already exists, and round-tripping it through the
+        dataclass would quietly drop anything the dataclass does not model —
+        which for a file written by an older version of this pipeline is exactly
+        the part worth preserving.
+        """
+        name = f"{slug}.json"
+        container = self._container_client()
+        if container is not None:
+            try:
+                raw = container.download_blob(name).readall()
+                payload = json.loads(raw.decode("utf-8"))
+                if isinstance(payload, dict):
+                    return payload
+            except Exception as exc:  # noqa: BLE001
+                log.info("no readable article %s in blob (%s)", name, exc)
+        local = self._local_dir / name
+        if local.exists():
+            try:
+                payload = json.loads(local.read_text(encoding="utf-8"))
+                if isinstance(payload, dict):
+                    return payload
+            except Exception as exc:  # noqa: BLE001
+                log.warning("local article %s unreadable (%s)", name, exc)
+        return None
+
+    def _write_published(self, slug: str, payload: dict[str, Any]) -> None:
+        name = f"{slug}.json"
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self._write_local(name, body)
+        container = self._container_client()
+        if container is not None:
+            try:
+                container.upload_blob(
+                    name=name,
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(_ARTICLE_CACHE_CONTROL),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("blob write failed for %s (%s)", name, exc)
+
+    async def read_published(self, slug: str) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self._read_published, slug)
+
+    async def write_published(self, slug: str, payload: dict[str, Any]) -> None:
+        await asyncio.to_thread(self._write_published, slug, payload)
+
+    CORRECTIONS_BLOB = "corrections.json"
+
+    def _read_corrections_log(self) -> list[dict[str, Any]]:
+        container = self._container_client()
+        if container is not None:
+            try:
+                raw = container.download_blob(self.CORRECTIONS_BLOB).readall()
+                payload = json.loads(raw.decode("utf-8"))
+                if isinstance(payload, list):
+                    return [e for e in payload if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.info("no corrections log in blob yet (%s)", exc)
+        local = self._local_dir / self.CORRECTIONS_BLOB
+        if local.exists():
+            try:
+                payload = json.loads(local.read_text(encoding="utf-8"))
+                if isinstance(payload, list):
+                    return [e for e in payload if isinstance(e, dict)]
+            except Exception as exc:  # noqa: BLE001
+                log.warning("local corrections log unreadable (%s)", exc)
+        return []
+
+    def _append_corrections(self, entries: Sequence[dict[str, Any]]) -> int:
+        """Add to the public log, append-only, and return the new total.
+
+        A BARE JSON ARRAY, not an object with a ``corrections`` key. The reader
+        is ``fetchCorrections`` in ``src/news-api.ts``, which does
+        ``if (!Array.isArray(raw)) return []`` — so wrapping this the way
+        ``index.json`` is wrapped would produce an empty log with no error
+        anywhere, which is the failure this file already has a history of.
+
+        Append-only is the policy, not an implementation detail: the corrections
+        page is the one place a reader can audit us, and a log we can rewrite is
+        not evidence of anything.
+        """
+        existing = self._read_corrections_log()
+        seen = {
+            (str(e.get("slug")), str(e.get("corrected_at")), str(e.get("description")))
+            for e in existing
+        }
+        for entry in entries:
+            key = (
+                str(entry.get("slug")),
+                str(entry.get("corrected_at")),
+                str(entry.get("description")),
+            )
+            if key not in seen:
+                existing.append(entry)
+                seen.add(key)
+        body = json.dumps(existing, ensure_ascii=False, indent=2).encode("utf-8")
+        self._write_local(self.CORRECTIONS_BLOB, body)
+        container = self._container_client()
+        if container is not None:
+            try:
+                container.upload_blob(
+                    name=self.CORRECTIONS_BLOB,
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(_INDEX_CACHE_CONTROL),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("corrections log blob write failed (%s)", exc)
+        return len(existing)
+
+    async def append_corrections(self, entries: Sequence[dict[str, Any]]) -> int:
+        return await asyncio.to_thread(self._append_corrections, entries)
+
     INDEX_MAX_ENTRIES = 200
 
     def _read_existing_index(self) -> list[dict[str, Any]]:

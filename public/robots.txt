@@ -2,3 +2,13 @@ User-agent: *
 Allow: /
 
 Sitemap: https://portabaltica.naurolabs.com/sitemap.xml
+
+# Answer engines and AI crawlers are welcome, and are a deliberate part of how
+# this wire is read. Research on AI-written news found that a sixth of the
+# citations chatbots return already point at machine-written articles, so for a
+# small data desk the assistant is not a threat to the referral, it is the
+# referral. The terms we ask in return are the ordinary ones: cite the article,
+# and carry the vintage with the figure.
+#
+# What we ask you to read first:
+# https://portabaltica.naurolabs.com/llms.txt

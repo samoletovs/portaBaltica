@@ -25,8 +25,11 @@ from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
 from newsroom.pipeline.publish import ArticleStore, is_servable
 from newsroom.pipeline.rank import RankingReport, rank
 from newsroom.pipeline.research import ResearchContext, research_selected
+from newsroom.pipeline.revisions import Revision, annotate, find_revisions
 from newsroom.pipeline.safety import registry
+from newsroom.pipeline.significance import Materiality, gate
 from newsroom.pipeline.syndicate import pending_approval_queue, syndicate
+from newsroom.pipeline.vintage import PublishedFigure, VintageStore, figures_from
 from newsroom.pipeline.write import AzureOpenAIWriter, LlmWriter, generate_article
 from newsroom.pipeline.write.generator import GenerationRefused, GenerationResult
 
@@ -56,6 +59,11 @@ THRESHOLDS: dict[str, tuple[Threshold, ...]] = {
 class RunReport:
     series: list[TimeSeries] = field(default_factory=list)
     signals: list[Signal] = field(default_factory=list)
+    #: Findings the source could not resolve, with the floor they fell under.
+    #: Kept on the report so a short wire can always be explained: "nothing
+    #: happened" and "three things happened too small to measure" are different
+    #: days and the log should be able to tell them apart.
+    suppressed: list[tuple[Signal, Materiality]] = field(default_factory=list)
     ranking: RankingReport | None = None
     generated: list[GenerationResult] = field(default_factory=list)
     syndicated: list[Article] = field(default_factory=list)
@@ -67,6 +75,10 @@ class RunReport:
     #: One editorial decision per original article. The audit trail for what
     #: the desk approved, sent back, or held.
     desk: list[DeskOutcome] = field(default_factory=list)
+    #: Corrections appended to already-published articles because the source
+    #: restated a figure we printed. Reported separately from ``errors``: a
+    #: revision is the system working, not the system failing.
+    corrections: list[Revision] = field(default_factory=list)
 
     @property
     def published(self) -> list[Article]:
@@ -94,13 +106,30 @@ class RunReport:
         return [g.article for g in self.generated if not g.publishable]
 
     def summary(self) -> str:
-        return (
-            f"{len(self.series)} series, {len(self.signals)} signals, "
-            f"{len(self.ranking.selected) if self.ranking else 0} selected, "
-            f"{len(self.published)} published, {len(self.rejected)} rejected, "
-            f"{len(self.syndicated)} syndicated cards, {len(self.edited)} editor decisions, "
-            f"{len(self.errors)} error(s)"
+        # The README warns that "0 error(s)" was reported every run through two
+        # days of publishing nothing, because refusing to write is a correct
+        # outcome. So the counts that explain a short wire belong here too: a
+        # day with nothing to say and a day whose findings were all too small to
+        # measure look identical otherwise.
+        parts = [
+            f"{len(self.series)} series",
+            f"{len(self.signals)} signals",
+        ]
+        if self.suppressed:
+            parts.append(f"{len(self.suppressed)} below the measurement floor")
+        parts.extend(
+            [
+                f"{len(self.ranking.selected) if self.ranking else 0} selected",
+                f"{len(self.published)} published",
+                f"{len(self.rejected)} rejected",
+                f"{len(self.syndicated)} syndicated cards",
+                f"{len(self.edited)} editor decisions",
+            ]
         )
+        if self.corrections:
+            parts.append(f"{len(self.corrections)} correction(s) issued")
+        parts.append(f"{len(self.errors)} error(s)")
+        return ", ".join(parts)
 
 
 async def collect_feeds(
@@ -264,6 +293,17 @@ async def run_once(
         # --- 2. detect ---------------------------------------------------
         report.signals = detect_all(report.series, thresholds=THRESHOLDS)
 
+        # --- 2b. measurement floor ---------------------------------------
+        # Before asking whether a finding is interesting, ask whether it is
+        # measurable. A movement smaller than the source's own resolution is
+        # not a small story, it is the same reading taken twice, and it must be
+        # dropped here rather than scored down — a score can be rescued by a
+        # quiet day, which is exactly when the wire would otherwise run it.
+        significance = gate(report.signals, report.series)
+        report.suppressed = significance.suppressed
+        report.signals = significance.kept
+        log.info("significance: %s", significance.summary())
+
         # --- 3. rank -----------------------------------------------------
         policy = None
         if max_articles is not None:
@@ -349,6 +389,16 @@ async def run_once(
 
         # --- 7. publish ---------------------------------------------------
         await _store_all(store, report)
+
+        # --- 8. the revision watch -----------------------------------------
+        # Last, and about articles that are already out. Everything above makes
+        # a story right at the moment of writing; this is the only stage that
+        # can find out a story stopped being right afterwards.
+        try:
+            await _watch_revisions(store, report)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("revision watch failed")
+            report.errors.append(f"revision watch: {exc}")
     finally:
         if owns_http:
             await client.__aexit__(None, None, None)
@@ -371,6 +421,56 @@ async def _store_all(store: ArticleStore, report: RunReport) -> None:
             log.exception("failed to store card %s", card.id)
             report.errors.append(f"store {card.id}: {exc}")
     await store.write_index(report.published)
+
+
+async def _watch_revisions(
+    store: ArticleStore, report: RunReport, *, vintages: VintageStore | None = None
+) -> None:
+    """Correct what the source has restated, then record today's claims.
+
+    Order matters and is the reverse of what looks natural. Revisions are looked
+    for *before* this run's figures are added to the ledger, because a figure
+    published minutes ago is being compared against the very reading that
+    produced it — it can only ever match, and folding it in first would spend a
+    blob round-trip to prove that a number equals itself.
+    """
+    vintages = vintages or VintageStore()
+    ledger = await vintages.load()
+
+    log_entries: list[dict[str, str]] = []
+    for revision in find_revisions(ledger, report.series):
+        document = await store.read_published(revision.figure.slug)
+        if document is None:
+            log.info(
+                "revised figure belongs to %s, which is no longer stored; skipping",
+                revision.figure.slug,
+            )
+            continue
+        annotated = annotate(document, revision)
+        if annotated is None:
+            continue  # already noted on a previous run
+        await store.write_published(revision.figure.slug, annotated)
+        report.corrections.append(revision)
+        log_entries.append(revision.to_log_entry(annotated["corrections"][-1]))
+        log.info("correction appended to %s: %s", revision.figure.slug, revision.description())
+
+    # The public log is a separate artefact from the article, and it is what
+    # /corrections reads. `src/news-api.ts` has documented this file since the
+    # frontend was written; nothing had ever produced it, so the page said "No
+    # corrections have been issued yet" as a permanent condition rather than a
+    # true one.
+    if log_entries:
+        total = await store.append_corrections(log_entries)
+        log.info("public corrections log now holds %d entr(ies)", total)
+
+    fresh: list[PublishedFigure] = []
+    for result in report.generated:
+        if result.publishable and result.article.status == "published":
+            fresh.extend(figures_from(result.article, result.signal))
+    if fresh:
+        ledger.record(fresh)
+        await vintages.save(ledger)
+        log.info("vintage ledger now tracks %d published figure(s)", len(ledger))
 
 
 def approval_queue(report: RunReport) -> list[dict[str, object]]:

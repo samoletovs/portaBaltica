@@ -17,8 +17,44 @@ import { publisherName } from './editorial';
 export const SITE_URL = 'https://portabaltica.naurolabs.com';
 export const SITE_NAME = 'portaBaltica';
 
+// ─── Machine-readable AI disclosure ───
+//
+// EU AI Act Article 50 has applied since 2 August 2026. Text on a matter of
+// public interest that is AI-generated must be disclosed as such, and from
+// 2 December 2026 the disclosure must also be machine-readable — a deadline
+// that lands on systems already on the market before August, which is us.
+//
+// The byline already carries the human-readable half ("AI correspondent"), and
+// persona_rules.py enforces it. This is the other half. schema.org has no
+// settled AI-authorship property, so this uses the IPTC digital source type
+// vocabulary, which is the term C2PA embeds in Content Credentials and is
+// therefore the one a verifier is most likely to recognise.
+//
+// trainedAlgorithmicMedia is the correct code and the honest one: the prose is
+// composed by a model. It is NOT compositeWithTrainedAlgorithmicMedia, which
+// would claim a human-written article with AI elements, and every figure in the
+// piece being pipeline-verified does not change who wrote the sentences.
+export const AI_DISCLOSURE =
+  'https://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia';
+
+/** Third-party material we reproduce or link to. We did not generate it. */
+export const HUMAN_DISCLOSURE =
+  'https://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture';
+
 export function articleUrl(slug: string): string {
   return `${SITE_URL}/article/${slug}`;
+}
+
+/**
+ * The disclosure code for a given tier.
+ *
+ * Tier B and C are somebody else's words, reproduced verbatim or linked. Marking
+ * them as algorithmically generated would be as wrong as failing to mark tier A,
+ * and in the more damaging direction: it would attribute a synthetic origin to a
+ * human journalist's work.
+ */
+export function disclosureFor(tier: Article['tier']): string {
+  return tier === 'A' ? AI_DISCLOSURE : HUMAN_DISCLOSURE;
 }
 
 export function newsArticleJsonLd(article: Article): Record<string, unknown> | null {
@@ -52,6 +88,9 @@ export function newsArticleJsonLd(article: Article): Record<string, unknown> | n
     ...(article.dek ? { description: article.dek } : {}),
     articleSection: article.section,
     inLanguage: 'en',
+    // EU AI Act Article 50: the machine-readable half of the disclosure the
+    // byline already makes in words.
+    digitalSourceType: disclosureFor(article.tier),
     datePublished: article.published_at ?? article.created_at,
     dateModified: lastCorrection?.corrected_at ?? article.published_at ?? article.created_at,
     // Deliberately an Organization, never a Person. The author is a disclosed
