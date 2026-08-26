@@ -21,15 +21,30 @@ from __future__ import annotations
 import logging
 from typing import Iterable, Sequence
 
-from newsroom.pipeline.collect.rss import item_slug
+from newsroom.pipeline.collect.rss import feed_published_at, item_slug
 from newsroom.pipeline.ids import new_ulid
 from newsroom.pipeline.models import Article, FeedItem, isoformat, utcnow
 from newsroom.pipeline.safety import Source, registry, validate
 
 log = logging.getLogger(__name__)
 
-#: Section assignments for syndicated cards. Syndicated material carries no
-#: byline, so this only decides where the card is filed on the site.
+#: Where a syndicated card is filed, because the schema requires a section.
+#:
+#: THIS IS A STORAGE DEFAULT, NOT A CLASSIFICATION, and the difference matters.
+#: Our sections are our taxonomy for our own reporting. Applying one to somebody
+#: else's article asserts a judgement about their work that we did not make and
+#: are not entitled to make from a headline.
+#:
+#: It also had a visible cost. Because every card lands here, the live index held
+#: 154 "government" cards and not one government article of our own, and the
+#: front page built its tab strip from every article — so "Government" was
+#: offered as a section and led to "Nothing to report yet today" beside a full
+#: rail. NewsFeed.tsx now derives its tabs from our own work only.
+#:
+#: Do not read this value as meaning a card is about government, and do not add
+#: keyword-matching here to make it look like a real one: guessing a section from
+#: a headline is inventing a classification, which is worse than a default that
+#: is honestly arbitrary.
 SYNDICATED_SECTION = "government"
 
 BALTIC_TERMS = (
@@ -83,6 +98,19 @@ def build_card(item: FeedItem, source: Source, *, now: str | None = None) -> Art
         headline=headline[:140],
         section=SYNDICATED_SECTION,
         created_at=created_at,
+        # THE OUTLET'S DATE, NOT OURS.
+        #
+        # This was previously left unset and then filled in by the editor with
+        # its own decision time, which produced a rail where 105 of 154 cards
+        # claimed to have been published within the same two minutes -- the
+        # moment our timer ran -- and a three-day-old ERR story was dated
+        # tonight. For a card whose entire purpose is to point at somebody
+        # else's article, the honest date is theirs.
+        #
+        # It also decided the index. Stamping syndication with the run time made
+        # every link-out newer than every article we had ever written, which is
+        # what let the rail evict the newsroom; see ArticleStore.INDEX_MAX_OURS.
+        published_at=feed_published_at(item.published),
         syndicated=syndicated,
         countries=[source.country] if source.country in ("LV", "EE", "LT") else [],
         provenance={

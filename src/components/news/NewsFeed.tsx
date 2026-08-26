@@ -38,23 +38,41 @@ export default function NewsFeed() {
     return () => controller.abort();
   }, []);
 
+  // OUR SECTIONS DESCRIBE OUR JOURNALISM.
+  //
+  // syndicate.py files every link-out under a single hardcoded section, so in
+  // the live index all 154 tier C cards were "government" and none of the seven
+  // originals were. Building the tab strip from every article therefore offered
+  // a "Government" tab that led to "Nothing to report yet today" beside a full
+  // rail -- a tab that always emptied the page, caused entirely by us asserting
+  // a classification over articles we did not write.
+  //
+  // The taxonomy is ours and it describes what we have covered. A section we
+  // have not written about is not a section of this newspaper.
   const sections = useMemo(() => {
-    const present = new Set((articles ?? []).map((article) => article.section));
+    const present = new Set(
+      (articles ?? []).filter((article) => article.tier !== 'C').map((article) => article.section),
+    );
     return Object.keys(SECTION_LABELS).filter((section) => present.has(section as never));
   }, [articles]);
 
-  const filtered = useMemo(
-    () => (articles ?? []).filter((article) => filter === 'all' || article.section === filter),
+  const ours = useMemo(
+    () =>
+      (articles ?? [])
+        .filter((article) => article.tier !== 'C')
+        .filter((article) => filter === 'all' || article.section === filter)
+        .sort(byNewestFirst),
     [articles, filter],
   );
 
-  const ours = useMemo(
-    () => filtered.filter((article) => article.tier !== 'C').sort(byNewestFirst),
-    [filtered],
-  );
+  // Deliberately NOT narrowed by the section filter. The rail is a standing
+  // pointer to other outlets' work, and the only section value it carries is
+  // one we assigned ourselves, so filtering on it would be filtering by our own
+  // invention. It has an outlet filter of its own, which is a fact about the
+  // item rather than a judgement about it.
   const elsewhere = useMemo(
-    () => filtered.filter((article) => article.tier === 'C').sort(byNewestFirst),
-    [filtered],
+    () => (articles ?? []).filter((article) => article.tier === 'C').sort(byNewestFirst),
+    [articles],
   );
 
   if (articles === null) {

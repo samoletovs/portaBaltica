@@ -22,6 +22,7 @@ from newsroom.pipeline.editor import (
     render_escalation_message,
     review_syndicated_article,
 )
+from newsroom.pipeline.publish import is_servable
 from newsroom.pipeline.syndicate import syndicate
 from newsroom.pipeline.write import StubWriter
 from newsroom.tests.pipeline.test_syndicate import SNIPPET, feed_item
@@ -94,7 +95,11 @@ def test_editor_should_approve_a_valid_routine_link_card_without_rewriting():
 
     assert outcome.action is EditorAction.APPROVE
     assert card.status == "published"
-    assert card.published_at == outcome.decided_at
+    # published_at is the OUTLET's date and is left alone; when we approved it
+    # is a separate fact and is recorded separately. Overwriting one with the
+    # other misdated every link-out to our run time.
+    assert card.published_at == "2026-08-24T08:00:00Z"
+    assert card.provenance["approved_at"] == outcome.decided_at
     assert card.body == []
     assert card.syndicated == original_syndicated
     assert card.provenance["approved_by"].startswith("Dace Vaivode")
@@ -151,7 +156,12 @@ def test_escalation_failure_should_raise_and_leave_the_item_unpublished():
         review_syndicated_article(card, writer, notifier=FailingNotifier())
 
     assert card.status == "pending_approval"
-    assert card.published_at is None
+    # "Unpublished" is a fact about status, not about the timestamp. The card
+    # carries the outlet's own publication date from the moment it is built, so
+    # asserting that were None only ever tested that we had not yet stamped it
+    # with our own.
+    assert not is_servable(card)
+    assert "approved_at" not in card.provenance
     assert "editor" not in card.provenance
 
 
