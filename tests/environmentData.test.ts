@@ -19,10 +19,16 @@
  * and which lets a stalled connection outlive its stated budget.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+
+// Weather and air quality are memoised now, and the store is process-global —
+// so without this every test after the first would be served the first one's
+// answer, which is the cache working exactly as intended and useless for
+// isolating a case.
+beforeEach(() => require('../api/shared/cache.js').clear());
 
 /** Drive the handler with a stubbed HTTP layer. */
 async function callEnvironment(responder: (url: string) => Promise<unknown>) {
@@ -97,8 +103,14 @@ describe('air quality', () => {
   });
 
   it('grades a real reading by its band', async () => {
+    const cache = require('../api/shared/cache.js');
     const moderate = await callEnvironment(route({ air: { current: { european_aqi: 70 } } }));
     expect(moderate.airQuality.label).toBe('Moderate');
+
+    // Two readings in one case, so the memo has to be cleared between them —
+    // otherwise the second is served the first, which is the cache doing its
+    // job and hiding what this test is here to check.
+    cache.clear();
     const bad = await callEnvironment(route({ air: { current: { european_aqi: 140 } } }));
     expect(bad.airQuality.label).toBe('Unhealthy');
   });

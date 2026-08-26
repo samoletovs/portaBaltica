@@ -1,5 +1,6 @@
 const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
+const cache = require('../shared/cache.js');
 
 /**
  * GET /api/environment-data
@@ -43,6 +44,28 @@ const es = require('../shared/eurostat.js');
  * limited.
  */
 const HTTP = { deadlineMs: 4000, retries: 1 };
+
+/**
+ * Weather and air quality are cached, because Open-Meteo publishes hourly and
+ * this endpoint asks it five questions per cold request — four cities plus air
+ * quality. That is the single largest share of our traffic to a source that is
+ * throttling the Static Web App's shared egress address, and re-asking an
+ * hourly source every fifteen minutes was never buying anything.
+ *
+ * Ten minutes matches the fifteen-minute `Cache-Control` this endpoint already
+ * sets downstream, so no reader sees anything staler than they did before. The
+ * hour of grace is generous on purpose: an hour-old temperature is still a
+ * useful and honest number, and it is a far better answer than the dash a
+ * dropped socket would otherwise produce.
+ */
+const WEATHER_TTL_MS = 10 * 60 * 1000;
+const WEATHER_GRACE_MS = 60 * 60 * 1000;
+
+function cachedJson(url) {
+  return cache.memo('open-meteo:' + url, WEATHER_TTL_MS, WEATHER_GRACE_MS, function () {
+    return es.httpJson(url, HTTP);
+  }).then(function (result) { return result.value; });
+}
 
 var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 var AIR_QUALITY = 'https://air-quality-api.open-meteo.com/v1/air-quality';
@@ -122,7 +145,7 @@ async function fetchWeather(country) {
       '&longitude=' + city.lon +
       '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code' +
       '&timezone=Europe/Riga';
-    return es.httpJson(url, HTTP).then(function (data) {
+    return cachedJson(url).then(function (data) {
       var current = data.current || {};
       // `|| 0` turned a missing reading into a real-looking measurement: an
       // absent temperature became 0°C, which in Latvia reads as an ordinary
@@ -163,7 +186,7 @@ async function fetchAirQuality(country) {
       '?latitude=' + coords.lat + '&longitude=' + coords.lon +
       '&current=pm2_5,nitrogen_dioxide,european_aqi' +
       '&timezone=' + tz;
-    var data = await es.httpJson(url, HTTP);
+    var data = await cachedJson(url);
     var current = data.current || {};
     var aqi = numberOrNull(current.european_aqi);
 

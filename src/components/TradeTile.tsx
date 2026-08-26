@@ -2,6 +2,7 @@ import { IndicatorCard }
 from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { FreightModalSplit } from './FreightModalSplit';
 
 export function TradeTile() {
   const { countryLabel, flag } = useCountry();
@@ -28,8 +29,11 @@ export function TradeTile() {
         <BalticCompareChart indicator="exports" title="Exports of goods" compact />
         <BalticCompareChart indicator="imports" title="Imports of goods" compact />
         <BalticCompareChart indicator="trade_balance" title="Trade balance" compact />
-        <BalticCompareChart indicator="goods_balance" title="Goods balance" compact />
-        <BalticCompareChart indicator="services_balance" title="Services balance" compact />
+        {/* Replaces the goods-balance and services-balance charts. Those were
+            two of five balance-of-payments series on one tile saying versions
+            of the same thing; this says something none of them did, and
+            something most readers would guess the wrong way round. */}
+        <FreightModalSplit compact />
         <BalticCompareChart indicator="transport_services" title="Transport services balance" compact />
         <BalticCompareChart indicator="financial_services" title="Financial services balance" compact />
         <BalticCompareChart indicator="tourism_foreign" title="Nights spent by foreign visitors" compact />

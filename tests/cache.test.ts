@@ -1,0 +1,148 @@
+/**
+ * The cache in front of Open-Meteo, and why it is not a way of hiding a failure.
+ *
+ * Measured against production: roughly half of all calls from the Static Web
+ * App's egress address hang for the full probe deadline and are rescued by the
+ * retry, and about one in four has both attempts hang — which took the whole
+ * site to `degraded` about a third of the time. The same endpoint answered a
+ * laptop in 110–302ms, six times out of six. That is a throttle on a shared
+ * egress address, and it is not something a client can out-wait.
+ *
+ * Retrying harder is knocking louder at a door held shut on purpose, and makes
+ * us more of the cause. Demoting the source hides real outages with the false
+ * ones. Caching is the only option that addresses why it is happening:
+ * Open-Meteo publishes **hourly**, and we were asking it for fresh data several
+ * times a minute.
+ *
+ * The part that needs pinning down is the behaviour under failure. Serving a
+ * remembered answer is right here because the thing being reported — how
+ * current the weather data is — does not change when our socket is dropped. But
+ * it must be bounded, it must carry its age, and past the bound it must give up
+ * and say so. "I don't know" rendering as "fine" is the failure this whole
+ * workstream exists to remove.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const cache = require('../api/shared/cache.js');
+
+const TTL = 5 * 60 * 1000;
+const GRACE = 25 * 60 * 1000;
+const T0 = 1_787_000_000_000;
+
+beforeEach(() => cache.clear());
+
+describe('memo', () => {
+  it('asks once, then serves the answer without asking again', async () => {
+    // Open-Meteo publishes hourly. Asking on every status request could not be
+    // right even if every call succeeded.
+    let calls = 0;
+    const fetcher = () => { calls++; return Promise.resolve({ reading: calls }); };
+
+    const first = await cache.memo('k', TTL, GRACE, fetcher, T0);
+    const second = await cache.memo('k', TTL, GRACE, fetcher, T0 + 60_000);
+
+    expect(calls).toBe(1);
+    expect(second.value).toEqual({ reading: 1 });
+    expect(second.cached).toBe(true);
+    expect(first.cached).toBe(false);
+  });
+
+  it('asks again once the answer is older than its TTL', async () => {
+    let calls = 0;
+    const fetcher = () => { calls++; return Promise.resolve({ reading: calls }); };
+
+    await cache.memo('k', TTL, GRACE, fetcher, T0);
+    const later = await cache.memo('k', TTL, GRACE, fetcher, T0 + TTL + 1);
+
+    expect(calls).toBe(2);
+    expect(later.value).toEqual({ reading: 2 });
+  });
+
+  it('holds the last good answer when a fetch fails, and says it did', async () => {
+    // The production case: the socket is dropped, the weather has not changed.
+    await cache.memo('k', TTL, GRACE, () => Promise.resolve({ reading: 'good' }), T0);
+
+    const result = await cache.memo('k', TTL, GRACE,
+      () => Promise.reject(new Error('Deadline 3000ms exceeded')), T0 + TTL + 1);
+
+    expect(result.value).toEqual({ reading: 'good' });
+    expect(result.servedAfterFailure).toBe(true);
+    expect(result.error).toMatch(/Deadline/);
+    expect(result.ageMs).toBe(TTL + 1);
+  });
+
+  it('gives up once the grace has run out, rather than claiming all is well', async () => {
+    // Past this point we genuinely do not know, and a stale "healthy" would be
+    // exactly the false green this codebase keeps finding.
+    await cache.memo('k', TTL, GRACE, () => Promise.resolve('good'), T0);
+
+    await expect(cache.memo('k', TTL, GRACE,
+      () => Promise.reject(new Error('Deadline 3000ms exceeded')), T0 + GRACE + 1))
+      .rejects.toThrow(/Deadline/);
+  });
+
+  it('raises the error when there is nothing remembered at all', async () => {
+    await expect(cache.memo('cold', TTL, GRACE,
+      () => Promise.reject(new Error('Deadline 3000ms exceeded')), T0))
+      .rejects.toThrow(/Deadline/);
+  });
+
+  it('always reports how old the answer is', async () => {
+    // So a caller can say "as of four minutes ago" without asking twice.
+    await cache.memo('k', TTL, GRACE, () => Promise.resolve('v'), T0);
+    const hit = await cache.memo('k', TTL, GRACE, () => Promise.resolve('v'), T0 + 90_000);
+    expect(hit.ageMs).toBe(90_000);
+  });
+
+  it('keeps entries apart by key', async () => {
+    await cache.memo('a', TTL, GRACE, () => Promise.resolve('A'), T0);
+    await cache.memo('b', TTL, GRACE, () => Promise.resolve('B'), T0);
+    const a = await cache.memo('a', TTL, GRACE, () => Promise.resolve('X'), T0 + 1000);
+    expect(a.value).toBe('A');
+  });
+
+  it('recovers as soon as the source answers again', async () => {
+    await cache.memo('k', TTL, GRACE, () => Promise.resolve('old'), T0);
+    await cache.memo('k', TTL, GRACE, () => Promise.reject(new Error('hang')), T0 + TTL + 1);
+
+    const recovered = await cache.memo('k', TTL, GRACE,
+      () => Promise.resolve('new'), T0 + TTL + 2000);
+
+    expect(recovered.value).toBe('new');
+    expect(recovered.servedAfterFailure).toBe(false);
+    expect(recovered.ageMs).toBe(0);
+  });
+
+  it('does not grow without bound', async () => {
+    // The key space is a handful of URLs, but an unbounded map in a long-lived
+    // worker is a leak waiting for someone to add a per-request key.
+    for (let i = 0; i < cache.MAX_ENTRIES + 10; i++) {
+      await cache.memo('key-' + i, TTL, GRACE, () => Promise.resolve(i), T0 + i);
+    }
+    // The oldest are evicted; the newest survive.
+    const newest = await cache.memo('key-' + (cache.MAX_ENTRIES + 9), TTL, GRACE,
+      () => Promise.resolve('refetched'), T0 + cache.MAX_ENTRIES + 9);
+    expect(newest.cached).toBe(true);
+  });
+});
+
+describe('the Open-Meteo probe bounds', () => {
+  it('re-reads far more often than the source can change', () => {
+    const source = require('node:fs').readFileSync(
+      require('node:path').resolve('api/system-status/index.js'), 'utf8');
+
+    const ttl = /OPEN_METEO_TTL_MS = (\d+) \* 60 \* 1000/.exec(source);
+    const grace = /OPEN_METEO_GRACE_MS = (\d+) \* 60 \* 1000/.exec(source);
+    expect(ttl, 'the probe must declare a TTL').not.toBeNull();
+    expect(grace, 'the probe must declare a grace').not.toBeNull();
+
+    // Hourly data, so anything under an hour loses nothing; and a genuine
+    // outage has to surface in a time a person would still call prompt.
+    expect(Number(ttl![1])).toBeLessThan(60);
+    expect(Number(grace![1])).toBeLessThanOrEqual(30);
+    expect(Number(grace![1])).toBeGreaterThan(Number(ttl![1]));
+  });
+});

@@ -56,7 +56,7 @@ export const DASHBOARD_INDICATORS = new Set([
   'elec_renewable_gen', 'renewables', 'elec_price_household',
   'elec_price_industry', 'vehicles', 'air_passengers', 'ghg_emissions',
   'business_registrations', 'bankruptcies', 'rail_freight', 'road_freight',
-  'labour_productivity',
+  'road_freight_tkm', 'labour_productivity',
 ]);
 
 /**
