@@ -55,3 +55,18 @@ venv/
 .newsroom-articles/
 .newsroom-archive/
 
+# Agent and reviewer scratch.
+#
+# These are per-machine working artefacts, not repository content, and leaving
+# them untracked is not the same as leaving them alone: several agents work in
+# this checkout, so anything unignored here reads as "the workspace has
+# uncommitted changes" forever, and the next person to reach for `git add -A`
+# sweeps somebody else's debris into a commit.
+.impeccable/
+
+# Ad-hoc local preview config. The committed vite.config.ts is the real one;
+# this variant proxies /api and /articles at the live site so a built frontend
+# can be eyeballed against production data, which is a desk convenience rather
+# than a repository artefact.
+vite.preview-check.ts
+
