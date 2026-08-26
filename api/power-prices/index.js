@@ -36,7 +36,44 @@ function summarise(prices) {
  *
  * Day-ahead electricity prices for all Baltic bidding zones plus Finland,
  * with the spread between them and whether the market is currently coupled.
+ *
+ * The window is two days and that is deliberate: "day-ahead" means tomorrow,
+ * Nord Pool publishes it around 13:00 CET, and a card that hid it would be
+ * throwing away the only genuinely forward-looking number on the dashboard.
+ *
+ * What was wrong was the arithmetic on top of it. Every aggregate — the
+ * decoupled share, each zone's min, max and average, the widest spread — was
+ * computed across the whole 184-interval window while the card described it as
+ * "today". Today alone is 96 of those intervals. So the summaries are now
+ * scoped to a named day and tomorrow is reported separately, which also gives
+ * the client something to draw a boundary with: Elering moved to 15-minute
+ * resolution, so the series carries two days of quarter-hours whose `HH:mm`
+ * labels repeat, and 00:00 appears twice with nothing to say which is which.
  */
+
+const CACHE_SECONDS = 15 * 60;
+
+/** Summary of one day's intervals for one zone. */
+function summariseZone(rows, id) {
+  return summarise(rows.map(function (r) { return r[id]; })
+    .filter(function (v) { return typeof v === 'number'; }));
+}
+
+/** Decoupling over a named set of intervals, never over a window we then mislabel. */
+function couplingOf(rows) {
+  let decoupled = 0;
+  let widest = { spread: 0, time: null };
+  rows.forEach(function (r) {
+    if (r.spread > COUPLED_TOLERANCE_EUR) decoupled++;
+    if (r.spread > widest.spread) widest = { spread: r.spread, time: r.time };
+  });
+  return {
+    intervals: rows.length,
+    decoupledIntervals: decoupled,
+    widestSpread: widest.time ? widest : null,
+  };
+}
+
 module.exports = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
@@ -45,6 +82,9 @@ module.exports = async function (context, req) {
   start.setUTCHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 2);
+
+  const todayKey = start.toISOString().slice(0, 10);
+  const tomorrowKey = new Date(start.getTime() + 86400e3).toISOString().slice(0, 10);
 
   const url = ELERING_URL +
     '?start=' + encodeURIComponent(start.toISOString()) +
@@ -68,8 +108,6 @@ module.exports = async function (context, req) {
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     const series = [];
-    let decoupledIntervals = 0;
-    let widestSpread = { spread: 0, time: null };
     let currentInterval = null;
 
     for (const ts of timeline) {
@@ -80,11 +118,13 @@ module.exports = async function (context, req) {
       if (baltic.length < 2) continue;
 
       const spread = +(Math.max.apply(null, baltic) - Math.min.apply(null, baltic)).toFixed(2);
-      if (spread > COUPLED_TOLERANCE_EUR) decoupledIntervals++;
-      if (spread > widestSpread.spread) widestSpread = { spread: spread, time: new Date(ts * 1000).toISOString() };
+      const iso = new Date(ts * 1000).toISOString();
 
       const entry = {
-        time: new Date(ts * 1000).toISOString(),
+        time: iso,
+        // The calendar day this interval belongs to, so the client can separate
+        // two days of repeating quarter-hour labels without re-parsing dates.
+        day: iso.slice(0, 10),
         ee: typeof row.ee === 'number' ? row.ee : null,
         lv: typeof row.lv === 'number' ? row.lv : null,
         lt: typeof row.lt === 'number' ? row.lt : null,
@@ -95,33 +135,53 @@ module.exports = async function (context, req) {
       if (ts <= nowSeconds) currentInterval = entry;
     }
 
+    const todayRows = series.filter(function (s) { return s.day === todayKey; });
+    const tomorrowRows = series.filter(function (s) { return s.day === tomorrowKey; });
+
+    const today = couplingOf(todayRows);
+    const tomorrow = couplingOf(tomorrowRows);
+
     const zones = ZONES.map(function (zone) {
-      const prices = series
-        .map(function (s) { return s[zone.id]; })
-        .filter(function (v) { return typeof v === 'number'; });
       return Object.assign({
         id: zone.id,
         label: zone.label,
         flag: zone.flag,
         current: currentInterval ? currentInterval[zone.id] : null,
-      }, summarise(prices));
+        // Tomorrow is published separately and is often not there yet, so it is
+        // reported beside today rather than folded into one range that belongs
+        // to neither day.
+        tomorrow: tomorrowRows.length > 0 ? summariseZone(tomorrowRows, zone.id) : null,
+      }, summariseZone(todayRows, zone.id));
     });
 
     const currentSpread = currentInterval ? currentInterval.spread : null;
 
     context.res = {
       status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=900' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=' + CACHE_SECONDS },
       body: JSON.stringify({
         unit: 'EUR/MWh',
         zones: zones,
         series: series,
+        // Which day every "today" figure below describes, so the client never
+        // has to infer it from the server's clock.
+        today: todayKey,
+        tomorrow: tomorrowRows.length > 0 ? tomorrowKey : null,
         currentTime: currentInterval ? currentInterval.time : null,
         currentSpread: currentSpread,
         coupled: currentSpread !== null ? currentSpread <= COUPLED_TOLERANCE_EUR : null,
-        decoupledIntervals: decoupledIntervals,
-        totalIntervals: series.length,
-        widestSpread: widestSpread.time ? widestSpread : null,
+        // Scoped to `today`. These were previously computed across both days
+        // and then described as today's, which overstated or understated the
+        // decoupled share by however different tomorrow happened to be.
+        decoupledIntervals: today.decoupledIntervals,
+        totalIntervals: today.intervals,
+        widestSpread: today.widestSpread,
+        tomorrowOutlook: tomorrowRows.length > 0 ? {
+          date: tomorrowKey,
+          decoupledIntervals: tomorrow.decoupledIntervals,
+          totalIntervals: tomorrow.intervals,
+          widestSpread: tomorrow.widestSpread,
+        } : null,
         source: 'Elering (Nord Pool day-ahead)',
         fetchedAt: new Date().toISOString(),
       }),

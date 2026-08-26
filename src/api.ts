@@ -31,13 +31,20 @@ export interface PowerPriceZone {
   label: string;
   flag: string;
   current: number | null;
+  /** Today's low, high and mean. Previously these spanned both days while the
+   *  card described them as today's. */
   min: number | null;
   max: number | null;
   avg: number | null;
+  /** Tomorrow's, once Nord Pool has published it. Null until then. */
+  tomorrow?: { min: number | null; max: number | null; avg: number | null } | null;
 }
 
 export interface PowerPricePoint {
   time: string;
+  /** Calendar day this interval belongs to, so two days of repeating
+   *  quarter-hour labels can be told apart. */
+  day?: string;
   ee: number | null;
   lv: number | null;
   lt: number | null;
@@ -49,12 +56,23 @@ export interface PowerPriceData {
   unit: string;
   zones: PowerPriceZone[];
   series: PowerPricePoint[];
+  /** The day every "today" figure here describes. */
+  today?: string;
+  /** Tomorrow's date once published, otherwise null. */
+  tomorrow?: string | null;
   currentTime: string | null;
   currentSpread: number | null;
   coupled: boolean | null;
+  /** Scoped to `today`, not to the whole two-day window. */
   decoupledIntervals: number;
   totalIntervals: number;
   widestSpread: { spread: number; time: string } | null;
+  tomorrowOutlook?: {
+    date: string;
+    decoupledIntervals: number;
+    totalIntervals: number;
+    widestSpread: { spread: number; time: string } | null;
+  } | null;
   source: string;
   fetchedAt: string;
 }

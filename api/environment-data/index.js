@@ -1,27 +1,48 @@
-const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
-const http = require('http');
 const es = require('../shared/eurostat.js');
 
-function httpGet(url) {
-  var lib = url.startsWith('https') ? https : http;
-  return new Promise(function (resolve, reject) {
-    var req = lib.get(url, { timeout: 10000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed for ' + url)); }
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-  });
-}
+/**
+ * GET /api/environment-data
+ *
+ * Weather for several cities, air quality for the capital, and capital-region
+ * population.
+ *
+ * Two things were wrong here, and both are the failures this codebase has
+ * already fixed elsewhere and not carried across.
+ *
+ * **It used a socket idle timer, not a deadline.** The local `httpGet` passed
+ * `{ timeout: 10000 }`, which only fires when a connection goes quiet — a
+ * source that accepts the connection and then stalls holds the request open far
+ * longer. That is the exact flaw `shared/eurostat.js` documents fixing, and it
+ * is why this endpoint was measured at 22,031ms and 20,326ms cold against
+ * 1,105ms warm while its fan-out was already fully parallel. It now uses the
+ * shared client, with a hard deadline and one retry — the Open-Meteo probe was
+ * separately measured hanging at exactly its deadline about one call in three
+ * from Azure, which a fresh connection almost always fixes.
+ *
+ * **It fabricated readings.** When the air-quality fetch failed the catch
+ * returned `{ pm25: 0, no2: 0, status: 'good', label: 'Good' }` — an invented
+ * clean-air reading, presented in the same shape and styling as a real one, on
+ * a page whose entire premise is that the numbers are real. `current.pm2_5 || 0`
+ * did the same thing more quietly for a missing field. Nothing is invented now:
+ * a measurement that could not be taken comes back null with a reason, and the
+ * response says which parts are missing rather than dropping them and letting
+ * the client guess. That is the rule the repo already applies to registry
+ * counts, which are omitted rather than shown as a fabricated zero.
+ */
+
+/**
+ * One shared budget for every upstream this endpoint touches.
+ *
+ * Four seconds is generous against measured healthy latencies — Open-Meteo
+ * answers in 100–300ms and the Eurostat population cube in about 800ms — so the
+ * worst case is bounded at roughly eight seconds with the retry, against a
+ * previously unbounded wait. A hard deadline is the part that matters: the old
+ * socket idle timer could not end a connection that was accepted and then went
+ * silent, which is what a shared Azure egress address meets when it is rate
+ * limited.
+ */
+const HTTP = { deadlineMs: 4000, retries: 1 };
 
 var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 var AIR_QUALITY = 'https://air-quality-api.open-meteo.com/v1/air-quality';
@@ -86,6 +107,13 @@ function describeWeather(code) {
   return 'Unknown';
 }
 
+/**
+ * Weather per city.
+ *
+ * A city that fails is dropped, which is reasonable — the others are still
+ * worth showing. How many were dropped is reported, because a list silently
+ * one city short is indistinguishable from a country that has three cities.
+ */
 async function fetchWeather(country) {
   var cities = CITIES_BY_COUNTRY[country] || CITIES_BY_COUNTRY.lv;
   var settled = await Promise.allSettled(cities.map(function (city) {
@@ -94,20 +122,37 @@ async function fetchWeather(country) {
       '&longitude=' + city.lon +
       '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code' +
       '&timezone=Europe/Riga';
-    return httpGet(url).then(function (data) {
+    return es.httpJson(url, HTTP).then(function (data) {
       var current = data.current || {};
+      // `|| 0` turned a missing reading into a real-looking measurement: an
+      // absent temperature became 0°C, which in Latvia reads as an ordinary
+      // winter day rather than as an error.
       return {
         city: city.name,
-        temperature: current.temperature_2m || 0,
-        windSpeed: current.wind_speed_10m || 0,
-        humidity: current.relative_humidity_2m || 0,
-        description: describeWeather(current.weather_code || 0),
+        temperature: numberOrNull(current.temperature_2m),
+        windSpeed: numberOrNull(current.wind_speed_10m),
+        humidity: numberOrNull(current.relative_humidity_2m),
+        description: typeof current.weather_code === 'number'
+          ? describeWeather(current.weather_code)
+          : null,
       };
     });
   }));
-  return settled
+
+  var cityData = settled
     .filter(function (r) { return r.status === 'fulfilled'; })
     .map(function (r) { return r.value; });
+
+  return {
+    cities: cityData,
+    requested: cities.length,
+    missing: cities.length - cityData.length,
+  };
+}
+
+/** A number, or null. Never a zero standing in for "we do not know". */
+function numberOrNull(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 async function fetchAirQuality(country) {
@@ -118,21 +163,35 @@ async function fetchAirQuality(country) {
       '?latitude=' + coords.lat + '&longitude=' + coords.lon +
       '&current=pm2_5,nitrogen_dioxide,european_aqi' +
       '&timezone=' + tz;
-    var data = await httpGet(url);
+    var data = await es.httpJson(url, HTTP);
     var current = data.current || {};
-    var aqi = current.european_aqi || 0;
-    var status = 'good';
-    var label = 'Good';
-    if (aqi > 100) { status = 'unhealthy'; label = 'Unhealthy'; }
-    else if (aqi > 50) { status = 'moderate'; label = 'Moderate'; }
+    var aqi = numberOrNull(current.european_aqi);
+
+    // No reading is not the same as a good reading. The old catch returned
+    // `status: 'good', label: 'Good'` on failure, which told a reader the air
+    // was clean on the strength of a request that never completed.
+    var status = null;
+    var label = null;
+    if (aqi !== null) {
+      if (aqi > 100) { status = 'unhealthy'; label = 'Unhealthy'; }
+      else if (aqi > 50) { status = 'moderate'; label = 'Moderate'; }
+      else { status = 'good'; label = 'Good'; }
+    }
+
     return {
-      pm25: current.pm2_5 || 0,
-      no2: current.nitrogen_dioxide || 0,
+      pm25: numberOrNull(current.pm2_5),
+      no2: numberOrNull(current.nitrogen_dioxide),
+      aqi: aqi,
       status: status,
       label: label,
+      available: aqi !== null,
     };
   } catch (e) {
-    return { pm25: 0, no2: 0, status: 'good', label: 'Good' };
+    return {
+      pm25: null, no2: null, aqi: null, status: null, label: null,
+      available: false,
+      unavailableReason: e.message,
+    };
   }
 }
 
@@ -141,7 +200,7 @@ async function fetchCapitalPopulation(country) {
   try {
     var url = es.EUROSTAT_BASE + '/demo_r_pjanaggr3?geo=' + region.geo +
       '&sex=T&age=TOTAL&freq=A&unit=NR&sinceTimePeriod=' + (new Date().getFullYear() - 6);
-    var data = await es.httpJson(url, { deadlineMs: 10000 });
+    var data = await es.httpJson(url, HTTP);
     var parsed = es.parseJsonStat(data, [region.geo]);
     var series = parsed.countries[region.geo] ? parsed.countries[region.geo].series : [];
     var withValues = series.filter(function (p) { return p.value !== null; });
@@ -173,7 +232,16 @@ module.exports = async function (context, req) {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=900' },
       body: JSON.stringify({
-        weather: weather,
+        weather: weather.cities,
+        // Always present, even when empty. A missing `weather` key and an empty
+        // one are the same thing to a reader and different things to a client,
+        // and the reader deserves to know which cities are absent rather than
+        // being shown a shorter list with no explanation.
+        weatherCoverage: {
+          reporting: weather.cities.length,
+          requested: weather.requested,
+          missing: weather.missing,
+        },
         airQuality: airQuality,
         capitalPopulation: population.value,
         capitalPopulationLabel: population.label,

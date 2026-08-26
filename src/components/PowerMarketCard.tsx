@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { fetchPowerPrices, type PowerPriceData } from '../api';
-import { chartTick, chartTooltip } from '../utils/chartType';
+import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
  *  as the country is on every comparison chart. */
@@ -74,6 +74,15 @@ export function PowerMarketCard() {
   const chartData = data.series.map((p) => ({ ...p, label: formatHour(p.time) }));
   const zoneColor = (id: string) => chartColors.series[ZONE_SERIES[id as keyof typeof ZONE_SERIES]];
 
+  // The window is two days on purpose — "day-ahead" means tomorrow — but
+  // Elering moved to 15-minute resolution, so the series carries roughly 184
+  // quarter-hours whose `HH:mm` labels repeat: 00:00 appears twice with nothing
+  // to say which is which. The boundary is marked rather than every label
+  // lengthened, which would fight the axis for room.
+  const firstTomorrow = data.tomorrow
+    ? data.series.find((p) => p.day === data.tomorrow)
+    : undefined;
+
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-start justify-between mb-3 gap-3">
@@ -108,6 +117,12 @@ export function PowerMarketCard() {
           </div>
         ))}
       </div>
+      {/* The range above is today's. It used to span both days while the
+          footnote called it today, so a quiet day beside a volatile tomorrow
+          reported a range neither of them had. */}
+      <p className="text-caption mb-3" style={{ color: 'var(--text-tertiary)' }}>
+        Range is today&apos;s low to high
+      </p>
 
       <div className="h-40">
         <ResponsiveContainer width="100%" height="100%">
@@ -138,6 +153,13 @@ export function PowerMarketCard() {
             {data.currentTime && (
               <ReferenceLine x={formatHour(data.currentTime)} stroke={chartColors.reference} strokeDasharray="2 2" />
             )}
+            {firstTomorrow && (
+              <ReferenceLine
+                x={formatHour(firstTomorrow.time)}
+                stroke={chartColors.reference}
+                label={{ value: 'tomorrow', position: 'insideTopRight', fill: chartColors.axis, fontSize: CHART_TICK_SIZE }}
+              />
+            )}
             {ZONE_ORDER.map((zone) => (
               <Line
                 key={zone}
@@ -155,8 +177,11 @@ export function PowerMarketCard() {
       </div>
 
       <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
-        {decoupledShare}% of intervals decoupled today
+        {decoupledShare}% of today&apos;s {data.totalIntervals} intervals decoupled
         {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
+        {data.tomorrowOutlook
+          ? ` · tomorrow published, ${data.tomorrowOutlook.totalIntervals} intervals`
+          : ' · tomorrow not published yet'}
         {' · '}Source: {data.source}
       </p>
     </div>
