@@ -46,8 +46,9 @@ THE NUMBER RULES — these override every stylistic instruction above:
    paragraphs, all three of those blocks must declare it. A figure declared in
    an earlier block does NOT cover a later one — the check is run block by
    block and the article is rejected for the block that omitted it.
-3b. The headline and the standfirst are checked too. A number in either must be
-   declared in some block's "figures".
+3b. The headline and the standfirst are checked too. A number in the headline
+   must be declared in some block's "figures". The standfirst is stricter and
+   is covered below: it takes no digits at all.
 4. You may round a figure when you render it in the sentence — write "4.2%" for
    4.23 — but "value" must stay the number you were given.
 5. Whenever you quantify a change, name what it is measured against in the same
@@ -683,9 +684,12 @@ def build_user_prompt(
             (
                 instruction_for(fenced_research),
                 "Use official_statement summaries and official_document_text only with "
-                "attribution by name, and never as a verified figure — a number that "
-                "appears there and not in VERIFIED FIGURES may not be written. "
-                "For prior_coverage, use only the source and URL as a lead; never "
+                "attribution by name, and never as a verified figure. Quantities and "
+                "directional wording have been removed from every field below and "
+                "replaced with a bracketed marker: where you see one, the newsroom did "
+                "not verify what was there, so do not guess it, describe it or write "
+                "around it. Say what the figures you were given show instead. "
+                "For prior_coverage, use only the source and title as a lead; never "
                 "repeat or paraphrase the outlet's text.",
                 fenced_research.render(),
             )

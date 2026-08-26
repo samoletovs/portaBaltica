@@ -707,7 +707,8 @@ def detect_sharp_move(
         comparison_basis=(
             f"the previous reading of {previous.value:g} {series.unit} in {previous.period}, "
             f"against a typical {series.frequency} move of {sigma:.3g} {series.unit} "
-            f"over the preceding {len(deltas)} periods"
+            f"over the preceding {len(deltas)} "
+            f"{reading_word(series.frequency, len(deltas))}"
         ),
         score=score,
         section=series.section,
@@ -719,6 +720,13 @@ def detect_sharp_move(
             "change_pct": abs(change_pct),
             "typical_move": sigma,
             "move_vs_typical": z,
+            # The basis counts the periods it measured volatility over, so the
+            # writer is handed that count and will state it. Undeclared, it was
+            # not merely unquotable — the reconciler matched "10" to whichever
+            # field sat within rounding distance of it and filed the count as,
+            # in one case, the latest value. A wrong signal_field is worse than
+            # a rejection: it publishes.
+            "periods_compared": float(len(deltas)),
         },
         sources=[series.source],
         context={

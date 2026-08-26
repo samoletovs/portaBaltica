@@ -107,6 +107,154 @@ class TestArchiveBeforeParse:
         assert archive.read(item.archive_name) == b"archived bytes"
 
 
+class TestProvenanceSurvivesTheProcess:
+    """``retrieved_at`` says when the archived bytes were served, and must not drift.
+
+    A verdict is only reproducible from the blob archive if the item rebuilt
+    from cache points at the payload it actually came from. ``fetched_at`` is
+    the wrong value for that: it is restamped every time the client speaks to
+    the server, including on a 304, so a cached item was labelled with the
+    moment we asked rather than the moment we were served — off by a second on
+    a restart, and by hours after a day of 304s.
+    """
+
+    @staticmethod
+    def _restartable(handler, tmp_path):
+        archive = RawArchive(local_dir=tmp_path / "archive", account_url="")
+        state_path = tmp_path / "state.json"
+
+        def build():
+            return CollectorHttp(
+                archive,
+                client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+                state=ConditionalState(state_path),
+                sleep=_no_sleep,
+            )
+
+        return build
+
+    @staticmethod
+    def _advance_fetched_at(tmp_path, when: str) -> None:
+        """Move only ``fetched_at``, as a later run or a 304 revalidation would."""
+        state_path = tmp_path / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        for entry in state.values():
+            entry["fetched_at"] = when
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    async def test_should_reuse_the_archived_payload_after_a_process_restart(self, tmp_path):
+        calls = []
+
+        def handler(request):
+            calls.append(request.url)
+            return httpx.Response(200, content=b"cached feed")
+
+        build = self._restartable(handler, tmp_path)
+
+        async with build() as first:
+            served = await first.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        # Time passes and the client speaks to the server again, so ``fetched_at``
+        # advances. The archived bytes did not change, so ``retrieved_at`` must
+        # not. Written into the state file rather than waited for, because the
+        # two timestamps are recorded to the second and a same-tick test agrees
+        # by luck — which is exactly how this bug survived.
+        self._advance_fetched_at(tmp_path, "2099-01-01T00:00:00Z")
+
+        # A new process: nothing in memory, everything from the state file.
+        async with build() as second:
+            cached = await second.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        assert len(calls) == 1
+        assert cached.item is not None
+        assert cached.item.body == b"cached feed"
+        assert cached.item.from_cache is True
+        assert served.item is not None
+        assert cached.item.retrieved_at == served.item.retrieved_at
+        # And so it resolves to the same archived object, which is the property
+        # that actually matters: ``archive_name`` is derived from this
+        # timestamp, so a rebuilt item whose timestamp drifted is a provenance
+        # record naming a blob that does not exist.
+        assert cached.item.archive_name == served.item.archive_name
+
+    async def test_should_recover_the_timestamp_from_a_state_file_that_predates_it(
+        self, tmp_path
+    ):
+        """State files written by earlier runs carry no ``retrieved_at``.
+
+        The archive name is built from the same timestamp, so it can be read
+        back out rather than losing the cache entry or inventing a time.
+        """
+        calls = []
+
+        def handler(request):
+            calls.append(request.url)
+            return httpx.Response(200, content=b"cached feed")
+
+        build = self._restartable(handler, tmp_path)
+        async with build() as first:
+            served = await first.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        state_path = tmp_path / "state.json"
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        for entry in state.values():
+            entry.pop("retrieved_at", None)
+            entry["fetched_at"] = "2099-01-01T00:00:00Z"
+        state_path.write_text(json.dumps(state), encoding="utf-8")
+
+        async with build() as second:
+            cached = await second.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        assert len(calls) == 1
+        assert cached.item is not None
+        assert served.item is not None
+        assert cached.item.retrieved_at == served.item.retrieved_at
+
+    async def test_should_not_move_the_timestamp_when_the_server_says_not_modified(
+        self, tmp_path
+    ):
+        """A 304 means the bytes we hold are current, not that they are new."""
+        responses = [
+            httpx.Response(200, content=b"cached feed", headers={"etag": "v1"}),
+            httpx.Response(304, headers={"etag": "v1"}),
+        ]
+
+        def handler(request):
+            return responses.pop(0) if responses else httpx.Response(304)
+
+        build = self._restartable(handler, tmp_path)
+        async with build() as first:
+            served = await first.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=0
+            )
+            revalidated = await first.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=0
+            )
+
+        assert revalidated.skipped_reason == "not_modified"
+        assert served.item is not None and revalidated.item is not None
+        assert revalidated.item.retrieved_at == served.item.retrieved_at
+
+        # And it still holds once the in-memory copy is gone and the 304 has
+        # pushed ``fetched_at`` an hour past the retrieval.
+        self._advance_fetched_at(tmp_path, "2099-01-01T00:00:00Z")
+        async with build() as second:
+            after_restart = await second.fetch(
+                source_id="lsm_en", url="https://x.invalid/rss", cache_ttl_minutes=60
+            )
+
+        assert after_restart.item is not None
+        assert after_restart.item.retrieved_at == served.item.retrieved_at
+
+
 class TestCacheTtl:
     async def test_should_not_request_again_inside_the_ttl(self, tmp_path):
         calls = []

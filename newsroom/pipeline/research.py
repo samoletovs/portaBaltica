@@ -4,6 +4,16 @@ Research changes the questions the writer can answer, not the numbers it may
 publish. Feed text is untrusted, every candidate must resolve through the source
 registry, and third-party reporting contributes only a headline and link as an
 orientation lead. Its article text never enters the writer prompt.
+
+The same rule applies to the two things a summary can smuggle past the gates:
+**quantities and directions**. Every string handed to a model is stripped of
+both first, in ``ResearchItem.prompt_record``. A number the pipeline did not
+verify is not publishable, so showing one to the writer only invites a
+rejection; and a direction — "rose", "fell", "improved" — is a claim about the
+data that no validator check can catch, because ``no_invented_numbers`` finds
+no token in it and ``comparison_basis_stated`` only fires beside a digit.
+Provenance keeps the originals: it is the prompt, not the record, that is
+redacted.
 """
 
 from __future__ import annotations
@@ -16,6 +26,7 @@ from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from typing import Any, Iterable, Literal, Sequence
 
+from newsroom import numeric_scan
 from newsroom.pipeline import config
 from newsroom.pipeline.models import FeedItem, Signal
 from newsroom.pipeline.safety import registry
@@ -24,6 +35,33 @@ ResearchRole = Literal["official_statement", "prior_coverage"]
 
 _WORD = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
 _SPACE = re.compile(r"\s+")
+
+#: What replaces a quantity we did not verify. It carries no digits of its own,
+#: and it says out loud that something was removed — a silent deletion would
+#: leave a sentence that reads as complete and is not.
+NUMBER_PLACEHOLDER = "[unverified figure omitted]"
+
+#: What replaces a claim about which way something moved.
+DIRECTION_PLACEHOLDER = "[direction omitted]"
+
+#: Words that assert a direction of travel. A direction is a claim about the
+#: data exactly as much as a number is, and unlike a number the validator
+#: cannot catch it: ``no_invented_numbers`` sees no token in "unemployment
+#: rose", and ``comparison_basis_stated`` only fires when a movement word sits
+#: beside a digit. So a direction absorbed from a third-party summary and
+#: written without a figure passes every gate we have.
+#:
+#: Direction is not something research is allowed to contribute. The pipeline
+#: computes it — ``signal.context["direction"]`` — from the verified series, and
+#: that is the only direction an article may state.
+_CHANGE_TOKEN = re.compile(
+    r"\b(?:rose|rise[sn]?|rising|fell|fall(?:s|en|ing)?|climb(?:ed|s|ing)?|"
+    r"drop(?:ped|s|ping)?|increase[sd]?|increasing|decrease[sd]?|decreasing|"
+    r"grew|grow(?:s|ing|th)?|decline[sd]?|declining|improve[ds]?|worsen(?:ed|s|ing)?|"
+    r"surge[sd]?|surging|plunge[sd]?|plunging|jump(?:ed|s|ing)?|"
+    r"higher|lower|stronger|weaker|cheaper|dearer)\b",
+    re.IGNORECASE,
+)
 _COUNTRY_TERMS = {
     "LV": {"latvia", "latvian", "riga"},
     "EE": {"estonia", "estonian", "tallinn"},
@@ -72,6 +110,62 @@ def _plain_text(value: str) -> str:
     return _SPACE.sub(" ", " ".join(parser.parts)).strip()
 
 
+def redact_unverified_numbers(value: str) -> str:
+    """Strip every quantity out of text the pipeline did not verify.
+
+    A number the newsroom did not retrieve and check is not publishable, so
+    there is no reason to show one to the writer. Left in, it is an invitation:
+    the model is handed "unemployment at 9.1%" as context and writes it, and the
+    article dies at ``figures_traceable`` — or, worse, the figure survives
+    because some verified field happens to sit within rounding distance of it.
+
+    **What counts as a number is decided by** :mod:`newsroom.numeric_scan`,
+    not by a second regex written here. That module already answers the
+    question "is this token a quantitative claim?" for the validator, and its
+    answer is deliberately narrow: calendar dates, clock times, URLs and
+    alphanumeric identifiers are masked out, because those are not claims about
+    the data. Asking it means the redactor cannot disagree with the gate about
+    what a number is — and it means a published date stays readable instead of
+    being shredded into three placeholders, which is what a naive digit regex
+    does to ``2026-08-24``.
+    """
+    if not value:
+        return value
+    tokens = numeric_scan.scan(value)
+    if not tokens:
+        return value
+    out = value
+    # Right to left, so an earlier token's offsets are still valid after a
+    # later one has been replaced with a placeholder of a different length.
+    # The span a token reports can open on the whitespace before it — the
+    # currency and sign groups both allow one — so that leading space is put
+    # back, or "at 9.1%" redacts to "at[...]" and two words fuse into one.
+    for token in sorted(tokens, key=lambda t: t.start, reverse=True):
+        span = value[token.start : token.end]
+        lead = span[: len(span) - len(span.lstrip())]
+        out = out[: token.start] + lead + NUMBER_PLACEHOLDER + out[token.end :]
+    return _SPACE.sub(" ", out).strip()
+
+
+def neutralise_unverified_changes(value: str) -> str:
+    """Remove third-party claims about which way something moved.
+
+    See :data:`_CHANGE_TOKEN` for why this is not covered by any validator
+    check. The replacement is a bracketed marker rather than a substitute word:
+    an earlier version of this substituted "changed", which reads as prose and
+    is therefore something a model may copy, and which produces "prices were
+    changed than a year earlier" the moment the word it replaced was a
+    comparative rather than a verb. A marker is honest about being a hole.
+    """
+    if not value:
+        return value
+    return _CHANGE_TOKEN.sub(DIRECTION_PLACEHOLDER, value)
+
+
+def _sanitise_for_prompt(value: str) -> str:
+    return neutralise_unverified_changes(redact_unverified_numbers(value))
+
+
 @dataclass(frozen=True, slots=True)
 class ResearchItem:
     source_id: str
@@ -102,19 +196,33 @@ class ResearchItem:
         an item reaching this method by any other route would have carried the
         text straight into a prompt. Tier C is link-out only under DSM Art. 15;
         the rule is worth enforcing at the boundary the text actually crosses.
+
+        Every string that leaves here is stripped of quantities and of
+        directional claims first. Research changes the questions the writer can
+        answer, not the numbers or the directions it may publish — those come
+        from the verified signal or they do not appear. Redacting at this one
+        method covers both consumers, the writer prompt and the analyst brief,
+        which is why the sanitising lives here rather than at either call site.
+
+        The URL is deliberately absent. It is in ``provenance_record``, where
+        the reader gets the link; in a prompt it is a string of slug text and
+        digits that the model has no legitimate use for and did put into prose.
         """
         record = {
             "source": self.source_name,
             "role": self.role,
-            "title": self.title,
-            "url": self.url,
+            "title": _sanitise_for_prompt(self.title),
         }
         if self.role == "official_statement":
             if self.summary is not None:
-                record["official_summary"] = self.summary
+                record["official_summary"] = _sanitise_for_prompt(self.summary)
             if self.document is not None:
-                record["official_document_text"] = self.document
+                record["official_document_text"] = _sanitise_for_prompt(self.document)
         if self.published:
+            # A calendar reference, not a claim — ``numeric_scan`` masks dates
+            # for exactly that reason, and the writer needs to know whether an
+            # official statement predates the reading it is being used to
+            # explain.
             record["published"] = self.published
         return record
 
@@ -220,6 +328,12 @@ def _is_timely(signal: Signal, item: FeedItem) -> bool:
     return published >= period - timedelta(days=config.RESEARCH_MAX_AGE_DAYS)
 
 
+def _published_sort_value(value: str | None) -> float:
+    """Newest first among equals; an undated item sorts last."""
+    published = _published_at(value)
+    return published.timestamp() if published is not None else 0.0
+
+
 def research_signal(
     signal: Signal,
     feed_items: Iterable[FeedItem],
@@ -241,7 +355,18 @@ def research_signal(
         if relevance >= config.RESEARCH_MIN_RELEVANCE:
             candidates.append((relevance, item))
 
-    candidates.sort(key=lambda pair: (-pair[0], pair[1].source_id, pair[1].guid))
+    candidates.sort(
+        key=lambda pair: (
+            -pair[0],
+            # Two releases can score identically — the same agency saying the
+            # same thing in June and in August. Without this, the tie broke on
+            # source id and then guid, which is stable but arbitrary, and the
+            # newsroom explained a fresh reading with the older statement.
+            -_published_sort_value(pair[1].published),
+            pair[1].source_id,
+            pair[1].guid,
+        )
+    )
     selected: list[ResearchItem] = []
     per_source: dict[str, int] = {}
     for _, item in candidates:
@@ -278,9 +403,13 @@ def research_selected(
 
 
 __all__ = [
+    "DIRECTION_PLACEHOLDER",
+    "NUMBER_PLACEHOLDER",
     "ResearchContext",
     "ResearchItem",
     "ResearchRole",
+    "neutralise_unverified_changes",
+    "redact_unverified_numbers",
     "research_selected",
     "research_signal",
 ]

@@ -31,8 +31,27 @@ _COUNT_FIELDS: Final[frozenset[str]] = frozenset(
     {"periods_compared", "baseline_years", "observations", "sample_size", "readings_in_series"}
 )
 
+#: Suffixes that make a field a count whatever it is called.
+#:
+#: The explicit set above is a list two places have to agree on, and they did
+#: not: ``observation_count`` (record_extreme) and ``streak_length`` (streak)
+#: are both counts, both quoted in their detector's comparison basis, and both
+#: missing from it — so the writer's figure table offered "observation_count =
+#: 40 EUR/MWh", which is the exact false unit this module was written to stop,
+#: on the two most frequently firing detectors in the wire.
+#:
+#: A suffix rule closes the class rather than the two instances, so the next
+#: detector to emit a count is right by default instead of right if someone
+#: remembers.
+_COUNT_SUFFIXES: Final[tuple[str, ...]] = ("_count", "_length")
+
 #: Ratios: "x times the usual", not a quantity in the series' unit.
 _RATIO_FIELDS: Final[frozenset[str]] = frozenset({"spread_vs_typical", "ratio_vs_typical"})
+
+
+def is_count(name: str) -> bool:
+    """Is this field a tally of things rather than a measurement of them?"""
+    return name in _COUNT_FIELDS or name.endswith(_COUNT_SUFFIXES)
 
 
 def unit_for_field(
@@ -50,7 +69,7 @@ def unit_for_field(
     """
     if overrides is not None and name in overrides:
         return overrides[name]
-    if name in _COUNT_FIELDS:
+    if is_count(name):
         return None
     if name in _RATIO_FIELDS or name.endswith("_vs_typical"):
         return None
@@ -70,7 +89,7 @@ def label_for_field(
     """How to describe the unit in the writer's figure table."""
     unit = unit_for_field(name, series_unit, overrides=overrides)
     if unit is None:
-        if name in _COUNT_FIELDS:
+        if is_count(name):
             return "a count, not a measurement"
         if overrides is not None and name in overrides:
             return "a count, not a measurement"
@@ -80,7 +99,7 @@ def label_for_field(
 
 def is_dimensionless(name: str) -> bool:
     """Does this field have no unit of its own?"""
-    return name in _COUNT_FIELDS or name in _RATIO_FIELDS or name.endswith("_vs_typical") or name == "z_score"
+    return is_count(name) or name in _RATIO_FIELDS or name.endswith("_vs_typical") or name == "z_score"
 
 
 def display_value(name: str, value: float) -> str:
@@ -91,7 +110,7 @@ def display_value(name: str, value: float) -> str:
     value; the validator permits correct rounding in prose, so this changes
     only what the writer is shown and encouraged to write.
     """
-    if name in _COUNT_FIELDS:
+    if is_count(name):
         return f"{value:.0f}"
     if is_dimensionless(name):
         return f"{value:.2f}"
