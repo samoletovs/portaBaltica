@@ -24,7 +24,7 @@ from newsroom.pipeline import units
 from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline.context import ContextPack
 from newsroom.pipeline.research import ResearchContext
-from newsroom.pipeline.safety import fence, instruction_for, voice_card
+from newsroom.pipeline.safety import fence, instruction_for, voice_card, voice_reminder
 
 PROMPT_VERSION = "tierA-depth-v7"
 
@@ -76,15 +76,39 @@ reading sits in its whole history, and a brief from a specialist who read all of
 it before you did. Use them. A paragraph that could be deleted without the
 reader losing anything should be deleted by you.
 
-BANNED CLOSINGS. Never end with a sentence of this shape: "future data releases
-will provide further insights", "it remains to be seen", "time will tell",
-"further analysis is needed", "this trend bears watching", "X will be crucial
-to assess", "will be important to monitor", "may have significant implications
-for". They are the sound of having nothing to say. If the next release is what
-settles the question, NAME the release and say what reading would change the
-conclusion — "a third quarter below the seasonal average would make this a
-downturn rather than a blip" is a closing; "the next release will be crucial"
-is not.
+BANNED CLOSINGS. Never end with any variant of: "future data releases will
+provide further insights", "it remains to be seen", "time will tell", "further
+analysis is needed", "this trend bears watching", "X will be crucial to
+assess", "will be important to monitor", "may have significant implications
+for", "will provide further clarity". These sentences say nothing. They are the
+sound of running out of material and padding the word count, and they are now
+matched by a deterministic check — a draft carrying one is handed straight back
+to you.
+
+HOW TO CLOSE. You have three options, in preference order:
+  1. Name the specific next period ("the August HICP print") and state what
+     reading would change the conclusion: "a second month below the seasonal
+     mean would make this a contraction rather than a blip."
+  2. Name a different indicator that would confirm or contradict: "the Q3
+     employment figures will show whether the labour market tightened alongside
+     wages, or whether something else is driving cost."
+  3. State the limit of the evidence plainly and stop: "the data shows what
+     happened but not why, and nothing in the current release settles it."
+If none of these produces a sentence worth reading, end the article one
+paragraph earlier. Stopping when you run out of things to say is not a failure.
+
+NO PARAGRAPH MAY RESTATE A FACT ALREADY ESTABLISHED. If the same value and the
+same comparison appeared in an earlier paragraph, the new paragraph adds nothing
+and must be replaced with one that advances the story: a new comparison, a
+mechanism from the brief, a consequence for a named group, or a specific next
+event. Read your own draft back: if you can delete a paragraph and the reader
+loses nothing, you must delete it.
+
+This one is checked, not requested. Two paragraphs that declare the identical
+set of "signal_field" names in their figures arrays are the same paragraph
+written twice, and the article is rejected for it. Citing the same field
+alongside a DIFFERENT one is fine — that is a new comparison. Citing exactly
+the same set is not.
 
 WRITE ABOUT THE WORLD, NOT ABOUT THE DATA. "The reading is established against
 the backdrop of a low unemployment rate" describes a spreadsheet. "Employers
@@ -283,7 +307,9 @@ keeps it legal — put that exact phrase in that paragraph:
      change the conclusion. Carry no digits here either.
 
 Plain, active, specific. This is a wire story with something to say, not an
-essay and not a table read aloud."""
+essay and not a table read aloud.
+
+{voice_reminder}"""
 
 
 _USER_TEMPLATE = """WHAT THE DATA SHOWS (verified by the pipeline, not by you)
@@ -651,7 +677,12 @@ def build_system_prompt(signal: Signal, persona, *, paragraphs: int = 4) -> str:
     return _SYSTEM_TEMPLATE.format(
         voice=voice_card(persona),
         paragraphs=paragraphs,
-    )
+        # Deliberately last. See ``safety.voice_reminder`` for why repeating it
+        # is the whole fix: the card at the top is followed by 150 lines of
+        # rules that each name a consequence, and against that a description of
+        # a writing style reads as decoration.
+        voice_reminder=voice_reminder(persona),
+    ).rstrip()
 
 
 def build_user_prompt(

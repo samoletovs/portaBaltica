@@ -138,6 +138,60 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    def _read_json(self, name: str) -> dict[str, Any] | None:
+        container = self._container_client()
+        if container is not None:
+            try:
+                downloaded = container.download_blob(name).readall()
+                return json.loads(downloaded)
+            except Exception:  # noqa: BLE001 — absent or unreadable is not an error
+                pass
+        local = self._local_dir / name
+        if local.exists():
+            try:
+                return json.loads(local.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
+
+    async def read_json(self, name: str) -> dict[str, Any] | None:
+        """A JSON document written by :meth:`put_json`, or ``None``.
+
+        Never raises for an absent or corrupt document. The only caller is the
+        run report reading its own predecessor to carry a rolling count
+        forward, and a missing history must degrade to "no history" rather than
+        failing the run that was trying to record itself.
+        """
+        return await asyncio.to_thread(self._read_json, name)
+
+    def _put_json(self, name: str, payload: dict[str, Any], cache_control: str) -> str:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self._write_local(name, body)
+        container = self._container_client()
+        if container is not None:
+            try:
+                container.upload_blob(
+                    name=name,
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(cache_control),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("blob write failed for %s (%s)", name, exc)
+        return name
+
+    async def put_json(
+        self, name: str, payload: dict[str, Any], *, cache_control: str = _INDEX_CACHE_CONTROL
+    ) -> str:
+        """Write an arbitrary JSON document to the articles container.
+
+        Used for operational documents that are not articles — the run report —
+        so they get the same dual local/blob write, the same managed-identity
+        credential and the same failure handling as everything else, rather than
+        a second copy of all three.
+        """
+        return await asyncio.to_thread(self._put_json, name, payload, cache_control)
+
     def _read_published(self, slug: str) -> dict[str, Any] | None:
         """The stored JSON for a published article, or ``None``.
 

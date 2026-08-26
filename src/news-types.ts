@@ -30,7 +30,8 @@ export type ValidatorCheckName =
   | 'byline_discloses_ai'
   | 'no_lived_experience_claims'
   | 'attribution_present'
-  | 'comparison_basis_stated';
+  | 'comparison_basis_stated'
+  | 'no_repeated_findings';
 
 export interface ValidatorCheck {
   name: ValidatorCheckName;

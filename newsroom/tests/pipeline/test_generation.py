@@ -7,6 +7,7 @@ import json
 import pytest
 
 from newsroom.pipeline.models import SourceRef
+from newsroom.validator import CHECK_NAMES
 from newsroom.pipeline.write import StubWriter, generate_article
 from newsroom.pipeline.write import generator
 from newsroom.pipeline.write.generator import MAX_ATTEMPTS
@@ -64,7 +65,7 @@ class TestHappyPath:
 
         verdict = result.article.provenance["validator"]
         assert verdict["passed"] is True
-        assert len(verdict["checks"]) == 8
+        assert len(verdict["checks"]) == len(CHECK_NAMES)
 
     def test_should_record_the_signal_and_the_model_in_the_provenance(self):
         result = generate_article(make_signal(), StubWriter(GOOD_PAYLOAD, model_name="gpt-4o-mini"))
@@ -455,3 +456,86 @@ class TestTheUnitOnADeclaredFigure:
         )
 
         assert units_by_field["latest_value"] == "EUR per hour"
+
+
+def _payload_closing(text: str) -> dict:
+    """GOOD_PAYLOAD with its final paragraph replaced."""
+    payload = json.loads(json.dumps(GOOD_PAYLOAD))
+    payload["blocks"][-1] = {"text": text, "figures": []}
+    return payload
+
+
+_EMPTY_CLOSING = (
+    "Future data releases will provide further insights into whether this continues."
+)
+_REAL_CLOSING = (
+    "A second month above the seasonal average would make this a shift rather "
+    "than a blip."
+)
+
+
+class TestStyleIsFixedWhileTheWriterCanStillFixIt:
+    """House style ran at step 9 of the run, after this loop spent its budget.
+
+    So a phrase on a fixed list of banned phrases could not be fixed by the
+    writer that produced it. It reached the desk, which read it, sent the piece
+    back, and paid for a fresh generation plus two more editor reads to remove
+    a substring the loop could have named for free. On 2026-08-25 that pattern
+    took eleven drafts to publish one Lithuanian producer-prices story.
+    """
+
+    def test_should_spend_an_attempt_removing_an_empty_closing(self):
+        writer = StubWriter([_payload_closing(_EMPTY_CLOSING), _payload_closing(_REAL_CLOSING)])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert result.article.provenance["attempts"] == 2
+        assert result.article.body[-2].text == _REAL_CLOSING
+
+    def test_should_tell_the_writer_which_phrase_to_remove(self):
+        writer = StubWriter([_payload_closing(_EMPTY_CLOSING), _payload_closing(_REAL_CLOSING)])
+
+        generate_article(make_signal(), writer)
+
+        revision = writer.calls[1]["user"]
+        assert "will provide further insight" in revision
+        assert "empty closing" in revision
+
+    def test_should_not_spend_an_attempt_on_clean_copy(self):
+        writer = StubWriter(_payload_closing(_REAL_CLOSING))
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.article.provenance["attempts"] == 1
+        assert len(writer.calls) == 1
+
+    def test_should_publish_dirty_copy_rather_than_spike_it(self):
+        """Style is an editor, not a gate.
+
+        The desk still sees the note and can still send the piece back. What it
+        must not do is turn a validated article into a rejection, which would be
+        this loop lowering the yield it exists to raise.
+        """
+        writer = StubWriter(_payload_closing(_EMPTY_CLOSING))
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert result.article.status == "published"
+        assert len(writer.calls) == MAX_ATTEMPTS
+
+    def test_should_keep_the_earlier_draft_when_the_retry_is_worse(self):
+        """The loop asks a sampling model to try again; it can do worse.
+
+        Retrying for style must never cost an article that had already passed
+        the validator.
+        """
+        unusable = {"headline": "too short", "dek": None, "blocks": [], "tags": []}
+        writer = StubWriter([_payload_closing(_EMPTY_CLOSING), unusable, unusable])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert result.article.status == "published"
+        assert result.article.body, "the empty retry was published over a good draft"

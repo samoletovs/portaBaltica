@@ -192,7 +192,18 @@ Judge only these things:
    ("may be attributed to various factors") are worse than saying nothing.
 4. Does it read like a newspaper? Plain, active, specific. No essay scaffolding,
    no journalese, no hedging that survives being deleted.
-5. Did it use the wider context it was given? You are shown the other verified
+5. Is the "why it matters" paragraph a tautology? An impact statement that
+   restates the metric's own definition is not an explanation:
+     BAD:  "This increase in hourly labour cost affects employers, as it
+            represents the cost of employing labour in the economy."
+     BAD:  "The decline impacts manufacturers, as lower prices mean lower
+            revenue."
+   These say nothing a reader did not know from the headline. The test is
+   whether the sentence could have been written WITHOUT KNOWING THE NUMBER: if
+   it could, it is a definition wearing a consequence's clothes. Send it back
+   with the note: "impact paragraph is a tautology -- replace with a specific
+   consequence or cut it."
+6. Did it use the wider context it was given? You are shown the other verified
    figures the correspondent had: the same measure in the neighbouring states,
    related measures in the same economy, where the reading sits in its own
    history. Send a piece back when it used NONE of that and simply recited one
