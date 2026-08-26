@@ -255,12 +255,131 @@ class TestTheEditorDoesNotReDecideACardItHasRun:
             "run_once no longer reads what it has already published, so the "
             "editor re-decides every card on every run"
         )
-        assert "card.slug not in live" in source, (
-            "the already-published cards are read but not filtered out"
+        assert "refused_slugs()" in source, (
+            "a card the editor refused never reaches the index, so without the "
+            "ledger it is re-sent to be refused again on every run"
+        )
+        assert "card.slug not in decided" in source, (
+            "the already-decided cards are read but not filtered out"
         )
         assert source.index("published_slugs()") < source.index(
             "edit_syndicated_articles("
         ), "the skip must happen before the editor, not after it"
+
+
+class TestARefusalIsRememberedRatherThanRepeated:
+    """103 of 111 tier C rejections were Azure content-filter refusals.
+
+    Ukraine and Russia military coverage, political opinion — 59 unique
+    headlines, re-sent on every run to be refused again, because a refused card
+    never reaches the index and so ``published_slugs`` cannot see it.
+
+    Remembered rather than filtered by topic, deliberately. A Baltic wire that
+    quietly drops military stories has an editorial problem, not a cost one.
+    """
+
+    @staticmethod
+    def _outcome(action: str, reason: str = "content filter"):
+        from newsroom.pipeline.editor import EditorAction, EditorOutcome
+
+        return EditorOutcome(
+            article_id="a",
+            action=EditorAction(action),
+            reason=reason,
+            editor="Dace",
+            decided_at="2026-08-26T14:00:00Z",
+        )
+
+    @pytest.mark.anyio
+    async def test_should_remember_a_rejection(self, tmp_path):
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("lsm-strike-abc123", self._outcome("reject"))])
+
+        assert await ledger.refused_slugs() == {"lsm-strike-abc123"}
+
+    @pytest.mark.anyio
+    async def test_should_remember_an_escalation(self, tmp_path):
+        """Waiting on a human. Re-asking does not make them answer faster, and
+        it would re-notify them."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("err-opinion-def456", self._outcome("escalate"))])
+
+        assert await ledger.refused_slugs() == {"err-opinion-def456"}
+
+    @pytest.mark.anyio
+    async def test_should_not_remember_an_approval(self, tmp_path):
+        """An approved card is in the index, and ``published_slugs`` covers it.
+
+        Recording it here too would be a second source of truth for one fact.
+        """
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("lsm-storm-abc123", self._outcome("approve"))])
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_survive_a_missing_ledger(self, tmp_path):
+        """No memory must mean "decide everything", never "decide nothing"."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_survive_a_corrupt_ledger(self, tmp_path):
+        from newsroom.pipeline.decisions import DECISIONS_BLOB, DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        target = tmp_path / DECISIONS_BLOB
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{ not json", encoding="utf-8")
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_accumulate_across_runs(self, tmp_path):
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+
+        await DecisionLedger(store).remember([("a", self._outcome("reject"))])
+        await DecisionLedger(store).remember([("b", self._outcome("reject"))])
+
+        assert await DecisionLedger(store).refused_slugs() == {"a", "b"}
+
+    @pytest.mark.anyio
+    async def test_should_keep_the_reason_so_a_human_can_audit_it(self, tmp_path):
+        """A refusals cache nobody can read is indistinguishable from a filter."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        ledger = DecisionLedger(store)
+
+        await ledger.remember(
+            [("lsm-strike-abc123", self._outcome("reject", "content filter: violence"))]
+        )
+
+        record = (await ledger.load())["lsm-strike-abc123"]
+        assert record["decision"] == "reject"
+        assert "violence" in record["reason"]
+        assert record["decided_at"] == "2026-08-26T14:00:00Z"
 
 
 class TestOneArticlePerEvent:

@@ -133,6 +133,149 @@ class TestTheParagraphThatKillsMostArticles:
         assert "APPROVE it with the note" in SYSTEM_PROMPT
 
 
+# ── the closing, structurally ───────────────────────────────────────────
+
+#: Ten consecutive PUBLISHED articles, all post-#82, every one closing on the
+#: same skeleton. The banned list contained "will be crucial to assess"; the
+#: model wrote "crucial to confirm", "crucial to determine", "crucial to
+#: understanding", "essential to determine", "essential to assess" and "will
+#: clarify whether". A blacklist does not hold against a paraphrase.
+LIVE_FORMULA_CLOSINGS = (
+    "The next quarterly report on business registrations will be crucial to "
+    "confirm whether this trend continues.",
+    "Future releases of the transport services balance will be essential to "
+    "determine whether this shift persists.",
+    "The next release of construction output figures will be essential to "
+    "assess whether the recovery holds.",
+    "The next release of inflation data for August 2026 will be crucial to "
+    "confirm whether the trend continues.",
+    "The next release of producer prices in July 2026 will clarify whether "
+    "this trend continues or reverses.",
+    "The next retail trade volume release for July 2026 will be crucial to "
+    "determine if this upward trend continues.",
+    "Upcoming data will provide insights into the sustainability of these "
+    "labour cost increases.",
+    "Future readings of hourly labour cost will be crucial to understanding "
+    "the sustainability of the rise.",
+    "Future data releases will be crucial to understanding whether this "
+    "divergence is a temporary anomaly.",
+    "The upcoming inflation figures for August 2026 will provide further "
+    "insights into whether this trend continues.",
+)
+
+#: The three shapes the prompt actually asks for. None may be caught.
+REAL_CLOSINGS = (
+    "A second month below the seasonal mean would make this a contraction "
+    "rather than a blip.",
+    "The data shows what happened but not why, and nothing in the current "
+    "release settles it.",
+    "A third quarter of dry bulk above 2019 levels would confirm the shift; "
+    "anything lower would not.",
+    "Any August reading below the four-year average would end the run.",
+    "The release does not establish what drove the change.",
+    "If the next print holds above the seasonal mean, then the run is intact.",
+)
+
+
+class TestAClosingMustSayWhatAReadingWouldMean:
+    """Whitelist the shape, because blacklisting the phrase provably loses.
+
+    An empty closing makes a claim about the future of INFORMATION — the next
+    release will tell us more, which is true of every release ever published.
+    A real one makes a claim about the world or states a decision rule: what a
+    specific reading would mean, or where the evidence stops. That distinction
+    survives paraphrase, because every paraphrase is of the empty half.
+    """
+
+    @pytest.mark.parametrize("closing", LIVE_FORMULA_CLOSINGS)
+    def test_should_catch_every_published_formula(self, closing):
+        from newsroom.pipeline.house_style import closing_problems
+
+        assert closing_problems(closing), (
+            "this exact sentence shipped; the check does not see it"
+        )
+
+    @pytest.mark.parametrize("closing", REAL_CLOSINGS)
+    def test_should_leave_a_real_closing_alone(self, closing):
+        from newsroom.pipeline.house_style import closing_problems
+
+        assert closing_problems(closing) == []
+
+    def test_should_only_judge_the_last_paragraph(self):
+        """A forward reference mid-article is ordinary reporting.
+
+        "The figure is released quarterly, and the next release covers Q3" is
+        a fact about the calendar. The rule is about how a piece STOPS.
+        """
+        from newsroom.pipeline.house_style import apply_house_style
+        from newsroom.pipeline.models import Article, Block
+
+        article = Article(
+            id="1", slug="s", tier="A", status="draft",
+            headline="Container traffic at Klaipeda reaches a series high",
+            section="maritime", created_at="2026-08-26T00:00:00Z", provenance={},
+            body=[
+                Block(type="paragraph", text=(
+                    "Volumes are published quarterly and the next release "
+                    "covers the third quarter."
+                )),
+                Block(type="paragraph", text=(
+                    "A third quarter above 2019 levels would confirm the shift."
+                )),
+            ],
+        )
+
+        report = apply_house_style(article)
+
+        assert report.violations == []
+
+    def test_should_catch_it_when_it_is_the_last_paragraph(self):
+        from newsroom.pipeline.house_style import apply_house_style
+        from newsroom.pipeline.models import Article, Block
+
+        article = Article(
+            id="1", slug="s", tier="A", status="draft",
+            headline="Container traffic at Klaipeda reaches a series high",
+            section="maritime", created_at="2026-08-26T00:00:00Z", provenance={},
+            body=[
+                Block(type="paragraph", text="Volumes reached a series high."),
+                Block(type="paragraph", text=LIVE_FORMULA_CLOSINGS[0]),
+            ],
+        )
+
+        report = apply_house_style(article)
+
+        assert any("points at a future release" in v for v in report.violations)
+
+    def test_the_prompt_asks_for_the_shape_the_check_tests(self):
+        """The guidance and the gate must agree, or the writer is being set up.
+
+        The old wording offered "the Q3 employment figures will show whether
+        ..." as a legitimate close, which this check would refuse. Both now
+        require the conditional.
+        """
+        from newsroom.pipeline.safety import persona_for_section
+        from newsroom.pipeline.write.prompts import build_system_prompt
+
+        system = build_system_prompt(make_signal(), persona_for_section("economy"))
+
+        assert "NAME THE READING AND WHAT IT WOULD MEAN" in system
+        assert "the check is not\nlooking at those words" in system
+
+    def test_the_loop_hands_a_formula_closing_back(self):
+        payload = json.loads(json.dumps(GOOD_PAYLOAD))
+        payload["blocks"][-1] = {"text": LIVE_FORMULA_CLOSINGS[8], "figures": []}
+        clean = json.loads(json.dumps(GOOD_PAYLOAD))
+        clean["blocks"][-1] = {"text": REAL_CLOSINGS[0], "figures": []}
+        writer = StubWriter([payload, clean])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable
+        assert result.article.provenance["attempts"] == 2
+        assert "points at a future release" in writer.calls[1]["user"]
+
+
 # ── 3.6 the numeric false positive on a label ───────────────────────────
 
 

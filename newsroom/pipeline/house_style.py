@@ -210,6 +210,79 @@ SPECULATIVE_IMPACT = tuple(
 )
 
 
+# --- the closing, structurally ----------------------------------------------
+#
+# A blacklist of empty closings does not hold, and there is evidence rather than
+# an opinion behind that. The banned list contained "X will be crucial to
+# assess"; across ten consecutive published articles the model wrote "crucial to
+# confirm", "crucial to determine", "crucial to understanding", "essential to
+# determine", "essential to assess" and "will clarify whether". Ten of ten
+# closed with the same skeleton. It walks around a list one synonym at a time,
+# and twenty more entries buy another day.
+#
+# So the test is what the closing IS, not what it is not.
+#
+# An empty closing makes a claim about the future of INFORMATION — the next
+# release will tell us more, which is true of every release ever published and
+# therefore says nothing. A real closing makes a claim about the WORLD or states
+# a decision rule: what a specific reading would mean, or where the evidence
+# stops. That distinction is structural and it survives paraphrase, because the
+# paraphrases are all of the empty half.
+
+#: Pointing at a future release, however it is phrased.
+_FORWARD_LOOKING = re.compile(
+    r"\b(?:next|upcoming|future|forthcoming|coming|subsequent|later)\b"
+    r"[^.]{0,60}?\b(?:release|releases|report|reports|reading|readings|data|"
+    r"figures|print|prints|statistic|statistics|numbers|settlement|auction|"
+    r"update|quarter|month|year)\b"
+    r"|\bwill\s+(?:be\s+)?(?:crucial|essential|key|important|critical|vital|"
+    r"instrumental|necessary|useful|telling)\b"
+    r"|\bwill\s+(?:provide|offer|give|shed|clarify|reveal|determine|confirm|"
+    r"indicate|show|tell)\b",
+    re.IGNORECASE,
+)
+
+#: What makes a forward-looking closing worth reading: it names the reading and
+#: what that reading would MEAN. A conditional carries a consequence; the empty
+#: formula never does, which is exactly why none of the ten contained one.
+_NAMES_A_CONSEQUENCE = re.compile(
+    r"\bwould\b"
+    r"|\bif\b[^.]{0,80}\b(?:then|that would|it would)\b"
+    r"|\bany\s+\w+\s+(?:above|below|under|over)\b",
+    re.IGNORECASE,
+)
+
+#: Or it says plainly where the evidence stops, which is the third legitimate
+#: shape and a complete closing on its own.
+_STATES_A_LIMIT = re.compile(
+    r"\b(?:does not|do not|cannot|could not|will not)\s+"
+    r"(?:show|establish|say|settle|explain|reveal|identify)\b"
+    r"|\bnothing\s+in\s+(?:the|this|these)\b"
+    r"|\bno\s+(?:evidence|indication|source)\b"
+    r"|\bis not established\b|\bremains unexplained\b",
+    re.IGNORECASE,
+)
+
+
+def closing_problems(text: str, *, where: str = "the closing") -> list[str]:
+    """Violations in the paragraph a piece ends on.
+
+    Only ever applied to the last paragraph, because the rule is about how an
+    article STOPS. A forward reference mid-article — "the figure is released
+    quarterly" — is ordinary reporting and must stay legal.
+    """
+    if not text or not _FORWARD_LOOKING.search(text):
+        return []
+    if _NAMES_A_CONSEQUENCE.search(text) or _STATES_A_LIMIT.search(text):
+        return []
+    return [
+        f"{where}: points at a future release without saying what it would "
+        "mean. Name the reading that would change the conclusion ('a second "
+        "month below the seasonal mean WOULD make this a contraction'), or "
+        "say where the evidence stops, or end the article a paragraph earlier"
+    ]
+
+
 # --- sentence case ---------------------------------------------------------
 
 #: Words that stay lower case inside a headline unless they start it.
@@ -404,5 +477,17 @@ def apply_house_style(article) -> StyleReport:
     for index, block in enumerate(article.body or []):
         if block.text:
             report.violations.extend(check_prose(block.text, where=f"body[{index}]"))
+
+    # And how it ends, which is a different question from how it reads. Applied
+    # to the last prose paragraph only: a forward reference in the middle of a
+    # piece — "the figure is released quarterly" — is ordinary reporting.
+    prose = [
+        (index, block.text)
+        for index, block in enumerate(article.body or [])
+        if getattr(block, "type", None) == "paragraph" and block.text
+    ]
+    if prose:
+        last_index, last_text = prose[-1]
+        report.violations.extend(closing_problems(last_text, where=f"body[{last_index}]"))
 
     return report
