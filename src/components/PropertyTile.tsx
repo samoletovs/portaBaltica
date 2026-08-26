@@ -1,6 +1,7 @@
 import type { PropertyData } from '../types';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { TileHeader } from './TileHeader';
 
 interface PropertyTileProps {
   data: PropertyData | null;
@@ -17,8 +18,12 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
 
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold text-white mb-6">Property & energy</h2>
-      {country !== 'LV' && <LvOnlyNotice />}
+      <TileHeader
+        title="Property & energy"
+        meta={country === 'LV' ? '🇱🇻 Latvia · data.gov.lv' : undefined}
+      >
+        {country !== 'LV' && <LvOnlyNotice />}
+      </TileHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Construction permits */}
@@ -86,7 +91,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
 
 function LvOnlyNotice() {
   return (
-    <div className="mb-3 px-3 py-2 rounded-lg text-caption" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
+    <div className="mt-3 px-3 py-2 rounded-lg text-caption" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
       🇱🇻 This section shows Latvia data only. Estonia and Lithuania property data coming soon.
     </div>
   );
@@ -95,9 +100,7 @@ function LvOnlyNotice() {
 function TileSkeleton() {
   return (
     <section>
-      <h2 className="text-callout font-semibold text-white mb-4 flex items-center gap-2">
-        <span className="text-slate-400">🏗️</span> Property & Energy
-      </h2>
+      <TileHeader title="Property & energy" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[1, 2].map((i) => (
           <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">

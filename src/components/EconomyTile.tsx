@@ -3,6 +3,7 @@ import type { EconomyData } from '../types';
 import { IndicatorCard } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
 import { IndicatorTable } from './IndicatorTable';
+import { TileHeader } from './TileHeader';
 import { useTheme } from '../ThemeContext';
 
 import { useCountry } from '../CountryContext';
@@ -17,11 +18,10 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
   const { chartColors } = useTheme();
   const { countryLabel, flag, country, timezone } = useCountry();
   return (
-    <section className="space-y-6">
-      <div className="flex items-baseline justify-between">
-        <h2 className="balance-text text-title font-semibold" style={{ color: 'var(--text-primary)' }}>Economy & markets</h2>
-        <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel} · Eurostat + live feeds</span>
-      </div>
+    <section>
+      <TileHeader title="Economy & markets" meta={`${flag} ${countryLabel} · Eurostat + live feeds`} />
+
+      <div className="space-y-6">
 
       {/* Key macro indicators */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -177,6 +177,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
       {/* Indicator table */}
       <IndicatorTable />
+      </div>
     </section>
   );
 }

@@ -2,14 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚓</text></svg>" />
+    <!--
+      Icons and the share card are served from our own origin, generated from
+      public/favicon.svg. The CSP is `img-src 'self' data:`, and an asset
+      fetched from anywhere else would disclose every reader's IP address to
+      whoever served it — the same reason there are no webfonts, below.
+
+      This used to be an inline ⚓ emoji data URI, which rendered as whatever
+      the reader's platform draws for U+2693 and said "shipping company" for a
+      site that stopped being maritime-only some time ago. A scaffold logo from
+      an unrelated template also sat unused in public/.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Two theme colours, one per scheme, so the browser chrome matches the
+      theme the reader is actually in rather than always claiming the dark one.
+      These are `--bg-page` from src/index.css; if that moves, move these.
+    -->
+    <meta name="theme-color" content="#0a0f1a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f8fb" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
     <title>portaBaltica — Baltic open data, reported</title>
     <meta name="description" content="Original data journalism from Baltic open data. Economy, energy, maritime, environment and government — every figure traceable to its dataset, with the live dashboard behind it." />
+    <meta property="og:site_name" content="portaBaltica" />
     <meta property="og:title" content="portaBaltica — Baltic open data, reported" />
     <meta property="og:description" content="Original analysis of Baltic open data, written by disclosed AI correspondents and checked against the source before publication." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://portabaltica.naurolabs.com" />
+    <meta property="og:image" content="https://portabaltica.naurolabs.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="portaBaltica — Baltic open data, reported" />
+    <meta property="og:locale" content="en_GB" />
+    <!--
+      `summary_large_image` rather than `summary`: the card is 1200×630 and a
+      plain summary crops it to a square thumbnail, which cuts the wordmark in
+      half. The card is typographic rather than a screenshot of the dashboard
+      on purpose — a shared link is read at thumbnail size in a feed, where a
+      screenshot of a chart grid is an unreadable grey rectangle.
+    -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="portaBaltica — Baltic open data, reported" />
+    <meta name="twitter:description" content="Original analysis of Baltic open data, written by disclosed AI correspondents and checked against the source before publication." />
+    <meta name="twitter:image" content="https://portabaltica.naurolabs.com/og.png" />
+    <meta name="twitter:image:alt" content="portaBaltica — Baltic open data, reported" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
     <link rel="alternate" type="application/rss+xml" title="portaBaltica" href="/rss.xml" />
