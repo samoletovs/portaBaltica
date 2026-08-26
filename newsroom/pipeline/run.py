@@ -17,7 +17,7 @@ from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.collect.opendata import collect_open_data
 from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.detect import Threshold, detect_all
-from newsroom.pipeline.desk import DeskOutcome, run_desk
+from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
 from newsroom.pipeline.house_style import check_prose, review_headline
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
@@ -348,6 +348,12 @@ async def run_once(
         # this asks whether it is worth running. The desk can only narrow what
         # publishes — an article it does not approve is marked rejected, and
         # isServable() refuses it on the reader side.
+        #
+        # The desk is handed the detector's finding as well as the prose. Asking
+        # whether something is worth a reader's attention while withholding the
+        # evidence of its significance produced exactly the answer you would
+        # expect: it called the day's strongest findings trivial.
+        strongest = {signal.id for signal in report.ranking.selected[:3]}
         for generated in report.generated:
             if not generated.publishable:
                 continue
@@ -357,6 +363,11 @@ async def run_once(
                     writer,
                     style_notes=report.style_notes,
                     revise=_revision_for(generated, writer, report),
+                    finding=Finding(
+                        detector=generated.signal.detector,
+                        comparison_basis=generated.signal.comparison_basis,
+                        among_strongest=generated.signal.id in strongest,
+                    ),
                 )
                 report.desk.append(outcome)
                 # The desk rewrites in place through the callback, so the piece

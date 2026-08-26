@@ -108,10 +108,24 @@ class TestTheRevisedArticleIsTheOneThatPublishes:
             "the editor just sent back"
         )
 
-    def test_a_revision_that_cannot_be_written_is_held(self):
+    def test_a_revision_that_cannot_be_written_goes_back_to_the_editor(self):
+        """The piece is not condemned; the improvement failed. Ask, don't assume."""
         original = _article()
         writer = QueuedWriter(
             {"decision": "revise", "reason": "needs work", "notes": ["fix it"]},
+            {"decision": "approve", "reason": "runs as filed"},
+        )
+
+        outcome = run_desk(original, writer, revise=lambda article, notes: None)
+
+        assert outcome.publishable
+        assert outcome.revised_article is original
+
+    def test_a_revision_that_cannot_be_written_is_held_if_the_editor_says_so(self):
+        original = _article()
+        writer = QueuedWriter(
+            {"decision": "revise", "reason": "needs work", "notes": ["fix it"]},
+            {"decision": "reject", "reason": "not fit as filed"},
         )
 
         outcome = run_desk(original, writer, revise=lambda article, notes: None)
@@ -119,15 +133,16 @@ class TestTheRevisedArticleIsTheOneThatPublishes:
         assert outcome.action is DeskAction.REJECT
         assert not outcome.publishable
 
-    def test_a_rewrite_the_desk_still_dislikes_is_held(self):
+    def test_a_rewrite_the_desk_still_dislikes_gets_a_final_call(self):
         original = _article()
         rewritten = _article(headline="Latvian unemployment climbs again in July")
         writer = QueuedWriter(
             {"decision": "revise", "reason": "needs work", "notes": ["fix it"]},
             {"decision": "revise", "reason": "still vague", "notes": ["still vague"]},
+            {"decision": "reject", "reason": "not fit to run"},
         )
 
         outcome = run_desk(original, writer, revise=lambda article, notes: rewritten)
 
         assert outcome.action is DeskAction.REJECT
-        assert "still unsatisfactory after revision" in outcome.reason
+        assert "not approved" in outcome.reason

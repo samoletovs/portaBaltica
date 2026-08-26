@@ -94,6 +94,22 @@ def test_should_accept_a_correctly_rounded_rendering_of_a_traceable_figure(
     assert_all_passed(verdict)
 
 
+def test_should_accept_a_figure_declared_at_the_precision_a_writer_uses(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    # The regression this file previously had no cover for, and which stopped
+    # the wire dead: derived signal fields carry four to six decimals of ratio
+    # arithmetic, and the writer declares two. 142.5023 written as "142.5" is
+    # the same number at the precision it was written to, not a drifted one --
+    # and demanding digit-for-digit equality here rejected every article the
+    # pipeline produced on 2026-08-25 while catching no fabrication at all.
+    signal["payload"]["price"]["latest"] = 142.5023
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_all_passed(verdict)
+
+
 def test_should_accept_a_figure_rendered_with_a_scale_word(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:

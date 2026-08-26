@@ -42,10 +42,28 @@ def test_should_reject_a_figure_that_has_drifted_from_the_source_value(
     assert_rejected_by(verdict, "figures_traceable")
 
 
-def test_should_reject_a_figure_that_drifted_by_the_smallest_representable_amount(
+def test_should_reject_a_figure_rounded_to_a_different_number(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:
-    signal["payload"]["price"]["latest"] = 142.50000001
+    # The boundary of what "traceable" permits. The article declares 142.5, so
+    # it has committed to one decimal place, and one decimal place of 142.56 is
+    # 142.6 -- a different number. Half a unit in the last place is the whole
+    # allowance, and this is just outside it.
+    signal["payload"]["price"]["latest"] = 142.56
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "figures_traceable")
+
+
+def test_should_reject_a_figure_whose_extra_precision_changes_the_claim(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    # Declaring more decimals commits to more precision, and is then held to it.
+    # 142.55 rounds to 142.5 at one place and would pass as "142.5"; declared as
+    # "142.51" it asserts a hundredth the source does not support.
+    tier_a_article["body"][0]["figures"][0]["value"] = 142.51
+    signal["payload"]["price"]["latest"] = 142.55
 
     verdict = validate(tier_a_article, signal=signal)
 

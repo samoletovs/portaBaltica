@@ -286,16 +286,49 @@ THE EDITOR READ YOUR DRAFT AND SENT IT BACK. Their notes:
 
 {notes}
 
-Rewrite the piece so those notes no longer apply. The editor is not asking for
-more numbers. They are asking you to say what the movement means and why it
-happened: what changed in the world, what decision or event sits behind it,
-what would have to be true for it to continue. Attribute any cause you give,
-and where you cannot establish one, say plainly that the data does not show it
-rather than reaching for a vague phrase.
+Rewrite the piece so those notes no longer apply.
+
+WHAT THE EDITOR IS ASKING FOR, AND WHAT THEY ARE NOT.
+
+They are not asking for more numbers, and they are NOT asking you to explain
+what caused the movement. You do not have that, and inventing it is how a
+rewrite gets killed: every draft rejected at this stage has been rejected for
+"vague assertions not supported by the data" -- reaching for implications for
+consumers, for employment, for where prices go next. Do not write those
+sentences. If the data does not show what drove the change, say so plainly,
+once, and move on.
+
+What they are asking is what the movement MEANS, which is answerable from the
+figures you already have:
+
+- is this a record, or ordinary movement in a series that moves anyway?
+- how large is it against its own history -- the longest run, the widest gap,
+  the biggest departure from its seasonal norm?
+- which country, which sector, which measure, and over what span?
+- what would the next release have to show to confirm or overturn it?
+
+Answer those in words, specifically, and the note is satisfied.
 
 Every rule you were given the first time still applies without exception. In
 particular, every number in a paragraph must still appear in that paragraph's
 figures array, and you may still use only the verified figures listed above.
+
+AND THE RULE THAT REWRITES BREAK, EVERY TIME. Expanding on what the movement
+means is where a second quantified claim gets added to a later paragraph, and
+the basis gets left behind in the lead. Rewrites are rejected on exactly this:
+
+    body[1]: quantifies a change ('rise') without naming the comparison basis
+
+If a paragraph contains BOTH a movement word (rose, fell, rise, increase,
+increased, declined, dropped, widened, higher, lower) AND a digit, that same
+paragraph must also contain one of these exact phrases: "compared with",
+"against the ...", "than", "year on year", "a year earlier", "the same month",
+"the previous month", "since ...", "from X to Y", "relative to", "the long-run
+average", "the four-year average".
+
+The simplest way to obey it is to keep every digit in the first paragraph and
+write the rest in words -- "the increase", "that gap", "the longest run in the
+series". A paragraph with no digits cannot fail this check at all.
 """
 
 
@@ -324,15 +357,16 @@ def build_editor_revision_prompt(original_user_prompt: str, notes) -> str:
 #: They stay on the signal for ranking and provenance. They are simply not
 #: shown to the writer, which is also why the validator will now reject them if
 #: the model produces one anyway: it cannot cite a number it was never given.
-_INTERNAL_ONLY_FIELDS = frozenset({"z_score"})
-
-#: Fields whose value is a ratio or count rather than a measure in the signal's
-#: own unit. Labelling `deviation_pct` with the signal unit produced
-#: "2.13589% of the labour force", a number that means nothing.
+#:
+#: The list itself lives in ``units`` and is imported rather than restated here.
+#: A private copy sat at this line, identical and unused by anything else, while
+#: ``units.INTERNAL_ONLY_FIELDS`` had no callers at all — two lists that had to
+#: agree, with nothing making them, which is the precise failure ``units``
+#: exists to prevent and documents itself as preventing.
 def _format_figures(signal: Signal) -> str:
     lines = []
     for name, value in signal.fields.items():
-        if name in _INTERNAL_ONLY_FIELDS:
+        if name in units.INTERNAL_ONLY_FIELDS:
             continue
         shown = units.display_value(name, float(value))
         lines.append(f"  - {name} = {shown}   ({units.label_for_field(name, signal.unit)})")
