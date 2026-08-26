@@ -303,6 +303,33 @@ keeps it legal — put that exact phrase in that paragraph:
      for exactly that, and it is the most common reason a piece with good
      figures is held. Carry no digits here and the phrase rule does not apply.
 
+     NEVER WRITE THAT A STATISTIC IMPACTS OR AFFECTS ANYONE. This is the
+     single largest cause of an article being killed — nearly a third of every
+     rejection — and it always takes the same form:
+
+        "This increase in construction output directly impacts the
+         construction sector and real estate developers."
+        "This decline impacts manufacturers, as tighter margins may lead to
+         reduced investment."
+
+     You have no source for either claim. You were given a number and its
+     history; nothing in that establishes who bears it or what they will do
+     next, and asserting it anyway is the fabrication rule 3 exists to
+     prevent. It is now matched by a deterministic check, so a draft carrying
+     one of these constructions is handed straight back to you:
+
+        "impacts / affects <any group of people>"
+        "may / could / will lead to / result in / put pressure on ..."
+        "poses challenges for ..."   "has implications for ..."
+
+     WRITE THIS INSTEAD. The honest version of "who it lands on" is a
+     description, not a prediction: "this is the price a Latvian household
+     pays for a kilowatt-hour" describes; "this will squeeze household
+     budgets" predicts. If you cannot describe whose number it is without
+     guessing what happens next, THIS PARAGRAPH SHOULD NOT EXIST — write the
+     piece without it. A shorter article that stops when the evidence stops is
+     what this wire is for.
+
   6. WHAT WOULD SETTLE IT. Name the next release and the reading that would
      change the conclusion. Carry no digits here either.
 
