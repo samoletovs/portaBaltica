@@ -156,6 +156,59 @@ EMPTY_CLOSINGS = (
     "warrants close attention",
 )
 
+#: The paragraph that kills more articles than anything else.
+#:
+#: A forensic pass over 200 rejected drafts found "unsupported assertions about
+#: causation or impact" in **24 of 36 desk rejections — 30% of every tier A
+#: rejection**, the single largest cause. The shape never varies:
+#:
+#:     "This increase in construction output directly impacts the construction
+#:      sector and real estate developers."
+#:     "This decline impacts manufacturers directly, as tighter margins may
+#:      lead to reduced investment in production capabilities."
+#:
+#: The writer is asked to say why a finding matters and reads that as licence
+#: to speculate about consequences. It has no source for any of it, the desk
+#: correctly refuses it, the rewrite produces the same shape again, and the
+#: article dies — one draft that died this way carried cross-country
+#: comparison and historical context and was better journalism than several
+#: pieces that published.
+#:
+#: The prompt has forbidden this in prose since the depth rewrite. Matched here
+#: it becomes a fact instead: the generation loop treats a style violation like
+#: a validator failure and hands it back while the writer still has an attempt
+#: left, at the cost of no model call at all. Catching it at the desk costs a
+#: full revision cycle and usually the article.
+#:
+#: Regexes rather than substrings, because the offence is a CONSTRUCTION —
+#: "impacts <a group of people>" — not a word. "The impact of the storm on
+#: generation" is fine and must stay fine; the bare verb would catch it.
+_AFFECTED = (
+    r"sector|industry|market|economy|consumers?|businesses|companies|firms|"
+    r"manufacturers|producers|employers|employees|workers|households|"
+    r"developers|exporters|importers|investors|borrowers|taxpayers|"
+    r"passengers|shippers|carriers|farmers|retailers"
+)
+
+SPECULATIVE_IMPACT = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        # "impacts manufacturers", "will affect the construction sector"
+        rf"\b(?:impacts?|impacted|affects?|affected)\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        rf"\b(?:impact|effect)\s+on\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        # "may lead to reduced investment", "could result in higher prices"
+        r"\b(?:may|might|could|would|will|is likely to|are likely to)\s+"
+        r"(?:lead to|result in|translate into|feed through|put pressure on|"
+        r"weigh on|boost|dampen|squeeze|erode|drive up|drive down)\b",
+        # "poses challenges for", "presents difficulties for"
+        rf"\b(?:poses?|presents?|creates?)\s+(?:a\s+|significant\s+|new\s+)*"
+        rf"(?:challenges?|difficulties|pressures?|risks?|headwinds?)\s+"
+        rf"(?:for|to)\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        # "has implications for households"
+        rf"\bimplications?\s+for\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+    )
+)
+
 
 # --- sentence case ---------------------------------------------------------
 
@@ -288,6 +341,17 @@ def check_prose(text: str, *, where: str = "body") -> list[str]:
                 f"{where}: empty closing, '{phrase}' — name the release and the "
                 "reading that would change the conclusion, or end a paragraph earlier"
             )
+
+    for pattern in SPECULATIVE_IMPACT:
+        found = pattern.search(text)
+        if found:
+            problems.append(
+                f"{where}: speculates about consequences, "
+                f"'{found.group(0).strip()}' — the data does not establish who "
+                "this lands on or what they will do. Say what the number IS "
+                "ABOUT, or cut the sentence"
+            )
+            break
 
     return problems
 

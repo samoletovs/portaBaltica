@@ -405,7 +405,47 @@ def _article_from_payload(
         article.published_at = created_at
     else:
         article.status = "rejected"
+        # Why, on the artifact itself. Establishing what was killing the wire
+        # took downloading and parsing 200 blobs, because a rejected draft
+        # recorded that it had failed and nothing about what failed: the
+        # verdict is in `provenance.validator`, but the reason has to be
+        # reconstructed by diffing eight checks against each other, and a
+        # shape failure leaves no trace there at all. Three days of the wire
+        # publishing almost nothing went unnoticed for exactly that reason.
+        #
+        # Written as flat, queryable fields rather than prose, so the next
+        # investigation is a filter over the rejected/ prefix instead of an
+        # archaeology project.
+        article.provenance["rejection"] = _rejection_record(article, verdict)
     return GenerationResult(signal=signal, article=article, verdict=verdict)
+
+
+def _rejection_record(article: Article, verdict: Verdict) -> dict[str, Any]:
+    """The gate, the checks it failed, and what it said — on the stored draft."""
+    failures = [check.name for check in verdict.failures()]
+    if failures:
+        return {
+            "gate": "validator",
+            "checks": failures,
+            "detail": verdict.failure_summary(),
+        }
+    # The verdict passed, so the shape checks are what refused it. They log,
+    # and until now that was the only record anywhere.
+    return {
+        "gate": "article_shape",
+        "checks": ["shape"],
+        "detail": _shape_failure(article),
+    }
+
+
+def _shape_failure(article: Article) -> str:
+    if not 12 <= len(article.headline) <= 140:
+        return f"headline is {len(article.headline)} characters, outside 12-140"
+    if article.dek and len(article.dek) > 300:
+        return f"dek is {len(article.dek)} characters, over 300"
+    if not any(b.type == "paragraph" and b.text for b in article.body):
+        return "article has no prose"
+    return "failed the article shape checks"
 
 
 def _verdict_for(article: Article, signal: Signal) -> Verdict:
