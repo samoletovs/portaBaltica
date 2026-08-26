@@ -21,11 +21,18 @@ import { describeComparison } from '../utils/chartAccessibility';
  * SC 1.4.1 lets a difference in lightness count as a second distinction. So
  * hue is the only other channel, and hue alone is what the criterion forbids.
  * The dash is the second channel; it also survives greyscale printing.
+ *
+ * They are quieter than they were. Lithuania used to be `2 4` — two on, four
+ * off — which at a 2px stroke is not a dashed line but a row of dots, and over
+ * a dense multi-year series it read as noise rather than as a series. Both
+ * patterns are now long enough to read as line first and pattern second, and
+ * they differ by more than 2× in mark length so they stay distinguishable at
+ * the compact size, where a panel is barely 250px wide.
  */
 const COUNTRY_META: Record<string, { dash?: string; label: string; flag: string }> = {
   LV: { label: 'Latvia', flag: '🇱🇻' },
-  EE: { dash: '7 4', label: 'Estonia', flag: '🇪🇪' },
-  LT: { dash: '2 4', label: 'Lithuania', flag: '🇱🇹' },
+  EE: { dash: '9 4', label: 'Estonia', flag: '🇪🇪' },
+  LT: { dash: '18 6', label: 'Lithuania', flag: '🇱🇹' },
 };
 
 const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;

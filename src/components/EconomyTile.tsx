@@ -15,7 +15,7 @@ interface EconomyTileProps {
 
 export function EconomyTile({ data, loading }: EconomyTileProps) {
   const { chartColors } = useTheme();
-  const { countryLabel, flag, country } = useCountry();
+  const { countryLabel, flag, country, timezone } = useCountry();
   return (
     <section className="space-y-6">
       <div className="flex items-baseline justify-between">
@@ -51,11 +51,26 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             )}
           </div>
           {data && data.electricityPrices.length > 0 ? (() => {
-            // Show only today's 24 hours
-            const today = new Date().toISOString().slice(0, 10);
-            const todayPrices = data.electricityPrices.filter((p) => p.timestamp.startsWith(today));
+            // The day this chart shows and the hours it labels have to be the
+            // same day.
+            //
+            // They were not. The window was selected with
+            // `new Date().toISOString().slice(0, 10)` — a *UTC* date — while
+            // each bar was labelled with `new Date(p.timestamp).getHours()`,
+            // the *local* hour. In Riga, two or three hours ahead of UTC, the
+            // UTC day therefore ends at 01:00 or 02:00 the following morning,
+            // which is why the axis ran "…19:00, 21:00, 0:00, 1:00" and looked
+            // like tomorrow's prices had leaked in. Nothing had: the component
+            // was reading one clock and writing another.
+            //
+            // Both now come from the selected country's timezone, which is the
+            // clock in the masthead and the one a reader of a Baltic
+            // electricity price means.
+            const hourIn = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: timezone });
+            const dayIn = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: timezone });
+            const today = dayIn.format(new Date());
+            const todayPrices = data.electricityPrices.filter((p) => dayIn.format(new Date(p.timestamp)) === today);
             const prices = todayPrices.length > 0 ? todayPrices : data.electricityPrices.slice(0, 24);
-            const now = new Date().getHours();
             const minPrice = Math.min(...prices.map((p) => p.price));
             const maxPrice = Math.max(...prices.map((p) => p.price));
 
@@ -70,11 +85,15 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                 </div>
                 <div className="h-28">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={prices.map((p) => {
-                      const h = new Date(p.timestamp).getHours();
-                      return { hour: `${h}:00`, price: p.price, isCurrent: h === now };
-                    })}>
-                      <XAxis dataKey="hour" tick={chartTick(chartColors.axis)} tickLine={false} axisLine={false} interval={5} />
+                    <BarChart data={prices.map((p) => ({
+                      // Zero-padded so the labels are a fixed width and the
+                      // axis stops jittering between "9:00" and "10:00".
+                      hour: `${hourIn.format(new Date(p.timestamp))}:00`,
+                      price: p.price,
+                    }))}>
+                      {/* Six ticks across a 24-hour day — four-hourly, evenly
+                          spaced, and inside the 5–8 DESIGN.md §3.4 asks for. */}
+                      <XAxis dataKey="hour" tick={chartTick(chartColors.axis)} tickLine={false} axisLine={false} interval={3} />
                       <Tooltip
                         contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
                         formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}
@@ -129,7 +148,6 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               label="Suspended activities"
               hint="Businesses barred by VID from trading: suspension decided, never lifted, and not yet expired"
               value={data.businessPulse.suspendedBusinesses}
-              color="amber"
             />
           </div>
           <p className="text-caption text-slate-600 mt-2">
@@ -171,14 +189,26 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
  * been renamed, and the previous version turned every such failure into a
  * confident zero — which is how "Suspended Activities: 0" survived on the
  * dashboard while the dataset it named did not exist.
+ *
+ * There is deliberately no way to tint one of these. "Suspended activities"
+ * was drawn in amber, and amber is a *status* colour: Fluent's rule is "use
+ * them for important messages, don't use them for decoration", and DESIGN.md
+ * §1.5 repeats it. 3,693 suspensions is a steady-state registry total that has
+ * been the same order of magnitude for years — not a warning, and nothing on
+ * the page justified telling a reader it was one. It is the same error
+ * DESIGN.md §3.5 exists to prevent, a rise being read as bad news, applied to
+ * a single number instead of to a chart. A count with no comparison has no
+ * direction to colour, so it gets none.
  */
-function StatCard({ label, hint, value, color }: { label: string; hint?: string; value: number | null; color?: string }) {
+function StatCard({ label, hint, value }: { label: string; hint?: string; value: number | null }) {
   const available = typeof value === 'number' && Number.isFinite(value);
-  const textColor = !available ? 'text-slate-500' : color === 'amber' ? 'text-amber-400' : 'text-white';
 
   return (
     <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center" title={hint}>
-      <p className={`text-prose font-semibold font-mono ${textColor}`}>
+      <p
+        className="text-prose font-semibold font-mono"
+        style={{ color: available ? 'var(--text-primary)' : 'var(--text-tertiary)' }}
+      >
         {available ? value.toLocaleString() : '—'}
       </p>
       <p className="text-caption text-slate-400">{label}</p>
