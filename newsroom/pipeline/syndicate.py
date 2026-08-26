@@ -77,13 +77,26 @@ def build_card(item: FeedItem, source: Source, *, now: str | None = None) -> Art
         "source_id": source.id,
         "original_url": item.link,
         "attribution": source.attribution,
+        # ASSERTED FOR BOTH TIERS, because both reproduce the outlet's own bytes.
+        #
+        # This used to be set only on the tier C branch below, while
+        # check_snippet_verbatim requires it of any syndicated block. The result
+        # was a 100% rejection rate for tier B: in the live run of 2026-08-26
+        # every European Commission press release was refused with "the ingester
+        # did not assert verbatim copy", and the licensed-reproduction tier had
+        # never published anything at all.
+        #
+        # The flag means "we copied, we did not rewrite". That is exactly as true
+        # of the full_text we are licensed to reproduce as it is of a tier C
+        # snippet, and the validator re-checks it against the archived bytes
+        # either way, so asserting it here is a statement it can still falsify.
+        "snippet_is_verbatim": True,
     }
     if source.tier == "B":
         # Licensed for verbatim reproduction. Stored exactly as served.
         syndicated["full_text"] = item.description
     else:
         syndicated["snippet"] = item.description
-        syndicated["snippet_is_verbatim"] = True
 
     headline = item.title.strip()
     if len(headline) < 12:
@@ -95,7 +108,18 @@ def build_card(item: FeedItem, source: Source, *, now: str | None = None) -> Art
         slug=item_slug(item),
         tier=source.tier,  # type: ignore[arg-type]
         status="pending_approval",
-        headline=headline[:140],
+        # NOT TRUNCATED. The validator byte-compares this against the outlet's
+        # feed title, so `headline[:140]` made every headline longer than 140
+        # characters a guaranteed rejection: we cut their words and then
+        # measured our cut against their original. EUobserver runs a numbered
+        # daily series whose headlines are reliably longer than that, and two
+        # were refused in the live run of 2026-08-26 for exactly this.
+        #
+        # Truncating somebody else's headline is also the rewrite that
+        # `rewrite_allowed: false` exists to forbid, so the check was right and
+        # the ingester was wrong. The schema's ceiling is ours to set and is now
+        # wide enough to hold a real one.
+        headline=headline,
         section=SYNDICATED_SECTION,
         created_at=created_at,
         # THE OUTLET'S DATE, NOT OURS.

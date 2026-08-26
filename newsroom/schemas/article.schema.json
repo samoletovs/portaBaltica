@@ -25,7 +25,12 @@
       "description": "Matches the existing dashboard sections so an article can link to its live tile."
     },
 
-    "headline": { "type": "string", "minLength": 12, "maxLength": 140 },
+    "headline": {
+      "type": "string",
+      "minLength": 12,
+      "maxLength": 400,
+      "description": "For tier B and C this is the outlet's own headline, reproduced whole. The ceiling was 140, which is a reasonable length for a headline we write and an arbitrary one to impose on a headline we quote: the ingester truncated to fit and the verbatim check then compared our cut against their original, so every syndicated headline longer than 140 characters was rejected. Truncating another outlet's headline is itself the rewrite that rewrite_allowed: false forbids."
+    },
     "dek": { "type": "string", "maxLength": 300, "description": "Standfirst. One sentence explaining why this matters." },
 
     "body": {
