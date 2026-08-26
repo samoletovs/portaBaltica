@@ -616,6 +616,25 @@ const INDICATORS = {
     sanity: [500, 50000],
   },
 
+  /**
+   * The same road haulage measured in tonne-kilometres rather than tonnes.
+   *
+   * Both are real and they answer different questions: `road_freight` is how
+   * much was lifted, this is how much was moved and how far. Only the second is
+   * comparable with rail, because a tonne on a train travels much further than
+   * a tonne on a lorry — so a modal split computed from tonnes lifted would
+   * flatter road enormously and mean nothing.
+   */
+  road_freight_tkm: {
+    dataset: 'road_go_tq_tott',
+    params: 'freq=Q&tra_oper=TOTAL&tra_type=TOTAL&unit=MIO_TKM',
+    freq: 'Q',
+    title: 'Road freight (tonne-km)',
+    unit: 'M tonne-km',
+    // Observed 897 (Estonia, 2025-Q4) to 17,547 (Lithuania).
+    sanity: [100, 40000],
+  },
+
   // Real labour productivity per person, indexed to 2020.
   //
   // This is the series that explains a wage chart rather than restating it: pay

@@ -3,6 +3,7 @@ const es = require('../shared/eurostat.js');
 const cubeHealth = require('../shared/cubeHealth.js');
 const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
+const cache = require('../shared/cache.js');
 
 /**
  * GET /api/system-status
@@ -55,6 +56,20 @@ const registry = require('../shared/statusChecks.js');
 const PROBE_DEADLINE_MS = 3000;
 const PROBE_RETRIES = 1;
 const OVERALL_BUDGET_MS = 8000;
+
+/**
+ * How long an Open-Meteo answer stands, and how long it stands once fetches
+ * start failing.
+ *
+ * Five minutes against a source that publishes hourly is still twelve times
+ * more often than the data can change, so nothing is lost and the call volume
+ * falls by more than an order of magnitude. Twenty-five minutes of grace means
+ * a genuine outage surfaces inside half an hour, while the throttle-induced
+ * hangs — which come in bursts of seconds — never surface at all, because they
+ * are not news about the weather.
+ */
+const OPEN_METEO_TTL_MS = 5 * 60 * 1000;
+const OPEN_METEO_GRACE_MS = 25 * 60 * 1000;
 
 function httpOptions() {
   return { deadlineMs: PROBE_DEADLINE_MS, retries: PROBE_RETRIES };
@@ -211,9 +226,31 @@ async function probe(check) {
   }
 
   if (check.type === 'open-meteo') {
-    const body = await es.httpJson(check.url, httpOptions());
-    if (!body || !body.current) throw new Error('Open-Meteo answered without a current reading');
-    return freshness.extract.openMeteo(body);
+    // Cached, because Open-Meteo publishes hourly and the shared Azure egress
+    // address is being throttled. See `shared/cache.js` for the measurements;
+    // the short version is that half of all calls from here hang for the full
+    // deadline, a quarter hang twice, and asking an hourly source for fresh
+    // data several times a minute is a large part of the reason.
+    const result = await cache.memo(
+      'open-meteo:' + check.url,
+      OPEN_METEO_TTL_MS,
+      OPEN_METEO_GRACE_MS,
+      async function () {
+        const body = await es.httpJson(check.url, httpOptions());
+        if (!body || !body.current) throw new Error('Open-Meteo answered without a current reading');
+        return freshness.extract.openMeteo(body);
+      },
+    );
+
+    if (result.value) {
+      // Reported so the flakiness appears on the page as information rather
+      // than as an outage. A reader can see we last got through four minutes
+      // ago and judge that for themselves.
+      result.value.viaCache = result.cached;
+      result.value.cacheAgeMs = result.ageMs;
+      if (result.servedAfterFailure) result.value.lastFetchError = result.error;
+    }
+    return result.value;
   }
 
   if (check.type === 'pxweb-metadata') {
@@ -280,6 +317,15 @@ async function runCheck(check, now) {
     if (verdict.limit !== undefined) result.maxLag = verdict.limit;
     if (check.cadence) result.cadence = check.cadence;
     if (verdict.reason) result.freshnessReason = verdict.reason;
+
+    // A source answered through the cache is still answering, but a reader is
+    // entitled to know when we last actually reached it — especially for
+    // Open-Meteo, where getting through is the unreliable part rather than the
+    // data being wrong.
+    if (observation && observation.viaCache) {
+      result.readAgoMs = observation.cacheAgeMs;
+      if (observation.lastFetchError) result.lastFetchError = observation.lastFetchError;
+    }
 
     // The newsroom's own numbers, carried through so the page shows whether
     // the wire is producing rather than merely running. `attemptsTotal` is the

@@ -170,9 +170,26 @@ const CHECKS = [
     name: 'Open-Meteo Weather',
     url: 'https://api.open-meteo.com/v1/forecast?latitude=56.95&longitude=24.11&current=temperature_2m',
     type: 'open-meteo',
-    required: true,
+    // Not required, and the reason is a measurement rather than a preference.
+    //
+    // From the Static Web App's egress address roughly half of all calls hang
+    // for the full deadline and about one in four hangs twice, while the same
+    // endpoint answers a laptop in 110–302ms, six times out of six. The channel
+    // is throttled; the source is fine. So a failure here is overwhelmingly
+    // evidence about our egress address and only weakly evidence about
+    // Open-Meteo, and a check that cannot tell those apart has no business
+    // driving the one word that describes the whole site — it took the site to
+    // `degraded` about a third of the time, for a source that was up.
+    //
+    // The check stays, and stays visible: it names what it powers and reports
+    // unhealthy on the page when it cannot get through. And the Environment
+    // tile draws its own honest empty state, so a genuine outage is still
+    // legible where a reader would actually meet it.
+    required: false,
     powers: 'City weather',
-    // Real-time. `current.time` measured at the current quarter-hour.
+    note: 'Reached over a throttled shared egress address, so a failure here is not reliable evidence about the source',
+    // Real-time. `current.time` measured at the current quarter-hour, and read
+    // through a five-minute cache because the source publishes hourly.
     cadence: 'H',
     maxLag: 3,
   },
@@ -180,8 +197,9 @@ const CHECKS = [
     name: 'Open-Meteo Air Quality',
     url: 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=56.95&longitude=24.11&current=pm2_5',
     type: 'open-meteo',
-    required: true,
+    required: false,
     powers: 'Air quality',
+    note: 'Reached over a throttled shared egress address, so a failure here is not reliable evidence about the source',
     cadence: 'H',
     maxLag: 3,
   },
