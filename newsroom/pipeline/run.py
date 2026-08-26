@@ -98,6 +98,8 @@ class RunReport:
     errors: list[str] = field(default_factory=list)
     #: Copy-edits the desk applied, and style problems it could only flag.
     style_notes: list[str] = field(default_factory=list)
+    #: Syndicated cards this run did not re-decide, because they already ran.
+    syndication_skipped: int = 0
     #: One editorial decision per original article. The audit trail for what
     #: the desk approved, sent back, or held.
     desk: list[DeskOutcome] = field(default_factory=list)
@@ -342,7 +344,17 @@ async def run_once(
                 min_score=DEFAULT_RANKING.min_score,
                 max_per_metric=DEFAULT_RANKING.max_per_metric,
             )
-        report.ranking = rank(report.signals, policy)
+        # What this wire has already run. Read before ranking so a repeat is
+        # suppressed before it costs a research pass, an analyst brief, up to
+        # three writer drafts and up to three desk reads. The index has deduped
+        # itself for a while, which fixed the front page and not the bill.
+        try:
+            already_published = await store.published_findings()
+        except Exception as exc:  # noqa: BLE001 — a missing history is not fatal
+            log.warning("could not read published findings (%s); nothing suppressed", exc)
+            already_published = set()
+
+        report.ranking = rank(report.signals, policy, published=already_published)
 
         # --- 4. context -------------------------------------------------
         # Everything else the newsroom retrieved this run that bears on each
@@ -477,7 +489,32 @@ async def run_once(
 
         # --- tier B/C ----------------------------------------------------
         if include_syndication and feed_items:
-            report.syndicated = syndicate(feed_items, raw_descriptions=raw_descriptions)
+            cards = syndicate(feed_items, raw_descriptions=raw_descriptions)
+            # Every card the editor reads costs a model call, and a tier B/C
+            # slug is derived from the feed item's own guid — so it is the same
+            # card, on every run, for as long as the outlet keeps the item in
+            # its feed. A live run built 133 cards of which 113 were already
+            # published: the editor re-decided them all, and at three runs a day
+            # that is by some distance the largest single line in the bill.
+            #
+            # Re-deciding is not merely wasteful, it is unsound. The editor is a
+            # model, so a second read of an identical card can return a
+            # different verdict, and a loop that keeps asking until the answer
+            # changes is exactly the shape this pipeline refuses everywhere
+            # else. A card that already ran has been decided.
+            try:
+                live = await store.published_slugs()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("could not read published slugs (%s); editing all cards", exc)
+                live = set()
+            report.syndicated = [card for card in cards if card.slug not in live]
+            report.syndication_skipped = len(cards) - len(report.syndicated)
+            if report.syndication_skipped:
+                log.info(
+                    "syndication: %d card(s) already published, %d to decide",
+                    report.syndication_skipped,
+                    len(report.syndicated),
+                )
             try:
                 report.edited = edit_syndicated_articles(report.syndicated, writer)
             except Exception as exc:  # noqa: BLE001

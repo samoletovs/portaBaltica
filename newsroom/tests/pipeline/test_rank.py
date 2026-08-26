@@ -89,10 +89,66 @@ class TestCapacityAndDeduplication:
         assert report.selected[0].detector == "record_extreme"
         assert report.deduplicated == 2
 
-    def test_should_keep_the_same_metric_for_different_geographies(self):
+    def test_should_fold_one_release_into_a_single_comparative_piece(self):
+        """Three countries, one release, one article.
+
+        This used to assert the opposite — that the same metric in two
+        geographies produced two articles — and it was right about the key it
+        was testing and wrong about the outcome. A single Eurostat labour-cost
+        release produced three tier A pieces:
+
+            "Latvia's hourly labour cost reaches 16.3 EUR per hour in 2025"
+            "Estonia's hourly labour cost reaches record high of 21.1 EUR..."
+            "Hourly labour costs in Lithuania reach 17.8 EUR per hour in 2025"
+
+        Three recitals where an editor writes one comparison. The survivor is
+        not a poorer story for being alone: the context pack has already
+        attached the other two readings as ``peer_*`` fields and the article
+        plan's third paragraph is THE NEIGHBOURS.
+        """
         signals = [
-            make_signal(score=0.9, geography="LV"),
-            make_signal(score=0.85, geography="EE"),
+            make_signal(score=0.90, geography="LV", value=16.3),
+            make_signal(score=0.95, geography="EE", value=21.1),
+            make_signal(score=0.85, geography="LT", value=17.8),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 1
+        assert report.selected[0].geography == "EE"
+        assert report.same_release == 2
+
+    def test_should_not_fold_across_periods(self):
+        """Two readings of one series a year apart are two findings."""
+        signals = [
+            make_signal(score=0.9, geography="LV", period="2025", value=16.3),
+            make_signal(score=0.85, geography="EE", period="2024", value=15.1),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 2
+
+    def test_should_not_fold_a_baltic_wide_signal_into_a_country_one(self):
+        """A signal already covering all three IS the comparison.
+
+        Folding it into one of its own components would drop the better story
+        for a thinner one.
+        """
+        signals = [
+            make_signal(score=0.95, geography="Baltic", detector="divergence"),
+            make_signal(score=0.90, geography="LV", metric="other_metric"),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert {s.geography for s in report.selected} == {"Baltic", "LV"}
+
+    def test_should_keep_different_metrics_from_the_same_country(self):
+        """The fold is per release, not per country."""
+        signals = [
+            make_signal(score=0.9, geography="LV", metric="unemployment_rate"),
+            make_signal(score=0.85, geography="LV", metric="hourly_labour_cost"),
         ]
 
         report = rank(signals, POLICY)
@@ -105,13 +161,16 @@ class TestCapacityAndDeduplication:
         assert [s.score for s in report.selected] == [0.95, 0.75, 0.6]
 
     def test_should_break_score_ties_by_detector_strength(self):
+        # Non-Baltic geographies, so the country fold does not remove the
+        # second signal and this still tests the tie-break it names.
         signals = [
-            make_signal(score=0.8, detector="sharp_move", geography="LV"),
-            make_signal(score=0.8, detector="record_extreme", geography="EE"),
+            make_signal(score=0.8, detector="sharp_move", geography="G0"),
+            make_signal(score=0.8, detector="record_extreme", geography="G1"),
         ]
 
         report = rank(signals, POLICY)
 
+        assert len(report.selected) == 2
         assert report.selected[0].detector == "record_extreme"
 
     def test_ranking_is_deterministic_for_the_same_input(self):

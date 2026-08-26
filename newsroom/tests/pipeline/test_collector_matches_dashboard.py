@@ -62,7 +62,13 @@ NOT_COMPARED = {"freq"}
 #: ``api/shared/ports.js``, which keys on ``rep_mar`` and has no indicator id.
 #: Giving the newsroom a ``chart_ref`` of ``port_goods`` would name something
 #: that answers 400.
-CHARTLESS_METRICS = {"port_goods_throughput"}
+CHARTLESS_METRICS = {
+    "port_goods_throughput",
+    "port_goods_liquid_bulk",
+    "port_goods_dry_bulk",
+    "port_goods_containers",
+    "port_goods_roro",
+}
 
 
 def _dashboard_indicators() -> dict[str, dict[str, str]]:
@@ -163,10 +169,48 @@ class TestEveryNewsroomSeriesIsJoinedToTheDashboard:
             for name, value in spec.params.items():
                 if name in NOT_COMPARED or name == "rep_mar":
                     continue
+                if name == "cargo":
+                    # ports.js leaves `cargo` unpinned on purpose -- it IS the
+                    # axis that module reads -- and lists the codes that
+                    # partition the total in CARGO_MIX. So the invariant is
+                    # membership of that list, not equality with a query
+                    # string, and it is the one that matters: Eurostat's cargo
+                    # dimension mixes levels (`LBK_ROIL` sits inside `LBK`), so
+                    # a code outside CARGO_MIX would double-count tonnes the
+                    # dashboard counts once.
+                    if value == "TOTAL":
+                        continue
+                    assert f"'{value}'" in source, (
+                        f"{spec.metric} reads cargo={value}, which is not one of "
+                        f"the codes ports.js lists as partitioning the total. "
+                        f"Eurostat nests cargo codes, so this may be counting "
+                        f"the same tonnes twice."
+                    )
+                    continue
                 assert f"{name}={value}" in source, (
                     f"{spec.metric} pins {name}={value} and ports.js does not; "
                     f"the two are reading different slices of the same cube"
                 )
+
+    def test_estonia_is_left_out_of_the_cargo_breakdown_deliberately(self):
+        """Estonia publishes ``cargo=TOTAL`` and nothing else.
+
+        The cube answers HTTP 200 for ``cargo=DBK``, returns all 48 quarters in
+        its time dimension and carries zero values in them -- checked live for
+        DBK, LBK and LCNT. Nothing errors, so a country list that included it
+        would spend three requests a run to discover that again, and would look
+        like a working configuration.
+        """
+        breakdown = [
+            spec for spec in EUROSTAT_DATASETS
+            if spec.section == "maritime" and spec.params.get("cargo") != "TOTAL"
+        ]
+
+        assert breakdown, "the cargo composition series have gone"
+        assert {spec.params["rep_mar"] for spec in breakdown} == {"LV", "LT"}, (
+            "Estonia publishes no cargo breakdown; asking for one returns an "
+            "empty series rather than an error"
+        )
 
 
 #: Only the series joined to an /api/baltic-compare indicator can be compared
