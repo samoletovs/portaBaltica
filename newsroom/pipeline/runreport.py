@@ -38,12 +38,19 @@ consume it — a status probe belongs on the API side, which this package does
 not own. ``stale_after_hours`` is included so a probe does not have to hardcode
 the schedule: it can compare ``finished_at`` against now and say "overdue"
 without knowing anything about cron.
+
+``liveness`` answers the question a single report cannot. A run that publishes
+nothing is not necessarily broken — some days genuinely have no news, and a
+probe that alarms on one quiet run is a probe someone mutes within a week.
+Thirty consecutive silent runs is a different thing, and telling them apart
+needs history. So the count is carried forward from the previous report rather
+than recomputed, and one fetch answers both "is it alive" and "is it working".
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 from newsroom.pipeline import config
 from newsroom.pipeline.models import isoformat, utcnow
@@ -69,12 +76,26 @@ def _history_blob(finished_at: str) -> str:
     return f"runs/{day}/{stamp}.json"
 
 
-def build_run_report(report: Any, *, trigger: str, finished_at: str | None = None) -> dict[str, Any]:
+def build_run_report(
+    report: Any,
+    *,
+    trigger: str,
+    finished_at: str | None = None,
+    previous: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """The document, from a :class:`~newsroom.pipeline.run.RunReport`.
 
     Duck-typed and defensive throughout. This runs at the very end of a run
     that may already have gone wrong, and a report that raises while explaining
     a failure is worse than no report — it turns a bad run into a crashed one.
+
+    ``previous`` is the last report, when one could be read. It carries the two
+    rolling fields, which exist because **a run that publishes nothing is not
+    necessarily broken**. Some days genuinely have no news, and a probe that
+    alarms on one quiet run will be muted within a week. Thirty consecutive
+    silent runs is a different thing entirely, and the difference is not
+    visible in any single report — so it is carried forward rather than
+    recomputed, and a probe can judge both liveness and yield from one fetch.
     """
     finished = finished_at or isoformat(utcnow())
 
@@ -103,6 +124,19 @@ def build_run_report(report: Any, *, trigger: str, finished_at: str | None = Non
         for g in generated
         if getattr(getattr(g, "article", None), "provenance", None)
     ]
+    originals_published = sum(1 for g in generated if getattr(g, "publishable", False))
+
+    prior = previous if isinstance(previous, Mapping) else {}
+    prior_rolling = prior.get("liveness") if isinstance(prior.get("liveness"), Mapping) else {}
+    if originals_published:
+        last_original_at: Any = finished
+        runs_without_originals = 0
+    else:
+        last_original_at = prior_rolling.get("last_original_at")
+        try:
+            runs_without_originals = int(prior_rolling.get("runs_without_originals", 0)) + 1
+        except (TypeError, ValueError):
+            runs_without_originals = 1
 
     return {
         "version": REPORT_VERSION,
@@ -126,9 +160,14 @@ def build_run_report(report: Any, *, trigger: str, finished_at: str | None = Non
             # the day the wire published nothing original still reported one
             # published article.
             "generated": len(generated),
-            "publishable": sum(1 for g in generated if getattr(g, "publishable", False)),
+            "publishable": originals_published,
             "attempts_total": sum(attempts),
             "attempts_max": max(attempts, default=0),
+        },
+        "liveness": {
+            # What a probe needs to tell a quiet day from a dead pipeline.
+            "last_original_at": last_original_at,
+            "runs_without_originals": runs_without_originals,
         },
         "desk": desk_actions,
         "published_slugs": [getattr(a, "slug", "") for a in published][:50],
@@ -145,8 +184,15 @@ async def write_run_report(
     finished_at: str | None = None,
 ) -> dict[str, Any]:
     """Write the report to ``runs/latest.json`` and to the dated history."""
-    document = build_run_report(report, trigger=trigger, finished_at=finished_at)
     target = store or ArticleStore()
+    try:
+        previous = await target.read_json(LATEST_BLOB)
+    except Exception:  # noqa: BLE001 — no history is not a failure
+        log.warning("could not read the previous run report; starting the count fresh")
+        previous = None
+    document = build_run_report(
+        report, trigger=trigger, finished_at=finished_at, previous=previous
+    )
     await target.put_json(LATEST_BLOB, document)
     await target.put_json(_history_blob(document["finished_at"]), document)
     log.info("run report written: %s", document["summary"])

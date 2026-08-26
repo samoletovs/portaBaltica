@@ -200,6 +200,63 @@ class TestTheRunLeavesATrace:
         written = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*.json"))
         assert written == ["runs/2026-08-26/140512.json", LATEST_BLOB]
 
+    @pytest.mark.anyio
+    async def test_should_count_consecutive_runs_that_published_nothing_original(
+        self, tmp_path
+    ):
+        """A quiet day and a dead pipeline look identical in one report.
+
+        Some days genuinely have no news, so a probe that alarms on a single
+        silent run gets muted within a week. Thirty in a row is a different
+        thing, and only history can tell them apart.
+        """
+        from newsroom.pipeline.run import RunReport
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+
+        first = await write_run_report(RunReport(), trigger="timer", store=store)
+        second = await write_run_report(RunReport(), trigger="timer", store=store)
+        third = await write_run_report(RunReport(), trigger="timer", store=store)
+
+        assert first["liveness"]["runs_without_originals"] == 1
+        assert second["liveness"]["runs_without_originals"] == 2
+        assert third["liveness"]["runs_without_originals"] == 3
+        assert third["liveness"]["last_original_at"] is None
+
+    @pytest.mark.anyio
+    async def test_should_reset_the_count_and_stamp_the_day_it_published(self, tmp_path):
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        await write_run_report(_five_rejected_originals(), trigger="timer", store=store)
+
+        good = await write_run_report(
+            _one_published_original(), trigger="timer", store=store,
+            finished_at="2026-08-27T14:05:00Z",
+        )
+
+        assert good["liveness"]["runs_without_originals"] == 0
+        assert good["liveness"]["last_original_at"] == "2026-08-27T14:05:00Z"
+
+        # And the stamp survives the next silent run, which is the point of it.
+        after = await write_run_report(
+            _five_rejected_originals(), trigger="timer", store=store
+        )
+
+        assert after["liveness"]["last_original_at"] == "2026-08-27T14:05:00Z"
+        assert after["liveness"]["runs_without_originals"] == 1
+
+    @pytest.mark.anyio
+    async def test_should_start_fresh_when_there_is_no_history(self, tmp_path):
+        """A missing predecessor must not fail the run recording itself."""
+        from newsroom.pipeline.run import RunReport
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        (tmp_path / "runs").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "runs" / "latest.json").write_text("{ not json", encoding="utf-8")
+
+        document = await write_run_report(RunReport(), trigger="timer", store=store)
+
+        assert document["liveness"]["runs_without_originals"] == 1
+
     def test_should_never_raise_on_a_half_built_report(self):
         """It runs at the end of a run that may already have gone wrong.
 
@@ -237,6 +294,31 @@ def _five_rejected_originals():
 
         def summary(self):
             return "0 published, 5 rejected"
+
+    return Report()
+
+
+def _one_published_original():
+    class Article:
+        slug = "published-piece"
+        provenance = {"attempts": 1}
+
+    class Generated:
+        publishable = True
+        article = Article()
+
+    class Report:
+        generated = [Generated()]
+        published = [Article()]
+        rejected: list = []
+        desk: list = []
+        errors: list = []
+        syndicated: list = []
+        style_notes: list = []
+        signals: list = []
+
+        def summary(self):
+            return "1 published, 0 rejected"
 
     return Report()
 

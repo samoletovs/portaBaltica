@@ -180,7 +180,7 @@ def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
         value=latest.value,
         unit=series.unit,
         comparison_basis=(
-            f"{run} consecutive {series.frequency} moves in the same direction, "
+            f"{spell_count(run)} consecutive {series.frequency} moves in the same direction, "
             f"from {start.value:g} {series.unit} in {start.period}"
         ),
         score=score,

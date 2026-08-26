@@ -138,6 +138,32 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    def _read_json(self, name: str) -> dict[str, Any] | None:
+        container = self._container_client()
+        if container is not None:
+            try:
+                downloaded = container.download_blob(name).readall()
+                return json.loads(downloaded)
+            except Exception:  # noqa: BLE001 — absent or unreadable is not an error
+                pass
+        local = self._local_dir / name
+        if local.exists():
+            try:
+                return json.loads(local.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
+
+    async def read_json(self, name: str) -> dict[str, Any] | None:
+        """A JSON document written by :meth:`put_json`, or ``None``.
+
+        Never raises for an absent or corrupt document. The only caller is the
+        run report reading its own predecessor to carry a rolling count
+        forward, and a missing history must degrade to "no history" rather than
+        failing the run that was trying to record itself.
+        """
+        return await asyncio.to_thread(self._read_json, name)
+
     def _put_json(self, name: str, payload: dict[str, Any], cache_control: str) -> str:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
         self._write_local(name, body)

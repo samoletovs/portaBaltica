@@ -143,7 +143,14 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         dataset="ei_bssi_m_r2",
         metric="economic_sentiment",
         metric_label="economic sentiment indicator",
-        unit="index (long-run average = 100)",
+        # No digits in a unit. ``unit`` is interpolated into ``comparison_basis``,
+        # which is pipeline-authored prose the writer is REQUIRED to restate — so
+        # "index (long-run average = 100)" put a bare 100 into every basis this
+        # series produced, with no field able to declare it. The article was then
+        # rejected for a numeral the pipeline wrote itself. The base is a
+        # property of the index, not of this reading, and it belongs on the chart
+        # axis rather than in every sentence.
+        unit="index points",
         section="economy",
         frequency="monthly",
         chart_ref="economic_sentiment",
@@ -382,7 +389,7 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         dataset="sts_rb_q",
         metric="business_registrations",
         metric_label="new business registrations",
-        unit="index (2021 = 100)",
+        unit="index points",
         section="business",
         frequency="quarterly",
         chart_ref="business_registrations",
@@ -394,7 +401,7 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         dataset="sts_rb_q",
         metric="business_bankruptcies",
         metric_label="business bankruptcy declarations",
-        unit="index (2021 = 100)",
+        unit="index points",
         section="business",
         frequency="quarterly",
         chart_ref="bankruptcies",

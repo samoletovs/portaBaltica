@@ -146,8 +146,23 @@ def all_detector_signals() -> list[tuple[str, Signal]]:
     if sharp is not None:
         signals.append(("sharp_move", sharp))
 
-    # Five straight monthly rises. The basis counts the run.
-    streak = detect_streak(power([58.0, 59.2, 60.4, 62.1, 64.3, 67.0]))
+    # Eight straight annual rises from 7.9 EUR per hour — the real Estonian
+    # labour-cost streak, and the shape that strands a count. ``streak_length``
+    # is 8 and ``streak_start_value`` is 7.9, which rounds to 8, so the numeral
+    # in "8 consecutive annual moves" had two possible parents and the
+    # reconciler correctly refused to guess between them. Spelling the count
+    # removes the numeral rather than managing it.
+    streak = detect_streak(
+        series_from(
+            [7.9, 8.6, 9.3, 10.1, 11.0, 12.2, 13.5, 14.8, 16.3],
+            periods=[str(year) for year in range(2017, 2026)],
+            metric="hourly_labour_cost",
+            metric_label="hourly labour cost",
+            unit="EUR per hour",
+            section="labour",
+            frequency="annual",
+        )
+    )
     if streak is not None:
         signals.append(("streak", streak))
 
@@ -278,6 +293,51 @@ class TestEveryDetectorHonoursIt:
         by_name = dict(all_detector_signals())
 
         assert "five-year average" in by_name["seasonal_deviation"].comparison_basis
+
+    def test_a_streak_length_is_spelled_too(self):
+        """The same fix, on the detector that was overlooked.
+
+        ``spell_count`` was written for the seasonal basis and applied only
+        there. The streak basis went on printing its run length, and on the
+        real Estonian labour-cost series — eight straight annual rises from
+        7.9 EUR per hour — that numeral had two parents and the article died on
+        a token the pipeline wrote itself. One in every forty-one signals the
+        live collection produced hit this.
+        """
+        basis = dict(all_detector_signals())["streak"].comparison_basis
+
+        assert "eight consecutive" in basis
+        assert "8 consecutive" not in basis
+
+
+class TestNoUnitCarriesANumeral:
+    """A unit string ends up inside pipeline-authored prose.
+
+    ``comparison_basis`` interpolates ``series.unit`` and the writer is
+    REQUIRED to restate the basis, so a digit in a unit is a digit in the
+    article with no verified field able to declare it. "index (long-run average
+    = 100)" put a bare 100 into every economic-sentiment basis, and
+    "index (2021 = 100)" put both 2021 and 100 into every business one.
+
+    Caught here rather than in the basis contract because it is a property of
+    the configuration, so it fails the moment a dataset is added rather than
+    only when that dataset happens to fire a detector.
+    """
+
+    def test_no_dataset_declares_a_unit_containing_a_digit(self):
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS
+
+        offenders = {
+            spec.metric: spec.unit
+            for spec in EUROSTAT_DATASETS
+            if any(character.isdigit() for character in spec.unit)
+        }
+
+        assert not offenders, (
+            f"these units carry a numeral into every comparison basis they "
+            f"appear in, where no figure can declare it: {offenders}. The index "
+            f"base belongs on the chart axis, not in every sentence."
+        )
 
     def test_the_sharp_move_basis_exposes_the_periods_it_measured(self):
         """The count in "over the preceding N months" must be a field.
