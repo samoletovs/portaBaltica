@@ -177,6 +177,92 @@ class TestAComparativeSubsumesItsSingles:
         assert report.selected == []
 
 
+class TestTheEditorDoesNotReDecideACardItHasRun:
+    """133 cards built, 113 already published, all 133 read by the editor.
+
+    A tier B/C slug is derived from the feed item's own guid, so it is the same
+    card on every run for as long as the outlet keeps the item in its feed. One
+    model call each, three runs a day, and it is by some distance the largest
+    single line in the bill.
+
+    It is also unsound rather than merely wasteful. The editor is a model, so a
+    second read of an identical card can return a different verdict, and asking
+    repeatedly until the answer changes is the shape this pipeline refuses
+    everywhere else.
+    """
+
+    @pytest.mark.anyio
+    async def test_published_slugs_come_back_from_the_index(self, tmp_path):
+        import json
+
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        (tmp_path / "index.json").write_text(
+            json.dumps({"articles": [{"slug": "lsm-storm-abc123"}, {"slug": "err-cable-def456"}]}),
+            encoding="utf-8",
+        )
+
+        assert await store.published_slugs() == {"lsm-storm-abc123", "err-cable-def456"}
+
+    @pytest.mark.anyio
+    async def test_an_empty_index_skips_nothing(self, tmp_path):
+        """No history must mean "decide everything", never "decide nothing"."""
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+
+        assert await store.published_slugs() == set()
+
+    def test_a_card_slug_is_stable_across_runs(self):
+        """The property the skip rests on. If slugs churned, nothing would match.
+
+        It is derived from the feed item's guid, so the same item yields the
+        same slug however many times it is collected — and a different item
+        yields a different one even when the headline is identical.
+        """
+        from newsroom.pipeline.collect.rss import item_slug
+        from newsroom.pipeline.models import FeedItem
+
+        def item(guid: str) -> FeedItem:
+            return FeedItem(
+                source_id="lsm_en",
+                title="Storm knocks out power across Latvia",
+                link=f"https://eng.lsm.lv/{guid}",
+                description="",
+                published=None,
+                guid=guid,
+                raw_blob=f"2026-08-26/lsm_en/{guid}.raw",
+            )
+
+        assert item_slug(item("a")) == item_slug(item("a"))
+        assert item_slug(item("a")) != item_slug(item("b"))
+
+    def test_the_run_actually_skips_them(self):
+        """A helper that works and is never called is the failure mode here.
+
+        ``published_slugs`` passing its own tests while ``run_once`` still hands
+        every card to the editor would leave the bill exactly where it was, and
+        nothing else in the suite would notice.
+        """
+        import inspect
+
+        from newsroom.pipeline import run as run_module
+
+        source = inspect.getsource(run_module.run_once)
+
+        assert "published_slugs()" in source, (
+            "run_once no longer reads what it has already published, so the "
+            "editor re-decides every card on every run"
+        )
+        assert "card.slug not in live" in source, (
+            "the already-published cards are read but not filtered out"
+        )
+        assert source.index("published_slugs()") < source.index(
+            "edit_syndicated_articles("
+        ), "the skip must happen before the editor, not after it"
+
+
 class TestOneArticlePerEvent:
     def test_should_publish_one_story_about_the_baltic_power_market(self):
         """Both of these ran, minutes apart, on the same market on the same day.

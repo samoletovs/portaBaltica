@@ -412,6 +412,21 @@ class ArticleStore:
             kept.append(entry)
         return kept
 
+    async def published_slugs(self) -> set[str]:
+        """Slugs already on the front page.
+
+        Used to skip re-deciding a syndicated card the wire has already run. A
+        tier B/C slug is derived from the feed item's own guid, so it is the
+        same on every run the item appears in the feed — which is every run for
+        as long as the outlet keeps it there.
+        """
+        entries = await asyncio.to_thread(self._read_existing_index)
+        return {
+            entry["slug"]
+            for entry in entries
+            if isinstance(entry.get("slug"), str) and entry["slug"]
+        }
+
     async def published_findings(self) -> set[str]:
         """Findings already on the front page, for ranking to suppress.
 

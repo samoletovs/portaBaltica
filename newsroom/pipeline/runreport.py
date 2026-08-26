@@ -151,6 +151,7 @@ def build_run_report(
             "published": len(published),
             "rejected": len(rejected),
             "syndicated": count("syndicated"),
+            "syndication_skipped": int(getattr(report, "syndication_skipped", 0) or 0),
             "errors": count("errors"),
             "style_notes": count("style_notes"),
         },
