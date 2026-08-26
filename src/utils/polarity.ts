@@ -1,22 +1,25 @@
 /**
  * What a movement *means*, as opposed to which way it went.
  *
- * Every indicator card used to colour a rise green and a fall red. So rising
- * unemployment was green. Rising inflation was green. Rising government debt
- * was green. On every load, silently, the dashboard editorialised — and in the
- * wrong direction on exactly the series a reader is most likely to care about.
+ * Green means up and red means down — that is what a reader scanning a
+ * dashboard for momentum expects, and it is what this product asked for.
  *
- * Financial interfaces get away with green-up because they show *prices*,
- * where up is unambiguously good for whoever is holding the thing. Macro
- * statistics are not prices. The FT's own charts use a neutral series colour
- * and leave the judgement to the reader.
+ * With one exception, and it is the important one. Twelve series are worse
+ * when they rise: unemployment, every inflation measure, producer prices,
+ * government debt, the gas price, bankruptcies. Colouring those by raw
+ * direction means the dashboard renders rising unemployment in green — it
+ * editorialises, silently, in the wrong direction, on exactly the series a
+ * reader is most likely to care about. So for those the colours flip: a fall
+ * is the good news, and it is drawn as such.
  *
- * So an indicator declares one of three polarities, and `neutral` is both the
- * default and, for most series, the correct answer. Whether rising house
- * prices are good news depends entirely on whether you already own one, and it
- * is not this dashboard's job to decide that on the reader's behalf. A neutral
- * indicator still shows its direction — arrow, sign and value — it just does
- * not colour it as approval.
+ * Everything else is coloured by direction, including the genuinely ambiguous
+ * series like house prices and population. That is a deliberate concession:
+ * green there means "went up", not "good", and the arrow and the sign say the
+ * same thing without any colour at all.
+ *
+ * An earlier version of this file left ambiguous indicators grey and refused
+ * to colour them. It was more defensible and less useful — a dashboard of grey
+ * numbers cannot be scanned, and the whole reason to open it is to scan it.
  *
  * See DESIGN.md §3.5.
  */
@@ -31,10 +34,12 @@ export type Sentiment = 'positive' | 'negative' | 'none';
  *
  * The test for inclusion is whether a Baltic finance ministry, a trade union
  * and a central bank would all agree on the sign. Where they would not, the
- * indicator is absent from this map and is therefore neutral.
+ * indicator is absent from this map, is therefore `neutral`, and gets coloured
+ * by direction like everything else.
  */
 const POLARITY: Record<string, Polarity> = {
-  // Higher is better — output, earnings, activity, energy transition.
+  // Higher is better — output, earnings, activity, energy transition. These
+  // are coloured by direction, which for them also happens to be by meaning.
   gdp: 'higher-better',
   salary: 'higher-better',
   wages_industry: 'higher-better',
@@ -50,7 +55,9 @@ const POLARITY: Record<string, Polarity> = {
   tourist_arrivals: 'higher-better',
   hotel_occupancy: 'higher-better',
 
-  // Lower is better — joblessness, price growth, indebtedness, energy cost.
+  // Lower is better. These are the twelve that flip: a rise is drawn red and
+  // a fall green, because drawing rising unemployment in green is the one
+  // thing a dashboard on this site must not do.
   unemployment: 'lower-better',
   cpi: 'lower-better',
   inflation: 'lower-better',
@@ -64,7 +71,7 @@ const POLARITY: Record<string, Polarity> = {
   energy_price_gas: 'lower-better',
   bankruptcies: 'lower-better',
 
-  // Deliberately absent, and therefore neutral:
+  // Deliberately absent, and therefore coloured by direction only:
   //   house_prices  — good if you own, bad if you are buying
   //   population    — the Baltic depopulation story is not ours to grade
   //   imports       — a rise is domestic demand or it is dependency
@@ -80,22 +87,19 @@ export function polarityOf(id: string): Polarity {
 /**
  * How a change should be coloured.
  *
- * `none` is returned both for neutral indicators and for a change of exactly
- * zero, because a series that did not move has not delivered good or bad news.
+ * Green for up and red for down, except on a `lower-better` series where the
+ * two swap. `none` is returned only when nothing moved or nothing is known —
+ * a series that did not change has not delivered news either way.
  */
 export function sentimentOf(id: string, change: number | null | undefined): Sentiment {
   if (change === null || change === undefined || !Number.isFinite(change) || change === 0) {
     return 'none';
   }
 
-  switch (polarityOf(id)) {
-    case 'higher-better':
-      return change > 0 ? 'positive' : 'negative';
-    case 'lower-better':
-      return change > 0 ? 'negative' : 'positive';
-    default:
-      return 'none';
-  }
+  const rose = change > 0;
+  return polarityOf(id) === 'lower-better'
+    ? (rose ? 'negative' : 'positive')
+    : (rose ? 'positive' : 'negative');
 }
 
 /** The CSS custom property a sentiment resolves to. */
@@ -110,16 +114,19 @@ export function sentimentColor(sentiment: Sentiment): string {
  *
  * Colour is the third encoding here, never the first: the arrow and the sign
  * carry the direction, this carries the meaning, and the colour only confirms
- * what both already said (WCAG 2.2 SC 1.4.1).
+ * what both already said (WCAG 2.2 SC 1.4.1). That redundancy is not
+ * decoration — red and green are the classic confusion pair, and measured
+ * under a Brettel deuteranopia simulation our own `--data-positive` and
+ * `--data-negative` sit at ΔE 8, which is to say indistinguishable. For
+ * roughly 8% of men the arrow *is* the encoding.
  */
 export function changeDescription(id: string, change: number | null | undefined): string {
   if (change === null || change === undefined || !Number.isFinite(change)) return 'no change data';
   if (change === 0) return 'unchanged';
 
   const direction = change > 0 ? 'up' : 'down';
-  const sentiment = sentimentOf(id, change);
-  if (sentiment === 'none') return direction;
-  return `${direction}, which is ${sentiment === 'positive' ? 'favourable' : 'unfavourable'} for this indicator`;
+  if (polarityOf(id) === 'neutral') return direction;
+  return `${direction}, which is ${sentimentOf(id, change) === 'positive' ? 'favourable' : 'unfavourable'} for this indicator`;
 }
 
 /**

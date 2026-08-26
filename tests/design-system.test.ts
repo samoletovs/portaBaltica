@@ -435,13 +435,166 @@ describe('charts', () => {
   });
 });
 
+// ─── the country palette ───────────────────────────────────────────────────
+
+/** CIE L*a*b*, for perceptual distance rather than luminance ratio. */
+function toLab(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4]
+    .map((i) => Number.parseInt(clean.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+  const y = r * 0.2126 + g * 0.7152 + b * 0.0722;
+  const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+
+function deltaE(a: string, b: string): number {
+  const [l1, a1, b1] = toLab(a);
+  const [l2, a2, b2] = toLab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/** Brettel/Viénot deuteranopia simulation — the common form, ~8% of men. */
+function deuteranope(hex: string): string {
+  const clean = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4]
+    .map((i) => Number.parseInt(clean.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+
+  const l = 17.8824 * r + 43.5161 * g + 4.11935 * b;
+  const s = 0.0299566 * r + 0.184309 * g + 1.46709 * b;
+  // The M cone is the one deuteranopia lacks, so it is reconstructed from L
+  // and S rather than measured — which is the whole of the simulation.
+  const m2 = 0.494207 * l + 1.24827 * s;
+
+  const out = [
+    0.080944 * l - 0.130504 * m2 + 0.116721 * s,
+    -0.0102485 * l + 0.0540194 * m2 - 0.113615 * s,
+    -0.000365294 * l - 0.00412163 * m2 + 0.693513 * s,
+  ].map((v) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    const encoded = clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * clamped ** (1 / 2.4) - 0.055;
+    return Math.round(encoded * 255)
+      .toString(16)
+      .padStart(2, '0');
+  });
+
+  return `#${out.join('')}`;
+}
+
+describe('the country palette', () => {
+  // Roughly 25 is the threshold below which two colours are reported as the
+  // same; the raw flag values were nowhere near passing this.
+  const CONFUSION = 25;
+
+  for (const { name, tokens } of THEMES) {
+    it(`separates Latvia, Estonia and Lithuania in ${name}, including for a deuteranope`, () => {
+      const lv = tokens['--series-lv'];
+      const ee = tokens['--series-ee'];
+      const lt = tokens['--series-lt'];
+
+      for (const [a, b, labelA, labelB] of [
+        [lv, ee, 'LV', 'EE'],
+        [ee, lt, 'EE', 'LT'],
+        [lv, lt, 'LV', 'LT'],
+      ] as const) {
+        const simulated = deltaE(deuteranope(a), deuteranope(b));
+        expect(
+          Number(simulated.toFixed(0)),
+          `${name} ${labelA}/${labelB} is ΔE ${simulated.toFixed(0)} under deuteranopia`,
+        ).toBeGreaterThan(CONFUSION);
+      }
+    });
+
+    it(`keeps Latvia distinct from "declining" in ${name}`, () => {
+      // Latvia's flag is carmine and `--data-negative` is red. At the first
+      // attempt they measured ΔE 8.6 — the same colour — so red would have
+      // meant both "Latvia" and "falling" on one screen, which is the
+      // three-meanings defect this design pass exists to remove.
+      const separation = deltaE(tokens['--series-lv'], tokens['--data-negative']);
+      expect(
+        Number(separation.toFixed(1)),
+        `${name} --series-lv vs --data-negative is ΔE ${separation.toFixed(1)}`,
+      ).toBeGreaterThan(12);
+    });
+
+    it(`keeps Finland off Estonia's blue in ${name}`, () => {
+      // Finland's flag is blue, which is Estonia's, and the two collide at
+      // ΔE 3 under deuteranopia. Finland is a bidding zone, never one of the
+      // three Baltic states, so it takes a non-flag hue.
+      const simulated = deltaE(deuteranope(tokens['--series-fi']), deuteranope(tokens['--series-ee']));
+      expect(
+        Number(simulated.toFixed(0)),
+        `${name} FI/EE is ΔE ${simulated.toFixed(0)} under deuteranopia`,
+      ).toBeGreaterThan(CONFUSION);
+    });
+  }
+
+  it('gives every series a second, non-colour encoding', () => {
+    // Between-series *luminance* contrast is 1.19–1.76:1, well under the 3:1
+    // at which WCAG 2.2's note on SC 1.4.1 lets lightness count as a second
+    // distinction. So hue is the only other channel, and hue alone is exactly
+    // what the criterion forbids. The stroke pattern is the second channel.
+    const chart = components().find((c) => c.file === 'BalticCompareChart.tsx')!.text;
+
+    expect(chart, 'every non-default series needs a dash pattern').toMatch(/dash:\s*'[\d\s]+'/);
+    expect(chart, 'the dash must actually reach the line').toMatch(/strokeDasharray=\{/);
+  });
+});
+
+// ─── operability ───────────────────────────────────────────────────────────
+
+describe('operability', () => {
+  it('gives controls a real touch target', () => {
+    // Measured across the dashboard, 43 of 43 interactive elements were under
+    // 44px, with the country and range chips at 26px tall. WCAG 2.2 SC 2.5.8
+    // asks 24px; Apple's HIG and Material both ask 44px.
+    const rule = css.match(/min-height:\s*([\d.]+)rem;/);
+    expect(rule, 'no minimum target size is set anywhere').not.toBeNull();
+    expect(Number(rule![1]) * 16).toBeGreaterThanOrEqual(44);
+    expect(css, 'the rule must reach buttons').toMatch(/button,[\s\S]{0,400}min-height/);
+  });
+
+  it('sends "back to the dashboard" to the dashboard', () => {
+    // `navigate('/')` is the news feed. This broke the one journey the product
+    // is built around: article → "check it yourself" → /indicator/:id → back.
+    for (const file of ['IndicatorPage.tsx', 'ApiDocsPage.tsx']) {
+      const text = components().find((c) => c.file === file)!.text;
+      expect(text, `${file} sends the reader to the news feed`).not.toMatch(/navigate\('\/'\)/);
+    }
+  });
+
+  it('describes every chart to a screen reader', () => {
+    // Recharts draws SVG with no role, title, desc or table alternative, so
+    // the core content of a data product was simply absent.
+    for (const file of ['IndicatorCard.tsx', 'BalticCompareChart.tsx']) {
+      const text = components().find((c) => c.file === file)!.text;
+      expect(text, `${file} chart needs role="img"`).toMatch(/role="img"/);
+      expect(text, `${file} chart needs a described label`).toMatch(
+        /aria-label=\{describe(?:Series|Comparison)\(/,
+      );
+    }
+  });
+
+  it('does not announce the decorative ticker twice', () => {
+    // It duplicates its item list so the marquee loops seamlessly, so every
+    // value was read out twice. Every figure in it also appears, in context
+    // and with a source, in the tiles below.
+    const ticker = components().find((c) => c.file === 'DataTicker.tsx')!.text;
+    expect(ticker).toMatch(/aria-hidden="true"/);
+  });
+});
+
 // ─── editorial honesty ─────────────────────────────────────────────────────
 
 describe('direction is not sentiment', () => {
   it('routes every delta colour through the polarity module', () => {
-    // Every indicator card coloured a rise green and a fall red, so rising
-    // unemployment, rising inflation and rising government debt all read as
-    // good news. See DESIGN.md §3.5.
+    // Colour follows direction — green up, red down — because that is what a
+    // reader scanning for momentum expects. But it must go through the
+    // polarity module, because twelve series are worse when they rise and
+    // colouring those by raw direction renders rising unemployment green.
     const surfaces = ['IndicatorCard.tsx', 'IndicatorTable.tsx'];
 
     for (const file of surfaces) {
@@ -450,38 +603,69 @@ describe('direction is not sentiment', () => {
       expect(text, `${file} must ask the polarity module what a change means`).toMatch(
         /sentimentOf\(/,
       );
-      expect(text, `${file} must not colour a change by its direction`).not.toMatch(
+      expect(text, `${file} must not hardcode a sentiment class`).not.toMatch(
         /text-(?:emerald|red|green)-\d{3}/,
       );
     }
   });
 
-  it('never draws a series in a sentiment colour', () => {
-    // The sparkline used to take its colour from the sign of the final data
-    // point, so a decade of falling unemployment was drawn in red.
+  it('colours a series by meaning, never by raw direction', () => {
+    // The sparkline is sentiment-coloured again, which the product asked for —
+    // but through `sentimentOf`, so it flips on a `lower-better` series rather
+    // than drawing a decade of falling unemployment in red.
     for (const file of ['IndicatorCard.tsx', 'IndicatorTable.tsx']) {
       const text = components().find((component) => component.file === file)!.text;
-      expect(text, `${file} series colour`).toMatch(/chartColors\.seriesDefault/);
+      expect(text, `${file} series colour`).toMatch(/chartColors\.(?:positive|negative)/);
+      expect(text, `${file} must not key a series off the sign of the change`).not.toMatch(
+        /(?:isUp|isPositiveChange|isRise)\s*\?\s*chartColors/,
+      );
     }
   });
 
-  it('defaults an unknown indicator to neutral', async () => {
-    const { polarityOf, sentimentOf } = await import('../src/utils/polarity');
+  it('defaults an unknown indicator to neutral polarity', async () => {
+    const { polarityOf } = await import('../src/utils/polarity');
 
     expect(polarityOf('something-nobody-has-classified')).toBe('neutral');
-    expect(sentimentOf('house_prices', 5)).toBe('none');
-    expect(sentimentOf('population', -1000)).toBe('none');
+    expect(polarityOf('house_prices')).toBe('neutral');
+    expect(polarityOf('population')).toBe('neutral');
   });
 
-  it('reads a fall in unemployment as good news and a rise as bad', async () => {
+  it('colours a neutral indicator by direction', async () => {
     const { sentimentOf } = await import('../src/utils/polarity');
 
-    expect(sentimentOf('unemployment', -0.4)).toBe('positive');
-    expect(sentimentOf('unemployment', 0.4)).toBe('negative');
+    // Green means "went up", not "good". The arrow and the sign say the same
+    // thing, so nothing is claimed that the numbers do not support.
+    expect(sentimentOf('house_prices', 5)).toBe('positive');
+    expect(sentimentOf('population', -1000)).toBe('negative');
+  });
+
+  it('flips the twelve series where a rise is unambiguously bad', async () => {
+    const { sentimentOf, polarityOf } = await import('../src/utils/polarity');
+
+    const worseWhenRising = [
+      'unemployment',
+      'cpi',
+      'inflation',
+      'core_inflation',
+      'food_inflation',
+      'energy_inflation',
+      'services_inflation',
+      'goods_inflation',
+      'ppi',
+      'gov_debt',
+      'energy_price_gas',
+      'bankruptcies',
+    ];
+
+    for (const id of worseWhenRising) {
+      expect(polarityOf(id), `${id} polarity`).toBe('lower-better');
+      expect(sentimentOf(id, 1), `${id} rising`).toBe('negative');
+      expect(sentimentOf(id, -1), `${id} falling`).toBe('positive');
+    }
+
+    // And the ordinary direction on everything else.
     expect(sentimentOf('gdp', 1.2)).toBe('positive');
     expect(sentimentOf('gdp', -1.2)).toBe('negative');
-    expect(sentimentOf('cpi', 0.9)).toBe('negative');
-    expect(sentimentOf('gov_debt', 2)).toBe('negative');
   });
 
   it('treats an unchanged series as neither', async () => {
@@ -489,6 +673,26 @@ describe('direction is not sentiment', () => {
 
     expect(sentimentOf('gdp', 0)).toBe('none');
     expect(sentimentOf('gdp', null)).toBe('none');
+  });
+
+  it('never lets colour be the only thing carrying the direction', async () => {
+    // `--data-positive` and `--data-negative` are red and green, which measure
+    // ΔE 8 apart under a deuteranopia simulation — indistinguishable for
+    // roughly 8% of men. The arrow, the sign and the spoken description are
+    // what actually carry it (WCAG 2.2 SC 1.4.1).
+    const { changeDescription, signed } = await import('../src/utils/polarity');
+
+    expect(changeDescription('unemployment', 0.3)).toContain('up');
+    expect(changeDescription('unemployment', 0.3)).toContain('unfavourable');
+    expect(changeDescription('house_prices', 0.4)).toBe('up');
+    expect(signed('1.2', -1.2)).toBe('\u22121.2');
+
+    for (const file of ['IndicatorCard.tsx', 'IndicatorTable.tsx']) {
+      const text = components().find((component) => component.file === file)!.text;
+      expect(text, `${file} needs the arrow glyphs`).toMatch(/▲/);
+      expect(text, `${file} needs the arrow glyphs`).toMatch(/▼/);
+      expect(text, `${file} needs a spoken description`).toMatch(/changeDescription\(/);
+    }
   });
 
   it('signs a delta with a real minus sign', async () => {
