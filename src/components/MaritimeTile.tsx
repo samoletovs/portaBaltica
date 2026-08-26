@@ -29,7 +29,7 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
 
   return (
     <section>
-      <div className="flex items-baseline justify-between mb-5 gap-3 flex-wrap">
+      <div className="flex items-baseline justify-between mb-6 gap-3 flex-wrap">
         <h2 className="balance-text text-title font-semibold text-white">Maritime</h2>
         {/* The port weather below is live; the statistics are quarterly and
             always in arrears. Saying which is which is the whole point. */}
@@ -81,7 +81,7 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
 function TileSkeleton() {
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold text-white mb-5">Maritime</h2>
+      <h2 className="balance-text text-title font-semibold text-white mb-6">Maritime</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
           <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">

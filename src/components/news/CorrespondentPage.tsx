@@ -67,8 +67,8 @@ export default function CorrespondentPage() {
             to={`/newsroom/${entry.id}`}
             className={({ isActive }) =>
               [
-                'rounded-full border px-3.5 py-1.5 text-caption font-medium transition-colors',
-                'news-focus',
+                'rounded-full border px-4 py-2 text-caption transition-colors',
+                '',
                 isActive
                   ? 'news-tab-active'
                   : 'news-tab-inactive news-hover',
@@ -80,7 +80,7 @@ export default function CorrespondentPage() {
         ))}
       </nav>
 
-      <header className="flex flex-wrap items-center gap-5">
+      <header className="flex flex-wrap items-center gap-6">
         <CorrespondentAvatar id={correspondent.id} size={88} />
         <div>
           <h1 className="balance-text news-fg text-headline font-semibold tracking-tight">{correspondent.name}</h1>
@@ -90,7 +90,7 @@ export default function CorrespondentPage() {
 
       <section
         aria-labelledby="what-this-is"
-        className="news-border news-warning-panel mt-6 rounded-xl border px-5 py-4"
+        className="news-border news-warning-panel mt-6 rounded-xl border px-6 py-4"
       >
         <h2 id="what-this-is" className="balance-text news-warning text-title font-semibold">
           {correspondent.name} is not a person
@@ -109,13 +109,13 @@ export default function CorrespondentPage() {
         </p>
         <p className="pretty-text news-warning mt-3 text-callout">
           Every story filed here is reviewed by{' '}
-          <Link to="/newsroom/saulkrasti" className="news-focus underline underline-offset-2">
+          <Link to="/newsroom/saulkrasti" className="underline underline-offset-2">
             {AI_EDITOR.name}
           </Link>
           , the AI editor, who sends work back with notes or holds it.{' '}
           <strong className="font-semibold">{ACCOUNTABLE_PUBLISHER}</strong> is the accountable
           publisher and answers for everything published under this byline.{' '}
-          <Link to="/about/ai" className="news-focus underline underline-offset-2">
+          <Link to="/about/ai" className="underline underline-offset-2">
             Read the full AI policy
           </Link>
           .
@@ -123,7 +123,7 @@ export default function CorrespondentPage() {
       </section>
 
       <section aria-labelledby="beat-heading" className="mt-8">
-        <h2 id="beat-heading" className="news-subtle text-caption font-semibold uppercase tracking-widest">
+        <h2 id="beat-heading" className="news-fg text-callout font-semibold">
           The beat
         </h2>
         <p className="pretty-text news-muted mt-3 text-prose">{correspondent.summary}</p>
@@ -133,7 +133,7 @@ export default function CorrespondentPage() {
           </h3>
           <p className="pretty-text news-muted mt-2 text-callout">{correspondent.styleNote}</p>
         </div>
-        <dl className="mt-5 space-y-2 text-ui">
+        <dl className="mt-6 space-y-2 text-ui">
           <div>
             <dt className="news-subtle inline">Notices first: </dt>
             <dd className="news-muted inline">{correspondent.noticesFirst}</dd>
@@ -150,7 +150,7 @@ export default function CorrespondentPage() {
                   {index > 0 && ', '}
                   <Link
                     to={`/data/${section}`}
-                    className="news-link news-focus underline underline-offset-4"
+                    className="news-link underline underline-offset-4"
                   >
                     {SECTION_LABELS[section] ?? section}
                   </Link>
@@ -164,11 +164,11 @@ export default function CorrespondentPage() {
       <section aria-labelledby="datasets-heading" className="mt-8">
         <h2
           id="datasets-heading"
-          className="news-subtle text-caption font-semibold uppercase tracking-widest"
+          className="news-fg text-callout font-semibold"
         >
           Works only from these datasets
         </h2>
-        <ul className="mt-2 space-y-1.5">
+        <ul className="mt-2 space-y-2">
           {correspondent.datasets.map((dataset) => (
             <li key={dataset.sourceId} className="news-muted text-ui">
               <span className="news-subtle font-mono text-caption">{dataset.sourceId}</span>{' '}
@@ -182,14 +182,14 @@ export default function CorrespondentPage() {
       </section>
 
       {recent.length > 0 && (
-        <section aria-labelledby="recent-heading" className="mt-10">
+        <section aria-labelledby="recent-heading" className="mt-12">
           <h2
             id="recent-heading"
-            className="news-border news-subtle border-b pb-2 text-caption font-semibold uppercase tracking-widest"
+            className="news-border news-fg border-b pb-2 text-callout font-semibold"
           >
             Recent articles
           </h2>
-          <div className="mt-4 space-y-5">
+          <div className="mt-4 space-y-6">
             {recent.map((summary) => (
               <ArticleCard key={summary.id ?? summary.slug} summary={summary} />
             ))}

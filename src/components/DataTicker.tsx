@@ -5,7 +5,6 @@ interface TickerItem {
   label: string;
   value: string;
   change?: string;
-  positive?: boolean;
 }
 
 export function DataTicker() {
@@ -24,7 +23,6 @@ export function DataTicker() {
         tickers.push({
           label: 'Electricity',
           value: `€${d.electricityCurrent.toFixed(2)}/MWh`,
-          positive: d.electricityCurrent >= 0,
         });
 
         // Top exchange rates
@@ -40,7 +38,6 @@ export function DataTicker() {
             label: ind.label,
             value: ind.value,
             change: ind.change,
-            positive: ind.change?.startsWith('+'),
           });
         });
 
@@ -62,17 +59,19 @@ export function DataTicker() {
 
   return (
     <div className="overflow-hidden" style={{ borderBottom: '1px solid var(--border-card)' }}>
-      <div className="ticker-track flex items-center gap-8 py-1.5 whitespace-nowrap">
+      <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
           {[...items, ...items].map((item, i) => (
-            <span key={i} className="flex items-center gap-1.5 text-caption font-mono shrink-0">
+            <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0">
               <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{item.value}</span>
+              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{item.value}</span>
+              {/* The delta carries its own sign, and the ticker cannot know
+                  whether a rise in an arbitrary indicator is good news, so it
+                  does not pretend to. It used to colour every `+` green — in a
+                  light-theme green, on a dark background. See DESIGN.md §3.5. */}
               {item.change && (
-                <span style={{ color: item.positive ? '#059669' : '#dc2626' }}>
-                  {item.change}
-                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{item.change}</span>
               )}
-              <span style={{ color: 'var(--border-card)', margin: '0 4px' }}>·</span>
+              <span aria-hidden="true" style={{ color: 'var(--border-card)' }}>·</span>
             </span>
           ))}
       </div>

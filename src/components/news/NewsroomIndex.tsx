@@ -31,7 +31,7 @@ export function NewsroomIndex() {
         beside its name, on this page and on every article.
       </p>
 
-      <section aria-labelledby="correspondents-heading" className="mt-10">
+      <section aria-labelledby="correspondents-heading" className="mt-12">
         <h2 id="correspondents-heading" className="balance-text news-fg text-title font-semibold">
           Correspondents
         </h2>
@@ -43,7 +43,7 @@ export function NewsroomIndex() {
             <li key={entry.id}>
               <Link
                 to={`/newsroom/${entry.id}`}
-                className="news-border news-focus news-hover-panel flex items-center gap-3 rounded-lg border p-3 transition-colors"
+                className="news-border news-hover-panel flex items-center gap-3 rounded-lg border p-3 transition-colors"
               >
                 <CorrespondentAvatar id={entry.id} size={40} />
                 <span>
@@ -58,7 +58,7 @@ export function NewsroomIndex() {
         </ul>
       </section>
 
-      <section aria-labelledby="editor-heading" className="mt-10">
+      <section aria-labelledby="editor-heading" className="mt-12">
         <h2 id="editor-heading" className="balance-text news-fg text-title font-semibold">
           Editor
         </h2>
@@ -77,7 +77,7 @@ export function NewsroomIndex() {
         </div>
       </section>
 
-      <section aria-labelledby="publisher-heading" className="mt-10">
+      <section aria-labelledby="publisher-heading" className="mt-12">
         <h2 id="publisher-heading" className="balance-text news-fg text-title font-semibold">
           Accountable publisher
         </h2>
@@ -91,7 +91,7 @@ export function NewsroomIndex() {
             Does not write, and does not sign off stories one at a time. He is answerable for the
             system that does: what it is allowed to publish, what it must refuse, and what happens
             when it gets something wrong.{' '}
-            <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
+            <Link to="/about/ai" className="news-link underline underline-offset-2">
               How that works
             </Link>
             .

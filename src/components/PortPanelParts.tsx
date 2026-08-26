@@ -49,7 +49,7 @@ export function MeasureHeadline({ measure }: { measure: PortMeasure }) {
         </span>
         {yoy ? (
           <>
-            <span className={`text-ui font-medium ${yoy.pct >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
+            <span className={`text-ui ${yoy.pct >= 0 ? 'text-emerald-400' : 'text-orange-400'}`}>
               {formatPct(yoy.pct)}
             </span>
             <span className="text-caption text-slate-500">year on year</span>
@@ -84,7 +84,7 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
   const unit = measure.unit as PortUnit;
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {rows.map((row, idx) => {
         // A port reporting a true zero still gets a hairline, so "reported
         // nothing" is visibly different from "not in the table at all".
@@ -96,14 +96,14 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
               <span className="text-slate-200 truncate max-w-[55%]" title={row.name}>{row.name}</span>
               <div className="flex items-center gap-2">
                 <span className="text-slate-400">{share}%</span>
-                <span className="text-white font-mono font-medium w-16 text-right">
+                <span className="text-white font-mono w-16 text-right">
                   {formatMeasure(row.value, unit)}
                 </span>
               </div>
             </div>
             <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${BAR_COLORS[Math.min(idx, BAR_COLORS.length - 1)]}`}
+                className={`h-full rounded-full transition-[width] duration-500 ${BAR_COLORS[Math.min(idx, BAR_COLORS.length - 1)]}`}
                 style={{ width: `${width}%` }}
               />
             </div>

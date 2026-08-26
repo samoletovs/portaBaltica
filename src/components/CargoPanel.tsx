@@ -57,7 +57,7 @@ function ViewButton({ label, active, onClick }: { label: string; active: boolean
   return (
     <button
       onClick={onClick}
-      className={`px-2 py-1 text-caption rounded-md transition-colors ${
+      className={`px-2 py-1 text-caption rounded-lg transition-colors ${
         active ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'
       }`}
     >
@@ -84,7 +84,7 @@ function CargoMixView({ mix }: { mix: CargoMix }) {
         national total{mix.period ? ` · ${formatPeriod(mix.period)}` : ''}
       </p>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {mix.categories.map((c, idx) => {
           const share = total > 0 ? ((c.weight / total) * 100).toFixed(1) : '0.0';
           return (
@@ -93,14 +93,14 @@ function CargoMixView({ mix }: { mix: CargoMix }) {
                 <span className="text-slate-200 truncate max-w-[55%]" title={c.name}>{c.name}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400">{share}%</span>
-                  <span className="text-white font-mono font-medium w-16 text-right">
+                  <span className="text-white font-mono w-16 text-right">
                     {formatMeasure(c.weight, 'THS_T')}
                   </span>
                 </div>
               </div>
               <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${MIX_COLORS[Math.min(idx, MIX_COLORS.length - 1)]}`}
+                  className={`h-full rounded-full transition-[width] duration-500 ${MIX_COLORS[Math.min(idx, MIX_COLORS.length - 1)]}`}
                   style={{ width: `${Math.max((c.weight / max) * 100, 1)}%` }}
                 />
               </div>

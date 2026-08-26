@@ -64,7 +64,7 @@ function formatTimestamp(value: string | undefined): string {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="news-subtle text-caption font-medium uppercase tracking-widest">{label}</dt>
+      <dt className="news-subtle text-caption font-semibold uppercase tracking-widest">{label}</dt>
       <dd className="news-muted mt-1 text-ui">{children}</dd>
     </div>
   );
@@ -88,9 +88,9 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
   const allPassed = passedCount === validator.checks.length && validator.checks.length > 0;
 
   return (
-    <section aria-labelledby="provenance-heading" className="mt-10">
+    <section aria-labelledby="provenance-heading" className="mt-12">
       <details className="news-border news-accent-panel group/passport overflow-hidden rounded-xl border">
-        <summary className="news-border news-focus flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-5 py-3 group-open/passport:border-b [&::-webkit-details-marker]:hidden">
+        <summary className="news-border flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-6 py-3 group-open/passport:border-b [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2">
             <span
               aria-hidden="true"
@@ -103,7 +103,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
             </h2>
           </span>
           <span
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption font-medium ${
+            className={`flex items-center gap-2 rounded-full border px-2 py-1 text-caption ${
               allPassed
                 ? 'news-status-positive'
                 : 'news-status-warning'
@@ -114,21 +114,21 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           </span>
         </summary>
 
-        <div className="space-y-6 px-5 py-4">
+        <div className="space-y-6 px-6 py-4">
           <p className="news-muted text-ui">
             This record was written automatically as the article was produced. Open any dataset below
             and you can check the figures for yourself. That is what it is here for.
           </p>
 
           <div>
-            <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
+            <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
               The data behind it
             </h3>
             <ul className="space-y-3">
               {sources.map((source) => (
                 <li
                   key={`${source.source_id}-${source.dataset ?? ''}-${source.retrieved_at}`}
-                  className="news-border news-panel rounded-lg border px-3 py-2.5"
+                  className="news-border news-panel rounded-lg border px-3 py-2"
                 >
                   <p className="news-fg text-callout font-semibold">
                     {SOURCE_NAMES[source.source_id] ?? source.source_id}
@@ -141,7 +141,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                       )}
                     </p>
                   )}
-                  <p className="news-subtle mt-1.5 flex flex-wrap items-center gap-x-3 text-caption">
+                  <p className="news-subtle mt-2 flex flex-wrap items-center gap-x-3 text-caption">
                     <span>
                       Retrieved{' '}
                       <time dateTime={source.retrieved_at} className="news-muted">
@@ -153,7 +153,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                         href={source.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="news-link news-focus underline underline-offset-2"
+                        className="news-link underline underline-offset-2"
                       >
                         Open the dataset ↗<span className="sr-only"> (opens in a new tab)</span>
                       </a>
@@ -166,7 +166,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
           {research && (
             <div>
-              <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
                 Reporting context consulted
               </h3>
               {research.consulted.length > 0 ? (
@@ -174,17 +174,17 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                   {research.consulted.map((item) => (
                     <li
                       key={`${item.source_id}-${item.url}`}
-                      className="news-border news-panel rounded-lg border px-3 py-2.5"
+                      className="news-border news-panel rounded-lg border px-3 py-2"
                     >
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="news-link news-focus text-callout font-semibold underline underline-offset-2"
+                        className="news-link text-callout font-semibold underline underline-offset-2"
                       >
                         {item.title} ↗<span className="sr-only"> (opens in a new tab)</span>
                       </a>
-                      <p className="news-subtle mt-1.5 text-caption">
+                      <p className="news-subtle mt-2 text-caption">
                         {item.source_name} ·{' '}
                         {item.role === 'official_statement'
                           ? 'official statement'
@@ -204,19 +204,19 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
           {signal_id && (
             <div>
-              <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
                 Why this story exists
               </h3>
               <p className="news-muted text-ui">
                 A deterministic detector, not a model, flagged this change as newsworthy and
                 triggered the story.
               </p>
-              <p className="news-subtle mt-1.5 font-mono text-caption">{signal_id}</p>
+              <p className="news-subtle mt-2 font-mono text-caption">{signal_id}</p>
             </div>
           )}
 
           <div>
-            <h3 className="news-subtle mb-2.5 text-caption font-semibold uppercase tracking-widest">
+            <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
               How it was written
             </h3>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -251,7 +251,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           </div>
 
           <details className="news-border group/checks border-t pt-3">
-            <summary className="news-subtle news-hover news-focus cursor-pointer list-none text-caption font-semibold uppercase tracking-widest">
+            <summary className="news-subtle news-hover cursor-pointer list-none text-caption font-semibold uppercase tracking-widest">
               <span
                 aria-hidden="true"
                 className="mr-1 inline-block transition-transform group-open/checks:rotate-90"
@@ -260,7 +260,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               </span>
               The {validator.checks.length} checks run before publication
             </summary>
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-3 space-y-2">
               {validator.checks.map((check) => (
                 <li key={check.name} className="flex gap-2 text-ui">
                   <span

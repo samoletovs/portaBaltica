@@ -88,6 +88,47 @@
      lands near 70, so `max-w-measure` replaces the `max-w-2xl` the article
      column used to carry, which ran to roughly 80. */
   --container-measure: 38rem;
+
+  /* ─── One spacing scale ────────────────────────────────────────────────
+     An 8px grid, with a 4px subdivision inside components and 2px inside
+     badges. That is Carbon's 2x Grid — "the basic unit of 2x Grid geometry is
+     the 8-pixel square mini unit" — chosen over Material's 4dp base because
+     this is a dense data UI and Carbon is the only major system that designs
+     for that case explicitly.
+
+     The sizes were the problem, exactly as they were for type: thirty-seven
+     distinct padding values, thirty-one margins and fourteen gaps. Two panels
+     20px apart and two panels 24px apart read as a mistake, because one of
+     them is.
+
+     These map onto a restricted allowlist of Tailwind's numeric spacing —
+     0.5, 1, 2, 3, 4, 6, 8, 12, 16 — which is what the components actually
+     write and what tests/design-system.test.ts enforces. */
+  --space-3xs: 0.125rem; /*  2px — inside a badge or chip */
+  --space-2xs: 0.25rem; /*   4px — icon-to-label, tight inline gaps */
+  --space-xs: 0.5rem; /*     8px — between lines of a stacked label */
+  --space-sm: 0.75rem; /*   12px — between related items in a card */
+  --space-md: 1rem; /*      16px — default card and panel padding */
+  --space-lg: 1.5rem; /*    24px — between blocks inside a panel */
+  --space-xl: 2rem; /*      32px — between panels */
+  --space-2xl: 3rem; /*     48px — between dashboard sections */
+  --space-3xl: 4rem; /*     64px — page-level breaks */
+
+  /* ─── Motion ───────────────────────────────────────────────────────────
+     Carbon's *productive* durations and curves, not its expressive ones. A
+     dashboard is a tool: motion here confirms that something happened, it
+     does not perform.
+
+     Every one of these is overridden to near-zero under
+     `prefers-reduced-motion: reduce`, below. Nothing on this site animated
+     conditionally before — including a ticker that looped forever, which is
+     the exact case the setting exists for. */
+  --motion-fast: 70ms; /*   button and toggle states */
+  --motion-base: 150ms; /*  hover, colour changes, small moves */
+  --motion-slow: 240ms; /*  panel expansion, disclosure */
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
 }
 
 /* ─── Theme variables ───
@@ -99,60 +140,145 @@
    `--text-prose`. tests/typography.test.ts asserts no step ever collides
    again; renaming these to `--fg-*` would be the real fix, but they are read
    by inline styles across every dashboard component and that is a separate
-   change from this one. */
+   change from this one — see DESIGN.md §6.
+
+   ─── Surfaces ───
+   In dark mode layers get *lighter*, and separation comes from the surface
+   step before it comes from a border. That is Carbon's model ("in the dark
+   themes, layers become one step lighter with each added layer") and Material
+   3 and Fluent 2 agree in substance.
+
+   The cards used to be `rgba(15, 23, 42, 0.5)` over the page, which
+   composites to #0d1322 — 1.06:1 against the background — inside a border
+   that composited to 1.10:1 against the card. A card was therefore delimited
+   by two boundaries that were, between them, very nearly invisible, and the
+   dashboard read as one flat sheet with text scattered on it. That is most of
+   why it did not look finished.
+
+   They are opaque now, so a panel inside a panel composes predictably instead
+   of compounding its own translucency, and each layer is a real step.
+
+   ─── Text ───
+   Every step is a ratio against the surface it sits on, not a hex someone
+   liked. The floor for anything a reader is expected to read is 4.5:1 (WCAG
+   2.2 SC 1.4.3, AA), and `--text-disabled` is the only step below it —
+   reserved for genuinely inert chrome that never carries information.
+
+   This replaces a ramp that failed. `--text-muted` was #475569, which is
+   2.53:1 on the page, and it was the colour of the source line under every
+   chart: the most important trust signal on a data-journalism site, rendered
+   below the legibility threshold. `--text-tertiary` was #64748b at 4.03:1,
+   also short. The light theme was worse — tertiary at 2.56:1, muted at
+   1.48:1. Values here are chosen by computing the ratio, and
+   tests/design-system.test.ts recomputes it on every run. */
 :root {
+  /* ─── Radius ───────────────────────────────────────────────────────────
+     Four steps. There were five, including a `rounded-md` that appeared
+     twice — a sixth of a scale, in two places, related to nothing.
+
+     An inner radius is one step below its container: a `lg` panel inside an
+     `xl` card looks right, the same radius twice looks like the inner element
+     is escaping.
+
+     Declared here rather than in `@theme`, and named `--corner-*` rather than
+     `--radius-*`, for one reason: `@theme` entries are tree-shaken. A
+     `--radius-card` defined up there was absent from the built stylesheet,
+     because Tailwind owns that namespace and emits only the entries a
+     `rounded-<name>` utility actually uses — so `var(--radius-card)` resolved
+     to nothing, silently, in production only. `:root` is plain CSS and always
+     ships. This is the same class of trap as the `--text-*` collision below,
+     and both were found by reading dist/, not by reading source. */
+  --corner-chip: 0.25rem; /*  4px — chips, badges, inline code, skeletons */
+  --corner-control: 0.5rem; /* 8px — buttons, inputs, tooltips, inner panels */
+  --corner-card: 0.75rem; /* 12px — cards and top-level panels */
+
   --bg-page: #0a0f1a;
-  --bg-card: rgba(15, 23, 42, 0.5);
-  --bg-card-hover: rgba(30, 41, 59, 0.4);
-  --bg-input: rgba(30, 41, 59, 0.5);
-  --border-card: rgba(30, 41, 59, 0.4);
-  --border-subtle: rgba(30, 41, 59, 0.6);
-  --text-primary: #ffffff;
-  --text-body: #c8d1dc;
-  --text-secondary: #94a3b8;
-  --text-tertiary: #64748b;
-  --text-muted: #475569;
+  --bg-card: #121b2e;
+  --bg-raised: #1c2740;
+  --bg-sunken: #070b13;
+  --bg-card-hover: #1c2740;
+  --bg-input: #1c2740;
+  --border-card: #26344f;
+  --border-subtle: #1a2338;
+  --text-primary: #f6f8fb; /* 18.0:1 — never pure white; Carbon caps at Gray 10 */
+  --text-body: #c8d1dc; /*    12.4:1 */
+  --text-secondary: #9fb0c4; /* 8.7:1 */
+  --text-tertiary: #8496ad; /*  6.3:1 — captions, meta, source attribution */
+  --text-disabled: #5b6b82; /*  3.5:1 — inert only, never information */
   --chart-grid: #1e293b;
-  --chart-axis: #94a3b8;
-  --chart-tooltip-bg: #0f172a;
-  --chart-tooltip-border: #1e293b;
-  --scrollbar-thumb: #1e293b;
-  --scrollbar-hover: #334155;
+  --chart-axis: #9fb0c4;
+  --chart-tooltip-bg: #1c2740;
+  --chart-tooltip-border: #26344f;
+  --scrollbar-thumb: #26344f;
+  --scrollbar-hover: #3a4c6d;
   --news-fg: #f8fafc;
   --news-muted: #cbd5e1;
-  --news-subtle: #94a3b8;
+  --news-subtle: #9fb0c4;
   --news-border: #334155;
-  --news-panel: #111827;
-  --news-panel-muted: #1e293b;
+  --news-panel: #121b2e;
+  --news-panel-muted: #1c2740;
   --news-accent: #38bdf8;
   --news-accent-panel: #0c2d42;
   --news-warning: #fde68a;
   --news-warning-panel: #291c0b;
   --news-positive: #6ee7b7;
   --news-negative: #fca5a5;
+
+  /* ─── Semantic status ───
+     For status, and only for status: "use them for important messages, don't
+     use them for decoration" (Fluent 2). In dark themes these are lighter and
+     less saturated than their light equivalents, because a saturated red on a
+     dark ground vibrates — Carbon shifts its error red to #FF8389 for exactly
+     this reason.
+
+     `--data-neutral` is not a lesser member of this set. It is the default,
+     and it is what an indicator gets when its direction has no agreed
+     meaning; see DESIGN.md §3.5. */
+  --data-positive: #3ddc97;
+  --data-negative: #ff7a85;
+  --data-warning: #fbbf24;
+  --data-neutral: #9fb0c4;
+
+  /* ─── Data-visualisation series ───
+     A separate palette from the accent above, so a chart line is never
+     mistaken for a link. Cyan / amber / pink: the previous sky / emerald /
+     amber put two of three series in hues that converge under deuteranopia,
+     which is around 8% of men. Every series also carries a stroke pattern, so
+     colour is never the only encoding (WCAG 2.2 SC 1.4.1). */
+  --series-lv: #38bdf8;
+  --series-ee: #fbbf24;
+  --series-lt: #f472b6;
+  --series-fi: #a78bfa;
+  --series-default: #7dd3fc;
+  --chart-reference: #9fb0c4;
+
+  /* The focus ring. 3:1 against every surface above; see the rule below. */
+  --focus-ring: #7dd3fc;
 }
 
 [data-theme="light"] {
-  --bg-page: #f8fafc;
+  --bg-page: #f6f8fb;
   --bg-card: #ffffff;
+  --bg-raised: #f1f5f9;
+  --bg-sunken: #eef2f7;
   --bg-card-hover: #f1f5f9;
   --bg-input: #f1f5f9;
-  --border-card: #e2e8f0;
+  --border-card: #dbe2ea;
   --border-subtle: #e2e8f0;
-  --text-primary: #0f172a;
-  --text-body: #334155;
-  --text-secondary: #64748b;
-  --text-tertiary: #94a3b8;
-  --text-muted: #cbd5e1;
+  --text-primary: #0f172a; /*   17.9:1 */
+  --text-body: #2f3b4c; /*      10.7:1 */
+  --text-secondary: #455468; /*  7.3:1 */
+  --text-tertiary: #5c6b81; /*   5.4:1 */
+  --text-disabled: #7d8a9c; /*   3.5:1 */
   --chart-grid: #e2e8f0;
-  --chart-axis: #64748b;
+  --chart-axis: #455468;
   --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #e2e8f0;
+  --chart-tooltip-border: #dbe2ea;
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-hover: #94a3b8;
   --news-fg: #0f172a;
   --news-muted: #334155;
-  --news-subtle: #475569;
+  --news-subtle: #4a5a70;
   --news-border: #cbd5e1;
   --news-panel: #ffffff;
   --news-panel-muted: #f1f5f9;
@@ -162,6 +288,17 @@
   --news-warning-panel: #fffbeb;
   --news-positive: #047857;
   --news-negative: #b91c1c;
+  --data-positive: #047857;
+  --data-negative: #be123c;
+  --data-warning: #a16207;
+  --data-neutral: #455468;
+  --series-lv: #0284c7;
+  --series-ee: #b45309;
+  --series-lt: #be185d;
+  --series-fi: #6d28d9;
+  --series-default: #0369a1;
+  --chart-reference: #455468;
+  --focus-ring: #0369a1;
 }
 
 body {
@@ -176,11 +313,65 @@ body {
 
 /* Figures should line up in a column and stay put as a value ticks over.
    Proportional digits are the default in most UI faces, which is why a
-   changing number in a dashboard cell appears to twitch. */
+   changing number in a dashboard cell appears to twitch. `lnum` asks for
+   lining rather than old-style figures, which is what Our World in Data sets
+   on its charts and the reason its tables read as data rather than as prose. */
 table,
 .tabular,
 [class*="font-mono"] {
-  font-variant-numeric: tabular-nums;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ─── Focus ────────────────────────────────────────────────────────────────
+   One rule, globally, rather than a class each component has to remember.
+
+   The class approach was tried and it demonstrably failed: sixteen newsroom
+   components carried `news-focus` and not one dashboard component had any
+   focus style at all. Every indicator card is a `<button>`, so the entire
+   /data half of the site was unreachable by keyboard in any visible way —
+   the same "newsroom fixed, dashboard left behind" split the type scale had.
+
+   2px solid at 2px offset is the shape WCAG 2.2 SC 2.4.13 names as the
+   simplest way to pass: "a focus indicator which is a solid 2 CSS pixel thick
+   perimeter". `--focus-ring` clears 3:1 against every surface token. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* SC 2.4.11 Focus Not Obscured: the masthead is sticky, so an anchor the
+   keyboard or a fragment link scrolls to needs to clear it rather than land
+   underneath it. Scoped to the things anchors actually point at — putting it
+   on every `[id]` would silently change scrolling for elements that are only
+   given an id to be labelled by something else. */
+:target,
+h1[id],
+h2[id],
+h3[id],
+h4[id],
+section[id],
+article[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* ─── Reduced motion ───────────────────────────────────────────────────────
+   Nothing on this site honoured this before, including a ticker that looped
+   forever — which is the precise case the setting exists for. Transitions are
+   collapsed rather than removed so that state changes still land, they just
+   land instantly; infinite animations are stopped outright. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ticker-track {
+    animation: none !important;
+  }
 }
 
 /* ─── Wrapping ─────────────────────────────────────────────────────────────
@@ -224,10 +415,11 @@ table,
 .news-link:hover { color: var(--news-fg); }
 .news-hover:hover { color: var(--news-fg); }
 .news-hover-panel:hover { background: var(--news-panel-muted); }
-.news-focus:focus-visible {
-  outline: 2px solid var(--news-accent);
-  outline-offset: 2px;
-}
+/* Focus is handled once, globally, by the `:focus-visible` rule above. There
+   is deliberately no `.news-focus` here any more: a per-component opt-in is
+   how the dashboard ended up with no focus indicator at all, and two focus
+   colours — accent here, ring there — is the near-miss that makes a site look
+   assembled rather than designed. */
 /* Masthead nav: an underline only, so the four destinations read as a row of
    sections rather than as a row of buttons competing with the headlines. */
 .news-nav-active { color: var(--news-fg); border-color: var(--news-accent); }
@@ -281,12 +473,15 @@ table,
   border-color: var(--border-card) !important;
 }
 
-/* Ticker animation */
+/* Ticker animation. The duration is long on purpose — a scroll a reader
+   cannot outrun is not information, it is a distraction — and it stops
+   entirely under `prefers-reduced-motion`, above. */
 .ticker-track {
   animation: ticker-scroll 30s linear infinite;
   width: max-content;
 }
-.ticker-track:hover {
+.ticker-track:hover,
+.ticker-track:focus-within {
   animation-play-state: paused;
 }
 @keyframes ticker-scroll {
@@ -294,7 +489,12 @@ table,
   100% { transform: translateX(-50%); }
 }
 
-/* Text colors */
+/* Text colors.
+   `text-slate-500` and `text-slate-600` both land on `--text-tertiary`. They
+   used to be two different greys, at 4.03:1 and 2.53:1, and the quieter of
+   the two was the colour of every chart's source line. There is one quiet
+   text colour now and it is legible; if something genuinely needs to be
+   quieter than that, it is not text and it should not be saying anything. */
 .text-white {
   color: var(--text-primary) !important;
 }
@@ -304,11 +504,9 @@ table,
 .text-slate-400 {
   color: var(--text-secondary) !important;
 }
-.text-slate-500 {
-  color: var(--text-tertiary) !important;
-}
+.text-slate-500,
 .text-slate-600 {
-  color: var(--text-muted) !important;
+  color: var(--text-tertiary) !important;
 }
 
 /* Hover text */
@@ -316,12 +514,17 @@ table,
   color: var(--text-primary) !important;
 }
 
-/* Inputs */
+/* Inputs and selected controls.
+   `bg-slate-600` was mapped to `--text-secondary` — a *text* token used as a
+   background — and the components that use it put `text-white` on top. That
+   is white on #94a3b8: 2.56:1, and it was the treatment for the selected
+   country, the selected date range and the selected chart period. The
+   selected state of a control was the least legible text on the page. */
 .bg-slate-600 {
-  background: var(--text-secondary) !important;
+  background: var(--bg-raised) !important;
 }
 .hover\:bg-slate-500:hover {
-  background: var(--text-tertiary) !important;
+  background: var(--bg-card-hover) !important;
 }
 
 /* Loading skeleton pulses */
@@ -331,7 +534,7 @@ table,
 
 /* Active tab / accent */
 .border-slate-400 {
-  border-color: #2563eb !important;
+  border-color: var(--news-accent) !important;
 }
 
 /* ─── Light-theme-specific overrides ─── */

@@ -17,7 +17,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
 
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold text-white mb-5">Property & energy</h2>
+      <h2 className="balance-text text-title font-semibold text-white mb-6">Property & energy</h2>
       {country !== 'LV' && <LvOnlyNotice />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -27,7 +27,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
             <p className="text-caption text-slate-400">Construction Permits</p>
             <p className="text-lead font-semibold text-white font-mono">{data.totalPermits.toLocaleString()}</p>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {data.constructionPermits.slice(0, 8).map((p) => (
               <div key={p.municipality}>
                 <div className="flex items-center justify-between text-caption mb-0.5">
@@ -47,7 +47,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         </div>
 
         {/* Energy profile by carrier */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-caption text-slate-400">Building Energy Profile</p>
             <p className="text-lead font-semibold text-white font-mono">{data.totalCerts.toLocaleString()}</p>
@@ -100,7 +100,7 @@ function TileSkeleton() {
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[1, 2].map((i) => (
-          <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5 animate-pulse">
+          <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
             <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-3" />
             <div className="h-6 bg-slate-700/30 rounded w-1/4 mb-4" />
             <div className="space-y-2">

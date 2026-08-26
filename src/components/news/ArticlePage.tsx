@@ -51,7 +51,7 @@ export default function ArticlePage() {
           No article is published at this address.{' '}
           <Link
             to="/"
-            className="news-link news-focus underline underline-offset-4"
+            className="news-link underline underline-offset-4"
           >
             Back to the front page
           </Link>
@@ -70,10 +70,10 @@ export default function ArticlePage() {
         <p className="news-warning mt-3 text-callout">
           It has not passed the checks we run before publishing, so we will not show it.
         </p>
-        <p className="mt-5 text-ui">
+        <p className="mt-6 text-ui">
           <Link
             to="/"
-            className="news-link news-focus underline underline-offset-4"
+            className="news-link underline underline-offset-4"
           >
             Back to the front page
           </Link>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useId, type ReactNode } from 'react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
 import { useCountry, type Country } from '../CountryContext';
@@ -7,6 +7,7 @@ import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
+import { changeDescription, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -196,31 +197,48 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
   const { summary } = data;
   const chartData = data.series.filter((p) => p.value !== null).slice(-20);
-  const isPositiveChange = summary.change !== null && summary.change >= 0;
-  const changeColor = isPositiveChange ? 'text-emerald-400' : 'text-red-400';
-  const areaColor = isPositiveChange ? '#34d399' : '#f87171';
+  const isRise = summary.change !== null && summary.change > 0;
+  const sentiment = sentimentOf(id, summary.change);
+  const changeColor = sentimentColor(sentiment);
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
+
+  // The sparkline is drawn in one neutral colour, always.
+  //
+  // It used to take its colour from the sign of the final data point, so ten
+  // years of a series turned red or green according to one quarter — and, since
+  // the colour was keyed to direction rather than meaning, a decade of falling
+  // unemployment was drawn in red. The series is the evidence; only the delta
+  // chip is allowed to editorialise, and then only when the indicator's
+  // polarity is agreed. See DESIGN.md §3.5.
+  const areaColor = chartColors.seriesDefault;
+
+  // A series that crosses zero gets zero marked. On a percentage-change series
+  // it is the most important value on the chart and it was previously invisible.
+  const values = chartData.map((p) => p.value as number);
+  const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
   return (
     <button
       onClick={() => navigate(`/indicator/${id}`)}
-      className="rounded-xl p-4 text-left transition-all group w-full"
+      className="rounded-xl p-4 text-left transition-colors group w-full"
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
       aria-label={`View ${title} details`}
     >
       <div className="flex items-start justify-between mb-1">
-        <p className="text-caption font-medium" style={{ color: 'var(--text-secondary)' }}>{title}</p>
-        <span className="text-caption opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-muted)' }}>→</span>
+        <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{title}</p>
+        <span className="text-caption opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-tertiary)' }} aria-hidden="true">→</span>
       </div>
 
       <div className="flex items-baseline gap-2 mb-3">
         <span className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
           {fmt(summary.latest)}
         </span>
-        {summary.change !== null && (
-          <span className={`text-caption font-mono ${changeColor}`}>
-            {isPositiveChange ? '▲' : '▼'}{fmt(Math.abs(summary.change))}
+        {summary.change !== null && summary.change !== 0 && (
+          <span className="text-caption font-mono" style={{ color: changeColor }}>
+            <span aria-hidden="true">{isRise ? '▲' : '▼'}</span>
+            {signed(fmt(Math.abs(summary.change)), summary.change)}
+            <span className="sr-only"> {changeDescription(id, summary.change)}</span>
           </span>
         )}
       </div>
@@ -230,11 +248,14 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={areaColor} stopOpacity={0.2} />
+                <stop offset="0%" stopColor={areaColor} stopOpacity={0.22} />
                 <stop offset="100%" stopColor={areaColor} stopOpacity={0} />
               </linearGradient>
             </defs>
             <XAxis dataKey="period" hide />
+            {crossesZero && (
+              <ReferenceLine y={0} stroke={chartColors.axis} strokeWidth={1} strokeDasharray="2 2" />
+            )}
             <Area
               type="monotone"
               dataKey="value"
@@ -254,11 +275,11 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         </ResponsiveContainer>
       </div>
 
-      <div className="flex items-center justify-between mt-1.5">
-        <span className="text-caption font-mono" style={{ color: 'var(--text-muted)' }}>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
           {formatPeriod(chartData[0]?.period ?? '')}
         </span>
-        <span className="text-caption font-mono" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
           {formatPeriod(chartData[chartData.length - 1]?.period ?? '')}
         </span>
       </div>
@@ -406,21 +427,28 @@ export function IndicatorChart({
 
   const chartData = data.series.filter((p) => p.value !== null);
   const { summary } = data;
-  const isUp = summary.change !== null && summary.change >= 0;
-  const color = isUp ? '#34d399' : '#f87171';
+  const sentiment = sentimentOf(id, summary.change);
+  const color = chartColors.seriesDefault;
   const fmt = (v: number | null) => formatValue(v, data.unit);
+
+  const values = chartData.map((p) => p.value as number);
+  const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
   return (
     <div>
       {/* Time range selector */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4" role="group" aria-label="Time range">
         {[1, 3, 5, 10, 0].map((y) => (
           <button
             key={y}
             onClick={() => setYears(y)}
-            className={`px-3 py-1 text-caption rounded-lg transition-colors ${
-              years === y ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200 bg-slate-800/40'
-            }`}
+            aria-pressed={years === y}
+            className="px-3 py-1 text-caption rounded-lg transition-colors"
+            style={{
+              background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
+              border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
+              color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
           >
             {y === 0 ? 'MAX' : `${y}Y`}
           </button>
@@ -433,11 +461,11 @@ export function IndicatorChart({
           <AreaChart data={chartData}>
             <defs>
               <linearGradient id={`detail-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="0%" stopColor={color} stopOpacity={0.22} />
                 <stop offset="100%" stopColor={color} stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="period"
               tick={chartTick(chartColors.axis)}
@@ -451,11 +479,15 @@ export function IndicatorChart({
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               width={60}
+              tickCount={6}
               tickFormatter={(v: number) => fmt(v)}
             />
+            {crossesZero && (
+              <ReferenceLine y={0} stroke={chartColors.axis} strokeWidth={1} />
+            )}
             <Tooltip
               contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
-              labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
+              labelStyle={{ color: chartColors.axis }}
               formatter={(v) => [fmt(v as number), data?.title ?? '']}
               labelFormatter={(l) => formatPeriod(String(l))}
             />
@@ -475,24 +507,38 @@ export function IndicatorChart({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatBox label="Latest" value={fmt(summary.latest)} />
         <StatBox label="Previous" value={fmt(summary.previous)} />
-        <StatBox label="Change" value={summary.change !== null ? `${summary.change >= 0 ? '+' : ''}${summary.change.toFixed(2)}` : 'N/A'} highlight={isUp ? 'green' : 'red'} />
+        <StatBox
+          label="Change"
+          value={
+            summary.change !== null && summary.change !== 0
+              ? signed(Math.abs(summary.change).toFixed(2), summary.change)
+              : summary.change === 0
+                ? '0.00'
+                : 'N/A'
+          }
+          sentiment={sentiment}
+        />
         <StatBox label="Min" value={fmt(summary.min)} />
         <StatBox label="Max" value={fmt(summary.max)} />
       </div>
 
-      <p className="text-caption text-slate-500 mt-3">
+      <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>
         Source: {data.source} · {summary.count} data points
+        {summary.change !== null && summary.change !== 0 && (
+          <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
+        )}
       </p>
     </div>
   );
 }
 
-function StatBox({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'red' }) {
-  const textColor = highlight === 'green' ? 'text-emerald-400' : highlight === 'red' ? 'text-red-400' : 'text-white';
+function StatBox({ label, value, sentiment }: { label: string; value: string; sentiment?: Sentiment }) {
   return (
-    <div className="bg-slate-800/40 rounded-lg p-3 text-center">
-      <p className={`text-ui font-semibold font-mono ${textColor}`}>{value}</p>
-      <p className="text-caption text-slate-400">{label}</p>
+    <div className="rounded-lg p-3 text-center" style={{ background: 'var(--bg-raised)' }}>
+      <p className="text-ui font-semibold font-mono" style={{ color: sentiment && sentiment !== 'none' ? sentimentColor(sentiment) : 'var(--text-primary)' }}>
+        {value}
+      </p>
+      <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{label}</p>
     </div>
   );
 }
