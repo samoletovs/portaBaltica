@@ -51,10 +51,33 @@ describe('withRetry', () => {
     let attempts = 0;
     await expect(es.withRetry(() => {
       attempts++;
-      return Promise.reject(new Error('HTTP 404 from https://example.invalid'));
+      const err: Error & { status?: number } = new Error('HTTP 404 from https://example.invalid');
+      err.status = 404;
+      return Promise.reject(err);
     }, 1)).rejects.toThrow(/404/);
 
     expect(attempts).toBe(1);
+  });
+
+  it('retries a 503, because that is what a rate limiter says', async () => {
+    // Observed live: Elering answered HTTP 503 through Cloudflare three times
+    // in ten seconds, then served eight clean requests. Covering only timeouts
+    // would have missed the rate-limiting hypothesis the retry exists for — a
+    // limiter turns you away, it does not hang.
+    for (const status of [429, 500, 502, 503, 504]) {
+      let attempts = 0;
+      const result = await es.withRetry(() => {
+        attempts++;
+        if (attempts === 1) {
+          const err: Error & { transient?: boolean } = new Error('HTTP ' + status);
+          err.transient = true;
+          return Promise.reject(err);
+        }
+        return Promise.resolve('ok');
+      }, 1);
+      expect(result, `HTTP ${status} should be retried`).toBe('ok');
+      expect(attempts).toBe(2);
+    }
   });
 
   it('gives up after the allowance and reports the real error', async () => {
@@ -260,5 +283,54 @@ describe('the newsroom probe against a missing report', () => {
   it('rejects a report with no completion time', async () => {
     await expect(probeNewsroom(() => Promise.resolve({ counts: { published: 3 } })))
       .rejects.toThrow(/no completion time/);
+  });
+});
+
+describe('which HTTP answers count as transient', () => {
+  /**
+   * `httpText` classifies the status; `withRetry` acts on the classification.
+   * These drive the policy with errors shaped exactly as `httpText` builds
+   * them, and the last test pins the classification itself against the source
+   * so this cannot drift into asserting its own stub.
+   */
+  function classify(status: number): Error & { status?: number; transient?: boolean } {
+    const err: Error & { status?: number; transient?: boolean } =
+      new Error('HTTP ' + status + ' from https://example.invalid');
+    err.status = status;
+    if (status === 429 || status >= 500) err.transient = true;
+    return err;
+  }
+
+  async function attemptsAgainst(status: number): Promise<number> {
+    let attempts = 0;
+    await es.withRetry(() => {
+      attempts++;
+      return Promise.reject(classify(status));
+    }, 1).catch(() => undefined);
+    return attempts;
+  }
+
+  it('retries the codes that mean "not now"', async () => {
+    for (const status of [429, 500, 502, 503, 504]) {
+      expect(await attemptsAgainst(status), `HTTP ${status}`).toBe(2);
+    }
+  });
+
+  it('accepts the codes that mean "no"', async () => {
+    // 400, 401, 403, 404 and 410 are statements about the request. Retrying
+    // them is a second of a reader's time spent hearing the same answer.
+    for (const status of [400, 401, 403, 404, 410]) {
+      expect(await attemptsAgainst(status), `HTTP ${status}`).toBe(1);
+    }
+  });
+
+  it('marks a 5xx transient in the real client, not just in this test', () => {
+    // The classification lives in `httpText`. Assert the source states it, so
+    // the two tests above cannot quietly become tests of `classify`.
+    const source = require('node:fs').readFileSync(
+      require('node:path').resolve('api/shared/eurostat.js'), 'utf8');
+    expect(source).toMatch(/statusCode === 429 \|\| res\.statusCode >= 500/);
+    expect(source, 'the status must be attached for callers to reason about')
+      .toMatch(/err\.status = res\.statusCode/);
   });
 });

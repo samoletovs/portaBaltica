@@ -56,7 +56,17 @@ function httpText(url, options) {
     }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return finish(new Error('HTTP ' + res.statusCode + ' from ' + url));
+        const err = new Error('HTTP ' + res.statusCode + ' from ' + url);
+        err.status = res.statusCode;
+        // A 5xx or a 429 is the server saying "not now", which is the textbook
+        // retryable answer — and the one a rate limiter in front of a source
+        // actually returns. Observed live: Elering answered HTTP 503 through
+        // Cloudflare three times in ten seconds and then served eight clean
+        // requests, which was long enough for the status page to call a healthy
+        // source dead. Every other 4xx is an answer about the request itself
+        // and asking again only spends another second to hear it repeated.
+        if (res.statusCode === 429 || res.statusCode >= 500) err.transient = true;
+        return finish(err);
       }
       let data = '';
       res.on('data', function (chunk) { data += chunk; });
@@ -80,20 +90,31 @@ function httpText(url, options) {
 }
 
 /**
- * One retry for a connection that hung, refused or reset — never for an answer.
+ * One retry for a connection that hung, refused, reset, or was turned away.
  *
- * Measured against production: the Open-Meteo probe returned in 17–63ms when it
- * worked and in *exactly* 5000ms when it did not, roughly one call in three,
- * while the same endpoint answered in 119–222ms from a laptop. A response that
- * lands precisely on the deadline is a socket that was accepted and then said
- * nothing — not a slow source. The most likely cause is the shared Azure egress
- * address being rate-limited by Open-Meteo's per-IP free tier, which no amount
- * of waiting fixes but a fresh connection usually does.
+ * Two live failures motivate this, and they look nothing alike:
+ *
+ *   - The Open-Meteo probe returned in 17–63ms when it worked and in *exactly*
+ *     5000ms when it did not, roughly one call in three, while the same
+ *     endpoint answered in 119–222ms from a laptop. A response landing
+ *     precisely on the deadline is a socket that was accepted and then said
+ *     nothing — not a slow source. The likeliest cause is the shared Azure
+ *     egress address meeting a per-IP free-tier limit, which no amount of
+ *     waiting fixes but a fresh connection usually does.
+ *   - Elering answered HTTP 503 through Cloudflare three times in ten seconds
+ *     and then served eight consecutive clean requests. A rate limiter says
+ *     429 or 503 rather than hanging, so covering only timeouts would have
+ *     missed the very hypothesis the retry was built for.
  *
  * Only transient failures are retried. An HTTP 404 or a malformed body is an
- * answer, and asking again just spends another second to be told the same
- * thing. `retries` defaults to 0, so no existing caller changes behaviour.
+ * answer; asking again spends another second to hear the same thing.
+ * `retries` defaults to 0, so no existing caller changes behaviour.
+ *
+ * The pause is short on purpose. It gives a rate limiter a moment to forget
+ * without pushing two attempts past the status page's own budget.
  */
+const RETRY_PAUSE_MS = 200;
+
 function withRetry(fn, retries) {
   const attempts = Math.max(1, (retries || 0) + 1);
   let attempt = 0;
@@ -102,7 +123,9 @@ function withRetry(fn, retries) {
     attempt++;
     return fn().catch(function (err) {
       if (attempt >= attempts || !err || !err.transient) throw err;
-      return tryOnce();
+      return new Promise(function (resolve) {
+        setTimeout(resolve, RETRY_PAUSE_MS);
+      }).then(tryOnce);
     });
   };
 
