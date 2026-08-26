@@ -59,6 +59,48 @@ def reading_word(frequency: str, count: int) -> str:
     return singular if count == 1 else plural
 
 
+_NUMBER_WORDS = (
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+)
+
+
+def spell_count(value: int) -> str:
+    """A small count as a word, so it carries no numeral into the prose.
+
+    ``comparison_basis`` is pipeline-authored prose that the writer is REQUIRED
+    to restate, so every numeral in it must be declarable — and declarable is
+    not enough. ``reconcile_figures`` will only file a numeral the writer forgot
+    when **exactly one** verified field justifies it, and refuses to guess
+    between two.
+
+    That refusal is correct and it killed articles. The seasonal basis read "the
+    5-year average of 18.1 °C": ``baseline_years`` is 5 and ``deviation`` is
+    5.4, which rounds to 5, so the numeral had two possible parents. The
+    reconciler declined, the validator saw an undeclared number, and every
+    seasonal article failed on a token the pipeline had written itself.
+
+    A count of years is not a measurement, so spelling it removes the numeral
+    rather than managing it. Above twelve, fall back to the digit: "one hundred
+    and nineteen" is worse prose than the problem it solves, and a count that
+    large is unlikely to collide with a measurement anyway.
+    """
+    if 0 <= value < len(_NUMBER_WORDS):
+        return _NUMBER_WORDS[value]
+    return str(value)
+
+
 @dataclass(frozen=True)
 class Observation:
     period: str

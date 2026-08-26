@@ -20,22 +20,36 @@ Both now ask here instead, so the two cannot drift apart again.
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Final, Mapping
 
 #: Fields that exist for ranking and mean nothing to a reader.
 INTERNAL_ONLY_FIELDS: Final[frozenset[str]] = frozenset({"z_score"})
 
+#: Counted, not measured. ``readings_in_series`` is how long a series is; it is
+#: not 18 EUR per hour, and the context pack emits it on every enriched signal.
+_COUNT_FIELDS: Final[frozenset[str]] = frozenset(
+    {"periods_compared", "baseline_years", "observations", "sample_size", "readings_in_series"}
+)
+
 #: Ratios: "x times the usual", not a quantity in the series' unit.
 _RATIO_FIELDS: Final[frozenset[str]] = frozenset({"spread_vs_typical", "ratio_vs_typical"})
 
-#: Counts of observations. A count of months is not 119 EUR/MWh.
-_COUNT_FIELDS: Final[frozenset[str]] = frozenset(
-    {"periods_compared", "baseline_years", "observations", "sample_size"}
-)
 
+def unit_for_field(
+    name: str,
+    series_unit: str | None,
+    *,
+    overrides: Mapping[str, str | None] | None = None,
+) -> str | None:
+    """The unit ``name`` is really in, or ``None`` when it has none.
 
-def unit_for_field(name: str, series_unit: str | None) -> str | None:
-    """The unit ``name`` is really in, or ``None`` when it has none."""
+    ``overrides`` wins outright. It carries the units of figures merged in from
+    *other* series by the context pack, whose unit has nothing to do with this
+    signal's — an inflation rate sitting beside a labour cost in EUR per hour.
+    Guessing from the field name cannot work there, so the pack states it.
+    """
+    if overrides is not None and name in overrides:
+        return overrides[name]
     if name in _COUNT_FIELDS:
         return None
     if name in _RATIO_FIELDS or name.endswith("_vs_typical"):
@@ -47,11 +61,18 @@ def unit_for_field(name: str, series_unit: str | None) -> str | None:
     return series_unit
 
 
-def label_for_field(name: str, series_unit: str | None) -> str:
+def label_for_field(
+    name: str,
+    series_unit: str | None,
+    *,
+    overrides: Mapping[str, str | None] | None = None,
+) -> str:
     """How to describe the unit in the writer's figure table."""
-    unit = unit_for_field(name, series_unit)
+    unit = unit_for_field(name, series_unit, overrides=overrides)
     if unit is None:
         if name in _COUNT_FIELDS:
+            return "a count, not a measurement"
+        if overrides is not None and name in overrides:
             return "a count, not a measurement"
         return "a ratio, not a measurement — write it as 'x times'"
     return unit

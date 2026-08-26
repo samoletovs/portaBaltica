@@ -156,9 +156,15 @@ class TestRevision:
         assert outcome.revisions == 1
         assert revised.status == "published"
 
-    def test_a_second_refusal_holds_the_article(self) -> None:
-        # One rewrite, then a decision. A desk that can ask forever is a loop
-        # with a token budget attached.
+    def test_a_second_refusal_runs_the_piece_with_notes_outstanding(self) -> None:
+        """Still-has-notes is not the same as should-not-exist.
+
+        This used to hold the article, and it emptied the wire: a live run put
+        eight correct, validator-passed pieces in front of the desk and
+        published none, every one held on a second "revise". A model asked to
+        critique will always find something, so "approve on the second read or
+        die" is a gate almost nothing passes.
+        """
         article = make_article()
         writer = FakeWriter(
             {"decision": "revise", "reason": "thin", "notes": ["explain it"]},
@@ -167,20 +173,50 @@ class TestRevision:
 
         outcome = run_desk(article, writer, revise=lambda a, n: make_article())
 
-        assert outcome.action is DeskAction.REJECT
+        assert outcome.action is DeskAction.APPROVE
+        assert outcome.notes_outstanding is True
         assert outcome.revisions == MAX_REVISIONS
-        assert "after revision" in outcome.reason
+        assert "notes outstanding" in outcome.reason
+        # The decision is recorded on the piece that actually publishes — the
+        # rewrite — and the reader is told, rather than the reservation hidden.
+        published = outcome.revised_article
+        assert published is not None
+        assert published.provenance["editor"]["notes_outstanding"] is True
+        assert published.status == "published"
 
-    def test_a_failed_rewrite_holds_the_article(self) -> None:
+    def test_an_explicit_rejection_after_a_revision_still_spikes_it(self) -> None:
+        """The gate that was NOT loosened. "Reject" means reject."""
+        article = make_article()
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain it"]},
+            {"decision": "reject", "reason": "the finding is trivial"},
+        )
+
+        outcome = run_desk(article, writer, revise=lambda a, n: make_article())
+
+        assert outcome.action is DeskAction.REJECT
+        assert not outcome.publishable
+
+    def test_a_failed_rewrite_runs_the_article_as_filed(self) -> None:
+        """The desk asked for a revision, not a spike.
+
+        The article in hand already passed the validator, so it is correct. The
+        rewrite failing the arithmetic gate is a fact about the rewrite, not a
+        judgement that the story should not run.
+        """
         article = make_article()
         writer = FakeWriter({"decision": "revise", "reason": "thin", "notes": ["explain"]})
 
         outcome = run_desk(article, writer, revise=lambda a, n: None)
 
-        assert outcome.action is DeskAction.REJECT
-        assert article.status == "rejected"
+        assert outcome.action is DeskAction.APPROVE
+        assert outcome.notes_outstanding is True
+        assert article.status == "published"
+        assert "could not be made" in outcome.reason
 
     def test_revise_without_a_rewriter_holds_rather_than_publishes(self) -> None:
+        """A desk with no revision machinery is a broken pipeline, not an
+        editorial judgement, and broken components still fail closed."""
         article = make_article()
         writer = FakeWriter({"decision": "revise", "reason": "thin"})
 

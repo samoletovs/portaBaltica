@@ -60,15 +60,73 @@ export interface ResearchSource {
   url: string;
   retrieved_at: string;
   published?: string;
+  /**
+   * How much of this source's own page was read. Present only for official
+   * statements the registry permits fetching; the text itself is never copied
+   * here, because it belongs to the publisher and the article links to it.
+   */
+  document_chars?: string;
+  /** The search provider that surfaced this link, if we went looking for it. */
+  discovered_by?: string;
 }
 
 export interface ResearchProvenance {
   method: 'registered_feeds';
   candidates_considered: number;
+  /** Official statements whose full text was retrieved and read. */
+  documents_fetched?: number;
   consulted: ResearchSource[];
 }
 
-export type EditorDecision = 'approve' | 'reject' | 'escalate';
+/** One verified figure the article borrowed from another series. */
+export interface ContextFact {
+  field: string;
+  kind: 'peer' | 'companion' | 'placement' | 'trajectory';
+  period: string;
+  source_id: string;
+  metric?: string;
+  geography?: string;
+  dataset?: string;
+}
+
+/**
+ * The other series the newsroom already held that bear on this finding. Every
+ * figure here passed the same traceability check as the detector's own.
+ */
+export interface ContextProvenance {
+  method: 'collected_series';
+  series_considered: number;
+  facts: ContextFact[];
+  /** Statements computed from the series by code rather than by a model. */
+  observations?: string[];
+}
+
+/** A candidate explanation, and the verified fields that license it. */
+export interface AnalysisMechanism {
+  claim: string;
+  grounded_in: string[];
+  /** `established`: the figures show it. `consistent`: they merely allow it. */
+  confidence: 'established' | 'consistent';
+}
+
+/**
+ * The specialist desk's brief. Mechanisms that named no verified field were
+ * deleted in code before the writer saw them; `mechanisms_discarded` counts
+ * those, and is published rather than hidden.
+ */
+export interface AnalysisProvenance {
+  prompt_version: string;
+  expert: string;
+  discipline: string;
+  angle?: string;
+  significance?: string;
+  mechanisms?: AnalysisMechanism[];
+  what_to_watch?: string;
+  caveats?: string[];
+  mechanisms_discarded?: number;
+}
+
+export type EditorDecision = 'approve' | 'revise' | 'reject' | 'escalate';
 
 export interface EditorProvenance {
   prompt_version: string;
@@ -78,6 +136,14 @@ export interface EditorProvenance {
   decided_at: string;
   model?: string;
   notified_accountable_editor?: boolean;
+  revisions?: number;
+  notes?: string[];
+  /**
+   * The piece ran with the editor's notes unaddressed. Surfaced to readers:
+   * "the editor still had reservations" is exactly the sort of thing a wire
+   * that publishes its own workings should not quietly drop.
+   */
+  notes_outstanding?: boolean;
 }
 
 /**
@@ -91,6 +157,8 @@ export interface Provenance {
   model?: string | null;
   prompt_version?: string;
   research?: ResearchProvenance;
+  context?: ContextProvenance;
+  analysis?: AnalysisProvenance;
   generated_at: string;
   approved_by?: string;
   approved_at?: string;

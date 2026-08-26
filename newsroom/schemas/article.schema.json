@@ -128,6 +128,11 @@
           "properties": {
             "method": { "const": "registered_feeds" },
             "candidates_considered": { "type": "integer", "minimum": 0 },
+            "documents_fetched": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Official statements whose full page text was retrieved and read. Only ever non-zero for sources the registry marks document_fetch_allowed, which it refuses on anything but a primary official source."
+            },
             "consulted": {
               "type": "array",
               "items": {
@@ -141,10 +146,83 @@
                   "title": { "type": "string" },
                   "url": { "type": "string", "format": "uri" },
                   "retrieved_at": { "type": "string", "format": "date-time" },
-                  "published": { "type": "string" }
+                  "published": { "type": "string" },
+                  "document_chars": {
+                    "type": "string",
+                    "description": "How much of this source's own page was read. The text itself is not copied here — it belongs to the publisher and the article links to it."
+                  },
+                  "discovered_by": {
+                    "type": "string",
+                    "description": "The search provider that surfaced this link, when it did not arrive in a subscribed feed. Absent means the newsroom was already subscribed."
+                  }
                 }
               }
             }
+          }
+        },
+        "context": {
+          "type": "object",
+          "description": "Other series the newsroom had already retrieved that bear on this finding. Every figure here was merged into the signal payload and faces the same figures_traceable check as the detector's own.",
+          "required": ["method", "series_considered", "facts"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "const": "collected_series" },
+            "series_considered": { "type": "integer", "minimum": 0 },
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["field", "kind", "period", "source_id"],
+                "additionalProperties": false,
+                "properties": {
+                  "field": { "type": "string" },
+                  "kind": { "enum": ["peer", "companion", "placement", "trajectory"] },
+                  "period": { "type": "string" },
+                  "source_id": { "type": "string" },
+                  "metric": { "type": "string" },
+                  "geography": { "type": "string" },
+                  "dataset": { "type": "string" }
+                }
+              }
+            },
+            "observations": {
+              "type": "array",
+              "description": "Deterministic statements computed from the series by code, not by a model.",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "description": "The specialist desk's brief. Every mechanism names the verified fields that license it; ones that named nothing were deleted in code before the writer saw them, and mechanisms_discarded counts those.",
+          "required": ["prompt_version", "expert", "discipline"],
+          "additionalProperties": false,
+          "properties": {
+            "prompt_version": { "type": "string" },
+            "expert": { "type": "string" },
+            "discipline": { "type": "string" },
+            "angle": { "type": "string" },
+            "significance": { "type": "string" },
+            "mechanisms": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["claim", "grounded_in", "confidence"],
+                "additionalProperties": false,
+                "properties": {
+                  "claim": { "type": "string" },
+                  "grounded_in": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "type": "string" }
+                  },
+                  "confidence": { "enum": ["established", "consistent"] }
+                }
+              }
+            },
+            "what_to_watch": { "type": "string" },
+            "caveats": { "type": "array", "items": { "type": "string" } },
+            "mechanisms_discarded": { "type": "integer", "minimum": 0 }
           }
         },
         "generated_at": { "type": "string", "format": "date-time" },
@@ -153,17 +231,31 @@
         "accountable_editor": { "type": "string", "default": "Sam Samoletovs" },
         "editor": {
           "type": "object",
-          "description": "AI editor decision for tier B and C material. This is a judgement layer on top of the validator, never a bypass.",
+          "description": "The desk's decision. For tier B and C this is the syndication editor; for tier A it is the review desk that reads original reporting after the validator has passed it. A judgement layer on top of the validator, never a bypass.",
           "required": ["prompt_version", "decision", "reason", "editor", "decided_at"],
           "additionalProperties": false,
           "properties": {
             "prompt_version": { "type": "string" },
-            "decision": { "enum": ["approve", "reject", "escalate"] },
+            "decision": { "enum": ["approve", "revise", "reject", "escalate"] },
             "reason": { "type": "string" },
             "editor": { "type": "string" },
             "decided_at": { "type": "string", "format": "date-time" },
             "model": { "type": "string" },
-            "notified_accountable_editor": { "type": "boolean" }
+            "notified_accountable_editor": { "type": "boolean" },
+            "revisions": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "How many times the desk sent this piece back before deciding."
+            },
+            "notes": {
+              "type": "array",
+              "description": "What the desk asked the writer to change.",
+              "items": { "type": "string" }
+            },
+            "notes_outstanding": {
+              "type": "boolean",
+              "description": "True when the piece ran with the editor's notes unaddressed — the rewrite could not be made, or the desk still had reservations after one revision. Surfaced to readers rather than hidden."
+            }
           }
         },
 

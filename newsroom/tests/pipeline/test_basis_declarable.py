@@ -52,6 +52,29 @@ def undeclarable_tokens(signal: Signal) -> list[str]:
     return orphans
 
 
+def ambiguous_tokens(signal: Signal) -> list[str]:
+    """Numbers in the basis that two or more fields could justify.
+
+    Declarable is not enough. ``reconcile_figures`` files a numeral the writer
+    forgot only when **exactly one** verified field justifies it — guessing
+    between two would be the sort of plausible invention the pipeline exists to
+    prevent — so an ambiguous numeral in pipeline-authored prose is as fatal as
+    an orphan one, and fails in exactly the same way.
+
+    It shipped. The seasonal basis read "the 5-year average of 18.1 °C" while
+    ``deviation`` held 5.4, which rounds to 5. Two parents, no declaration, and
+    every seasonal article rejected for a token the pipeline wrote itself.
+    ``undeclarable_tokens`` was green throughout, because 5 *was* declarable.
+    """
+    from newsroom.pipeline.write import reconcile
+
+    return [
+        token.text
+        for token in numeric_scan.scan(signal.comparison_basis)
+        if len(reconcile._matching_fields(token, signal.fields)) > 1
+    ]
+
+
 def all_detector_signals() -> list[tuple[str, Signal]]:
     """Real output from every detector, built from its own kind of input."""
     from newsroom.pipeline.detect import (
@@ -176,6 +199,37 @@ class TestEveryDetectorHonoursIt:
             "these detectors quote a number the writer cannot declare, which "
             f"silently blocks publication: {offenders}"
         )
+
+    def test_every_detector_produces_an_unambiguous_basis(self):
+        """And no number in it may have two possible parents.
+
+        The seasonal detector failed this while passing the test above, and the
+        symptom was identical: an undeclared numeral and a rejected article.
+        """
+        produced = all_detector_signals()
+        assert {name for name, _ in produced} == {
+            "divergence",
+            "record_extreme",
+            "seasonal_deviation",
+            "structural_divergence",
+        }
+        offenders = {
+            name: (signal.comparison_basis, ambiguous, sorted(signal.fields))
+            for name, signal in produced
+            if (ambiguous := ambiguous_tokens(signal))
+        }
+
+        assert not offenders, (
+            "these detectors quote a number that two verified fields could "
+            "justify, so the reconciler will not file it and the article dies "
+            f"on a token the pipeline wrote itself: {offenders}"
+        )
+
+    def test_a_count_of_years_is_spelled_rather_than_printed(self):
+        """The specific fix, pinned so a later edit cannot quietly undo it."""
+        by_name = dict(all_detector_signals())
+
+        assert "five-year average" in by_name["seasonal_deviation"].comparison_basis
 
 
 class TestTheBasisSaysWhatItCounted:

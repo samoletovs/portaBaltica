@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Provenance, ValidatorCheckName } from '../../news-types';
+import type { ContextFact, Provenance, ValidatorCheckName } from '../../news-types';
 import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
 
 /**
@@ -70,6 +70,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/** What each kind of borrowed figure is, in words a reader does not have to decode. */
+const CONTEXT_KIND: Record<ContextFact['kind'], string> = {
+  peer: 'the same measure in another Baltic state',
+  companion: 'a related measure in the same economy',
+  placement: 'where this reading sits in its own history',
+  trajectory: 'the same point in an earlier year',
+};
+
 export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
   const {
     sources,
@@ -82,6 +90,9 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
     approved_by,
     approved_at,
     research,
+    context,
+    analysis,
+    editor,
   } = provenance;
 
   const passedCount = validator.checks.filter((check) => check.passed).length;
@@ -190,6 +201,8 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                           ? 'official statement'
                           : 'prior coverage lead'}{' '}
                         · retrieved {formatTimestamp(item.retrieved_at)}
+                        {item.document_chars && ' · full text read'}
+                        {item.discovered_by && ` · found via ${item.discovered_by}`}
                       </p>
                     </li>
                   ))}
@@ -198,6 +211,80 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 <p className="news-muted text-ui">
                   No relevant item was found in the registered feeds for this signal.
                 </p>
+              )}
+            </div>
+          )}
+
+          {context && context.facts.length > 0 && (
+            <div>
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
+                Other data this was written against
+              </h3>
+              <p className="news-muted mb-2 text-ui">
+                Figures from {context.series_considered} series the newsroom retrieved in the same
+                run. Each one passed the same traceability check as the figure that triggered the
+                story.
+              </p>
+              <ul className="news-subtle space-y-1 text-caption">
+                {context.facts.map((fact) => (
+                  <li key={fact.field}>
+                    <span className="font-mono">{fact.field}</span> · {CONTEXT_KIND[fact.kind]} ·{' '}
+                    {fact.period}
+                    {fact.geography && ` · ${fact.geography}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {analysis && (
+            <div>
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
+                What the analysis desk said
+              </h3>
+              <p className="news-muted text-ui">
+                Read first by {analysis.expert}, {analysis.discipline}, working from the same
+                verified figures as the correspondent.
+              </p>
+              {analysis.angle && <p className="news-muted mt-2 text-ui">{analysis.angle}</p>}
+              {analysis.mechanisms && analysis.mechanisms.length > 0 && (
+                <ul className="news-subtle mt-2 space-y-1 text-caption">
+                  {analysis.mechanisms.map((mechanism) => (
+                    <li key={mechanism.claim}>
+                      {mechanism.claim}:{' '}
+                      {mechanism.confidence === 'established'
+                        ? 'shown by the figures'
+                        : 'consistent with the figures, not proven by them'}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {analysis.mechanisms_discarded ? (
+                <p className="news-subtle mt-2 text-caption">
+                  {analysis.mechanisms_discarded} further explanation
+                  {analysis.mechanisms_discarded === 1 ? ' was' : 's were'} proposed and discarded
+                  for resting on no verified figure. The correspondent never saw them.
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          {editor?.notes_outstanding && (
+            <div>
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
+                The editor's outstanding notes
+              </h3>
+              <p className="news-muted text-ui">
+                This ran with changes the editor asked for and did not get. Every figure in it
+                passed the same checks as any other piece, so it is accurate. It is not the
+                article the desk wanted.
+              </p>
+              {editor.notes && editor.notes.length > 0 && (
+                <ul className="news-subtle mt-2 space-y-1 text-caption">
+                  {editor.notes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
               )}
             </div>
           )}

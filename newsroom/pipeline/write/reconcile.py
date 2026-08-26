@@ -50,7 +50,6 @@ from typing import Mapping, Sequence
 from newsroom import numeric_scan
 from newsroom.pipeline.models import Block, Figure
 from newsroom.pipeline.units import unit_for_field
-
 log = logging.getLogger(__name__)
 
 
@@ -73,7 +72,11 @@ def _matching_fields(
 
 
 def reconcile_block(
-    block: Block, fields: Mapping[str, float], *, unit: str | None = None
+    block: Block,
+    fields: Mapping[str, float],
+    *,
+    unit: str | None = None,
+    field_units: Mapping[str, str | None] | None = None,
 ) -> list[str]:
     """Declare figures the prose uses and the block forgot. Returns what it did."""
     if not block.text:
@@ -100,7 +103,13 @@ def reconcile_block(
                 # signal.unit published "3.18801 EUR/MWh higher than the
                 # typical spread", where the field is a ratio and the real
                 # difference was 48.18. See newsroom/pipeline/units.py.
-                unit=unit_for_field(name, unit),
+                #
+                # ``field_units`` carries the same correction one namespace
+                # further out, for figures the context pack borrowed from
+                # *other* series: an inflation rate sitting in a labour-cost
+                # story is a percentage, not EUR per hour, and the name alone
+                # cannot say so.
+                unit=unit_for_field(name, unit, overrides=field_units),
                 rendered_as=token.text,
             )
         )
@@ -110,11 +119,74 @@ def reconcile_block(
 
 
 def reconcile_figures(
-    blocks: Sequence[Block], fields: Mapping[str, float], *, unit: str | None = None
+    blocks: Sequence[Block],
+    fields: Mapping[str, float],
+    *,
+    unit: str | None = None,
+    field_units: Mapping[str, str | None] | None = None,
 ) -> list[str]:
     """Reconcile every block. Returns one note per figure declared."""
     notes: list[str] = []
     for index, block in enumerate(blocks):
-        for note in reconcile_block(block, fields, unit=unit):
+        for note in reconcile_block(block, fields, unit=unit, field_units=field_units):
             notes.append(f"body[{index}]: {note}")
+    return notes
+
+
+def drop_unusable_figures(
+    blocks: Sequence[Block], fields: Mapping[str, float]
+) -> list[str]:
+    """Remove declared figures that are both wrong and unused. Returns what it did.
+
+    THE FAILURE THIS FIXES
+    ----------------------
+    A live article was rejected for::
+
+        figures_traceable: body[1]: figure 4.0 does not match
+                           readings_in_series=40.0 (tolerance 0.0)
+
+    The prose said "this reading is the fourth-highest on record". There is no
+    numeral in that sentence — "fourth" is a word — so no figure was needed at
+    all. The model declared one anyway, guessed a field, and got the value
+    wrong. A correct, publishable paragraph was discarded over an entry that
+    justified nothing in it.
+
+    WHY DROPPING IT IS SAFE
+    -----------------------
+    Two conditions, both required:
+
+    1. The figure **fails** ``figures_traceable`` already — its value does not
+       match the field it names. Keeping it guarantees rejection, so removing
+       it cannot lose a verdict that was going to pass.
+    2. No numeric token in the block's own prose is justified by it. So no
+       claim in that paragraph depends on it.
+
+    ``no_invented_numbers`` runs independently and is untouched: if the prose
+    did contain a numeral that only this figure could have justified, condition
+    2 fails and the figure stays, and the article is rejected exactly as before.
+    Nothing unverified becomes publishable — the set of publishable articles
+    grows only by ones whose prose was already fully supported.
+    """
+    notes: list[str] = []
+    for index, block in enumerate(blocks):
+        if not block.figures:
+            continue
+        tokens = numeric_scan.scan(block.text or "")
+        keep: list[Figure] = []
+        for figure in block.figures:
+            resolved = fields.get(figure.signal_field)
+            traceable = (
+                resolved is not None
+                and abs(float(resolved) - float(figure.value)) <= 0.0
+            )
+            used = any(numeric_scan.value_justifies(token, figure.value) for token in tokens)
+            if traceable or used:
+                keep.append(figure)
+                continue
+            notes.append(
+                f"body[{index}]: dropped unused figure {figure.value} "
+                f"declared as {figure.signal_field}"
+                + (f"={resolved}" if resolved is not None else " (no such field)")
+            )
+        block.figures = keep
     return notes

@@ -114,6 +114,14 @@ class Signal:
     #: is ``unemployment``, and using the metric produced articles whose chart
     #: request answered 400. See test_chart_ref_contract.py.
     chart_ref: str | None = None
+    #: Per-field unit overrides, for fields whose unit is not the series unit.
+    #:
+    #: The context pack merges figures from *other* series into ``fields`` —
+    #: inflation alongside a labour cost, a spread alongside a price. Labelling
+    #: those with ``self.unit`` is exactly the bug ``units.py`` was written to
+    #: stop, one namespace further out: it would print "3.1 EUR per hour" for an
+    #: inflation rate. Empty for a signal a detector built on its own.
+    field_units: Mapping[str, str | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:

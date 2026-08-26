@@ -66,6 +66,28 @@ def _article(headline: str = "Latvian unemployment reaches a monthly high") -> A
     )
 
 
+def _call_arguments(source: str, function: str) -> str:
+    """The argument text of ``function(...)``, matching brackets properly.
+
+    An earlier version cut at the first ``)``, which worked only while no
+    argument contained a call of its own. Scoping the style notes introduced
+    ``style_by_article.get(article.id, ())`` and the naive split reported that
+    ``revise=`` had been removed — a false alarm on a correct change is worse
+    than no test, because the next person deletes the test.
+    """
+    start = source.index(function + "(") + len(function) + 1
+    depth = 1
+    for index in range(start, len(source)):
+        char = source[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth == 0:
+                return source[start:index]
+    raise AssertionError(f"unbalanced call to {function}(")
+
+
 class TestTheRunWiresTheLoop:
     def test_run_once_passes_a_revision_callback_to_the_desk(self):
         """The exact omission, asserted directly.
@@ -78,11 +100,18 @@ class TestTheRunWiresTheLoop:
         source = inspect.getsource(run_module.run_once)
 
         assert "run_desk(" in source, "the run no longer calls the desk at all"
-        desk_call = source.split("run_desk(", 1)[1].split(")", 1)[0]
+        desk_call = _call_arguments(source, "run_desk")
         assert "revise=" in desk_call, (
             "run_once calls run_desk without a revision callback, so every "
             "'revise' verdict silently holds the article instead of rewriting it"
         )
+
+    def test_the_desk_is_given_the_context_the_writer_had(self):
+        """Or it cannot tell a piece with no context from one that ignored it."""
+        desk_call = _call_arguments(inspect.getsource(run_module.run_once), "run_desk")
+
+        assert "pack=" in desk_call
+        assert "brief=" in desk_call
 
     def test_the_revision_helper_exists_and_returns_a_callable(self):
         assert callable(run_module._revision_for)
@@ -108,7 +137,12 @@ class TestTheRevisedArticleIsTheOneThatPublishes:
             "the editor just sent back"
         )
 
-    def test_a_revision_that_cannot_be_written_is_held(self):
+    def test_a_revision_that_cannot_be_written_runs_as_filed(self):
+        """The desk asked for a revision, which asserts the story should run.
+
+        The article already passed the validator, so it is correct. Holding it
+        because the *rewrite* failed the gate trades a true story for nothing.
+        """
         original = _article()
         writer = QueuedWriter(
             {"decision": "revise", "reason": "needs work", "notes": ["fix it"]},
@@ -116,10 +150,10 @@ class TestTheRevisedArticleIsTheOneThatPublishes:
 
         outcome = run_desk(original, writer, revise=lambda article, notes: None)
 
-        assert outcome.action is DeskAction.REJECT
-        assert not outcome.publishable
+        assert outcome.action is DeskAction.APPROVE
+        assert outcome.notes_outstanding is True
 
-    def test_a_rewrite_the_desk_still_dislikes_is_held(self):
+    def test_a_rewrite_the_desk_still_dislikes_runs_with_notes_outstanding(self):
         original = _article()
         rewritten = _article(headline="Latvian unemployment climbs again in July")
         writer = QueuedWriter(
@@ -129,5 +163,52 @@ class TestTheRevisedArticleIsTheOneThatPublishes:
 
         outcome = run_desk(original, writer, revise=lambda article, notes: rewritten)
 
+        assert outcome.action is DeskAction.APPROVE
+        assert outcome.notes_outstanding is True
+        assert outcome.revised_article is rewritten
+
+    def test_an_explicit_rejection_is_still_a_rejection(self):
+        """The gate that was not loosened, asserted next to the ones that were."""
+        original = _article()
+        writer = QueuedWriter({"decision": "reject", "reason": "trivial finding"})
+
+        outcome = run_desk(original, writer, revise=lambda article, notes: original)
+
         assert outcome.action is DeskAction.REJECT
-        assert "still unsatisfactory after revision" in outcome.reason
+        assert not outcome.publishable
+        assert original.status == "rejected"
+
+
+class TestStyleNotesAreScopedToOneArticle:
+    """The editor must not be shown another story's copy-desk complaints.
+
+    ``report.style_notes`` accumulates across the whole run. Passing it to
+    every review meant each article's editor read every *other* article's style
+    problems and demanded they be fixed here. A live piece was sent back to
+    correct a Title Case headline that belonged to a different story and had
+    already been corrected deterministically — and the rewrite it forced then
+    failed the arithmetic gate, so the article was lost outright.
+    """
+
+    def test_the_desk_is_not_handed_the_whole_runs_notes(self) -> None:
+        source = inspect.getsource(run_module.run_once)
+
+        assert "style_notes=report.style_notes" not in source, (
+            "every article's editor is being shown every other article's style "
+            "notes; scope them per article"
+        )
+        assert "style_by_article" in source
+
+    def test_notes_reach_the_review_for_the_article_they_belong_to(self) -> None:
+        seen: list[str] = []
+
+        class Recorder:
+            model_name = "recorder"
+
+            def complete_json(self, *, system: str, user: str, max_tokens: int) -> Any:
+                seen.append(user)
+                return {"decision": "approve", "reason": "fine", "notes": []}
+
+        run_desk(_article(), Recorder(), style_notes=["body[0]: says nothing, 'notably'"])
+
+        assert "says nothing" in seen[0]
