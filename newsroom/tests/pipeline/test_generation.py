@@ -8,6 +8,7 @@ import pytest
 
 from newsroom.pipeline.models import SourceRef
 from newsroom.pipeline.write import StubWriter, generate_article
+from newsroom.pipeline.write import generator
 from newsroom.pipeline.write.generator import MAX_ATTEMPTS
 from newsroom.pipeline.write.generator import GenerationRefused
 from newsroom.pipeline.write.prompts import (
@@ -366,3 +367,91 @@ class TestAllowedLiterals:
 
         assert "2025" in literals
         assert "6" not in literals and "5" not in literals
+
+
+class TestTheUnitOnADeclaredFigure:
+    """`units.py` answers this, never the model.
+
+    Its module docstring records the shipped "3.18801 EUR/MWh" incident and
+    concludes "Both now ask here instead, so the two cannot drift apart again".
+    There are now three call sites, and `_coerce_blocks` was preferring
+    `raw_figure["unit"]` — the model's own guess — over all of them. Live output
+    carried `readings_in_series = 9` labelled "EUR per hour", a count of years
+    labelled as money, and the same unemployment field as "%" one day and
+    "% of the labour force" the next.
+    """
+
+    def _signal(self):
+        return make_signal(
+            metric="hourly_labour_cost",
+            metric_label="hourly labour cost",
+            geography="LV",
+            period="2025",
+            value=16.3,
+            unit="EUR per hour",
+            section="labour",
+            fields={
+                "latest_value": 16.3,
+                "readings_in_series": 9.0,
+                "companion_unemployment_rate": 6.9,
+            },
+            field_units={"companion_unemployment_rate": "%", "readings_in_series": None},
+        )
+
+    def _figures(self, payload):
+        blocks = generator._coerce_blocks(payload, self._signal())
+        return {f.signal_field: f.unit for f in blocks[0].figures}
+
+    def test_a_count_is_not_given_the_series_unit_even_when_the_model_says_so(self):
+        units_by_field = self._figures(
+            {
+                "blocks": [
+                    {
+                        "text": "The series holds nine annual readings.",
+                        "figures": [
+                            {
+                                "value": 9.0,
+                                "signal_field": "readings_in_series",
+                                "unit": "EUR per hour",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+        assert units_by_field["readings_in_series"] is None
+
+    def test_a_borrowed_figure_keeps_its_own_series_unit(self):
+        units_by_field = self._figures(
+            {
+                "blocks": [
+                    {
+                        "text": "Unemployment stood at 6.9% in the same period.",
+                        "figures": [
+                            {
+                                "value": 6.9,
+                                "signal_field": "companion_unemployment_rate",
+                                "unit": "% of the labour force",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+        assert units_by_field["companion_unemployment_rate"] == "%"
+
+    def test_the_signals_own_field_still_gets_the_series_unit(self):
+        units_by_field = self._figures(
+            {
+                "blocks": [
+                    {
+                        "text": "Costs reached 16.3 EUR per hour.",
+                        "figures": [{"value": 16.3, "signal_field": "latest_value"}],
+                    }
+                ]
+            }
+        )
+
+        assert units_by_field["latest_value"] == "EUR per hour"

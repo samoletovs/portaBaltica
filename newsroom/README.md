@@ -74,32 +74,102 @@ convention.
    │                  Quiet day ⇒ fewer articles. Never pad to hit a quota:
    │                  padding is precisely what "scaled content abuse" means.
    │
-   ├─ 4. RESEARCH     relevant items from registered official and news feeds.
-   │                  Reuses the cached collection pass: no search key and no
-   │                  extra fetch per article. Official summaries are context;
-   │                  third-party reporting contributes headline + link leads
-   │                  only. Every item is nonce-fenced as untrusted input.
+   ├─ 4. CONTEXT      deterministic — NO LLM. What else the newsroom already
+   │                  holds that bears on this finding: the same measure in the
+   │                  other Baltic states, related measures in the same economy,
+   │                  where the reading sits in its own history, the same point
+   │                  in earlier years. Every figure is merged into the signal,
+   │                  so it faces the identical traceability check.
    │
-   ├─ 5. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
-   │                  Receives the verified signal, fenced research context and
-   │                  a persona voice card. It writes what changed, plausible
-   │                  causes, who is affected and what to watch.
+   ├─ 5. RESEARCH     relevant items from registered official and news feeds,
+   │                  then the FULL TEXT of the official statements the registry
+   │                  permits fetching. Third-party reporting contributes
+   │                  headline + link leads only, and its page is never
+   │                  requested. Search is off unless configured, and can only
+   │                  ever surface a page of an already-registered publisher.
+   │                  Every item is nonce-fenced as untrusted input.
+   │
+   ├─ 6. ANALYSE      a domain specialist per beat reads the figures and the
+   │                  context and files an editorial brief: the angle, why it
+   │                  matters, candidate mechanisms, who it lands on, what would
+   │                  settle it. A mechanism that does not name verified fields
+   │                  is deleted in code before the writer sees it.
+   │
+   ├─ 7. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
+   │                  Receives the enriched signal, the context pack, the
+   │                  analyst's brief, fenced research and a persona voice card.
    │                  It is never asked to recall or supply a figure.
    │
-   ├─ 6. VALIDATE     the gate. See below. Fails closed.
+   ├─ 8. VALIDATE     the gate. See below. Fails closed.
    │
-   ├─ 7. EDIT         tier B/C only: approve, reject or escalate.
-   │                  Routine decisions stay inside the pipeline; Sam is
-   │                  notified only for dangerous, harmful or inappropriate
-   │                  material.
+   ├─ 9. EDIT         tier A: the desk reads every original article and can
+   │                  approve, send back once, or spike it. Tier B/C: approve,
+   │                  reject or escalate. Routine decisions stay inside the
+   │                  pipeline; Sam is notified only for dangerous, harmful or
+   │                  inappropriate material.
    │
-   ├─ 8. PUBLISH      article JSON → Blob → SWA serves it statically
+   ├─ 10. PUBLISH     article JSON → Blob → SWA serves it statically
    │
-   └─ 9. WATCH        the revision watch. Re-reads every series behind a figure
+   └─ 11. WATCH       the revision watch. Re-reads every series behind a figure
                       already published, against the vintage it was published
                       on. A restated figure appends a public correction to the
                       live article and to corrections.json. This is the only
                       stage that acts on articles already out.
+```
+
+### Why the depth stages exist
+
+The pipeline used to hand the writer **one series, alone**, and discard the
+other fifty it had just retrieved. On 2026-08-25 it published three separate
+articles reciting Latvian, Estonian and Lithuanian hourly labour costs while
+holding, in memory, at that exact moment, the fact that makes it a story:
+Latvia has the cheapest labour in the Baltics. The Latvian piece then spent its
+remaining paragraphs restating its own first sentence and promising that
+"future data releases will provide further insights".
+
+It was not short of words. It was short of context it already had, and of
+anyone who knew what an hourly labour cost means.
+
+`context.py` fixes the first and `analyst.py` the second. Neither weakens the
+gate: context figures are merged into `Signal.fields`, which is exactly what
+`figures_traceable` resolves against, and every analyst mechanism must name
+fields the pipeline actually retrieved or it is deleted before the writer's
+prompt is built.
+
+### What the desk is shown
+
+The editor sees three things besides the prose, each added after it made the
+same class of mistake without them:
+
+- **the detector's finding** — what was found, what it is measured against, and
+  how it ranked. Asking whether a piece is worth a reader's attention while
+  withholding the evidence of its significance got the answer you would expect.
+- **the wider context** the correspondent had, as labels without values, so the
+  desk can tell a piece written with no context from one that threw the context
+  away. Those need opposite verdicts, and it could not previously tell them
+  apart. Values are withheld deliberately: a numeral here comes back as an
+  editor note, and a note asking for a number is a note the writer may answer
+  with one the pipeline never verified.
+- **the analyst's suggestion**, nonce-fenced. It is model output derived in part
+  from the third-party pages the research stage now fetches, so handing it to a
+  second model as bare prose would let a page the newsroom merely *read* address
+  the editor directly.
+
+The one exception to "never ask for a figure the article does not have" is a
+figure listed in that context block: those are verified and already in the
+writer's hands, so asking for one by name is the most useful note the desk can
+give.
+
+### Verifying the depth end to end
+
+`scripts/depth_smoke.py` runs collect → detect → rank → context → research →
+analyse → write → validate against **live** data and the real model, and prints
+the context pack, the documents it read, the analyst's brief and the finished
+article for each signal. A pipeline stage that exists in a module but was never
+exercised against real data is indistinguishable from one that does not work.
+
+```powershell
+python scripts/depth_smoke.py
 ```
 
 ### The measurement floor

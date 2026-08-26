@@ -32,8 +32,10 @@ from newsroom.pipeline.detect.series import (
     pct_change,
     reading_word,
     robust_sigma,
+    spell_count,
 )
 from newsroom.pipeline.models import Signal
+from newsroom.pipeline import units
 
 log = logging.getLogger(__name__)
 
@@ -598,14 +600,26 @@ def detect_seasonal_deviation(
         value=latest.value,
         unit=series.unit,
         comparison_basis=(
-            # ``:g`` and not ``:.2f`` — this string is pipeline-authored prose
-            # that the model is REQUIRED to restate, so any number in it must
-            # render identically to the verified figure it comes from.
-            # ``:.2f`` printed 7.08 while ``seasonal_mean`` held 7.075, so the
-            # model faithfully repeated 7.08 and the validator rejected it as
-            # invented. The pipeline was setting the model up to fail.
-            f"the {len(baseline)}-year average of {mean:g} {series.unit} for the same "
-            f"point in the year, {series.season_label(latest.period)}"
+            # The mean is rendered exactly as the writer's figure table renders
+            # it, via ``units.display_value``. ``:g`` printed 0.744444 into
+            # prose the model is required to restate, and it duly published
+            # "the nine-year average of 0.744444% quarter on quarter" — six
+            # significant figures of false precision on a seasonal mean.
+            #
+            # ``:.2f`` is NOT the fix and was the previous bug: it renders
+            # 7.075 as "7.08" by decimal formatting, while the validator
+            # compares using ``round()``. ``display_value`` uses ``round()``
+            # too, so what the basis prints is by construction what the gate
+            # accepts. test_basis_declarable.py holds that line.
+            #
+            # And the year count is SPELLED, not printed. It is a count, not a
+            # measurement, and as a numeral it collided with ``deviation``:
+            # "the 5-year average" beside a deviation of 5.4 gave the token two
+            # possible parents, so ``reconcile_figures`` refused to file it and
+            # every seasonal article died on a number the pipeline wrote itself.
+            f"the {spell_count(len(baseline))}-year average of "
+            f"{units.display_value('seasonal_mean', mean)} {series.unit} "
+            f"for the same point in the year, {series.season_label(latest.period)}"
         ),
         score=score,
         section=series.section,

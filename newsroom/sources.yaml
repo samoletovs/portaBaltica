@@ -160,6 +160,7 @@ sources:
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
+    document_fetch_allowed: true
     filter: "Baltic relevance — mentions Latvia, Estonia, Lithuania, Baltic, or an EU-wide measure with regional effect"
     cache_ttl_minutes: 60
 
@@ -177,7 +178,35 @@ sources:
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
+    document_fetch_allowed: true
     cache_ttl_minutes: 120
+
+  # ECB press releases. All three Baltic states are in the euro area, so the
+  # ECB's own commentary is primary source material for every inflation, rate
+  # and credit story this wire runs — and it is the single best answer to the
+  # question the pipeline could never previously address: why did this move?
+  #
+  # A different host from the tier A `ecb` data API (data-api.ecb.europa.eu),
+  # so host resolution stays unambiguous.
+  - id: ecb_press
+    name: "European Central Bank press"
+    publisher: "European Central Bank"
+    tier: B
+    endpoint: "https://www.ecb.europa.eu/rss/press.html"
+    verified: "2026-08-26 — HTTP 200, application/rss+xml, 15 items, English confirmed by reading titles"
+    auth: none
+    licence: "ECB copyright: reproduction for educational and non-commercial purposes permitted with acknowledgement"
+    attribution: "Source: European Central Bank"
+    rewrite_allowed: false
+    requires_human_approval: false
+    research_role: official_statement
+    research_language: en
+    research_summary_allowed: true
+    document_fetch_allowed: true
+    # Research context only. The wire does not republish ECB press releases as
+    # cards; it reads them to explain its own figures.
+    research_only: true
+    cache_ttl_minutes: 180
 
   - id: latvijas_banka_news
     name: "Latvijas Banka news"
@@ -195,6 +224,7 @@ sources:
     research_role: official_statement
     research_language: en
     research_summary_allowed: true
+    document_fetch_allowed: true
     research_only: true
     cache_ttl_minutes: 720
 

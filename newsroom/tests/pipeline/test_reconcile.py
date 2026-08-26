@@ -14,7 +14,11 @@ from __future__ import annotations
 import pytest
 
 from newsroom.pipeline.models import Block, Figure
-from newsroom.pipeline.write.reconcile import reconcile_block, reconcile_figures
+from newsroom.pipeline.write.reconcile import (
+    drop_unusable_figures,
+    reconcile_block,
+    reconcile_figures,
+)
 
 FIELDS = {
     "latest": 119.4,
@@ -174,3 +178,137 @@ class TestTheUnitItAttaches:
         reconcile_block(block, {"spread": 70.2}, unit="EUR/MWh")
 
         assert block.figures[0].unit == "EUR/MWh"
+
+class TestDroppingStrayFigures:
+    """A declared figure that is wrong AND justifies nothing is clerical litter.
+
+    A live article was discarded for::
+
+        figures_traceable: body[1]: figure 4.0 does not match
+                           readings_in_series=40.0 (tolerance 0.0)
+
+    The paragraph said "this reading is the fourth-highest on record". There is
+    no numeral in that sentence. The model declared a figure for a word,
+    guessed the field, got the value wrong, and a correct piece died over an
+    entry no claim in it rested on.
+    """
+
+    def test_a_wrong_figure_that_justifies_nothing_is_dropped(self):
+        block = Block(
+            type="paragraph",
+            text="This reading is the fourth-highest on record.",
+            figures=[Figure(value=4.0, signal_field="readings_in_series")],
+        )
+
+        notes = drop_unusable_figures([block], {"readings_in_series": 40.0})
+
+        assert block.figures == []
+        assert "dropped unused figure 4.0" in notes[0]
+
+    def test_a_correct_figure_is_never_dropped(self):
+        block = Block(
+            type="paragraph",
+            text="The series holds 40 quarterly readings.",
+            figures=[Figure(value=40.0, signal_field="readings_in_series")],
+        )
+
+        assert drop_unusable_figures([block], {"readings_in_series": 40.0}) == []
+        assert len(block.figures) == 1
+
+    def test_a_wrong_figure_the_prose_actually_uses_is_kept(self):
+        """The load-bearing case. Keeping it means the article is rejected,
+        which is right: the prose asserts a number the data does not support,
+        and dropping the figure would hand that job to no one."""
+        block = Block(
+            type="paragraph",
+            text="Output reached 4 index points.",
+            figures=[Figure(value=4.0, signal_field="readings_in_series")],
+        )
+
+        assert drop_unusable_figures([block], {"readings_in_series": 40.0}) == []
+        assert len(block.figures) == 1
+
+    def test_a_figure_naming_a_field_that_does_not_exist_is_dropped_when_unused(self):
+        block = Block(
+            type="paragraph",
+            text="Costs rose for an eighth year.",
+            figures=[Figure(value=8.0, signal_field="invented_field")],
+        )
+
+        notes = drop_unusable_figures([block], {"latest_value": 16.3})
+
+        assert block.figures == []
+        assert "no such field" in notes[0]
+
+    def test_a_block_with_no_text_is_left_alone(self):
+        block = Block(type="chart", chart_ref="salary")
+
+        assert drop_unusable_figures([block], {"latest_value": 1.0}) == []
+
+    def test_dropping_cannot_launder_a_number_in_the_dek(self):
+        """The subtle case, because the dek is checked against ALL figures.
+
+        `check_no_invented_numbers` validates the headline and standfirst
+        against the union of every block's figures, not against one block. So a
+        bogus figure could in principle be the only thing justifying a numeral
+        in the dek, and dropping it might look like it removes the evidence
+        that the dek is unsupported.
+
+        It does the opposite. Dropping moves the article from "rejected by
+        figures_traceable" to "rejected by no_invented_numbers": the numeral
+        was never verified either way, and it still cannot publish. This test
+        exists so that reasoning is checked rather than asserted.
+        """
+        from newsroom import numeric_scan
+
+        block = Block(
+            type="paragraph",
+            text="Output reached a fourth-quarter peak.",
+            figures=[Figure(value=4.0, signal_field="readings_in_series")],
+        )
+        dek = "Output rose 4% on the quarter."
+
+        drop_unusable_figures([block], {"readings_in_series": 40.0})
+
+        # The figure is gone, so nothing in the article justifies the dek's "4".
+        assert block.figures == []
+        tokens = numeric_scan.scan(dek)
+        assert tokens, "the dek must contain a numeral for this test to mean anything"
+        assert not numeric_scan.is_justified(tokens[0], [f.to_json() for f in block.figures])
+
+    def test_a_borrowed_figure_keeps_its_own_unit(self):
+        """`units.py` exists to stop exactly this, one namespace further out.
+
+        Before the context pack, every field in `signal.fields` belonged to the
+        signal's own series, so `signal.unit` was always right here. Merging
+        figures from OTHER series broke that assumption, and the reconciler was
+        the one of three call sites that still guessed: it stamped an inflation
+        rate as "EUR per hour".
+        """
+        block = Block(
+            type="paragraph",
+            text="Inflation ran at 3.4% in the same period.",
+        )
+
+        reconcile_block(
+            block,
+            {"latest_value": 16.3, "companion_hicp_annual_rate": 3.4},
+            unit="EUR per hour",
+            field_units={"companion_hicp_annual_rate": "%"},
+        )
+
+        declared = block.figures[0]
+        assert declared.signal_field == "companion_hicp_annual_rate"
+        assert declared.unit == "%"
+
+    def test_the_series_unit_still_applies_to_the_signals_own_fields(self):
+        block = Block(type="paragraph", text="Costs reached 16.3 EUR per hour.")
+
+        reconcile_block(
+            block,
+            {"latest_value": 16.3},
+            unit="EUR per hour",
+            field_units={"companion_hicp_annual_rate": "%"},
+        )
+
+        assert block.figures[0].unit == "EUR per hour"

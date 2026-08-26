@@ -82,16 +82,38 @@ class ResearchItem:
     retrieved_at: str
     summary: str | None = None
     published: str | None = None
+    #: Readable text of the page behind ``url``, when the registry permits
+    #: fetching it. Only ever populated for ``official_statement`` sources with
+    #: ``document_fetch_allowed``; see :mod:`newsroom.pipeline.webresearch` for
+    #: why that gate is at the registry rather than here.
+    document: str | None = None
+    #: Which search provider surfaced this item, when it was not already in a
+    #: subscribed feed. Recorded in provenance so a reader can tell a link the
+    #: newsroom was handed from one it went looking for.
+    discovered_by: str | None = None
 
     def prompt_record(self) -> dict[str, str]:
+        """What the model is shown. Never third-party article text.
+
+        Both text fields are gated on ``role`` HERE, not only where they are
+        populated. ``research_signal`` already refuses to attach a summary to a
+        source without ``research_summary_allowed``, and the registry already
+        refuses that flag on tier C — but those are guards in the producer, and
+        an item reaching this method by any other route would have carried the
+        text straight into a prompt. Tier C is link-out only under DSM Art. 15;
+        the rule is worth enforcing at the boundary the text actually crosses.
+        """
         record = {
             "source": self.source_name,
             "role": self.role,
             "title": self.title,
             "url": self.url,
         }
-        if self.summary is not None:
-            record["official_summary"] = self.summary
+        if self.role == "official_statement":
+            if self.summary is not None:
+                record["official_summary"] = self.summary
+            if self.document is not None:
+                record["official_document_text"] = self.document
         if self.published:
             record["published"] = self.published
         return record
@@ -107,6 +129,13 @@ class ResearchItem:
         }
         if self.published:
             record["published"] = self.published
+        if self.document is not None:
+            # The text itself is not repeated into provenance — it is the
+            # publisher's, and the article links to it. That it was read, and
+            # how much of it, is what a reader auditing the piece needs.
+            record["document_chars"] = str(len(self.document))
+        if self.discovered_by:
+            record["discovered_by"] = self.discovered_by
         return record
 
 
@@ -114,11 +143,17 @@ class ResearchItem:
 class ResearchContext:
     items: tuple[ResearchItem, ...] = ()
     candidates_considered: int = 0
+    #: How many official documents were actually retrieved and read this run.
+    #: Zero here alongside a non-empty ``items`` means the newsroom saw
+    #: headlines and nothing more, which is the state that produced the shallow
+    #: articles this stage exists to fix.
+    documents_fetched: int = 0
 
     def to_provenance(self) -> dict[str, Any]:
         return {
             "method": "registered_feeds",
             "candidates_considered": self.candidates_considered,
+            "documents_fetched": self.documents_fetched,
             "consulted": [item.provenance_record() for item in self.items],
         }
 

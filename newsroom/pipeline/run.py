@@ -1,8 +1,24 @@
-"""The orchestrator: collect -> detect -> rank -> research -> write -> validate -> publish.
+"""The orchestrator: collect -> detect -> rank -> context -> research -> analyse
+-> write -> edit -> publish.
 
 One run of this function is one edition of the wire. It is deliberately boring:
 every interesting decision has already been made in a stage module, and the
 failure policy is uniform — a stage that breaks costs coverage, never accuracy.
+
+THE THREE STAGES BETWEEN RANKING AND WRITING
+--------------------------------------------
+``context``   Assembles the peers, companions, placement and trajectory the
+              newsroom already retrieved, and merges their figures into the
+              signal so the validator gates them like any other.
+``research``  Selects registered feed items, then *fetches the official
+              documents behind them* — the part the previous pipeline claimed
+              to do and did not.
+``analyse``   A domain specialist reads all of it and files an editorial brief,
+              with every ungrounded mechanism stripped in code.
+
+All three are enrichment. Each one is wrapped so that its failure costs the
+article its depth and never its correctness: a signal with no context, no
+research and no brief still writes exactly the article it wrote before.
 """
 
 from __future__ import annotations
@@ -16,6 +32,8 @@ from newsroom.pipeline.collect.archive import RawArchive
 from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.collect.opendata import collect_open_data
 from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
+from newsroom.pipeline.analyst import AnalystBrief, analyse
+from newsroom.pipeline.context import ContextPack, build_context, enrich_signal
 from newsroom.pipeline.detect import Threshold, detect_all
 from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
 from newsroom.pipeline.house_style import check_prose, review_headline
@@ -30,6 +48,7 @@ from newsroom.pipeline.safety import registry
 from newsroom.pipeline.significance import Materiality, gate
 from newsroom.pipeline.syndicate import pending_approval_queue, syndicate
 from newsroom.pipeline.vintage import PublishedFigure, VintageStore, figures_from
+from newsroom.pipeline.webresearch import deepen_all
 from newsroom.pipeline.write import AzureOpenAIWriter, LlmWriter, generate_article
 from newsroom.pipeline.write.generator import GenerationRefused, GenerationResult
 
@@ -69,6 +88,13 @@ class RunReport:
     syndicated: list[Article] = field(default_factory=list)
     edited: list[EditorOutcome] = field(default_factory=list)
     research: dict[str, ResearchContext] = field(default_factory=dict)
+    #: What else the newsroom knew about each selected signal, by signal id.
+    context: dict[str, ContextPack] = field(default_factory=dict)
+    #: The specialist desk's brief for each selected signal, by signal id.
+    analysis: dict[str, AnalystBrief] = field(default_factory=dict)
+    #: Signals after the context pack was merged in, by signal id. The writer
+    #: and the validator both see these, not the bare detector output.
+    enriched: dict[str, Signal] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
     #: Copy-edits the desk applied, and style problems it could only flag.
     style_notes: list[str] = field(default_factory=list)
@@ -117,9 +143,20 @@ class RunReport:
         ]
         if self.suppressed:
             parts.append(f"{len(self.suppressed)} below the measurement floor")
+        parts.append(f"{len(self.ranking.selected) if self.ranking else 0} selected")
+        # And the counts that explain a *thin* wire rather than a short one. An
+        # article written with no peers, no document read and no mechanism is
+        # the recitation this pipeline was changed to stop producing, and it is
+        # indistinguishable from a good one in every other number here.
         parts.extend(
             [
-                f"{len(self.ranking.selected) if self.ranking else 0} selected",
+                f"{sum(len(pack.facts) for pack in self.context.values())} context fact(s)",
+                f"{sum(ctx.documents_fetched for ctx in self.research.values())} document(s) read",
+                f"{sum(len(brief.mechanisms) for brief in self.analysis.values())} mechanism(s)",
+            ]
+        )
+        parts.extend(
+            [
                 f"{len(self.published)} published",
                 f"{len(self.rejected)} rejected",
                 f"{len(self.syndicated)} syndicated cards",
@@ -225,10 +262,13 @@ def _revision_for(
 
     def revise(article: Article, notes: Sequence[str]) -> Article | None:
         try:
+            signal = report.enriched.get(generated.signal.id, generated.signal)
             revised = generate_article(
-                generated.signal,
+                signal,
                 writer,
                 research=report.research.get(generated.signal.id),
+                pack=report.context.get(generated.signal.id),
+                brief=report.analysis.get(generated.signal.id),
                 editor_notes=tuple(notes),
             )
         except Exception as exc:  # noqa: BLE001
@@ -316,14 +356,60 @@ async def run_once(
             )
         report.ranking = rank(report.signals, policy)
 
-        # --- 4. research -------------------------------------------------
-        report.research = research_selected(report.ranking.selected, feed_items)
+        # --- 4. context -------------------------------------------------
+        # Everything else the newsroom retrieved this run that bears on each
+        # selected finding. Deterministic, free, and merged into the signal so
+        # the validator gates it exactly like the detector's own figures.
+        for signal in report.ranking.selected:
+            try:
+                pack = build_context(signal, report.series)
+                report.context[signal.id] = pack
+                report.enriched[signal.id] = enrich_signal(signal, pack)
+            except Exception as exc:  # noqa: BLE001
+                log.exception("context assembly failed for %s", signal.id)
+                report.errors.append(f"context {signal.id}: {exc}")
+                report.enriched[signal.id] = signal
 
-        # --- 5/6. write and validate -------------------------------------
+        # --- 5. research -------------------------------------------------
+        report.research = research_selected(report.ranking.selected, feed_items)
+        try:
+            # Reads the official documents behind the selected links, and — when
+            # a search provider is configured — looks for others. Bounded by the
+            # source registry at both ends: nothing unregistered is fetched.
+            report.research = await deepen_all(
+                report.ranking.selected, report.research, client
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.exception("web research failed")
+            report.errors.append(f"webresearch: {exc}")
+
+        # --- 6. analysis --------------------------------------------------
+        # A domain specialist reads the figures and the context before the
+        # correspondent writes a word. Ungrounded mechanisms are stripped inside
+        # `analyse`, so nothing speculative can reach the writer's prompt.
+        for signal in report.ranking.selected:
+            try:
+                report.analysis[signal.id] = analyse(
+                    report.enriched.get(signal.id, signal),
+                    writer,
+                    pack=report.context.get(signal.id),
+                    research=report.research.get(signal.id),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.exception("analysis failed for %s", signal.id)
+                report.errors.append(f"analyse {signal.id}: {exc}")
+
+        # --- 7/8. write and validate -------------------------------------
         for signal in report.ranking.selected:
             try:
                 report.generated.append(
-                    generate_article(signal, writer, research=report.research[signal.id])
+                    generate_article(
+                        report.enriched.get(signal.id, signal),
+                        writer,
+                        research=report.research.get(signal.id),
+                        pack=report.context.get(signal.id),
+                        brief=report.analysis.get(signal.id),
+                    )
                 )
             except GenerationRefused as exc:
                 log.warning("generation refused for %s: %s", signal.id, exc)
@@ -332,17 +418,27 @@ async def run_once(
                 log.exception("generation failed for signal %s", signal.id)
                 report.errors.append(f"generate {signal.id}: {exc}")
 
-        # --- 6b. the desk ---------------------------------------------------
+        # --- 9. copy desk ----------------------------------------------------
         # House style is applied after generation and before publication, so a
         # Title Case headline or an em dash cannot reach a reader regardless of
         # what the model produced. Deterministic, and therefore not something
         # the writer can talk its way past.
+        #
+        # Notes are kept PER ARTICLE as well as in the run report. They used to
+        # be read out of `report.style_notes`, which accumulates across the
+        # whole run, so every article's editor was shown every *other* article's
+        # style problems — and duly demanded a rewrite for them. One live piece
+        # was sent back to fix a Title Case headline that belonged to a
+        # different story and had already been corrected here.
+        style_by_article: dict[str, list[str]] = {}
         for generated in report.generated:
-            for note in apply_house_style(generated.article):
+            notes = apply_house_style(generated.article)
+            style_by_article[generated.article.id] = notes
+            for note in notes:
                 log.info("house style: %s", note)
                 report.style_notes.append(note)
 
-        # --- 6c. editorial review --------------------------------------------
+        # --- 10. editorial review --------------------------------------------
         # Every original article is read by the AI editor before a reader sees
         # it. The validator has already established that the piece is correct;
         # this asks whether it is worth running. The desk can only narrow what
@@ -361,13 +457,15 @@ async def run_once(
                 outcome = run_desk(
                     generated.article,
                     writer,
-                    style_notes=report.style_notes,
+                    style_notes=style_by_article.get(generated.article.id, ()),
                     revise=_revision_for(generated, writer, report),
                     finding=Finding(
                         detector=generated.signal.detector,
                         comparison_basis=generated.signal.comparison_basis,
                         among_strongest=generated.signal.id in strongest,
                     ),
+                    pack=report.context.get(generated.signal.id),
+                    brief=report.analysis.get(generated.signal.id),
                 )
                 report.desk.append(outcome)
                 # The desk rewrites in place through the callback, so the piece
@@ -398,10 +496,10 @@ async def run_once(
                 log.exception("editor stage failed")
                 report.errors.append(f"editor: {exc}")
 
-        # --- 7. publish ---------------------------------------------------
+        # --- 11. publish ---------------------------------------------------
         await _store_all(store, report)
 
-        # --- 8. the revision watch -----------------------------------------
+        # --- 12. the revision watch -----------------------------------------
         # Last, and about articles that are already out. Everything above makes
         # a story right at the moment of writing; this is the only stage that
         # can find out a story stopped being right afterwards.

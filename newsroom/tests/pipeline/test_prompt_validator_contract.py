@@ -84,20 +84,59 @@ def test_the_prompt_forbids_digits_in_the_standfirst() -> None:
     assert "MUST CONTAIN NO DIGITS" in prompts._SYSTEM_TEMPLATE
 
 
-def test_the_prompt_confines_digits_to_the_lead_paragraph() -> None:
-    """``comparison_basis_stated`` fired on body[1] in run after run.
+def _flat(text: str) -> str:
+    """Prompt text with line wrapping removed.
 
-    A second paragraph that restates the movement with a figure must also
-    restate what it is measured against, in that same paragraph, and drafts
-    reliably did the first and forgot the second. Confining digits to the lead
-    removes the trap instead of asking the model to step around it, which three
-    prompt revisions failed to achieve.
+    These assertions are about what the prompt *says*, not where it happens to
+    wrap. Matching raw text made every reflow of a paragraph a test failure,
+    which trains people to edit the assertion rather than read it.
     """
-    assert "ONLY THE FIRST PARAGRAPH MAY CONTAIN DIGITS" in prompts._SYSTEM_TEMPLATE
-    assert "FIRST TWO PARAGRAPHS" not in prompts._SYSTEM_TEMPLATE, (
-        "the old two-paragraph allowance is still in the prompt; the two rules "
-        "contradict each other and the model will follow the looser one"
+    return " ".join(text.split())
+
+
+def test_the_prompt_requires_a_basis_in_every_paragraph_that_carries_a_digit() -> None:
+    """The digits-in-the-lead-only rule is gone, and what replaced it.
+
+    ``comparison_basis_stated`` fired on body[1] in run after run, and the
+    response was to forbid digits outside the lead. That worked, and it cost
+    the article everything below the lead: paragraphs two to four could carry
+    no evidence, so they restated paragraph one and closed with "future data
+    releases will provide further insights". A rule that guarantees the body is
+    empty is too expensive a way to pass a check.
+
+    The check itself is unchanged and still absolute. What the prompt now does
+    is state it accurately — a paragraph with a digit AND a change word needs
+    its basis, in that paragraph — and leave the bookkeeping to
+    ``reconcile_figures``, which does it deterministically and does not forget.
+    """
+    system = _flat(prompts._SYSTEM_TEMPLATE)
+
+    assert "ONLY THE FIRST PARAGRAPH MAY CONTAIN DIGITS" not in system, (
+        "the digits-in-the-lead crutch is back; it makes every paragraph after "
+        "the first content-free, which is the shallowness this pipeline was "
+        "changed to fix"
     )
+    assert "A CHANGE WITHOUT ITS BASIS IN THE SAME PARAGRAPH" in system, (
+        "the prompt no longer states the rule the validator actually enforces"
+    )
+    # The escape hatch must survive: a writer that cannot name a basis has to be
+    # told it may drop the digits instead, or it will guess at a phrase and be
+    # rejected for guessing.
+    assert "remove every digit from that paragraph" in system
+
+
+def test_the_prompt_bans_the_empty_closing_that_kept_publishing() -> None:
+    """"Future data releases will provide further insights" reached readers.
+
+    It is what a writer produces when it has run out of things to say and still
+    owes a paragraph. Naming it is cheap; the alternative is asking the editor
+    to catch the same sentence every day.
+    """
+    system = _flat(prompts._SYSTEM_TEMPLATE)
+
+    assert "BANNED CLOSINGS" in system
+    assert "future data releases will provide further insights" in system
+    assert "it remains to be seen" in system
 
 
 def test_the_revision_prompt_says_the_check_already_failed() -> None:

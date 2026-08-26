@@ -22,9 +22,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from newsroom.pipeline.ids import new_ulid, slugify
+from newsroom.pipeline.analyst import AnalystBrief
+from newsroom.pipeline.context import ContextPack
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
 from newsroom.pipeline.research import ResearchContext
-from newsroom.pipeline.write.reconcile import reconcile_figures
+from newsroom.pipeline.units import unit_for_field
+from newsroom.pipeline.write.reconcile import drop_unusable_figures, reconcile_figures
 from newsroom.pipeline.safety import (
     RewriteNotPermittedError,
     Verdict,
@@ -42,11 +45,12 @@ from newsroom.pipeline.write.prompts import (
     build_revision_prompt,
     build_system_prompt,
     build_user_prompt,
+    paragraphs_for,
 )
 
 log = logging.getLogger(__name__)
 
-MAX_COMPLETION_TOKENS = 900
+MAX_COMPLETION_TOKENS = 2000
 
 # Three drafts. The first is usually rejected for bookkeeping — a figure written
 # in the prose but not declared — which a writer fixes when shown the complaint.
@@ -119,7 +123,20 @@ def _coerce_blocks(payload: dict[str, Any], signal: Signal) -> list[Block]:
                 Figure(
                     value=value,
                     signal_field=signal_field,
-                    unit=raw_figure.get("unit") or signal.unit,
+                    # The pipeline's own answer, never the model's. `units.py`
+                    # knows what every field is measured in; the model guesses,
+                    # and its guesses reached the article JSON as
+                    # "readings_in_series = 9 EUR per hour" — a count of years
+                    # labelled as money — and as "6.5 % of the labour force"
+                    # beside "6.5 %" for the same field on two different days.
+                    #
+                    # There is no case where the model knows better: for a
+                    # count or a ratio this returns None, for a figure the
+                    # context pack borrowed from another series it returns that
+                    # series' unit, and otherwise the signal's own.
+                    unit=unit_for_field(
+                        signal_field, signal.unit, overrides=signal.field_units
+                    ),
                     rendered_as=raw_figure.get("rendered_as"),
                 )
             )
@@ -135,9 +152,11 @@ def generate_article(
     signal: Signal,
     writer: LlmWriter,
     *,
-    paragraphs: int = 4,
+    paragraphs: int | None = None,
     now: str | None = None,
     research: ResearchContext | None = None,
+    pack: ContextPack | None = None,
+    brief: AnalystBrief | None = None,
     max_attempts: int = MAX_ATTEMPTS,
     editor_notes: Sequence[str] = (),
 ) -> GenerationResult:
@@ -152,6 +171,12 @@ def generate_article(
     The gate itself is untouched: the same checks run again at the same zero
     tolerance, and a second failure discards the article. Nothing here can
     publish something the validator rejected.
+
+    ``signal`` is expected to arrive already enriched by
+    ``context.enrich_signal``, so the pack's figures are in ``signal.fields``
+    and face the validator exactly as the detector's own do. ``pack`` and
+    ``brief`` add the *explanation* of those figures to the prompt; neither
+    introduces a number.
     """
     created_at = now or isoformat(utcnow())
 
@@ -163,8 +188,9 @@ def generate_article(
             raise GenerationRefused(str(exc)) from exc
 
     persona = persona_for_section(signal.section)
-    system = build_system_prompt(signal, persona, paragraphs=paragraphs)
-    user = build_user_prompt(signal, research=research)
+    length = paragraphs if paragraphs is not None else paragraphs_for(pack, brief)
+    system = build_system_prompt(signal, persona, paragraphs=length)
+    user = build_user_prompt(signal, research=research, pack=pack, brief=brief)
 
     # A rewrite the editor asked for starts from the editor's notes, not from a
     # blank draft. Without this the desk's "revise" was a decision with no
@@ -191,6 +217,8 @@ def generate_article(
             writer=writer,
             created_at=created_at,
             research=research,
+            pack=pack,
+            brief=brief,
             attempts=attempt,
         )
         if result.publishable:
@@ -204,7 +232,7 @@ def generate_article(
             log.info(
                 "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, summary
             )
-            prompt = build_revision_prompt(user, summary)
+            prompt = build_revision_prompt(user, summary, result.article)
 
     assert result is not None  # the loop runs at least once
     return result
@@ -246,6 +274,8 @@ def _article_from_payload(
     created_at: str,
     research: ResearchContext | None,
     attempts: int,
+    pack: ContextPack | None = None,
+    brief: AnalystBrief | None = None,
 ) -> GenerationResult:
     """Build an article from one model response and run it through the gate."""
     headline = str(payload.get("headline") or "").strip()
@@ -256,9 +286,19 @@ def _article_from_payload(
     # them in the block's figures array. Do that bookkeeping in code. It can
     # only ever attach values from the detector's verified payload, so an
     # invented number stays undeclared and the validator still rejects it.
-    notes = reconcile_figures(blocks, signal.fields, unit=signal.unit)
+    notes = reconcile_figures(
+        blocks, signal.fields, unit=signal.unit, field_units=signal.field_units
+    )
     if notes:
         log.info("reconciled %d figure(s) for signal %s: %s", len(notes), signal.id, "; ".join(notes))
+
+    # And remove entries that are wrong *and* justify nothing in their own
+    # paragraph. The model declares a figure for "the fourth-highest on record"
+    # — a sentence with no numeral in it — guesses a field, gets the value
+    # wrong, and a correct article is discarded over an entry no claim rests on.
+    dropped = drop_unusable_figures(blocks, signal.fields)
+    if dropped:
+        log.info("dropped %d stray figure(s) for signal %s: %s", len(dropped), signal.id, "; ".join(dropped))
 
     article = Article(
         id=new_ulid(),
@@ -293,6 +333,13 @@ def _article_from_payload(
             "attempts": attempts,
             "accountable_editor": personas().accountable_editor or "Sam Samoletovs",
             **({"research": research.to_provenance()} if research is not None else {}),
+            # The context pack and the analyst brief are recorded in full. A
+            # reader auditing a piece is entitled to see which other series it
+            # was written against and what the specialist desk actually said —
+            # including how many of its proposed mechanisms were thrown out for
+            # resting on nothing.
+            **({"context": pack.to_provenance()} if pack is not None and pack else {}),
+            **({"analysis": brief.to_provenance()} if brief is not None and brief else {}),
         },
     )
 

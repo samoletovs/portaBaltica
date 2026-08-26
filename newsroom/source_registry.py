@@ -77,6 +77,16 @@ class Source:
     #: in Google's scaled-content-abuse policy. Statistics Estonia was added as
     #: a research source on the strength of an /en/ URL that returns Estonian.
     research_language: str | None = None
+    #: May the pipeline fetch the *page* behind a research link, rather than
+    #: only the snippet the publisher put in their RSS ``<description>``?
+    #:
+    #: Only ever true for a primary official source. Fetching a page body is a
+    #: far larger reuse than quoting a syndication snippet, and DSM Art. 15 does
+    #: not carve it out — so ``_build_source`` refuses this flag on anything
+    #: that is not ``research_role: official_statement``, and on tier C
+    #: outright. A press release from a central bank exists to be read and
+    #: quoted; a newspaper's article does not.
+    document_fetch_allowed: bool = False
     enabled: bool = True
     verified: str | None = None
     notes: str | None = None
@@ -406,6 +416,27 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
     research_only = _require_bool(
         merged.get("research_only", False), source_id=source_id, key="research_only"
     )
+    document_fetch_allowed = _require_bool(
+        merged.get("document_fetch_allowed", False),
+        source_id=source_id,
+        key="document_fetch_allowed",
+    )
+    if document_fetch_allowed and research_role != "official_statement":
+        # Fetching the page behind a link is a far larger reuse than quoting an
+        # RSS snippet, and DSM Art. 15 does not carve it out. Permitting it on
+        # anything but a primary official source would put the portal's whole
+        # tier C position — headline, the outlet's own snippet, link, nothing
+        # more — on the wrong side of the line. Enforced at load so it cannot be
+        # switched on for a news outlet by editing one YAML line.
+        raise InvalidRegistryError(
+            f"source {source_id!r}: `document_fetch_allowed` requires "
+            "`research_role: official_statement`; third-party article bodies are "
+            "never fetched"
+        )
+    if document_fetch_allowed and tier == "C":
+        raise InvalidRegistryError(
+            f"source {source_id!r}: tier C is link-out only and its documents are never fetched"
+        )
     research_language = _optional_str(merged.get("research_language"))
     if research_role is not None and research_language != "en":
         # Fails at load rather than in a test, so a misconfigured source can
@@ -438,6 +469,7 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
         research_summary_allowed=research_summary_allowed,
         research_only=research_only,
         research_language=research_language,
+        document_fetch_allowed=document_fetch_allowed,
         enabled=enabled,
         verified=_optional_str(merged.get("verified")),
         notes=_optional_str(merged.get("notes")),
