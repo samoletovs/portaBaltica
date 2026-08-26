@@ -9,12 +9,16 @@ import { chartTick, chartTooltip } from '../utils/chartType';
 const ZONE_SERIES = { ee: 'EE', lv: 'LV', lt: 'LT', fi: 'FI' } as const;
 const ZONE_ORDER = ['ee', 'lv', 'lt', 'fi'] as const;
 
-/** Same encoding rule as the comparison chart: hue plus a stroke pattern. */
+/** Same encoding rule as the comparison chart: hue plus a stroke pattern, and
+ *  the same correction — `2 3` rendered as a row of dots and `8 2 2 2` as
+ *  morse code, which on four overlapping step lines was unreadable. Four marks
+ *  of increasing length instead, Latvia solid as the reference, every mark long
+ *  enough to read as a line and never shorter than the gap after it. */
 const ZONE_DASH: Record<string, string | undefined> = {
   lv: undefined,
-  ee: '6 3',
-  lt: '2 3',
-  fi: '8 2 2 2',
+  ee: '9 4',
+  lt: '18 6',
+  fi: '30 9',
 };
 
 function formatHour(iso: string): string {

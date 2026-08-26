@@ -241,14 +241,17 @@
 
   /* ─── Data-visualisation series ───
      A separate palette from the accent above, so a chart line is never
-     mistaken for a link. Cyan / amber / pink: the previous sky / emerald /
-     amber put two of three series in hues that converge under deuteranopia,
-     which is around 8% of men. Every series also carries a stroke pattern, so
-     colour is never the only encoding (WCAG 2.2 SC 1.4.1). */
+     mistaken for a link. The country palette is the flags — Latvia carmine,
+     Estonia blue, Lithuania yellow — so a reader who knows them never has to
+     consult a legend. Every series also carries a stroke pattern, so colour is
+     never the only encoding (WCAG 2.2 SC 1.4.1). The full derivation, and why
+     Lithuania is yellow rather than green, is in ThemeContext and DESIGN.md §3.6.
+
+     Finland is fuchsia rather than its own flag blue, which is Estonia's. */
   --series-lv: #dc3b4a;
   --series-ee: #4da6ff;
   --series-lt: #fdb913;
-  --series-fi: #d8b4fe;
+  --series-fi: #f0abfc;
   --series-default: #7dd3fc;
   --chart-reference: #9fb0c4;
 
@@ -292,11 +295,19 @@
   --data-negative: #be123c;
   --data-warning: #a16207;
   --data-neutral: #455468;
-  --series-lv: #a4262c;
-  --series-ee: #0057a8;
-  --series-lt: #b4700a;
-  --series-fi: #6d28d9;
-  --series-default: #0369a1;
+  /* A chart line is a *graphical object*, so SC 1.4.11 governs it at 3:1 — not
+     the 4.5:1 that governs text. The first light palette was pushed to 7:1,
+     which is AAA text contrast applied to a line, and it read exactly as dark
+     and muddy as that implies: Lithuania's gold came out brown. These are the
+     brightest flag-aligned values that still clear 3:1 on the white card and
+     stay ΔE 25 apart under a deuteranopia simulation. See DESIGN.md §3.6. */
+  --series-lv: #e6414e;
+  --series-ee: #1a7ae0;
+  --series-lt: #c28206;
+  --series-fi: #8b1a9c;
+  /* Not #0369a1: that is --news-accent, the link colour, byte for byte. A
+     chart is not a link (DESIGN.md §1.5). */
+  --series-default: #0891b2;
   --chart-reference: #455468;
   --focus-ring: #0369a1;
 }
@@ -592,22 +603,45 @@ button,
 [data-theme="light"] .bg-red-950\/50 {
   background: #fef2f2 !important;
 }
-[data-theme="light"] .bg-yellow-400\/10 {
+[data-theme="light"] .bg-yellow-400\/10,
+[data-theme="light"] .bg-amber-400\/10 {
   background: #fef9c3 !important;
 }
 
-/* Colored text — ensure readability on white backgrounds */
-[data-theme="light"] .text-emerald-400 {
-  color: #059669 !important;
+/* Status text.
+   These route to the semantic tokens rather than to a second set of hexes,
+   for two reasons.
+
+   The first is correctness. The light overrides here used to be literals:
+   `.text-emerald-400` mapped to #059669 and both amber classes to #d97706,
+   which measure 3.77:1 and 3.19:1 on a white card. Both clear SC 1.4.11 for a
+   graphical object and both *fail* SC 1.4.3 for normal text at 4.5:1 — and
+   they colour actual text, "Low €28.50" and the change deltas. The tokens two
+   hundred lines above were already correct at 5.48:1 and 4.92:1; the override
+   simply did not use them.
+
+   The second is coverage. A literal has to be written once per theme per
+   class, so a class nobody remembered silently kept its Tailwind value:
+   `text-amber-300`, `text-amber-400/80`, `text-green-400` and `text-orange-400`
+   had no light rule at all and rendered a dark-theme colour on white. Pointing
+   at a token means the rule is written once and both themes follow, which is
+   why these are no longer nested under [data-theme="light"].
+
+   Direction is never carried by colour alone in any case — the ▲/▼ glyph, the
+   sign and a spoken description carry it (DESIGN.md §3.5). */
+.text-emerald-400,
+.text-green-400 {
+  color: var(--data-positive) !important;
 }
-[data-theme="light"] .text-red-400 {
-  color: #dc2626 !important;
+.text-red-400,
+.text-orange-400 {
+  color: var(--data-negative) !important;
 }
-[data-theme="light"] .text-yellow-400 {
-  color: #d97706 !important;
-}
-[data-theme="light"] .text-amber-400 {
-  color: #d97706 !important;
+.text-yellow-400,
+.text-amber-400,
+.text-amber-300,
+.text-amber-400\/80 {
+  color: var(--data-warning) !important;
 }
 
 /* Border colors for ring-style elements */
@@ -632,9 +666,28 @@ button,
   color: #0f172a !important;
 }
 
-/* Insight badge dots */
-[data-theme="light"] .bg-emerald-400 {
-  background: #059669 !important;
+/* Status dots and bars. Same tokens as the text above, so a dot and the label
+   beside it cannot drift apart. */
+.bg-emerald-400 {
+  background: var(--data-positive) !important;
+}
+.bg-red-400 {
+  background: var(--data-negative) !important;
+}
+.bg-yellow-400 {
+  background: var(--data-warning) !important;
+}
+
+/* ─── Horizontal scroll affordance ───────────────────────────────────────────
+   A strip that scrolls sideways must look like one. The ticker and the
+   insights row both clipped their content dead at the edge — mid-digit, in the
+   ticker's case — which reads as breakage rather than as more content.
+
+   A mask rather than a gradient overlay, so it works over whatever surface the
+   strip happens to sit on and needs no matching background colour. */
+.edge-fade-x {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
 }
 
 /* Card shadows for depth in light mode */

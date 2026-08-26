@@ -281,6 +281,108 @@ describe('contrast', () => {
   }
 });
 
+// ─── the compatibility layer ───────────────────────────────────────────────
+
+/**
+ * The colour a Tailwind utility class actually resolves to, once the
+ * compatibility layer at the bottom of index.css has had its say.
+ *
+ * That layer exists because ~224 hardcoded Tailwind colour classes are still
+ * scattered through the dashboard components, and it remaps each one onto a
+ * theme token with `!important`. The tests above could not see any of it: they
+ * read the token block and stopped, so a token could be correct while the rule
+ * that was supposed to use it hardcoded something else. That is exactly what
+ * happened — `.text-emerald-400` was pinned to #059669 (3.77:1) and both amber
+ * classes to #d97706 (3.19:1) while `--data-positive` and `--data-warning` sat
+ * two hundred lines above at 5.48:1 and 4.92:1, correct and unused.
+ */
+function overriddenColour(className: string, tokens: Record<string, string>, theme: 'dark' | 'light'): string | null {
+  // Tailwind escapes the slash in an opacity modifier, so `text-amber-400/80`
+  // is written `.text-amber-400\/80` in the stylesheet. Put the CSS escape in
+  // first, then escape the result for the regex.
+  const escaped = className.replace(/\//g, '\\/').replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  // Both the unconditional rules and the [data-theme="light"] ones, in source
+  // order, so the last matching declaration wins exactly as the cascade does.
+  const rule = new RegExp(
+    String.raw`(^|,)\s*(\[data-theme="light"\]\s+)?\.${escaped}\s*(,[^{]*)?\{([^}]*)\}`,
+    'gm',
+  );
+  let resolved: string | null = null;
+  for (const match of css.matchAll(rule)) {
+    if (match[2] && theme !== 'light') continue;
+    const declaration = match[4].match(/(?:^|;)\s*color:\s*([^;!]+)/);
+    if (!declaration) continue;
+    const value = declaration[1].trim();
+    const variable = value.match(/^var\((--[a-z0-9-]+)\)$/);
+    resolved = variable ? tokens[variable[1]] ?? null : value;
+  }
+  return resolved;
+}
+
+describe('the Tailwind compatibility layer', () => {
+  // Every hardcoded colour class in the components that carries *status*
+  // meaning. These are text, so SC 1.4.3 governs them at 4.5:1 — not the 3:1
+  // that governs a chart line, which is the confusion the old literals encoded.
+  const STATUS_TEXT = [
+    'text-emerald-400',
+    'text-green-400',
+    'text-red-400',
+    'text-orange-400',
+    'text-yellow-400',
+    'text-amber-400',
+    'text-amber-300',
+  ];
+
+  for (const { name, tokens } of THEMES) {
+    it(`states status legibly in ${name} once the override layer has run`, () => {
+      for (const className of STATUS_TEXT) {
+        const resolved = overriddenColour(className, tokens, name);
+        expect(resolved, `.${className} resolves to nothing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
+
+        const ratio = contrast(resolved!, tokens['--bg-card']);
+        expect(
+          Number(ratio.toFixed(2)),
+          `${name} .${className} resolves to ${resolved} — ${ratio.toFixed(2)}:1 on a card, needs 4.5:1`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+
+  it('leaves no status colour class uncovered', () => {
+    // A literal has to be restated once per theme per class, so a class nobody
+    // remembered kept its raw Tailwind value and rendered a dark-theme colour
+    // on white. Four did: `text-amber-300`, `text-amber-400/80`,
+    // `text-green-400` and `text-orange-400` had no light rule at all. This
+    // fails on the next one rather than waiting for a reader to find it.
+    const used = new Set<string>();
+    for (const { text } of components()) {
+      for (const match of text.matchAll(
+        /\btext-(?:emerald|green|red|rose|orange|amber|yellow|teal|cyan)-\d{3}(?:\/\d+)?\b/g,
+      )) {
+        used.add(match[0]);
+      }
+    }
+
+    const uncovered = [...used].filter(
+      (className) => !THEMES.some(({ name, tokens }) => overriddenColour(className, tokens, name)),
+    );
+
+    expect(uncovered, 'these classes reach the browser as raw Tailwind colours').toEqual([]);
+  });
+
+  it('routes status colour through the tokens rather than a second set of hexes', () => {
+    // One source of truth. A literal here is a value that can drift from the
+    // token it was copied from, and silently did.
+    const layer = css.slice(css.indexOf('/* Status text.'));
+    const rules = layer.slice(0, layer.indexOf('/* Border colors'));
+
+    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-positive\)/);
+    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-negative\)/);
+    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-warning\)/);
+    expect(rules, 'no literal hexes in the status text block').not.toMatch(/color:\s*#[0-9a-f]{3,6}/i);
+  });
+});
+
 // ─── focus and motion ──────────────────────────────────────────────────────
 
 describe('focus', () => {
@@ -534,14 +636,77 @@ describe('the country palette', () => {
 
   it('gives every series a second, non-colour encoding', () => {
     // Between-series *luminance* contrast is 1.19–1.76:1, well under the 3:1
-    // at which WCAG 2.2's note on SC 1.4.1 lets lightness count as a second
-    // distinction. So hue is the only other channel, and hue alone is exactly
-    // what the criterion forbids. The stroke pattern is the second channel.
+    // at which WCAG 2.2's note on SC 1.4.1 lets a difference in lightness count
+    // as a second distinction. So hue is the only other channel, and hue alone
+    // is exactly what the criterion forbids. The stroke pattern is the second
+    // channel.
     const chart = components().find((c) => c.file === 'BalticCompareChart.tsx')!.text;
 
     expect(chart, 'every non-default series needs a dash pattern').toMatch(/dash:\s*'[\d\s]+'/);
     expect(chart, 'the dash must actually reach the line').toMatch(/strokeDasharray=\{/);
   });
+
+  it('draws dashes that read as a line rather than as a row of dots', () => {
+    // Lithuania was `2 4` — two on, four off. At a 2px stroke that is not a
+    // dashed line, it is a dot every six pixels, and over a dense multi-year
+    // series a reader sees texture rather than a series. The power chart had
+    // the same `2 3`, plus an `8 2 2 2` that read as morse.
+    //
+    // The redundant encoding stays; it is the only thing separating these
+    // series for a deuteranope. It just has to be quiet enough to read as a
+    // line first. A mark at least 6px long, and never shorter than the gap
+    // that follows it, is the difference.
+    const offenders: string[] = [];
+
+    for (const { file, text } of components()) {
+      for (const match of text.matchAll(/(?:dash|[a-z]{2}):\s*'([\d\s]+)'/g)) {
+        const steps = match[1].trim().split(/\s+/).map(Number);
+        for (let i = 0; i < steps.length; i += 2) {
+          const mark = steps[i];
+          const gap = steps[i + 1] ?? 0;
+          if (mark < 6) offenders.push(`${file}: '${match[1]}' has a ${mark}px mark`);
+          else if (gap > mark) offenders.push(`${file}: '${match[1]}' has a gap longer than its mark`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  for (const { name, tokens } of THEMES) {
+    it(`draws the Baltic series as light, not as ink, in ${name}`, () => {
+      // 3:1 is the floor SC 1.4.11 sets for a graphical object, and the first
+      // light palette treated it as a target: #a4262c, #0057a8 and #b4700a all
+      // landed near 7:1, which is AAA *text* contrast applied to a line. The
+      // charts read as dark and muddy and the gold read as brown, and readers
+      // said so.
+      //
+      // Contrast cannot express that, because in a dark theme "brighter" means
+      // *more* contrast and in a light theme it means less. Lightness can. L*
+      // 45 is the floor in both themes; the old light palette sat at 37.
+      //
+      // Finland is exempt: it is a bidding zone rather than a Baltic state,
+      // and it has to stay clear of Estonia's blue under deuteranopia, which
+      // costs it the freedom to be light.
+      for (const token of ['--series-lv', '--series-ee', '--series-lt']) {
+        const lightness = toLab(tokens[token])[0];
+        expect(
+          Number(lightness.toFixed(1)),
+          `${name} ${token} is ${tokens[token]} at L* ${lightness.toFixed(1)} — too dark to read as a line`,
+        ).toBeGreaterThanOrEqual(45);
+      }
+    });
+
+    it(`keeps a chart line from being the link colour in ${name}`, () => {
+      // DESIGN.md §1.5 reserves the accent for links, the active navigation
+      // indicator and the primary call to action, and says it is deliberately
+      // not a chart colour. In light it was `--series-default` byte for byte.
+      expect(
+        tokens['--series-default'].toLowerCase(),
+        `${name} --series-default is the accent, so a chart line looks like a link`,
+      ).not.toBe(tokens['--news-accent'].toLowerCase());
+    });
+  }
 });
 
 // ─── operability ───────────────────────────────────────────────────────────
@@ -595,7 +760,7 @@ describe('direction is not sentiment', () => {
     // reader scanning for momentum expects. But it must go through the
     // polarity module, because twelve series are worse when they rise and
     // colouring those by raw direction renders rising unemployment green.
-    const surfaces = ['IndicatorCard.tsx', 'IndicatorTable.tsx'];
+    const surfaces = ['IndicatorCard.tsx', 'IndicatorTable.tsx', 'DataTicker.tsx'];
 
     for (const file of surfaces) {
       const text = components().find((component) => component.file === file)?.text;
