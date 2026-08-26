@@ -90,6 +90,32 @@ describe('ArticleView — the byline always discloses', () => {
 });
 
 describe('ArticleView — the provenance passport', () => {
+  it('arrives collapsed, with the record folded inside the part that opens', () => {
+    renderArticle(tierAArticle());
+
+    const heading = screen.getByRole('heading', { name: 'Where this came from' });
+    const passport = heading.closest('details');
+
+    // The record runs longer than most of the articles it follows. A reader who
+    // has just finished the story should not have to scroll a wall of dataset
+    // cards to reach the next one.
+    expect(passport, 'the passport is not a disclosure at all').not.toBeNull();
+    expect(passport!.open, 'the passport is open on arrival').toBe(false);
+
+    // The heading is the control, so there is an obvious way in.
+    expect(heading.closest('summary')?.parentElement).toBe(passport);
+
+    // Collapsing it must not quietly retract the promise: the check count is
+    // on the header, which stays on the page.
+    const badge = screen.getByText(/5 of 5 checks passed/);
+    expect(badge.closest('summary')?.parentElement).toBe(passport);
+
+    // And the datasets are inside the part that opens, not left beside it.
+    const dataset = screen.getByRole('link', { name: /Open the dataset/, hidden: true });
+    expect(dataset.closest('details')).toBe(passport);
+    expect(dataset.closest('summary')).toBeNull();
+  });
+
   it('shows the four things the policy promises: sources, datasets, retrieval time and model', () => {
     renderArticle(tierAArticle());
 
