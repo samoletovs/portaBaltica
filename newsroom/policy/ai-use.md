@@ -72,6 +72,21 @@ An article that fails any of these checks is not published. The system fails
 closed: when something is uncertain, nothing goes out. On a quiet day we publish
 less. We never generate filler to fill a page.
 
+**We also do not report a change the source cannot measure.** Some of the
+statistics here are estimates drawn from samples — the unemployment rate comes
+from a labour force survey, the sentiment index from a survey of businesses and
+households. Two readings that differ by less than the survey can resolve are not
+a rise and a fall; they are the same quantity measured twice. Before asking
+whether a movement is interesting, the pipeline asks whether it is measurable,
+and drops it if it is not. This is why you will sometimes see no story about a
+number that moved: a tenth of a point in a sampled rate is not news, and
+reporting it as though it were is a way of being wrong that looks like
+diligence.
+
+Where a series is not a survey, the floor is read from the data itself: a
+statistic published to one decimal place cannot express a difference finer than
+that, so we do not claim one.
+
 ## 3. Who is accountable
 
 Andre Kõpu, named at the top of this page, is the only human here and is accountable for everything
@@ -118,6 +133,13 @@ disclosure work on its own. These rules do:
   is rejected before publication rather than corrected afterwards
 - every article carries a provenance panel: sources, datasets, when the data
   was retrieved, and which model wrote it
+- every article carries the same disclosure in a form a machine can read. The
+  byline tells a person; a `digitalSourceType` marker in the page's structured
+  data tells a search engine, an assistant or a verification tool, using the
+  IPTC vocabulary that content-provenance tooling already understands. This is
+  the transparency the EU AI Act requires of AI-generated text on matters of
+  public interest, and we would publish it regardless: a disclosure only a human
+  can see is one that vanishes the moment an assistant quotes us.
 
 We would rather over-disclose than have you discover it later. If you ever read
 something here and are unsure whether a person wrote it, we have failed, and we
@@ -170,6 +192,24 @@ When it happens: the correction appears on the article itself, not quietly in
 place of the original text, and it is added to our public
 [corrections log](/corrections). Corrections are append-only — we do not edit
 away our mistakes.
+
+**Not every correction here is a mistake of ours, and we say which is which.**
+Statistical offices revise. A first estimate is published from partial returns
+and restated weeks later when the rest arrive; this is normal practice and is
+documented in their own revision policies. So a figure we reported accurately in
+August can describe a number that no longer exists by October. Every run, the
+pipeline re-reads the series behind every figure it has published and compares
+them against the reading it published on. When one has moved, the article gets a
+note recording both values and the date each was read.
+
+The article's text is left alone in that case. We do not go back and change the
+number in a sentence we already published: the piece did say what it said, and
+silently updating it would be a tidier lie than the original. The note tells you
+what changed, and the wording distinguishes a restatement by the source from an
+error by us.
+
+An article is never deleted to resolve a complaint. If a published story is
+wrong we correct it in public; if it is right, it stays up.
 
 If you spot an error, please tell us. Errors reported by readers are the single
 most valuable signal we get about whether this experiment is working.
