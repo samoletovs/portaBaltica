@@ -1,5 +1,6 @@
 const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
+const cubeHealth = require('../shared/cubeHealth.js');
 
 /**
  * GET /api/system-status
@@ -16,6 +17,16 @@ const es = require('../shared/eurostat.js');
  *   - Riga Open Data is genuinely broken upstream — every entity set returns
  *     HTTP 500 — so it is probed at the only endpoint that works and is no
  *     longer relied on for data anywhere in the app.
+ *
+ * A later audit found a fourth, and the most damaging kind: the Eurostat
+ * maritime probe reported an outage against a feature that worked. It asked the
+ * Europe-wide `mar_tf_qm` cube for its newest column, which is the newest
+ * quarter any European port has filed, and Riga is routinely a quarter or two
+ * behind that. The probe read one all-null cell, called the source dead, and
+ * held the whole page at `degraded` while `/api/port-data` served complete
+ * statistics for Latvia, Estonia and Lithuania. A probe that cries wolf is not
+ * a safe failure: it trains readers to disregard the status page, which is the
+ * one thing it exists to be believed about. See `shared/cubeHealth.js`.
  *
  * Eurostat is probed now too. It backs more than forty charts and was the one
  * dependency the health check never looked at.
@@ -47,12 +58,26 @@ const CHECKS = [
   },
   {
     name: 'Eurostat maritime',
-    // The exact slice the maritime tile reads, asserted to carry a value.
-    // A source that answers 200 with nothing in it is the failure that ended
-    // the previous maritime feed: data.gov.lv served eighteen consecutive
-    // header-only CSVs while every liveness check on the host stayed green.
+    // A *window* of quarters, not the single newest one, because
+    // `lastTimePeriod=1` asks the wrong question of this cube.
+    //
+    // `mar_tf_qm` is Europe-wide, so its time dimension runs to the newest
+    // quarter *any* European port has filed — 2026-Q2 as this was written.
+    // Riga is two quarters behind that, as it normally is, so the old probe
+    // fetched a single all-null cell and declared the source dead. The site sat
+    // at `degraded` while `/api/port-data` served complete data for all three
+    // countries, which teaches readers that the status page means nothing.
+    //
+    // It was just as wrong the other way. Had Eurostat frozen the cube, its
+    // newest period would still have carried the last value it ever published,
+    // and `lastTimePeriod=1` would have returned that value and gone green
+    // forever — the precise failure that killed the data.gov.lv feed, where
+    // eighteen consecutive header-only CSVs passed every liveness check.
+    //
+    // Asking for a window and judging the newest observation's *age* answers
+    // both: a normal publication lag passes, a stopped cube does not.
     url: es.EUROSTAT_BASE + '/mar_tf_qm?format=JSON&lang=EN&freq=Q&tonnage=TOTAL' +
-      '&vessel=TOTAL&unit=NR&rep_mar=LV_0LVRIX&lastTimePeriod=1',
+      '&vessel=TOTAL&unit=NR&rep_mar=LV_0LVRIX&sinceTimePeriod=' + es.sincePeriod('Q', 3),
     type: 'eurostat-cube',
     cubeKey: 'rep_mar',
     required: true,
@@ -135,6 +160,7 @@ const CHECKS = [
 
 async function runCheck(check) {
   const started = Date.now();
+  let dataPeriod = null;
   try {
     if (check.type === 'ecb-xml') {
       const xml = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
@@ -169,23 +195,23 @@ async function runCheck(check) {
       }));
       if (missing.length > 0) throw new Error('Unavailable: ' + missing.join('; '));
     } else if (check.type === 'eurostat-cube') {
-      // Parsing is not enough: an emptied cube still parses. Require at least
-      // one real observation, which is what the tile needs to render.
+      // Parsing is not enough: an emptied cube still parses, and a frozen one
+      // still carries values. `judgeCube` asks how old the newest observation
+      // is, which is the only question that separates a normal publication lag
+      // from a table that has stopped.
       const body = await es.httpJson(check.url, { deadlineMs: PROBE_DEADLINE_MS });
-      const parsed = es.parseJsonStatDim(body, check.cubeKey, null);
-      const carriesData = Object.keys(parsed.series).some(function (key) {
-        return parsed.series[key].series.some(function (p) {
-          return p.value !== null && p.value !== undefined;
-        });
-      });
-      if (!carriesData) throw new Error('Cube answered but carries no observation');
+      const verdict = cubeHealth.judgeCube(body, check.cubeKey);
+      if (!verdict.ok) throw new Error(verdict.reason);
+      // Reported on success too, so the quarter the verdict rests on is on the
+      // page rather than something a reader has to take on trust.
+      dataPeriod = verdict.period;
     } else if (check.type === 'text') {
       const text = await es.httpText(check.url, { deadlineMs: PROBE_DEADLINE_MS });
       if (!text || text.length === 0) throw new Error('Empty response');
     } else {
       await es.httpJson(check.url, { deadlineMs: PROBE_DEADLINE_MS });
     }
-    return { name: check.name, status: 'healthy', latency: Date.now() - started, required: check.required, powers: check.powers, note: check.note };
+    return { name: check.name, status: 'healthy', latency: Date.now() - started, required: check.required, powers: check.powers, note: check.note, dataPeriod: dataPeriod };
   } catch (e) {
     return { name: check.name, status: 'unhealthy', latency: Date.now() - started, required: check.required, powers: check.powers, note: check.note, error: e.message };
   }

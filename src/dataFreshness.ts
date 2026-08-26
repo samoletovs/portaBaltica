@@ -98,3 +98,28 @@ export function formatPeriod(period: string): string {
   }
   return period;
 }
+
+/**
+ * How to date a panel whose measures did not all reach the same period.
+ *
+ * The maritime tile draws three Eurostat tables that are published
+ * independently, and they drift: the Europe-wide vessel cube was padded to
+ * 2026-Q2 while Latvian goods stopped at 2025-Q4. Heading the tile with the
+ * newest of the three dates the other two to a quarter they never reached,
+ * which is the same shared-as-of dishonesty the per-panel dates exist to avoid
+ * — just moved up one level.
+ *
+ * So: one period when they agree, a span when they do not. `spans` is returned
+ * separately rather than baked into the label, because the caller owns the
+ * sentence and only it knows what is being dated.
+ *
+ * Returns null when there is no period at all, which must not read as current.
+ */
+export function periodCoverage(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): { label: string; spans: boolean } | null {
+  if (!to) return null;
+  if (!from || from === to) return { label: formatPeriod(to), spans: false };
+  return { label: `${formatPeriod(from)} to ${formatPeriod(to)}`, spans: true };
+}

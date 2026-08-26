@@ -47,6 +47,32 @@ function valueAt(entry, period) {
 }
 
 /**
+ * Months a port's last filing trails the newest quarter any port reached.
+ *
+ * Uses `periodToMonthIndex` rather than parsing quarters here, so the whole
+ * codebase compares periods one way.
+ */
+function monthsBehind(period, reference) {
+  const a = eurostat.periodToMonthIndex(period);
+  const b = eurostat.periodToMonthIndex(reference);
+  if (a === null || b === null) return null;
+  return b - a;
+}
+
+/**
+ * How far behind a port may fall before it is reported as stopped rather than
+ * late.
+ *
+ * Four quarters. Eurostat's maritime tables run one to two quarters in arrears
+ * as normal operation and individual ports slip a quarter routinely, so a
+ * tighter bound would label healthy ports dead. Twelve months matches
+ * `MAX_AGE_MONTHS.Q` in `shared/eurostat.js` and
+ * `PORT_DATA_STALE_AFTER_MONTHS` in `src/dataFreshness.ts`, so server, client
+ * and health probe all draw the line in the same place.
+ */
+const DISCONTINUED_AFTER_MONTHS = 12;
+
+/**
  * Drop trailing periods no port has reported yet.
  *
  * Eurostat pads the cube to the newest quarter any country has filed, so a
@@ -75,6 +101,18 @@ function trimTrailingGaps(entries) {
  * hardcoded port list — that is what lets Estonia render its national total
  * instead of an empty panel. `countryOnly` records which of the two happened
  * so the UI can say so rather than mislabel a national figure as a port.
+ *
+ * Ports are otherwise intersected with the registry, which is what keeps the
+ * country aggregate and Eurostat's `LV_0LV888` "other Latvian ports" bucket —
+ * all zeroes, every quarter — out of a chart of named ports.
+ *
+ * Each entry is then marked `discontinued` when its own newest filing trails
+ * the newest quarter any port reached by more than a year. Riga's sea passenger
+ * series ends at 2021-Q4 with four literal zeroes behind it, and the bars drop
+ * it because it has no value for the quarter on screen. Dropping it is right;
+ * dropping it with nothing in the payload to say it ever existed leaves every
+ * consumer of this endpoint — the tile, the newsroom, anyone reading the public
+ * JSON — unable to tell a closed route from a broken feed.
  */
 async function loadPortSeries(label, country, url) {
   try {
@@ -102,6 +140,13 @@ async function loadPortSeries(label, country, url) {
       return (valueAt(b, b.latest) || 0) - (valueAt(a, a.latest) || 0);
     });
 
+    const newest = newestOf(entries.map(function (e) { return e.latest; }));
+    entries.forEach(function (e) {
+      const behind = monthsBehind(e.latest, newest);
+      e.monthsBehind = behind;
+      e.discontinued = behind !== null && behind >= DISCONTINUED_AFTER_MONTHS;
+    });
+
     return {
       entries: trimTrailingGaps(entries),
       countryOnly: countryOnly,
@@ -119,9 +164,24 @@ async function loadPortSeries(label, country, url) {
  * Only the six categories that partition the total are read; Eurostat's
  * `cargo` dimension also carries their subdivisions, and summing the dimension
  * as delivered would count every tonne twice.
+ *
+ * `breakdown` says which of three different things an empty `categories` means,
+ * because the UI cannot tell them apart and a reader deserves to:
+ *
+ *   - `published`  — the six categories are here.
+ *   - `unpublished` — Eurostat answered, and its `cargo` dimension carries
+ *     nothing but `TOTAL`. This is Estonia: `mar_go_qm_ee` has exactly one
+ *     cargo code, so there is no breakdown to show and there never was one to
+ *     lose. A settled fact about the source, not a fault.
+ *   - `unavailable` — the request failed, or the cube came back with no total
+ *     either. A fault, possibly transient.
+ *
+ * Collapsing all three into `categories: []` is what let the endpoint ship
+ * Estonia a total of 4,833 with no components — a headline figure that no
+ * chart could account for, and no way for the client to say why.
  */
 async function loadCargoMix(country, url) {
-  const empty = { period: null, total: null, categories: [] };
+  const unavailable = { period: null, total: null, categories: [], breakdown: 'unavailable' };
   try {
     const raw = await eurostat.httpJson(url, { deadlineMs: 12000 });
     const codes = ports.CARGO_MIX.map(function (c) { return c.code; });
@@ -129,7 +189,7 @@ async function loadCargoMix(country, url) {
 
     const totalSeries = (parsed.series.TOTAL && parsed.series.TOTAL.series) || [];
     const period = latestPeriod(totalSeries);
-    if (!period) return empty;
+    if (!period) return unavailable;
 
     const categories = ports.CARGO_MIX.map(function (c) {
       const entry = parsed.series[c.code];
@@ -144,10 +204,11 @@ async function loadCargoMix(country, url) {
       period: period,
       total: totalPoint ? totalPoint.value : null,
       categories: categories,
+      breakdown: categories.length > 0 ? 'published' : 'unpublished',
     };
   } catch (err) {
     warn('cargo mix', err);
-    return empty;
+    return unavailable;
   }
 }
 
@@ -162,6 +223,19 @@ function newestOf(candidates) {
     newest = period;
   });
   return newest;
+}
+
+/** Oldest of several period labels — the quarter every measure has reached. */
+function oldestOf(candidates) {
+  let oldest = null;
+  let oldestIdx = Infinity;
+  candidates.filter(Boolean).forEach(function (period) {
+    const idx = eurostat.periodToMonthIndex(period);
+    if (idx === null || idx >= oldestIdx) return;
+    oldestIdx = idx;
+    oldest = period;
+  });
+  return oldest;
 }
 
 function groupLatest(group) {
@@ -194,6 +268,10 @@ module.exports = async function (context, req) {
       .concat(passengers.assumptions)
       .concat(vessels.assumptions);
 
+    const measurePeriods = [groupLatest(goods), groupLatest(passengers), groupLatest(vessels)];
+    const newestPeriod = newestOf(measurePeriods);
+    const oldestPeriod = oldestOf(measurePeriods);
+
     context.res = {
       status: 200,
       headers: {
@@ -222,7 +300,14 @@ module.exports = async function (context, req) {
         },
         cargoMix: cargoMix,
         // The period the statistics describe, not when we fetched them.
-        dataAsOf: newestOf([groupLatest(goods), groupLatest(passengers), groupLatest(vessels)]),
+        dataAsOf: newestPeriod,
+        // The quarter *every* measure has reached. The three tables are
+        // published independently and do drift apart — the vessel cube was
+        // padded to 2026-Q2 while Latvian goods stopped at 2025-Q4 — so a tile
+        // headed with `dataAsOf` alone would date two of its three panels to a
+        // quarter they had not reached. When these agree the UI states one
+        // quarter; when they differ it states the span.
+        dataFrom: oldestPeriod,
         source: 'Eurostat maritime transport (mar_go_qm, mar_pa_qm, mar_tf_qm)',
         // Empty for a correct definition; a value here means a dimension went
         // unpinned and a slice was chosen for us.
