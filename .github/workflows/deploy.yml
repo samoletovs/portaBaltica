@@ -115,7 +115,22 @@ jobs:
       - name: Install API deps
         run: cd api && npm ci
 
+      # Push only. A pull_request upload does not go to production — Azure
+      # creates a *staging environment* per PR, and the Free tier caps those at
+      # three. With more PRs open than that, every further PR run died on:
+      #
+      #   The content server has rejected the request with: BadRequest
+      #   Reason: This Static Web App already has the maximum number of staging
+      #   environments. Please remove one and try again.
+      #
+      # That is not a failure of the change under review; it is a quota that a
+      # PR cannot do anything about, and it turned the deploy job into a red
+      # mark that everyone learns to ignore. The steps above still build the
+      # frontend and install the API deps on every PR, so a build break is
+      # caught before merge. Previews are what we give up, and on a three-slot
+      # cap shared by a bot-driven PR queue they were never dependable anyway.
       - name: Deploy to Azure SWA
+        if: github.event_name == 'push'
         uses: Azure/static-web-apps-deploy@v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_TOKEN }}
@@ -200,6 +215,10 @@ jobs:
             || echo "::warning::Landing page sync dispatch failed"
 
   # ── Close PR preview ───────────────────────────────────────────────
+  # Pull requests no longer create staging environments (see the deploy step
+  # above), so this is now a drain rather than a matching teardown: it clears
+  # any environment left over from before that change, which is what has to
+  # happen for the Free tier's three slots to come back.
   close_pull_request:
     # Fork PRs get a read-only token and no secrets, so the SWA token is empty
     # and this job could only fail for them. Phrased negatively on purpose:
