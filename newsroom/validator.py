@@ -42,6 +42,7 @@ CHECK_NAMES: Final[tuple[str, ...]] = (
     "no_lived_experience_claims",
     "attribution_present",
     "comparison_basis_stated",
+    "no_repeated_findings",
 )
 
 #: How far a declared figure may sit from the signal value it claims to come
@@ -771,6 +772,91 @@ def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
     return CheckResult(name, True, f"{described} described change(s) all state a basis")
 
 
+# ── check: no_repeated_findings ─────────────────────────────────────────
+
+
+def check_no_repeated_findings(context: ValidationContext) -> CheckResult:
+    """No two paragraphs may rest on the same set of verified figures.
+
+    THE FAILURE THIS CATCHES
+    ------------------------
+    A live tier A article ran six paragraphs on one fact::
+
+        body[0]: "Estonia's annual consumer price inflation decreased to 2% in
+                  July 2026, compared with the four-year average of 9.62%."
+        body[3]: "Estonia's inflation rate is significantly below its historical
+                  average for this time of year, with the latest figure of 2%
+                  compared to the four-year average of 9.62%."
+
+    Both declared ``{latest_value, seasonal_mean}``. It is the same sentence
+    twice, and every other gate passed it: the figures were traceable, the
+    numbers were not invented, and each paragraph named its comparison basis.
+    Correctness checks cannot see padding.
+
+    WHY IT IS A CHECK RATHER THAN AN INSTRUCTION
+    --------------------------------------------
+    The system prompt has told the writer not to do this since the depth
+    rewrite, in a section that opens "the single failure this wire has to stop
+    repeating". It does it anyway. But the repetition is not a judgement about
+    prose — it is visible in the structured output, because a paragraph that
+    restates a finding has to declare the same fields to do it. So it can be
+    decided rather than requested.
+
+    THE RULE, AND WHERE ITS EDGES ARE
+    ---------------------------------
+    Two body paragraphs fail when they declare the **identical, non-empty** set
+    of ``signal_field`` names. Deliberately narrow at both ends:
+
+    * **Empty sets never collide.** Most paragraphs carry no figure at all —
+      the prompt asks for that explicitly — and the paragraphs doing the
+      explaining are exactly the ones that would otherwise all match each other.
+    * **A subset is not a repeat.** ``{latest}`` beside ``{latest, peer_lt}``
+      is the lead and then the neighbours comparison, which is a different
+      claim about the same number and is the paragraph the wire was criticised
+      for never writing. Only an exact match fails.
+
+    That leaves one sharp edge, accepted knowingly: two paragraphs that each
+    cite ``{latest_value}`` alone and genuinely say different things about it
+    are rejected. The prompt's own article plan puts no digits in the later
+    paragraphs, so a piece that hits this is already off-plan, and the writer
+    is told which two paragraphs collided and can drop the numeral from one of
+    them — which is the better paragraph anyway.
+    """
+    name = "no_repeated_findings"
+
+    seen: dict[frozenset[str], int] = {}
+    problems: list[str] = []
+    compared = 0
+
+    for index, block in enumerate(context.blocks):
+        if block.get("type") not in _TEXT_BLOCK_TYPES:
+            continue
+        fields = frozenset(
+            str(figure.get("signal_field")).strip()
+            for figure in (block.get("figures") or [])
+            if isinstance(figure, Mapping)
+            and isinstance(figure.get("signal_field"), str)
+            and str(figure.get("signal_field")).strip()
+        )
+        if not fields:
+            continue
+        compared += 1
+        first = seen.get(fields)
+        if first is None:
+            seen[fields] = index
+            continue
+        problems.append(
+            f"body[{index}] rests on the same figures as body[{first}] "
+            f"({', '.join(sorted(fields))}) and adds no new evidence"
+        )
+
+    if problems:
+        return CheckResult(name, False, "; ".join(problems))
+    return CheckResult(
+        name, True, f"{compared} paragraph(s) with figures each rest on a distinct set"
+    )
+
+
 # ── runner ──────────────────────────────────────────────────────────────
 
 _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
@@ -782,6 +868,7 @@ _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
     "no_lived_experience_claims": check_no_lived_experience_claims,
     "attribution_present": check_attribution_present,
     "comparison_basis_stated": check_comparison_basis_stated,
+    "no_repeated_findings": check_no_repeated_findings,
 }
 
 

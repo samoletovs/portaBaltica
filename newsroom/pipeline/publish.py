@@ -138,6 +138,34 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    def _put_json(self, name: str, payload: dict[str, Any], cache_control: str) -> str:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self._write_local(name, body)
+        container = self._container_client()
+        if container is not None:
+            try:
+                container.upload_blob(
+                    name=name,
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(cache_control),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("blob write failed for %s (%s)", name, exc)
+        return name
+
+    async def put_json(
+        self, name: str, payload: dict[str, Any], *, cache_control: str = _INDEX_CACHE_CONTROL
+    ) -> str:
+        """Write an arbitrary JSON document to the articles container.
+
+        Used for operational documents that are not articles — the run report —
+        so they get the same dual local/blob write, the same managed-identity
+        credential and the same failure handling as everything else, rather than
+        a second copy of all three.
+        """
+        return await asyncio.to_thread(self._put_json, name, payload, cache_control)
+
     def _read_published(self, slug: str) -> dict[str, Any] | None:
         """The stored JSON for a published article, or ``None``.
 

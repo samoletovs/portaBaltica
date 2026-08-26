@@ -44,6 +44,8 @@ class EurostatDataset:
         frequency: str = "monthly",
         chart_ref: str | None = None,
         periods: int = 60,
+        geo_dimension: str = "geo",
+        geographies: Sequence[str] | None = None,
     ) -> None:
         self.dataset = dataset
         self.metric = metric
@@ -54,6 +56,17 @@ class EurostatDataset:
         self.frequency = frequency
         self.chart_ref = chart_ref
         self.periods = periods
+        #: Which dimension carries the geography. Almost always ``geo`` — but
+        #: the maritime cubes are one dataset per country and key their
+        #: territorial axis on ``rep_mar`` (reporting port), where the country's
+        #: own code means "all ports in this country". A collector that assumes
+        #: ``geo`` reads those as having no geography at all and drops every
+        #: observation, which is why the newsroom had no maritime series while
+        #: the dashboard published three panels of them.
+        self.geo_dimension = geo_dimension
+        #: Values to request on that dimension, or ``()`` when the dataset
+        #: pins its own in ``params``. ``None`` means the collector's default.
+        self.geographies = tuple(geographies) if geographies is not None else None
 
 
 EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
@@ -282,6 +295,98 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
                 "currency": "MIO_EUR", "sectpart": "S1", "sector10": "S1"},
         periods=60,
     ),
+    # --- Maritime -----------------------------------------------------------
+    # The maritime beat had a correspondent, a section, a persona and a place on
+    # the masthead, and had never published, because nothing here ever fetched a
+    # maritime series. The dashboard has read these same cubes since #40.
+    #
+    # Three datasets rather than one: Eurostat splits port statistics by country
+    # (`mar_go_qm_lv`, `_ee`, `_lt`) instead of carrying a geo dimension, and
+    # keys the territorial axis on `rep_mar` — the reporting port — where the
+    # country's own code means "every port in this country". Hence
+    # `geo_dimension` and the empty `geographies`: asking these cubes for
+    # geo=LV is an HTTP 400.
+    #
+    # `cargo=TOTAL` deliberately. Latvia publishes 36 cargo categories and
+    # Lithuania a similar number, but ESTONIA PUBLISHES ONLY THE TOTAL, so a
+    # composition series would give two countries a breakdown and the third an
+    # empty series — and `detect_divergence` needs all three to compare. The
+    # composition story is real and worth having; it needs its own handling for
+    # the asymmetry rather than being smuggled in here.
+    #
+    # 48 quarters, verified live: LV and EE run 2014-Q1..2025-Q4 and LT to
+    # 2026-Q1. The two-quarter publication lag is inherent to the source, so
+    # this beat is analysis rather than breaking news — roughly four stories a
+    # year, which is what the data supports.
+    *(
+        EurostatDataset(
+            dataset=f"mar_go_qm_{country.lower()}",
+            metric="port_goods_throughput",
+            metric_label="seaborne goods handled in the country's ports",
+            unit="thousand tonnes",
+            section="maritime",
+            frequency="quarterly",
+            # No chart. The dashboard DOES publish these series, but through
+            # api/shared/ports.js, which is not an /api/baltic-compare
+            # indicator — there is no `port_goods` id and a ref naming one would
+            # 404 and render the empty "Live data" panel chart-ref.ts exists to
+            # prevent. A maritime article therefore carries no chart until a
+            # port indicator exists on the API side, which is not this
+            # package's to add. Absent is honest; dangling is not.
+            chart_ref=None,
+            params={
+                "freq": "Q",
+                "direct": "TOTAL",
+                "cargo": "TOTAL",
+                "unit": "THS_T",
+                "par_mar": "TOTAL",
+                "rep_mar": country,
+            },
+            periods=48,
+            geo_dimension="rep_mar",
+            geographies=(),
+        )
+        for country in BALTIC
+    ),
+    # --- Business demography ------------------------------------------------
+    # `business` routed to a correspondent who could never file: personas.yaml
+    # assigns the beat, and no series anywhere in the pipeline carried
+    # section="business". A masthead naming a correspondent who has never
+    # published and structurally cannot is worse than a masthead with one fewer
+    # name on it.
+    #
+    # `sts_rb_q` closes it. Verified live: registrations and bankruptcies for
+    # all three countries, 24 quarters with no gaps, through 2026-Q2 — the
+    # freshest series the newsroom reads, fresher than trade or property.
+    #
+    # Indexed (2021=100) rather than a rate of change, because an index is what
+    # `detect_record_extreme` and `detect_streak` can say something about: "the
+    # most bankruptcies in any quarter since the series began" is a story, and
+    # "bankruptcies rose 3% on the quarter" is a number.
+    EurostatDataset(
+        dataset="sts_rb_q",
+        metric="business_registrations",
+        metric_label="new business registrations",
+        unit="index (2021 = 100)",
+        section="business",
+        frequency="quarterly",
+        chart_ref="business_registrations",
+        params={"freq": "Q", "indic_bt": "REG", "nace_r2": "B-S_X_O_S94",
+                "s_adj": "SCA", "unit": "I21"},
+        periods=40,
+    ),
+    EurostatDataset(
+        dataset="sts_rb_q",
+        metric="business_bankruptcies",
+        metric_label="business bankruptcy declarations",
+        unit="index (2021 = 100)",
+        section="business",
+        frequency="quarterly",
+        chart_ref="bankruptcies",
+        params={"freq": "Q", "indic_bt": "BKRT", "nace_r2": "B-S_X_O_S94",
+                "s_adj": "SCA", "unit": "I21"},
+        periods=40,
+    ),
 )
 
 
@@ -311,8 +416,9 @@ def parse_jsonstat(
     dimensions = payload.get("dimension", {})
     raw_values = payload.get("value", {})
 
-    if "geo" not in dimension_ids or "time" not in dimension_ids:
-        log.warning("%s: response lacks geo/time dimensions", spec.dataset)
+    geo_dim = spec.geo_dimension
+    if geo_dim not in dimension_ids or "time" not in dimension_ids:
+        log.warning("%s: response lacks %s/time dimensions", spec.dataset, geo_dim)
         return []
 
     def values_at(flat_index: int) -> float | None:
@@ -324,7 +430,7 @@ def parse_jsonstat(
         value = raw_values.get(str(flat_index))
         return float(value) if isinstance(value, (int, float)) else None
 
-    geo_index: dict[str, int] = dimensions["geo"]["category"]["index"]
+    geo_index: dict[str, int] = dimensions[geo_dim]["category"]["index"]
     time_index: dict[str, int] = dimensions["time"]["category"]["index"]
     if isinstance(time_index, list):  # some responses use a list form
         time_index = {period: i for i, period in enumerate(time_index)}
@@ -339,7 +445,7 @@ def parse_jsonstat(
         for period, time_pos in sorted(time_index.items(), key=lambda kv: kv[1]):
             coords = []
             for dim_id in dimension_ids:
-                if dim_id == "geo":
+                if dim_id == geo_dim:
                     coords.append(geo_pos)
                 elif dim_id == "time":
                     coords.append(time_pos)
@@ -384,12 +490,16 @@ async def collect_eurostat(
     out: list[TimeSeries] = []
     for spec in datasets:
         url = source.endpoint.format(dataset=spec.dataset)
+        # A dataset that pins its own territorial axis asks for none here. Sending
+        # geo=LV to a per-country maritime cube that has no geo dimension is an
+        # HTTP 400, not an empty series.
+        requested = spec.geographies if spec.geographies is not None else geographies
         params: list[tuple[str, str]] = [
             ("format", "JSON"),
             ("lang", "EN"),
             ("lastTimePeriod", str(spec.periods)),
             *spec.params.items(),
-            *[("geo", geo) for geo in geographies],
+            *[(spec.geo_dimension, geo) for geo in requested],
         ]
         result = await http.fetch(
             source_id="eurostat",

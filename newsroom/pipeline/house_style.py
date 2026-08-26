@@ -116,6 +116,46 @@ EMPTY_HEDGES = (
     "several factors",
 )
 
+#: The closing that says the next release will tell us more, which every
+#: release always does. The system prompt has banned these since the depth
+#: rewrite and the model writes them anyway — the live wire closed a piece with
+#: "The upcoming inflation figures for August 2026 will provide further
+#: insights into whether this trend continues", which carries no figure and no
+#: information.
+#:
+#: A prompt rule is advisory. Listed here it is a fact: the generation loop
+#: treats a style violation like a validator failure and hands it back while
+#: the writer still has an attempt left, at the cost of no model call at all.
+#:
+#: Matched as substrings against lowered text, so each entry is the shortest
+#: fragment that is damning on its own. "will provide further insight" catches
+#: both the singular and the plural, and "figures for August will provide
+#: further insights" as well as "future data releases will".
+EMPTY_CLOSINGS = (
+    "will provide further insight",
+    "will provide further clarity",
+    "will provide more clarity",
+    "provide further insights into whether",
+    "further insights into the",
+    "time will tell",
+    "further analysis is needed",
+    "further research is needed",
+    "bears watching",
+    "bears close watching",
+    "will be crucial to assess",
+    "will be crucial in determining",
+    "will be crucial for",
+    "will be important to monitor",
+    "will be key to monitor",
+    "remains to be seen whether",
+    "may have significant implications for",
+    "could have significant implications for",
+    "it will be interesting to see",
+    "only time will reveal",
+    "warrants further attention",
+    "warrants close attention",
+)
+
 
 # --- sentence case ---------------------------------------------------------
 
@@ -242,6 +282,13 @@ def check_prose(text: str, *, where: str = "body") -> list[str]:
         if phrase in lowered:
             problems.append(f"{where}: says nothing, '{phrase}'")
 
+    for phrase in EMPTY_CLOSINGS:
+        if phrase in lowered:
+            problems.append(
+                f"{where}: empty closing, '{phrase}' — name the release and the "
+                "reading that would change the conclusion, or end a paragraph earlier"
+            )
+
     return problems
 
 
@@ -261,3 +308,37 @@ def review_headline(headline: str) -> tuple[str, list[str], list[str]]:
         fixed = fixed.rstrip(".")
 
     return fixed, violations, corrections
+
+
+def apply_house_style(article) -> StyleReport:
+    """Copy-edit an article in place and report what is left.
+
+    Corrections are applied; violations are recorded and returned separately,
+    because the two are not the same kind of thing. A correction is done and
+    needs nobody's attention. A violation is prose only the writer can fix, and
+    knowing which is which is what lets the generation loop feed the second kind
+    back while the writer still has an attempt left to act on it.
+
+    Nothing here rewrites a figure — ``sentence_case`` refuses to touch any
+    token containing a digit, so the validator's traceability guarantee is
+    unaffected.
+
+    Duck-typed rather than importing ``Article``: this module is imported by
+    the generator, and the generator is imported by everything else.
+    """
+    report = StyleReport()
+
+    fixed, violations, corrections = review_headline(article.headline or "")
+    if fixed != article.headline:
+        article.headline = fixed
+    report.corrections.extend(corrections)
+    report.violations.extend(violations)
+
+    if article.dek:
+        report.violations.extend(check_prose(article.dek, where="dek"))
+
+    for index, block in enumerate(article.body or []):
+        if block.text:
+            report.violations.extend(check_prose(block.text, where=f"body[{index}]"))
+
+    return report

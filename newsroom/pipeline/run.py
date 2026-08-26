@@ -36,7 +36,7 @@ from newsroom.pipeline.analyst import AnalystBrief, analyse
 from newsroom.pipeline.context import ContextPack, build_context, enrich_signal
 from newsroom.pipeline.detect import Threshold, detect_all
 from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
-from newsroom.pipeline.house_style import check_prose, review_headline
+from newsroom.pipeline import house_style
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
@@ -221,26 +221,14 @@ async def collect_feeds(
 def apply_house_style(article: Article) -> list[str]:
     """Copy-edits an article in place. Returns what the desk changed or flagged.
 
-    Corrections are applied; violations are recorded. Nothing here rewrites a
-    figure — `house_style.sentence_case` refuses to touch any token containing
-    a digit, so the validator's traceability guarantee is unaffected.
+    The work itself lives in ``house_style`` so that the generation loop can run
+    the identical check while the writer still has an attempt left. By the time
+    an article reaches here it has usually already been through it once and the
+    corrections are applied; what comes back is what survived, which is exactly
+    what the desk needs to see.
     """
-    notes: list[str] = []
-
-    fixed, violations, corrections = review_headline(article.headline)
-    if fixed != article.headline:
-        article.headline = fixed
-    notes.extend(corrections)
-    notes.extend(violations)
-
-    if article.dek:
-        notes.extend(check_prose(article.dek, where="dek"))
-
-    for index, block in enumerate(article.body or []):
-        if block.text:
-            notes.extend(check_prose(block.text, where=f"body[{index}]"))
-
-    return notes
+    report = house_style.apply_house_style(article)
+    return [*report.corrections, *report.violations]
 
 
 def _revision_for(
