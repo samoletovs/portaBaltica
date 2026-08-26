@@ -164,6 +164,62 @@ issued yet" as a permanent condition rather than a true one — the third time
 this repository has shipped a frontend built to a contract the backend never
 fulfilled, after `chart_ref` and the desk's `revise` verdict.
 
+### The index reserves room for our own journalism
+
+`write_index` used to sort every entry by date and keep the newest 200. That is
+a defensible shape until you notice the arithmetic underneath it.
+
+Tier C is minted at feed velocity — LSM, ERR and EUobserver supplied **154 of
+the 161** entries in the live index — while tier A is written only when the data
+warrants it, which is nought to eight a day. Sorting the two together by date
+has exactly one outcome, and replaying the live index proved it: a single
+further run's worth of syndication evicted **all seven** original articles and
+left an index that was 200/200 link-outs. The front page would then have read
+"Nothing to report yet today" beside a full rail of other outlets' headlines.
+
+So the wire would have converted itself into the aggregator this README says it
+deliberately is not — not by anyone's decision, but by a sort order.
+
+The budgets are now separate (`INDEX_MAX_OURS`, `INDEX_MAX_ELSEWHERE`).
+Syndication cannot take our allocation at any ratio, however fast the feeds run.
+Tier B counts as ours: a licensed press release is material we chose and is not
+produced at feed velocity.
+
+`scripts/index_eviction_check.py` replays the real index so the claim stays
+checkable:
+
+```
+live index: 161 entries, 7 ours, 154 link-outs
+after run +1 (100 new link-outs): 7/7 of ours kept, 50 link-outs, 57 total
+after run +3 (100 new link-outs): 7/7 of ours kept, 50 link-outs, 57 total
+```
+
+### A link-out is dated by its outlet
+
+A syndicated card's `published_at` was left unset at build time and filled in by
+the editor with its own decision time. In the live index that put **105 of 154**
+cards inside the same two minutes — the moment the timer ran — and dated a
+three-day-old ERR story to tonight.
+
+That was not only cosmetic. It is what made every link-out newer than every
+article the newsroom had ever written, and therefore what let the rail evict us.
+Cards now carry the outlet's own date, parsed from the feed; `approved_at` still
+records when we cleared it. A date we cannot parse is left unset rather than
+guessed, and the editor supplies one only in that case.
+
+### Sections are our taxonomy, for our work
+
+`SYNDICATED_SECTION` files every card under one section because the schema
+requires one. It is a **storage default, not a classification** — deciding from
+a headline what somebody else's article is about asserts a judgement we did not
+make. Do not add keyword matching to make it look real.
+
+The visible cost of forgetting that: the front page built its tab strip from
+every article, so "Government" appeared as a section, and clicking it emptied
+the main column while the rail stayed full. `NewsFeed.tsx` now derives tabs from
+our own reporting only, and the rail is not narrowed by a section filter,
+because the only section value it carries is one we assigned it.
+
 ### Why generation is batch, not per-request
 
 This sidesteps a documented platform constraint. SWA Free cannot use managed

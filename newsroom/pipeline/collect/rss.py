@@ -24,12 +24,40 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Iterable
 from xml.etree import ElementTree as _stdlib_et
 
-from newsroom.pipeline.models import FeedItem
+from newsroom.pipeline.models import FeedItem, isoformat
 
 log = logging.getLogger(__name__)
+
+
+def feed_published_at(value: str | None) -> str | None:
+    """An outlet's own publication date, normalised, or ``None`` if unreadable.
+
+    Feeds date items in RFC 2822 (``Tue, 25 Aug 2026 09:55:00 +0300``, which is
+    what ERR and LSM send) or ISO 8601, so both are accepted and anything else
+    is refused rather than guessed at. A date we cannot read is better absent
+    than invented: the caller falls back to a timestamp it can defend.
+
+    Returns the same ``...Z`` string shape the schema's ``date-time`` wants.
+    """
+    if not value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return isoformat(parsed)
 
 try:  # defusedxml refuses entity-expansion and external-entity attacks
     from defusedxml import ElementTree as ET  # type: ignore
