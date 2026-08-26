@@ -295,6 +295,16 @@ visible.
 
 ## Typography and design
 
+**[`DESIGN.md`](DESIGN.md) is the design book and it is authoritative.** Read it
+before changing anything visual. It covers spacing, radius, surfaces, colour,
+contrast floors, focus, motion and — most importantly for this project — the
+chart rules, including why a rise is not automatically good news. What follows
+here is the type scale only; everything else lives there.
+
+Two suites enforce it: `tests/typography.test.ts` and
+`tests/design-system.test.ts`. Contrast is computed rather than asserted, so a
+colour change tells you the ratio you actually shipped.
+
 **Every component on the site** — the newsroom under `src/components/news/**` and
 `src/newsroom/markdown.tsx`, *and* the dashboard under `src/components/**` —
 sizes text from the named scale in `src/index.css`. Never Tailwind's default
@@ -319,32 +329,43 @@ with a newsroom attached, readers cross between the two constantly, and two
 families across that boundary read as inconsistency rather than as register.
 Hierarchy is carried by size, weight and colour instead.
 
-Two weights only — regular and `font-semibold`. `font-bold` beside semibold
-reads as a third weight the scale never asked for. Small-caps labels are always
-`tracking-widest`; `tracking-wider` on the same kind of label is the near-miss
-that makes a page look assembled rather than designed.
+Two weights only — regular and `font-semibold`. Nothing between them. The book
+claimed this before it was true: `font-medium` appeared thirty-two times and an
+inline `fontWeight: 500` four more, and on a system UI face 400 → 500 is barely
+a change, which costs a weight and buys nothing legible. Small-caps labels are
+always `tracking-widest`; `tracking-wider` on the same kind of label is the
+near-miss that makes a page look assembled rather than designed.
 
 Every page opens the same way: an `h1` at `text-display`, sections at
 `text-title` beneath it. The dashboard used to have no page heading at all and
 headed each tile with a 14px uppercase label — smaller than the cards under it.
-Reading columns use `max-w-measure`, ~68 characters at 18px.
+An `h2` is never `text-caption`: a section heading set smaller than its own
+content stops reading as a heading. Reading columns use `max-w-measure`, ~68
+characters at 18px.
 
 Charts draw outside the DOM, so recharts sizes live in
-`src/utils/chartType.ts` (`chartTick`, `chartTooltip`) rather than inline at
-each call site. They had drifted to four sizes for two jobs.
+`src/utils/chartType.ts` (`chartTick`, `chartTooltip`) and recharts *colours* in
+`src/ThemeContext.tsx`, rather than inline at each call site. Sizes had drifted
+to four values for two jobs, and `#1e293b` was hardcoded as a gridline in three
+components while `chartColors.grid` sat unused two lines away — so the light
+theme drew near-black gridlines on white.
 
 `tests/typography.test.ts` enforces all of it across every `.tsx` in `src/`: it
 fails on an arbitrary `text-[13px]`, a raw `text-sm` anywhere, an inline
 px `fontSize`, a third weight, mixed tracking, a heading no larger than its
-prose, a dashboard section heading that is not `text-title`, and a font family
-set outside the tokens.
+prose, an `h2` at caption size, a dashboard section heading that is not
+`text-title`, and a font family set outside the tokens.
 
-**Two traps.** Tailwind v4 reads `--text-*` as the font-size namespace, but
+**Three traps.** Tailwind v4 reads `--text-*` as the font-size namespace, but
 `:root` in `index.css` also defines `--text-primary`, `--text-body` and friends
 as *colours*, and those are emitted later so they win — which is why the prose
-step is `--text-prose` and not `--text-body`. And nothing here may fetch a font
-from a third party: the CSP is `font-src 'self' data:`, and a remote font would
-disclose every reader's IP address to whoever serves it.
+step is `--text-prose` and not `--text-body`. `@theme` entries are also
+tree-shaken, so a token no utility uses may not reach the built stylesheet at
+all — anything hand-written CSS reads by `var()` belongs in `:root`, which is
+why the radius steps are `--corner-*` there rather than `--radius-*` up here.
+And nothing may fetch a font from a third party: the CSP is
+`font-src 'self' data:`, and a remote font would disclose every reader's IP
+address to whoever serves it.
 
 ## Data source patterns
 

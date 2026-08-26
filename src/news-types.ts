@@ -138,12 +138,6 @@ export interface EditorProvenance {
   notified_accountable_editor?: boolean;
   revisions?: number;
   notes?: string[];
-  /**
-   * The piece ran with the editor's notes unaddressed. Surfaced to readers:
-   * "the editor still had reservations" is exactly the sort of thing a wire
-   * that publishes its own workings should not quietly drop.
-   */
-  notes_outstanding?: boolean;
 }
 
 /**

@@ -65,7 +65,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
     <aside aria-labelledby="elsewhere-heading">
       <h2
         id="elsewhere-heading"
-        className="news-border news-subtle border-b pb-2 text-caption font-semibold uppercase tracking-widest"
+        className="news-border news-fg border-b pb-2 text-callout font-semibold"
       >
         Elsewhere in the Baltics
       </h2>
@@ -76,7 +76,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
 
       {outlets.length > 1 && (
         <div
-          className="mt-3 flex flex-wrap gap-1.5"
+          className="mt-3 flex flex-wrap gap-2"
           role="group"
           aria-label="Filter by outlet"
         >
@@ -85,7 +85,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
             onClick={() => choose(ALL)}
             aria-pressed={outlet === ALL}
             className={[
-              'news-focus rounded-full border px-3 py-1 text-caption font-medium transition-colors',
+              'rounded-full border px-3 py-1 text-caption transition-colors',
               outlet === ALL ? 'news-tab-active' : 'news-tab-inactive news-hover',
             ].join(' ')}
           >
@@ -102,7 +102,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
               // announces as "EUobserver2".
               aria-label={`${name}, ${count} ${count === 1 ? 'story' : 'stories'}`}
               className={[
-                'news-focus rounded-full border px-3 py-1 text-caption font-medium transition-colors',
+                'rounded-full border px-3 py-1 text-caption transition-colors',
                 outlet === name ? 'news-tab-active' : 'news-tab-inactive news-hover',
               ].join(' ')}
             >
@@ -131,7 +131,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
             <button
               type="button"
               onClick={() => setShowAll(true)}
-              className="news-link news-focus mt-4 text-caption font-medium underline underline-offset-4"
+              className="news-link mt-4 text-caption underline underline-offset-4"
             >
               Show {hidden} more{outlet === ALL ? ' from other outlets' : ` from ${outlet}`}
             </button>

@@ -40,6 +40,19 @@ function concurrencyBlock(): string {
   return rest.slice(0, end === -1 ? rest.length : end).join('\n');
 }
 
+/** The lines of one `- name: <step>` step, up to the next step at its indent. */
+function stepBlock(name: string): string {
+  const lines = workflow.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `- name: ${name}`);
+  if (start === -1) return '';
+  const indent = lines[start].search(/\S/);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex(
+    (line) => line.trim() !== '' && line.search(/\S/) <= indent,
+  );
+  return [lines[start], ...rest.slice(0, end === -1 ? rest.length : end)].join('\n');
+}
+
 describe('deploy workflow concurrency', () => {
   it('declares a top-level concurrency block', () => {
     // Without one, simultaneous deploys race into Azure SWA and it rejects the
@@ -85,5 +98,20 @@ describe('deploy workflow deploy path', () => {
     // lint error blocks every deploy, not just its own run. That is the right
     // trade, but it is why a red master must be treated as an outage.
     expect(workflow).toMatch(/needs:\s*quality/);
+  });
+
+  it('never uploads to Azure SWA on a pull_request', () => {
+    // An upload on a pull_request does not touch production: Azure creates a
+    // staging environment per PR, and the Free tier allows three. Once three
+    // were live every further PR run failed with "This Static Web App already
+    // has the maximum number of staging environments", which no change under
+    // review can fix. The step must stay push-only.
+    const step = stepBlock('Deploy to Azure SWA');
+    expect(step, 'deploy.yml has no "Deploy to Azure SWA" step').not.toBe('');
+    const condition = /^\s*if:\s*(.+)$/m.exec(step)?.[1]?.trim();
+    expect(
+      condition,
+      'the SWA upload step must be push-gated, or open PRs exhaust the Free tier staging quota',
+    ).toBe("github.event_name == 'push'");
   });
 });

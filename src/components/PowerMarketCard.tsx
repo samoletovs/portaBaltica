@@ -4,11 +4,17 @@ import { useTheme } from '../ThemeContext';
 import { fetchPowerPrices, type PowerPriceData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
 
-const ZONE_COLORS: Record<string, string> = {
-  ee: '#34d399',
-  lv: '#38bdf8',
-  lt: '#fbbf24',
-  fi: '#a78bfa',
+/** Bidding zone → the shared series palette, so a zone is the same colour here
+ *  as the country is on every comparison chart. */
+const ZONE_SERIES = { ee: 'EE', lv: 'LV', lt: 'LT', fi: 'FI' } as const;
+const ZONE_ORDER = ['ee', 'lv', 'lt', 'fi'] as const;
+
+/** Same encoding rule as the comparison chart: hue plus a stroke pattern. */
+const ZONE_DASH: Record<string, string | undefined> = {
+  lv: undefined,
+  ee: '6 3',
+  lt: '2 3',
+  fi: '8 2 2 2',
 };
 
 function formatHour(iso: string): string {
@@ -62,17 +68,18 @@ export function PowerMarketCard() {
     : 0;
 
   const chartData = data.series.map((p) => ({ ...p, label: formatHour(p.time) }));
+  const zoneColor = (id: string) => chartColors.series[ZONE_SERIES[id as keyof typeof ZONE_SERIES]];
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
+    <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-start justify-between mb-3 gap-3">
         <div>
-          <p className="text-ui font-medium text-white">Baltic power market</p>
-          <p className="text-caption text-slate-500">Day-ahead price by bidding zone · {data.unit}</p>
+          <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>Baltic power market</p>
+          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Day-ahead price by bidding zone · {data.unit}</p>
         </div>
         <div
-          className={`px-2 py-1 rounded-md text-caption font-medium whitespace-nowrap ${
-            decoupled ? 'bg-amber-900/40 text-amber-300' : 'bg-emerald-900/40 text-emerald-300'
+          className={`px-2 py-1 rounded text-caption font-semibold whitespace-nowrap ${
+            decoupled ? 'news-status-warning' : 'news-status-positive'
           }`}
           title={
             decoupled
@@ -87,11 +94,11 @@ export function PowerMarketCard() {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {data.zones.map((z) => (
           <div key={z.id} className="text-center">
-            <p className="text-caption text-slate-400">{z.flag} {z.label}</p>
-            <p className="text-ui font-mono font-semibold" style={{ color: ZONE_COLORS[z.id] }}>
+            <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{z.flag} {z.label}</p>
+            <p className="text-ui font-mono font-semibold" style={{ color: zoneColor(z.id) }}>
               {z.current !== null ? `€${z.current.toFixed(2)}` : '—'}
             </p>
-            <p className="text-caption text-slate-600 font-mono">
+            <p className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
               {z.min !== null && z.max !== null ? `${z.min.toFixed(0)}–${z.max.toFixed(0)}` : ''}
             </p>
           </div>
@@ -101,7 +108,7 @@ export function PowerMarketCard() {
       <div className="h-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="label"
               tick={chartTick(chartColors.axis)}
@@ -114,34 +121,36 @@ export function PowerMarketCard() {
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
               width={40}
+              tickCount={6}
             />
             <Tooltip
               contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
-              labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
+              labelStyle={{ color: chartColors.axis }}
               formatter={(v, name) => {
                 const zone = data.zones.find((z) => z.id === name);
                 return [v === null ? '—' : `€${(v as number).toFixed(2)}`, zone?.label ?? String(name)];
               }}
             />
             {data.currentTime && (
-              <ReferenceLine x={formatHour(data.currentTime)} stroke="#64748b" strokeDasharray="2 2" />
+              <ReferenceLine x={formatHour(data.currentTime)} stroke={chartColors.reference} strokeDasharray="2 2" />
             )}
-            {(['ee', 'lv', 'lt', 'fi'] as const).map((zone) => (
+            {ZONE_ORDER.map((zone) => (
               <Line
                 key={zone}
                 type="stepAfter"
                 dataKey={zone}
-                stroke={ZONE_COLORS[zone]}
+                stroke={zoneColor(zone)}
+                strokeDasharray={ZONE_DASH[zone]}
                 strokeWidth={1.6}
                 dot={false}
-                connectNulls
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <p className="text-caption text-slate-600 mt-2">
+      <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
         {decoupledShare}% of intervals decoupled today
         {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
         {' · '}Source: {data.source}

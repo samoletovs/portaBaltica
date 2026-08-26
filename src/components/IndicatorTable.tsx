@@ -3,8 +3,10 @@ import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useCountry } from '../CountryContext';
 import { useFilter } from '../FilterContext';
+import { useTheme } from '../ThemeContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
+import { changeDescription, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
@@ -28,6 +30,7 @@ export function IndicatorTable() {
   const navigate = useNavigate();
   const { country, countryLabel } = useCountry();
   const { years } = useFilter();
+  const { chartColors } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -104,18 +107,22 @@ export function IndicatorTable() {
       {/* Data rows */}
       {rows.map((row) => {
         const chartData = row.series.filter((s) => s.value !== null).slice(-12);
-        const isUp = row.summary.change !== null && row.summary.change >= 0;
-        const changeColor = row.summary.change === null ? 'text-slate-400' : isUp ? 'text-emerald-400' : 'text-red-400';
-        const lineColor = isUp ? '#34d399' : '#f87171';
+        const change = row.summary.change;
+        const isRise = change !== null && change > 0;
+        const sentiment = sentimentOf(row.id, change);
+        // The trend line is neutral. It used to be green when the last change
+        // was positive and red otherwise, so a column of sparklines read as a
+        // column of verdicts. See DESIGN.md §3.5.
+        const lineColor = chartColors.seriesDefault;
 
         return (
           <button
             key={row.id}
             onClick={() => navigate(`/indicator/${row.id}`)}
-            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2.5 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
+            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
-            <div className="min-w-0 flex items-baseline gap-1.5 overflow-hidden">
+            <div className="min-w-0 flex items-baseline gap-2 overflow-hidden">
               <span className="text-ui text-white group-hover:text-slate-200 transition-colors truncate shrink">{row.title}</span>
               <span className="text-caption text-slate-500 shrink-0">{row.unit}</span>
             </div>
@@ -125,10 +132,19 @@ export function IndicatorTable() {
             <span className="hidden sm:block text-ui text-right text-slate-400 font-mono self-center">
               {formatValue(row.summary.previous, row.unit)}
             </span>
-            <span className={`text-caption sm:text-ui text-right font-mono self-center ${changeColor}`}>
-              {row.summary.change !== null
-                ? `${isUp ? '▲' : '▼'} ${formatValue(Math.abs(row.summary.change), row.unit)}`
-                : '—'}
+            <span
+              className="text-caption sm:text-ui text-right font-mono self-center"
+              style={{ color: change === null || change === 0 ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
+            >
+              {change !== null && change !== 0 ? (
+                <>
+                  <span aria-hidden="true">{isRise ? '▲' : '▼'} </span>
+                  {signed(formatValue(Math.abs(change), row.unit), change)}
+                  <span className="sr-only"> {changeDescription(row.id, change)}</span>
+                </>
+              ) : (
+                '—'
+              )}
             </span>
             <div className="hidden sm:block h-6 w-full self-center">
               <ResponsiveContainer width="100%" height="100%">

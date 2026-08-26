@@ -47,7 +47,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold text-white mb-5">Business intelligence</h2>
+      <h2 className="balance-text text-title font-semibold text-white mb-6">Business intelligence</h2>
       {country !== 'LV' && (
         <div className="mb-3 px-3 py-2 rounded-lg text-caption" style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}>
           🇱🇻 This section shows Latvia data only. Estonia and Lithuania business registries coming soon.
@@ -56,7 +56,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* UBO Search */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <p className="text-caption text-slate-400 mb-2">Who Owns This Company?</p>
           <p className="text-caption text-slate-500 mb-3">Search Latvia's Beneficial Owners Registry (195K+ records)</p>
 
@@ -67,7 +67,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Company reg# or surname..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500 focus:outline-none focus:border-slate-500"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500"
               aria-label="Search beneficial owners by company registration number or surname"
             />
             <button
@@ -120,7 +120,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
         </div>
 
         {/* EU Recovery Fund */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <p className="text-caption text-slate-400 mb-2">EU Recovery & Resilience Fund</p>
 
           {euLoading && (
@@ -169,7 +169,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
         </div>
 
         {/* Address Search */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <p className="text-caption text-slate-400 mb-2">Address Lookup</p>
           <p className="text-caption text-slate-500 mb-3">Search 608K+ Latvian addresses with GPS coordinates</p>
 
@@ -180,7 +180,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setAddrQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
               placeholder="Street, city, or postal code..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500 focus:outline-none focus:border-slate-500"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500"
               aria-label="Search Latvian addresses"
             />
             <button
@@ -194,13 +194,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
           </div>
 
           {addrResult && (
-            <div className="space-y-1.5 max-h-52 overflow-y-auto">
+            <div className="space-y-2 max-h-52 overflow-y-auto">
               {addrResult.addresses.slice(0, 8).map((addr) => (
                 <div key={addr.code} className="bg-slate-800/40 rounded-lg p-2">
                   <p className="text-caption text-white leading-snug">{addr.fullAddress}</p>
                   <div className="flex items-center gap-2 mt-1">
                     {addr.postalCode && (
-                      <span className="text-caption text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">{addr.postalCode}</span>
+                      <span className="text-caption text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded">{addr.postalCode}</span>
                     )}
                     {addr.lat && addr.lon && (
                       <a

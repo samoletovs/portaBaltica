@@ -93,14 +93,27 @@ class TestTheIndexAccumulates:
         assert payload["articles"][0]["headline"] == "Corrected", "the newer run must win"
 
     def test_the_index_is_capped_so_it_cannot_grow_without_bound(self, tmp_path) -> None:
+        """The bound is now per kind, because one shared cap was the bug.
+
+        ``article()`` builds tier A, so the ceiling that applies is the reserved
+        allocation for our own reporting. A single global cap let syndication —
+        which is minted at feed velocity — evict every original article in the
+        index; see test_index_reserves_our_work.py.
+        """
         store = ArticleStore(local_dir=tmp_path)
-        cap = ArticleStore.INDEX_MAX_ENTRIES
+        cap = ArticleStore.INDEX_MAX_OURS
         batch = [
             article(f"story-{i:04d}", published_at=f"2026-08-24T{i % 24:02d}:00:00Z")
             for i in range(cap + 25)
         ]
         asyncio.run(store.write_index(batch))
         assert read_index(tmp_path)["count"] == cap
+
+    def test_the_two_budgets_sum_to_the_total_bound(self) -> None:
+        assert (
+            ArticleStore.INDEX_MAX_OURS + ArticleStore.INDEX_MAX_ELSEWHERE
+            == ArticleStore.INDEX_MAX_ENTRIES
+        )
 
     def test_a_corrupt_existing_index_does_not_lose_the_new_run(self, tmp_path) -> None:
         """Fail forward: a damaged index must not block today's publishing."""

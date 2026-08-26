@@ -254,7 +254,13 @@ def _log_rejection_forensics(result: GenerationResult, signal: Signal) -> None:
         log.warning("  signal fields: %s", fields)
         for index, block in enumerate(result.article.body):
             declared = ", ".join(f"{f.rendered_as or f.value}<-{f.signal_field}" for f in block.figures)
-            log.warning("  body[%d] declared [%s] text: %s", index, declared, (block.text or "")[:400])
+            # A chart block carries no text. Slicing None threw a TypeError here,
+            # so the one log line written to explain a rejection was itself the
+            # thing that failed — and the eight rejections of 2026-08-25 had to
+            # be diagnosed from the one-line summary because of it.
+            log.warning(
+                "  body[%d] declared [%s] text: %s", index, declared, (block.text or "")[:400]
+            )
     except Exception:  # diagnostics must never break a run
         log.exception("failed to log rejection forensics")
 

@@ -43,7 +43,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         {/* Electricity — hourly bar chart */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-caption text-slate-400 font-medium uppercase tracking-widest">Electricity</p>
+            <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest">Electricity</p>
             {data && (
               <p className="text-lead font-semibold text-white font-mono">
                 €{data.electricityCurrent.toFixed(2)}<span className="text-caption font-normal text-slate-500 ml-1">/MWh</span>
@@ -65,7 +65,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                   <span className="text-emerald-400">Low €{minPrice.toFixed(2)}</span>
                   <span className="text-red-400">High €{maxPrice.toFixed(2)}</span>
                   {data.electricityCurrent < 0 && (
-                    <span className="text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded">Negative price</span>
+                    <span className="text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">Negative price</span>
                   )}
                 </div>
                 <div className="h-28">
@@ -80,7 +80,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                         formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}
                         labelFormatter={(label) => `Today ${label}`}
                       />
-                      <Bar dataKey="price" fill="#38bdf8" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="price" fill={chartColors.seriesDefault} radius={[2, 2, 0, 0]} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -94,13 +94,13 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
         {/* Exchange rates table */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
-          <p className="text-caption text-slate-400 font-medium uppercase tracking-widest mb-3">Exchange rates</p>
+          <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
           {data ? (
             <div className="space-y-1">
               {data.exchangeRates.map((rate) => (
                 <div key={rate.currency} className="flex items-center justify-between py-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-ui text-slate-300 font-medium">EUR/{rate.currency}</span>
+                    <span className="text-ui text-slate-300">EUR/{rate.currency}</span>
                     <span className="text-caption text-slate-500">{rate.name}</span>
                   </div>
                   <span className="text-ui font-mono text-white">{rate.rate.toFixed(4)}</span>
@@ -140,7 +140,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
 
       {/* Baltic comparison */}
       <div>
-        <h3 className="text-caption text-slate-400 font-medium uppercase tracking-widest mb-3">Baltic comparison</h3>
+        <h3 className="text-callout font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Baltic comparison</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <BalticCompareChart indicator="gdp" title="GDP growth" compact />
           <BalticCompareChart indicator="unemployment" title="Unemployment" compact />

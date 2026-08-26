@@ -36,18 +36,18 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
   return (
     <section>
-      <h2 className="balance-text text-title font-semibold mb-5" style={{ color: 'var(--text-primary)' }}>Environment <span className="font-normal" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel}</span></h2>
+      <h2 className="balance-text text-title font-semibold mb-6" style={{ color: 'var(--text-primary)' }}>Environment <span className="font-normal" style={{ color: 'var(--text-tertiary)' }}>{flag} {countryLabel}</span></h2>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Weather */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5 md:col-span-2">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2">
           <p className="text-caption text-slate-400 mb-3">Current Weather</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {data.weather.map((w) => (
               <div key={w.city} className="text-center">
                 <p className="text-title mb-1">{WEATHER_ICONS[w.description] ?? '🌡️'}</p>
                 <p className="text-lead font-semibold text-white">{w.temperature.toFixed(0)}°</p>
-                <p className="text-ui font-medium text-slate-200">{w.city}</p>
+                <p className="text-ui text-slate-200">{w.city}</p>
                 <p className="text-caption text-slate-400">{w.description}</p>
                 <p className="text-caption text-slate-500">
                   💨 {w.windSpeed.toFixed(0)} km/h · 💧 {w.humidity}%
@@ -61,7 +61,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
         {/* Air quality + Population */}
         <div className="space-y-4">
           {/* Air quality */}
-          <div className={`${aqiStyle.bg} backdrop-blur-sm border ${aqiStyle.ring}/30 rounded-xl p-5`}>
+          <div className={`${aqiStyle.bg} backdrop-blur-sm border ${aqiStyle.ring}/30 rounded-xl p-6`}>
             <p className="text-caption text-slate-400 mb-2">Air Quality · {capital}</p>
             <div className="flex items-center gap-3 mb-2">
               <div className={`w-12 h-12 rounded-full border-3 ${aqiStyle.ring} flex items-center justify-center`}>
@@ -87,7 +87,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
           </div>
 
           {/* Population */}
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5">
+          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
             <p className="text-caption text-slate-400 mb-1">{capital} area population</p>
             <p className="text-title font-semibold text-white font-mono">
               {(data.capitalPopulation ?? data.rigaPopulation) != null
@@ -113,7 +113,7 @@ function TileSkeleton() {
         <span className="text-slate-400">🌤️</span> Environment & Daily Life
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5 md:col-span-2 animate-pulse">
+        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2 animate-pulse">
           <div className="h-3 bg-slate-700/30 rounded w-1/4 mb-4" />
           <div className="grid grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
@@ -125,11 +125,11 @@ function TileSkeleton() {
           </div>
         </div>
         <div className="space-y-4">
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5 animate-pulse">
+          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
             <div className="h-12 w-12 bg-slate-700/30 rounded-full mb-2" />
             <div className="h-4 bg-slate-700/30 rounded w-1/2" />
           </div>
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-5 animate-pulse">
+          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
             <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-2" />
             <div className="h-6 bg-slate-700/30 rounded w-1/2" />
           </div>

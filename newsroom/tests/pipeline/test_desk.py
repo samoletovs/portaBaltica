@@ -16,6 +16,7 @@ import pytest
 
 from newsroom.pipeline.desk import (
     DESK_PROMPT_VERSION,
+    FINAL_CALL_PROMPT,
     SYSTEM_PROMPT,
     DeskAction,
     MAX_REVISIONS,
@@ -156,67 +157,122 @@ class TestRevision:
         assert outcome.revisions == 1
         assert revised.status == "published"
 
-    def test_a_second_refusal_runs_the_piece_with_notes_outstanding(self) -> None:
-        """Still-has-notes is not the same as should-not-exist.
-
-        This used to hold the article, and it emptied the wire: a live run put
-        eight correct, validator-passed pieces in front of the desk and
-        published none, every one held on a second "revise". A model asked to
-        critique will always find something, so "approve on the second read or
-        die" is a gate almost nothing passes.
-        """
+    def test_a_second_refusal_goes_to_a_final_call_not_straight_to_the_spike(self) -> None:
+        # One rewrite, then a decision. A desk that can ask forever is a loop
+        # with a token budget attached — but the decision is the editor's, made
+        # on the copy in hand, not the loop's made by default.
         article = make_article()
         writer = FakeWriter(
             {"decision": "revise", "reason": "thin", "notes": ["explain it"]},
             {"decision": "revise", "reason": "still thin", "notes": ["explain it"]},
-        )
-
-        outcome = run_desk(article, writer, revise=lambda a, n: make_article())
-
-        assert outcome.action is DeskAction.APPROVE
-        assert outcome.notes_outstanding is True
-        assert outcome.revisions == MAX_REVISIONS
-        assert "notes outstanding" in outcome.reason
-        # The decision is recorded on the piece that actually publishes — the
-        # rewrite — and the reader is told, rather than the reservation hidden.
-        published = outcome.revised_article
-        assert published is not None
-        assert published.provenance["editor"]["notes_outstanding"] is True
-        assert published.status == "published"
-
-    def test_an_explicit_rejection_after_a_revision_still_spikes_it(self) -> None:
-        """The gate that was NOT loosened. "Reject" means reject."""
-        article = make_article()
-        writer = FakeWriter(
-            {"decision": "revise", "reason": "thin", "notes": ["explain it"]},
-            {"decision": "reject", "reason": "the finding is trivial"},
+            {"decision": "reject", "reason": "not fit to run in this state"},
         )
 
         outcome = run_desk(article, writer, revise=lambda a, n: make_article())
 
         assert outcome.action is DeskAction.REJECT
-        assert not outcome.publishable
+        assert outcome.revisions == MAX_REVISIONS
+        assert "not approved" in outcome.reason
+        assert "THIS IS THE REWRITE YOU ASKED FOR" in writer.prompts[2]
 
-    def test_a_failed_rewrite_runs_the_article_as_filed(self) -> None:
-        """The desk asked for a revision, not a spike.
+    def test_a_rewrite_the_desk_still_has_notes_on_may_still_run(self) -> None:
+        """"Revise" is a fixable fault, not a fatal one.
 
-        The article in hand already passed the validator, so it is correct. The
-        rewrite failing the arithmetic gate is a fact about the rewrite, not a
-        judgement that the story should not run.
+        The loop spiked these as "still unsatisfactory after revision" — four of
+        six articles in a live run — each of them a draft the validator had
+        certified, against a note the editor itself had called fixable.
         """
         article = make_article()
-        writer = FakeWriter({"decision": "revise", "reason": "thin", "notes": ["explain"]})
+        rewritten = make_article(headline="Estonian unemployment falls again in June")
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain it"]},
+            {"decision": "revise", "reason": "still thin", "notes": ["explain it"]},
+            {"decision": "approve", "reason": "worth running as it stands"},
+        )
+
+        outcome = run_desk(article, writer, revise=lambda a, n: rewritten)
+
+        assert outcome.publishable
+        assert outcome.revised_article is rewritten, (
+            "an approval here must publish the rewrite, not the draft the "
+            "editor sent back"
+        )
+
+    def test_a_failed_rewrite_goes_back_to_the_editor_for_a_final_call(self) -> None:
+        """A failed improvement must not spike a piece that already passed.
+
+        The rewrite is an attempt to make a correct article better. When it
+        fails, the article in hand is still the one the validator certified and
+        the editor's verdict on it was "revise" -- a fixable fault, not a fatal
+        one. Discarding it silently converted every "revise" the writer could
+        not satisfy into a "reject": four of seven articles in a live run, each
+        accurate, none of them ever actually refused.
+        """
+        article = make_article()
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain the basis"]},
+            {"decision": "approve", "reason": "worth running as filed"},
+        )
 
         outcome = run_desk(article, writer, revise=lambda a, n: None)
 
         assert outcome.action is DeskAction.APPROVE
-        assert outcome.notes_outstanding is True
+        assert outcome.revised_article is article, (
+            "an approval on the final call must hand back the copy it approved, "
+            "or the run has nothing to publish"
+        )
         assert article.status == "published"
-        assert "could not be made" in outcome.reason
+        assert "no further rewrite was possible" in outcome.reason
+
+    def test_the_final_call_is_told_a_rewrite_is_not_available(self) -> None:
+        article = make_article()
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain the basis"]},
+            {"decision": "approve", "reason": "fine"},
+        )
+
+        run_desk(article, writer, revise=lambda a, n: None)
+
+        assert len(writer.prompts) == 2
+        assert "COULD NOT BE PRODUCED" in writer.prompts[1]
+        assert "explain the basis" in writer.prompts[1]
+
+    def test_the_editor_may_still_spike_it_on_the_final_call(self) -> None:
+        article = make_article()
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain"]},
+            {"decision": "reject", "reason": "not worth running in this state"},
+        )
+
+        outcome = run_desk(article, writer, revise=lambda a, n: None)
+
+        assert outcome.action is DeskAction.REJECT
+        assert article.status == "rejected"
+
+    def test_a_third_revise_on_the_final_call_is_not_an_approval(self) -> None:
+        """Fail closed. "revise" was withdrawn, so returning it approves nothing."""
+        article = make_article()
+        writer = FakeWriter(
+            {"decision": "revise", "reason": "thin", "notes": ["explain"]},
+            {"decision": "revise", "reason": "still thin", "notes": ["explain"]},
+        )
+
+        outcome = run_desk(article, writer, revise=lambda a, n: None)
+
+        assert outcome.action is DeskAction.REJECT
+        assert article.status == "rejected"
+
+    def test_an_unreachable_editor_on_the_final_call_holds_the_article(self) -> None:
+        article = make_article()
+        # One queued response, so the final call finds the writer exhausted.
+        writer = FakeWriter({"decision": "revise", "reason": "thin", "notes": ["explain"]})
+
+        outcome = run_desk(article, writer, revise=lambda a, n: None)
+
+        assert outcome.action is DeskAction.REJECT
+        assert article.status == "rejected"
 
     def test_revise_without_a_rewriter_holds_rather_than_publishes(self) -> None:
-        """A desk with no revision machinery is a broken pipeline, not an
-        editorial judgement, and broken components still fail closed."""
         article = make_article()
         writer = FakeWriter({"decision": "revise", "reason": "thin"})
 
@@ -289,8 +345,79 @@ class TestTheDeskDoesNotDemandFabrication:
         # The point is not to relax accuracy. Rule 3 must survive intact.
         assert "Is anything asserted that the data does not support?" in SYSTEM_PROMPT
 
-    def test_triviality_is_still_grounds_for_rejection(self):
-        assert "Reject for triviality" in SYSTEM_PROMPT
+    def test_triviality_is_no_longer_grounds_for_rejection(self):
+        """The desk was re-litigating a decision made upstream, and losing it.
+
+        Once the validator stopped rejecting everything, the desk became the
+        binding constraint: it rejected four of six articles in a live run and
+        three of those went straight to "reject" with no rewrite asked for. Its
+        stated reasons were "the finding is trivial", "lacks news value",
+        "lacks significance" -- about findings the ranking layer had scored
+        between 0.90 and 0.96 out of eighteen candidates over thirty-six series.
+
+        The desk sees one article. It cannot weigh a finding against a field it
+        never saw, and the deterministic floor that already did is absolute. So
+        the verdict was withdrawn: significance of the FINDING is upstream, and
+        a finding that reads as unremarkable is a writing fault, which is a
+        revision.
+        """
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+
+        assert "are not verdicts available to you" in collapsed
+        assert "You do not have the evidence to re-decide it" in collapsed
+        assert "the verdict for that is \"revise\"" in collapsed
+
+    def test_the_brief_never_offers_triviality_back_as_a_reject_reason(self):
+        """The rule and its contradiction lived eight lines apart.
+
+        The closing paragraph still read: 'Use "reject" when the story should
+        not exist -- the finding is trivial'. A brief that forbids something in
+        one paragraph and licenses it in the next is not a brief.
+        """
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+
+        assert "the finding is trivial, or the data does not support" not in collapsed
+
+    def test_the_brief_tells_the_desk_most_pieces_should_run(self):
+        # Without a stated prior the model supplies its own, and its own is
+        # "look rigorous". Everything reaching the desk has already passed a
+        # validator that proved every figure traceable.
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+
+        assert "Most pieces that reach you should end here" in collapsed
+
+    def test_the_brief_forbids_spiking_a_piece_for_a_figure_it_may_not_have(self):
+        """The same deadlock, a second time, on a different axis.
+
+        The wire already fixed "the desk asks for a cause the writer may not
+        invent". It then reappeared as "the desk asks for a comparison FIGURE
+        the writer may not invent" -- four of seven rejections in a live
+        production run:
+
+            "lacks a clear comparison basis by not stating the previous
+             month's figure"
+            "lacks a comparison figure from the previous quarter"
+            "lacks a clear comparison to the previous year's retail trade
+             volume percentage"
+
+        The writer gets a closed list of verified figures and the validator
+        rejects anything outside it. A number that is not on that list cannot be
+        added, so demanding one is a demand for a fabrication -- and it was
+        being used to spike accurate work, not merely to ask for a rewrite.
+        """
+        collapsed = " ".join(SYSTEM_PROMPT.split())
+
+        assert "you may not spike a piece for lacking one" in collapsed
+        assert "requests for a fabrication" in collapsed
+        assert "Judge whether it is clear, not whether it is numeric" in collapsed
+
+    def test_the_final_call_repeats_it_where_the_rejections_happened(self):
+        # The rule lived in the system prompt while every one of those
+        # rejections was returned from the final call, where the editor is
+        # already looking for a reason to say no.
+        collapsed = " ".join(FINAL_CALL_PROMPT.split())
+
+        assert "that is not a fault in the piece and not a reason to spike it" in collapsed
 
     def test_the_prompt_version_moved_with_the_brief(self):
         # Provenance records the desk prompt version. Changing what the editor

@@ -43,14 +43,14 @@ export function ApiDocsPage() {
           {API_ENDPOINTS.map((ep) => (
             <div key={ep.path} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-caption font-mono font-medium px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)' }}>
+                <span className="text-caption font-mono px-2 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)' }}>
                   {ep.method}
                 </span>
                 <code className="text-ui font-mono" style={{ color: 'var(--text-primary)' }}>{ep.path}</code>
                 {ep.params && <code className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>{ep.params}</code>}
               </div>
               <p className="text-caption mb-1" style={{ color: 'var(--text-body)' }}>{ep.description}</p>
-              <span className="text-caption" style={{ color: 'var(--text-muted)' }}>Cache: {ep.cache}</span>
+              <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Cache: {ep.cache}</span>
             </div>
           ))}
         </div>
@@ -72,8 +72,8 @@ export function ApiDocsPage() {
         {/* Pricing */}
         <h2 className="balance-text text-title font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Pricing</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
-          <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-            <p className="text-ui font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Free</p>
+          <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+            <p className="text-ui mb-1" style={{ color: 'var(--text-primary)' }}>Free</p>
             <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€0</p>
             <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>All dashboard data</li>
@@ -83,8 +83,8 @@ export function ApiDocsPage() {
               <li>3 country support</li>
             </ul>
           </div>
-          <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '2px solid #2563eb' }}>
-            <p className="text-ui font-medium mb-1" style={{ color: '#2563eb' }}>Pro</p>
+          <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '2px solid var(--news-accent)' }}>
+            <p className="text-ui mb-1" style={{ color: 'var(--news-accent)' }}>Pro</p>
             <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€15<span className="text-ui font-normal" style={{ color: 'var(--text-tertiary)' }}>/month</span></p>
             <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>Everything in Free</li>
@@ -93,10 +93,10 @@ export function ApiDocsPage() {
               <li>Custom indicator watchlist</li>
               <li>30+ day history</li>
             </ul>
-            <p className="text-caption mt-3" style={{ color: 'var(--text-muted)' }}>Coming soon</p>
+            <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>Coming soon</p>
           </div>
-          <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-            <p className="text-ui font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Enterprise</p>
+          <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+            <p className="text-ui mb-1" style={{ color: 'var(--text-primary)' }}>Enterprise</p>
             <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€49<span className="text-ui font-normal" style={{ color: 'var(--text-tertiary)' }}>/month</span></p>
             <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>Everything in Pro</li>
@@ -105,11 +105,11 @@ export function ApiDocsPage() {
               <li>White-label embed</li>
               <li>Priority support</li>
             </ul>
-            <p className="text-caption mt-3" style={{ color: 'var(--text-muted)' }}>Coming soon</p>
+            <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>Coming soon</p>
           </div>
         </div>
 
-        <p className="text-caption" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
           Data from CSP Latvia, Eurostat, ECB, Elering, data.gov.lv, Open-Meteo. All government data is published under CC0 or CC-BY licenses.
           Built by <a href="https://naurolabs.com" style={{ color: 'var(--text-secondary)' }}>NauroLabs</a>.
         </p>

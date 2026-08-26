@@ -434,7 +434,13 @@ def _apply_outcome(article: Article, outcome: EditorOutcome) -> None:
     provenance["editor"] = outcome.to_dict()
     if outcome.action is EditorAction.APPROVE:
         article.status = "published"
-        article.published_at = outcome.decided_at
+        # Only when the material has no date of its own. A syndicated card
+        # carries the outlet's publication date, and overwriting it with our
+        # decision time both misdates their story and makes every link-out
+        # newer than everything we have written. When we approved it is
+        # recorded below, which is the question this timestamp was answering.
+        if not article.published_at:
+            article.published_at = outcome.decided_at
         provenance["approved_by"] = outcome.editor
         provenance["approved_at"] = outcome.decided_at
     else:

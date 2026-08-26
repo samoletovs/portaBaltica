@@ -252,6 +252,56 @@ describe('every page', () => {
     expect(sizeOf(headings[3])).toBeGreaterThan(sizes.prose);
   });
 
+  it('gives a heading more space above it than below, and less as it descends', () => {
+    // Carbon: "the top level headers have more space surrounding them giving
+    // them focus and prominence. Then as the headers descend in importance
+    // they receive less space." A heading belongs to the content beneath it,
+    // so it must sit closer to that than to whatever it follows.
+    const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
+    const headings = Object.fromEntries(
+      [...markdown.matchAll(/^\s*(\d):\s*'([^']+)',$/gm)].map(([, level, classes]) => [
+        Number(level),
+        classes,
+      ]),
+    );
+
+    function step(classes: string, prefix: 'mt' | 'mb'): number {
+      const value = classes.match(new RegExp(`\\b${prefix}-(\\d+)\\b`))?.[1];
+      return value ? Number(value) : 0;
+    }
+
+    for (const level of [2, 3, 4]) {
+      expect(
+        step(headings[level], 'mt'),
+        `h${level} needs more room above it than below it`,
+      ).toBeGreaterThan(step(headings[level], 'mb'));
+    }
+
+    // Normalising an off-scale `mt-9`/`mt-7` pair onto the scale collapsed h3
+    // and h4 onto the same step, which erased a level of the hierarchy.
+    expect(step(headings[2], 'mt')).toBeGreaterThan(step(headings[3], 'mt'));
+    expect(step(headings[3], 'mt')).toBeGreaterThan(step(headings[4], 'mt'));
+  });
+
+  it('never makes an h2 a 12px label', () => {
+    // An `h2` introduces a section, and a section heading set smaller than the
+    // content beneath it stops reading as a heading. The dashboard headed its
+    // insights panel and its comparison grid with 12px uppercase labels — the
+    // same inversion the type pass fixed one level up and left here.
+    //
+    // `text-caption` on an `h4`, or on a `<p>` label inside a card, is a
+    // different object and stays allowed: see markdown.tsx.
+    const offenders: string[] = [];
+
+    for (const { file, text } of allComponents()) {
+      for (const [match] of text.matchAll(/<h2[^>]*className="[^"]*"/g)) {
+        if (/\btext-caption\b/.test(match)) offenders.push(`${file}: ${match}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('gives dashboard sections the same heading step as newsroom sections', () => {
     // The dashboard used to head each section with a 14px uppercase label,
     // which is smaller than the cards beneath it. News and data are one

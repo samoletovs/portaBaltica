@@ -1,16 +1,32 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
 
-const COUNTRY_COLORS: Record<string, { color: string; label: string; flag: string }> = {
-  LV: { color: '#38bdf8', label: 'Latvia', flag: '🇱🇻' },
-  EE: { color: '#34d399', label: 'Estonia', flag: '🇪🇪' },
-  LT: { color: '#fbbf24', label: 'Lithuania', flag: '🇱🇹' },
+/**
+ * Each country's identity in a chart: a hue, a stroke pattern and a label.
+ *
+ * The palette was sky / emerald / amber. Under deuteranopia — roughly 8% of
+ * men — emerald and amber converge, so two of the three lines were
+ * indistinguishable to a substantial minority of readers, and the only key was
+ * a colour-coded legend. It is cyan / amber / pink now, and colour is no longer
+ * the sole encoding (WCAG 2.2 SC 1.4.1): the dash pattern says the same thing
+ * again, and the latest reading for each country is direct-labelled in the
+ * panel header, which Carbon prefers over a legend anyway.
+ *
+ * Hues come from the theme so they follow the light/dark switch; the dash
+ * patterns do not, because a stroke pattern is not a colour.
+ */
+const COUNTRY_META: Record<string, { dash?: string; label: string; flag: string }> = {
+  LV: { label: 'Latvia', flag: '🇱🇻' },
+  EE: { dash: '6 3', label: 'Estonia', flag: '🇪🇪' },
+  LT: { dash: '2 3', label: 'Lithuania', flag: '🇱🇹' },
 };
+
+const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;
 
 interface BalticCompareChartProps {
   indicator: string;
@@ -89,25 +105,37 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     return point;
   });
 
-  // Latest values for legend
+  // Latest values for the direct labels in the header.
   const latestValues: Record<string, number | null> = {};
   for (const [geo, cs] of Object.entries(data.countries)) {
     const valid = cs.series.filter((s) => s.value !== null);
     latestValues[geo] = valid.length > 0 ? valid[valid.length - 1].value : null;
   }
 
+  // Zero is the most important value on a percentage-change series, and it was
+  // previously unmarked. Only drawn where the data actually straddles it.
+  const allValues = chartData.flatMap((point) =>
+    COUNTRY_ORDER.map((geo) => point[geo]).filter((v): v is number => typeof v === 'number'),
+  );
+  const crossesZero = allValues.some((v) => v < 0) && allValues.some((v) => v > 0);
+
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
-      <div className="flex items-center justify-between mb-3">
+    <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <p className="text-ui font-medium text-white">{title ?? data.title}</p>
-          <p className="text-caption text-slate-500">LV vs EE vs LT · {data.unit}</p>
+          <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title ?? data.title}</p>
+          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>LV vs EE vs LT · {data.unit}</p>
         </div>
+        {/* Direct labelling: the latest reading for each country, in its own
+            colour, so the chart can be read without consulting a legend. */}
         <div className="flex items-center gap-3">
-          {Object.entries(COUNTRY_COLORS).map(([geo, info]) => (
-            <div key={geo} className="flex items-center gap-1 text-caption">
-              <span>{info.flag}</span>
-              <span className="text-slate-300">{latestValues[geo] !== null && latestValues[geo] !== undefined ? formatValue(latestValues[geo], data.unit) : '—'}</span>
+          {COUNTRY_ORDER.map((geo) => (
+            <div key={geo} className="flex items-center gap-1 text-caption font-mono">
+              <span aria-hidden="true">{COUNTRY_META[geo].flag}</span>
+              <span className="sr-only">{COUNTRY_META[geo].label}: </span>
+              <span style={{ color: chartColors.series[geo] }}>
+                {latestValues[geo] !== null && latestValues[geo] !== undefined ? formatValue(latestValues[geo], data.unit) : '—'}
+              </span>
             </div>
           ))}
         </div>
@@ -116,7 +144,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
       <div className={compact ? 'h-32' : 'h-52'}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="period"
               tick={chartTick(chartColors.axis)}
@@ -130,34 +158,40 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
                 tickLine={false}
                 axisLine={{ stroke: chartColors.grid }}
                 width={40}
+                tickCount={6}
               />
             )}
+            {crossesZero && <ReferenceLine y={0} stroke={chartColors.axis} strokeWidth={1} />}
             <Tooltip
               contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
-              labelStyle={{ color: chartColors.axis, fontWeight: 500 }}
+              labelStyle={{ color: chartColors.axis }}
               formatter={(v, name) => {
-                const info = COUNTRY_COLORS[name as string];
                 const val = v as number | null;
-                return [val !== null ? formatValue(val, data.unit) : '—', info?.label ?? name];
+                return [val !== null ? formatValue(val, data.unit) : '—', COUNTRY_META[name as string]?.label ?? name];
               }}
             />
-            {!compact && <Legend formatter={(v: string) => COUNTRY_COLORS[v]?.label ?? v} />}
-            {Object.keys(COUNTRY_COLORS).map((geo) => (
+            {!compact && <Legend formatter={(v: string) => COUNTRY_META[v]?.label ?? v} />}
+            {/* Gaps stay gaps. Carbon: "never interpolate between periods when
+                data is unavailable" — a straight line across a hole invents
+                readings that were never published, which on a site whose whole
+                claim is traceability is the one thing a chart may not do. */}
+            {COUNTRY_ORDER.map((geo) => (
               <Line
                 key={geo}
                 type="monotone"
                 dataKey={geo}
-                stroke={COUNTRY_COLORS[geo].color}
+                stroke={chartColors.series[geo]}
+                strokeDasharray={COUNTRY_META[geo].dash}
                 strokeWidth={compact ? 1.5 : 2}
                 dot={false}
-                connectNulls
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <p className="text-caption text-slate-600 mt-2">Source: {data.source}</p>
+      <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>Source: {data.source}</p>
     </div>
   );
 }

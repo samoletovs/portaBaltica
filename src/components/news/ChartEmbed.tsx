@@ -76,7 +76,7 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
     <figure className="news-border news-panel my-8 rounded-xl border p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="news-subtle text-caption font-semibold uppercase tracking-widest">Live data</p>
-        <Link to={seriesHref} className="news-link news-focus text-caption font-medium underline underline-offset-4">
+        <Link to={seriesHref} className="news-link text-caption underline underline-offset-4">
           Open the full series →
         </Link>
       </div>

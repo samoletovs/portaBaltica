@@ -100,7 +100,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
       <div className="mb-6 flex justify-end">
         <button
           onClick={restartTutorial}
-          className="text-caption px-3 py-1.5 rounded transition-colors"
+          className="text-caption px-3 py-2 rounded transition-colors"
           style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
           aria-label="Restart guided tour"
         >
@@ -112,7 +112,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
 
   return (
     <section
-      className="mb-6 rounded-xl p-4 sm:p-5"
+      className="mb-6 rounded-xl p-4 sm:p-6"
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
       aria-label="Dashboard onboarding tutorial"
     >
@@ -140,7 +140,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
         <div className="flex items-center gap-2">
           <button
             onClick={() => goToStep(Math.max(0, stepIndex - 1))}
-            className="text-caption px-3 py-1.5 rounded transition-colors disabled:opacity-40"
+            className="text-caption px-3 py-2 rounded transition-colors disabled:opacity-40"
             style={{ color: 'var(--text-secondary)', background: 'var(--bg-card-hover)' }}
             disabled={stepIndex === 0}
           >
@@ -148,7 +148,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
           </button>
           <button
             onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
-            className="text-caption px-3 py-1.5 rounded transition-colors"
+            className="text-caption px-3 py-2 rounded transition-colors"
             style={{ color: '#fff', background: 'var(--text-secondary)' }}
           >
             {isLastStep ? 'Finish' : 'Next'}

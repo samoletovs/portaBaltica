@@ -251,10 +251,6 @@
               "type": "array",
               "description": "What the desk asked the writer to change.",
               "items": { "type": "string" }
-            },
-            "notes_outstanding": {
-              "type": "boolean",
-              "description": "True when the piece ran with the editor's notes unaddressed — the rewrite could not be made, or the desk still had reservations after one revision. Surfaced to readers rather than hidden."
             }
           }
         },

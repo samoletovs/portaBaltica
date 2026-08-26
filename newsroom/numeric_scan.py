@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Final, Iterable, Mapping, Sequence
 
 logger = logging.getLogger(__name__)
@@ -355,14 +356,35 @@ def _scan_word_numbers(text: str, masked: str) -> list[NumericToken]:
 _FLOAT_EPSILON: Final[float] = 1e-9
 
 
-def _rendering_tolerance(decimals: int) -> float:
-    """Half a unit in the last place the prose committed to.
+def rendering_tolerance(decimals: int) -> float:
+    """Half a unit in the last place the writer committed to.
 
     A figure of 4.23 may legitimately be written "4.2"; it may not be written
     "4.3". The tolerance is exactly what correct rounding permits, at the
-    precision the prose itself chose.
+    precision the writing itself chose.
+
+    Public because the validator applies the identical rule one link further up
+    the chain: ``no_invented_numbers`` compares prose against declared figures,
+    ``figures_traceable`` compares declared figures against the source. Both are
+    the same question — "is this the source number, written at this precision?"
+    — and they must not answer it two different ways.
     """
     return 0.5 * (10.0**-decimals) + _FLOAT_EPSILON
+
+
+def decimals_written(value: object) -> int:
+    """How many decimal places a declared value committed to.
+
+    ``277.78`` committed to two, ``4.0`` and ``100`` to none. Read off the
+    shortest exact representation rather than the binary float, so a value that
+    arrived as JSON is measured by what was written, not by what IEEE-754 made
+    of it.
+    """
+    try:
+        exponent = Decimal(str(value)).normalize().as_tuple().exponent
+    except (ArithmeticError, ValueError, TypeError):
+        return 0
+    return max(0, -exponent) if isinstance(exponent, int) else 0
 
 
 def value_justifies(token: NumericToken, figure_value: float) -> bool:
@@ -373,7 +395,7 @@ def value_justifies(token: NumericToken, figure_value: float) -> bool:
     without sign, because prose writes "fell 3.2%" for a delta of -3.2 — the
     magnitude must still exist in the declared figures, so nothing is invented.
     """
-    tolerance = _rendering_tolerance(token.decimals)
+    tolerance = rendering_tolerance(token.decimals)
     for candidate in token.candidate_values():
         if abs(abs(candidate) - abs(figure_value)) <= tolerance:
             return True
@@ -446,9 +468,11 @@ def describe(tokens: Iterable[NumericToken]) -> str:
 
 __all__ = [
     "NumericToken",
+    "decimals_written",
     "describe",
     "is_justified",
     "mask_excluded",
+    "rendering_tolerance",
     "scan",
     "unjustified_tokens",
     "value_justifies",

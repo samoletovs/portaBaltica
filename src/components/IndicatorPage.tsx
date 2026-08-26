@@ -228,7 +228,7 @@ export function IndicatorPage() {
                     onClick={() => navigate(`/indicator/${relId}`)}
                     className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left hover:border-slate-600/60 transition-colors"
                   >
-                    <p className="text-ui font-medium text-white">{rel.title}</p>
+                    <p className="text-ui text-white">{rel.title}</p>
                     <p className="text-caption text-slate-400 mt-0.5">Click to explore →</p>
                   </button>
                 );
@@ -238,7 +238,7 @@ export function IndicatorPage() {
         )}
 
         {/* Footer */}
-        <p className="text-caption mt-8" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-caption mt-8" style={{ color: 'var(--text-tertiary)' }}>
           {EUROSTAT_MAP[id]
             ? 'Data from Eurostat. Updated according to Eurostat publication calendar.'
             : `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`

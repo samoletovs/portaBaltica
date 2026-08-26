@@ -211,6 +211,44 @@ class ArticleStore:
                 log.warning("local corrections log unreadable (%s)", exc)
         return []
 
+    #: Reserved room for our own reporting, and a separate ceiling for link-outs.
+    #:
+    #: A SINGLE DATE-SORTED CAP DOES NOT WORK HERE, and the reason is arithmetic
+    #: rather than editorial. Tier C is minted at feed velocity — LSM, ERR and
+    #: EUobserver supplied 154 of the 161 entries in the live index — while tier A
+    #: is written only when the data warrants it, which is nought to eight a day.
+    #: Sorting the two together by date and keeping the newest N has exactly one
+    #: outcome, and replaying the live index proved it: one further run's worth of
+    #: syndication evicts all seven original articles and leaves an index that is
+    #: 200/200 link-outs. The front page then reads "Nothing to report yet today"
+    #: beside a full rail of other outlets' headlines.
+    #:
+    #: The articles survive in storage; only their index entries are lost. That
+    #: is not a consolation. This file's own docstring says an article missing
+    #: from the index "is invisible however faithfully it was stored".
+    #:
+    #: So the budgets are separate. Syndication cannot take our allocation at any
+    #: ratio, however fast the feeds run. 150 originals is roughly a month of
+    #: archive at the rate we actually publish; 50 link-outs is far more than the
+    #: rail shows, which is four at a time.
+    INDEX_MAX_OURS = 150
+    INDEX_MAX_ELSEWHERE = 50
+    INDEX_MAX_ENTRIES = INDEX_MAX_OURS + INDEX_MAX_ELSEWHERE
+
+    @classmethod
+    def _apply_budgets(cls, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Truncate each kind against its own ceiling, then restore date order.
+
+        ``entries`` arrives newest-first, so taking a prefix of each group keeps
+        the newest of that kind. Tier B counts as ours: it is a press release we
+        chose to carry under licence, it is not produced at feed velocity, and
+        grouping it with tier C would let the rail evict it.
+        """
+        ours = [e for e in entries if e.get("tier") != "C"][: cls.INDEX_MAX_OURS]
+        elsewhere = [e for e in entries if e.get("tier") == "C"][: cls.INDEX_MAX_ELSEWHERE]
+        kept = {id(e) for e in ours} | {id(e) for e in elsewhere}
+        return [e for e in entries if id(e) in kept]
+
     def _append_corrections(self, entries: Sequence[dict[str, Any]]) -> int:
         """Add to the public log, append-only, and return the new total.
 
@@ -255,8 +293,6 @@ class ArticleStore:
 
     async def append_corrections(self, entries: Sequence[dict[str, Any]]) -> int:
         return await asyncio.to_thread(self._append_corrections, entries)
-
-    INDEX_MAX_ENTRIES = 200
 
     def _read_existing_index(self) -> list[dict[str, Any]]:
         """Entries already on the front page, from blob if available else local.
@@ -341,8 +377,10 @@ class ArticleStore:
         whenever the data is unremarkable is not a wire.
 
         Entries are keyed by slug so a re-run that regenerates the same story
-        updates it rather than duplicating it, and the newest
-        ``INDEX_MAX_ENTRIES`` are kept so the file cannot grow without bound.
+        updates it rather than duplicating it. Our own reporting and other
+        outlets' link-outs are then truncated against *separate* budgets, so the
+        file cannot grow without bound and syndication cannot evict journalism.
+        See ``INDEX_MAX_OURS``.
         """
         fresh = [
             {
@@ -384,7 +422,7 @@ class ArticleStore:
         entries = sorted(
             by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True
         )
-        entries = self._dedupe_by_signal(entries)[: self.INDEX_MAX_ENTRIES]
+        entries = self._apply_budgets(self._dedupe_by_signal(entries))
 
         body = json.dumps(
             {"generated_at": isoformat(utcnow()), "count": len(entries), "articles": entries},
