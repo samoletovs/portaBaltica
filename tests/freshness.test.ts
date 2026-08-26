@@ -301,27 +301,32 @@ describe('the probe registry', () => {
   });
 
   it('watches the newsroom, which can stop publishing without anything failing', () => {
-    // On the 25 Aug run every tier A article was rejected, the function
-    // completed successfully, and nothing said so. A newsroom that silently
-    // stops is the same failure as a source that silently freezes, so it is
-    // checked where a reader already looks.
+    // On the 25 Aug run every tier A article was rejected, one syndicated card
+    // went out, and the function completed successfully — so "1 published" was
+    // true and told nobody anything. The newsroom Function App also had no
+    // continuous deployment at all until today, and App Insights holds no
+    // rows, so this probe is the only thing that will say whether a deploy
+    // improved the newsroom or killed it.
     const newsroom = registry.CHECKS.find((c: { name: string }) => c.name === 'Newsroom pipeline');
     expect(newsroom, 'the newsroom must be probed').toBeDefined();
-    // Daily timer plus one missed run of slack.
+    expect(newsroom.required, 'the newsroom is a dependency, not a nicety').toBe(true);
     expect(newsroom.cadence).toBe('H');
+    // A fallback only — the report declares `stale_after_hours` and that wins.
     expect(newsroom.maxLag).toBeGreaterThanOrEqual(24);
-    // Not required until the report exists. A probe for an unshipped dependency
-    // that red-lights the site is the crying-wolf this endpoint exists to stop,
-    // so the note has to say so and the flag has to be a deliberate flip.
-    if (!newsroom.required) {
-      expect(newsroom.note, 'an optional newsroom probe must say why').toMatch(/required/i);
-    }
   });
 
-  it('leaves the site green when only optional probes are failing', () => {
-    // The newsroom report 404s today because the newsroom does not write it
-    // yet. Marking that probe required would report an outage against a
-    // feature that was never built.
+  it('reads the run report from the container the articles are served from', () => {
+    // The apex domain does not proxy the blob container: `/articles/index.json`
+    // 404s there and resolves on the storage account, which is the base
+    // `deploy.yml` hands the frontend. A probe pointed at the domain would
+    // have reported the newsroom dead for ever.
+    const newsroom = registry.CHECKS.find((c: { name: string }) => c.name === 'Newsroom pipeline');
+    expect(newsroom.url).toMatch(/\/articles\/runs\/latest\.json$/);
+    expect(newsroom.url, 'must not read through the apex domain')
+      .not.toMatch(/portabaltica\.naurolabs\.com/);
+  });
+
+  it('leaves an optional probe to explain itself', () => {
     const optional = registry.CHECKS.filter((c: { required: boolean }) => !c.required);
     expect(optional.length, 'there should be optional probes to check').toBeGreaterThan(0);
     for (const check of optional) {

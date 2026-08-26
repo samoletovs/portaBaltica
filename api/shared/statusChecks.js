@@ -35,15 +35,27 @@ function buildNordPoolProbeUrl() {
 /**
  * Where the newsroom's own run report lives.
  *
+ * The same blob container the site reads articles from — `deploy.yml` hands the
+ * frontend this base as `VITE_ARTICLES_BASE_URL`, and the apex domain does not
+ * proxy it, so the probe addresses the container directly. Overridable so the
+ * Function App is not welded to one storage account.
+ *
  * The pipeline runs on a timer and can stop publishing without anything
- * failing: on the 25 Aug run every tier A article it produced was rejected, the
- * function still completed successfully, and nothing anywhere said so. The nine
- * articles on the site are the survivors of roughly thirty manual re-runs. A
- * newsroom that silently stops is the same failure as a data source that
- * silently freezes, so it is checked in the same place a reader already looks.
+ * failing. On the 25 Aug run every tier A article it wrote was rejected, one
+ * syndicated card went out, and the function reported success — so "1
+ * published" was true and told nobody anything. That is why the report splits
+ * `original_articles` from `counts.published`, and why this is checked in the
+ * place a reader already looks.
+ *
+ * The stakes rose today: the newsroom Function App had no continuous deployment
+ * at all until this afternoon, and App Insights holds no rows. This probe is
+ * now the only thing that will say whether a deploy improved the newsroom or
+ * killed it.
  */
-const NEWSROOM_RUN_REPORT =
-  'https://portabaltica.naurolabs.com/articles/runs/latest.json';
+const ARTICLES_BASE = (process.env.ARTICLES_BASE_URL ||
+  'https://stportabalticabpmff5so.blob.core.windows.net/articles').replace(/\/$/, '');
+
+const NEWSROOM_RUN_REPORT = ARTICLES_BASE + '/runs/latest.json';
 
 const CHECKS = [
   {
@@ -177,17 +189,13 @@ const CHECKS = [
     name: 'Newsroom pipeline',
     url: NEWSROOM_RUN_REPORT,
     type: 'newsroom-run',
-    // Not yet required, and deliberately so. The newsroom does not write this
-    // report today — the URL 404s — so marking it required would red-light the
-    // whole site for a dependency that has not shipped, which is precisely the
-    // crying-wolf this endpoint exists to stop. It is probed now so the check
-    // appears, the shape is fixed, and the day the report lands the only change
-    // needed is this flag.
-    required: false,
+    required: true,
     powers: 'Article publishing',
-    note: 'Awaiting the run report; flip to required once the newsroom writes it',
-    // The timer is daily. Twenty-six hours allows exactly one missed run of
-    // slack before the reader is told the newsroom has stopped.
+    // A daily source, so it fits the same model as everything else. But the
+    // report carries its own `stale_after_hours` and that wins: the schedule
+    // moved from one run a day to three the moment PR #82 merged, and a bound
+    // copied into this file would have quietly become wrong. This is the
+    // fallback for a report too old or too broken to declare one.
     cadence: 'H',
     maxLag: 26,
   },

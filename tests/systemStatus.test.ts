@@ -22,6 +22,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const es = require('../api/shared/eurostat.js');
+const freshness = require('../api/shared/freshness.js');
 const status = require('../api/system-status/index.js');
 
 describe('withRetry', () => {
@@ -124,34 +125,140 @@ describe('overallStatus', () => {
 });
 
 describe('newsroomObservation', () => {
-  it('reads the completion time and what the run produced', () => {
-    const observation = status.newsroomObservation({
-      completedAt: '2026-08-26T14:03:00Z', published: 3, rejected: 1, trigger: 'timer',
-    });
-    expect(observation).toEqual({
-      at: '2026-08-26T14:03:00Z', published: 3, rejected: 1, trigger: 'timer',
+  /**
+   * The real report shape, from PR #82. The one on 25 Aug is the case the
+   * whole contract exists for: every tier A article rejected, one syndicated
+   * wire card published, so `counts.published` was 1 and truthful and told
+   * nobody that the newsroom had had its worst day.
+   */
+  const report = {
+    version: 1,
+    finished_at: '2026-08-26T14:05:12Z',
+    trigger: 'timer',
+    schedule: '0 0 5,11,17 * * *',
+    stale_after_hours: 26,
+    counts: { signals_detected: 7, articles_generated: 5, published: 3, rejected: 2, errors: 0 },
+    original_articles: { generated: 5, publishable: 3, attempts_total: 9, attempts_max: 3 },
+    liveness: { last_original_at: '2026-08-26T14:04:00Z', runs_without_originals: 0 },
+  };
+
+  it('reads the timestamp and the production counts', () => {
+    const observation = status.newsroomObservation(report);
+    expect(observation).toMatchObject({
+      at: '2026-08-26T14:05:12Z',
+      generated: 5,
+      publishable: 3,
+      attemptsTotal: 9,
+      published: 3,
+      trigger: 'timer',
     });
   });
 
-  it('keeps a zero-article run distinguishable from a missing count', () => {
-    // A run that published nothing is not necessarily broken — some days have
-    // no news — but it must not be reported as "no data about publishing".
-    // Thirty consecutive zero-article runs is the failure being watched for.
-    expect(status.newsroomObservation({ completedAt: '2026-08-26T14:03:00Z', published: 0, rejected: 9 }))
-      .toMatchObject({ published: 0, rejected: 9 });
-    expect(status.newsroomObservation({ completedAt: '2026-08-26T14:03:00Z' }))
-      .toMatchObject({ published: null, rejected: null });
+  it('prefers the threshold the report declares over ours', () => {
+    // The newsroom moved from one run a day to three the moment PR #82 merged.
+    // A bound copied into our registry would have silently become wrong, so
+    // `stale_after_hours` wins.
+    expect(status.newsroomObservation(report).maxLag).toBe(26);
+
+    const check = { cadence: 'H', maxLag: 3 };
+    const recent = { at: '2026-08-26T09:00:00Z', maxLag: 26 };
+    expect(freshness.judge(check, recent, new Date('2026-08-26T20:00:00Z')).state).toBe('fresh');
+    expect(freshness.judge(check, { at: recent.at }, new Date('2026-08-26T20:00:00Z')).state)
+      .toBe('stale');
   });
 
-  it('returns null for a report with no completion time, which is itself the finding', () => {
+  it('calls a run that wrote articles and shipped none of them stale', () => {
+    // 25 Aug. `counts.published` is 1 because a syndicated card went out, and
+    // reading that alone would have reported a healthy newsroom.
+    const badDay = Object.assign({}, report, {
+      counts: { published: 1, rejected: 5, errors: 0 },
+      original_articles: { generated: 5, publishable: 0, attempts_total: 15, attempts_max: 3 },
+    });
+
+    const observation = status.newsroomObservation(badDay);
+    expect(observation.stale).toBe(true);
+    expect(observation.staleReason).toMatch(/published none/);
+    expect(observation.published, 'the syndicated card is still reported').toBe(1);
+
+    // And it reaches the verdict even though the timestamp is current.
+    const verdict = freshness.judge(
+      { cadence: 'H', maxLag: 26 }, observation, new Date('2026-08-26T14:10:00Z'));
+    expect(verdict.state).toBe('stale');
+  });
+
+  it('leaves a genuinely quiet day alone', () => {
+    // Nothing newsworthy is not a failure. Only "wrote some, shipped none" is.
+    const quiet = Object.assign({}, report, {
+      counts: { published: 0, rejected: 0, errors: 0 },
+      original_articles: { generated: 0, publishable: 0, attempts_total: 0, attempts_max: 3 },
+    });
+
+    const observation = status.newsroomObservation(quiet);
+    expect(observation.stale).toBeUndefined();
+    expect(freshness.judge({ cadence: 'H', maxLag: 26 }, observation,
+      new Date('2026-08-26T14:10:00Z')).state).toBe('fresh');
+  });
+
+  it('keeps a zero distinguishable from a missing count', () => {
+    expect(status.newsroomObservation(report).errors).toBe(0);
+    expect(status.newsroomObservation({ finished_at: report.finished_at }))
+      .toMatchObject({ generated: null, publishable: null, published: null });
+  });
+
+  it('never throws on a half-built report', () => {
+    // A report whose fields are null must degrade to "cannot tell" rather than
+    // take the status page down with it.
+    expect(() => status.newsroomObservation({
+      finished_at: report.finished_at,
+      counts: null, original_articles: null, liveness: null,
+    })).not.toThrow();
+
     expect(status.newsroomObservation({ published: 3 })).toBeNull();
     expect(status.newsroomObservation(null)).toBeNull();
   });
 
-  it('accepts the alternative names a run report might use', () => {
-    expect(status.newsroomObservation({ finishedAt: '2026-08-26T14:03:00Z' })?.at)
-      .toBe('2026-08-26T14:03:00Z');
-    expect(status.newsroomObservation({ timestamp: '2026-08-26T14:03:00Z' })?.at)
-      .toBe('2026-08-26T14:03:00Z');
+  it('accepts the older field names, so a report written mid-deploy still reads', () => {
+    expect(status.newsroomObservation({ finishedAt: '2026-08-26T14:05:12Z' })?.at)
+      .toBe('2026-08-26T14:05:12Z');
+  });
+});
+
+describe('the newsroom probe against a missing report', () => {
+  /** Drive the real probe with a stubbed HTTP layer. */
+  async function probeNewsroom(responder: () => Promise<unknown>) {
+    const original = es.httpJson;
+    es.httpJson = responder;
+    try {
+      const check = { type: 'newsroom-run', url: 'https://example.invalid/runs/latest.json' };
+      return await status.probe(check);
+    } finally {
+      es.httpJson = original;
+    }
+  }
+
+  it('calls a 404 stale, not an outage', async () => {
+    // A 404 means no run has yet written a report. That is a true statement
+    // about the wire — it is not advancing — but it is not the site being
+    // broken, and reporting it as an outage is the crying-wolf this endpoint
+    // exists to stop. It also self-corrects the moment the first report lands,
+    // rather than waiting for someone to flip a flag.
+    const observation = await probeNewsroom(() =>
+      Promise.reject(new Error('HTTP 404 from https://example.invalid/runs/latest.json')));
+
+    expect(observation).toMatchObject({ stale: true });
+    expect(observation.staleReason).toMatch(/No run report/);
+  });
+
+  it('still treats a real fault as a fault', async () => {
+    // A 500, a refused connection or unparseable JSON says something is
+    // actually wrong, and must not be softened into "not advancing".
+    await expect(probeNewsroom(() =>
+      Promise.reject(new Error('HTTP 500 from https://example.invalid/runs/latest.json'))))
+      .rejects.toThrow(/500/);
+  });
+
+  it('rejects a report with no completion time', async () => {
+    await expect(probeNewsroom(() => Promise.resolve({ counts: { published: 3 } })))
+      .rejects.toThrow(/no completion time/);
   });
 });

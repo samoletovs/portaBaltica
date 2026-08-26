@@ -61,24 +61,80 @@ function httpOptions() {
 }
 
 /**
- * When the newsroom last finished a run, and what it produced.
+ * What the newsroom's run report says about itself.
  *
- * Liveness alone is not enough here. A run that publishes nothing is not
- * necessarily broken — some days genuinely have no news — but a pipeline that
- * publishes nothing every day is exactly the failure this exists to catch, and
- * it would sail past a check that only asked whether the timer fired. So the
- * counts come back alongside the timestamp and the endpoint reports both.
+ * Built against the contract in PR #82. Three things it reports matter here and
+ * they are not the same question:
+ *
+ *   - **`finished_at`** — did a run happen recently. Judged against the
+ *     report's own `stale_after_hours` rather than a cron copied into our
+ *     registry, because the schedule moved from one run a day to three the
+ *     moment that PR merged and a hardcoded bound would silently have gone
+ *     wrong.
+ *
+ *   - **`original_articles.generated` against `.publishable`** — did the run
+ *     produce anything. This is the field that exists because of 25 Aug, when
+ *     every tier A article was rejected and a single syndicated wire card went
+ *     out: `counts.published` was 1, which was true, and a probe reading it
+ *     would have gone green on the worst day the newsroom has had. Writing
+ *     articles and shipping none of them is a failure; writing none because
+ *     nothing was newsworthy is an ordinary quiet day, and only the split can
+ *     tell them apart.
+ *
+ *   - **`attempts_total`** — carried through untouched. It is the number that
+ *     shows whether the yield fix is working, and it belongs where someone will
+ *     see it.
+ *
+ * Defensive throughout: a half-written report must degrade to "cannot tell"
+ * rather than throw and take the status page down with it.
  */
 function newsroomObservation(body) {
   if (!body || typeof body !== 'object') return null;
-  const at = body.completedAt || body.finishedAt || body.timestamp;
+
+  const at = body.finished_at || body.finishedAt || body.completedAt;
   if (!at) return null;
-  return {
+
+  const originals = (body.original_articles && typeof body.original_articles === 'object')
+    ? body.original_articles
+    : {};
+  const counts = (body.counts && typeof body.counts === 'object') ? body.counts : {};
+  const liveness = (body.liveness && typeof body.liveness === 'object') ? body.liveness : {};
+
+  const generated = numberOr(originals.generated, null);
+  const publishable = numberOr(originals.publishable, null);
+  const declaredMaxLag = numberOr(body.stale_after_hours, null);
+
+  const observation = {
     at: at,
-    published: typeof body.published === 'number' ? body.published : null,
-    rejected: typeof body.rejected === 'number' ? body.rejected : null,
+    generated: generated,
+    publishable: publishable,
+    attemptsTotal: numberOr(originals.attempts_total, null),
+    published: numberOr(counts.published, null),
+    rejected: numberOr(counts.rejected, null),
+    errors: numberOr(counts.errors, null),
     trigger: body.trigger || null,
+    schedule: body.schedule || null,
+    runsWithoutOriginals: numberOr(liveness.runs_without_originals, null),
   };
+
+  // Hours, matching the declared cadence. The report's own threshold beats
+  // ours, and `freshness.judge` prefers it when present.
+  if (declaredMaxLag !== null) observation.maxLag = declaredMaxLag;
+
+  // Ran, wrote, shipped nothing. The timestamp is current and the wire is not
+  // advancing, which is precisely what `stale` means here: the pipeline being
+  // up and the pipeline being productive are different facts.
+  if (generated !== null && publishable !== null && generated > 0 && publishable === 0) {
+    observation.stale = true;
+    observation.staleReason = 'Wrote ' + generated + ' original article' +
+      (generated === 1 ? '' : 's') + ' and published none of them';
+  }
+
+  return observation;
+}
+
+function numberOr(value, fallback) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 /**
@@ -167,9 +223,24 @@ async function probe(check) {
   }
 
   if (check.type === 'newsroom-run') {
-    // The newsroom writes a report after every run. Its absence is the finding:
-    // it means no run has completed far enough to write one.
-    const body = await es.httpJson(check.url, httpOptions());
+    // A 404 is not a fault in the way a 500 is: it means no run has yet
+    // written a report. That is a true and useful statement about the wire —
+    // it is not advancing — so it reports `stale` rather than claiming the
+    // site is broken. It also needs no follow-up: the check corrects itself
+    // the moment the first report lands, instead of waiting on someone to
+    // remember to flip a flag.
+    let body;
+    try {
+      body = await es.httpJson(check.url, httpOptions());
+    } catch (err) {
+      if (/HTTP 404/.test(err.message)) {
+        return {
+          stale: true,
+          staleReason: 'No run report has been written yet',
+        };
+      }
+      throw err;
+    }
     const observation = newsroomObservation(body);
     if (observation === null) throw new Error('Run report carries no completion time');
     return observation;
@@ -209,10 +280,22 @@ async function runCheck(check, now) {
     if (verdict.limit !== undefined) result.maxLag = verdict.limit;
     if (check.cadence) result.cadence = check.cadence;
     if (verdict.reason) result.freshnessReason = verdict.reason;
-    if (observation && observation.published !== undefined) {
-      result.published = observation.published;
-      result.rejected = observation.rejected;
-      result.trigger = observation.trigger;
+
+    // The newsroom's own numbers, carried through so the page shows whether
+    // the wire is producing rather than merely running. `attemptsTotal` is the
+    // one that says whether the yield fix is working.
+    if (observation && observation.generated !== undefined) {
+      result.newsroom = {
+        generated: observation.generated,
+        publishable: observation.publishable,
+        attemptsTotal: observation.attemptsTotal,
+        published: observation.published,
+        rejected: observation.rejected,
+        errors: observation.errors,
+        runsWithoutOriginals: observation.runsWithoutOriginals,
+        trigger: observation.trigger,
+        schedule: observation.schedule,
+      };
     }
 
     return result;

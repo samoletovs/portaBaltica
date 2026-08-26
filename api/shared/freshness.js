@@ -101,9 +101,29 @@ function ageInUnits(cadence, observation, now) {
  * frozen is a different message to a reader — and a different thing to do about
  * it — than one that is down, and the status page could not previously say
  * which. Flattening the two is how a real freeze hides behind a green light.
+ *
+ * Two things a source may say about itself override what we would infer:
+ *
+ *   - **`observation.stale`** — a source able to tell us directly that it is
+ *     not advancing is more authoritative than an age calculation. The newsroom
+ *     run report is the case in point: a pipeline that ran on time, wrote five
+ *     articles and published none of them has a perfectly current timestamp and
+ *     is plainly not producing.
+ *   - **`observation.maxLag`** — a source that declares its own tolerance beats
+ *     our guess and cannot drift out of step with it. The run report carries
+ *     `stale_after_hours` precisely so a probe need not hardcode a cron someone
+ *     may change, and when the newsroom moved from one run a day to three, a
+ *     bound copied into our registry would have quietly become wrong.
  */
 function judge(check, observation, now) {
   const cadence = check && check.cadence;
+
+  if (observation && observation.stale) {
+    return {
+      state: 'stale',
+      reason: observation.staleReason || 'the source reports it is not advancing',
+    };
+  }
 
   if (!cadence) {
     return {
@@ -117,13 +137,16 @@ function judge(check, observation, now) {
     return { state: 'unknown', reason: 'the response carried no observation time' };
   }
 
-  const rounded = Math.round(age * 10) / 10;
-  const shared = { age: rounded, limit: check.maxLag, cadence: cadence };
+  const declared = observation && observation.maxLag;
+  const limit = typeof declared === 'number' && declared > 0 ? declared : check.maxLag;
 
-  if (age > check.maxLag) {
+  const rounded = Math.round(age * 10) / 10;
+  const shared = { age: rounded, limit: limit, cadence: cadence };
+
+  if (age > limit) {
     return Object.assign({ state: 'stale' }, shared, {
       reason: 'Newest observation is ' + rounded + ' ' + CADENCE_NAME[cadence] +
-        ' units old; this source may trail ' + check.maxLag,
+        ' units old; this source may trail ' + limit,
     });
   }
 
