@@ -50,7 +50,7 @@ export function Byline({ persona, variant = 'compact', timestamp }: Props) {
       <div className="min-w-0">
         <Link
           to={`/newsroom/${persona.id}`}
-          className="news-link news-focus text-ui font-semibold underline underline-offset-4"
+          className="news-link text-ui font-semibold underline underline-offset-4"
         >
           {text}
         </Link>

@@ -44,7 +44,7 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
       data-tier="C"
       aria-label={`External story from ${attribution}`}
     >
-      <p className="news-subtle mb-1.5 flex items-center gap-2 text-caption font-semibold uppercase tracking-widest">
+      <p className="news-subtle mb-2 flex items-center gap-2 text-caption font-semibold uppercase tracking-widest">
         <span aria-hidden="true">↗</span>
         <span>{attribution}</span>
         {when && (
@@ -62,7 +62,7 @@ export function LinkOutCard({ headline, snippet, attribution, originalUrl, publi
           href={originalUrl}
           target="_blank"
           rel="noopener noreferrer external"
-          className="news-link news-focus underline decoration-dotted underline-offset-4"
+          className="news-link underline decoration-dotted underline-offset-4"
         >
           {headline}
           <span className="sr-only"> (opens {attribution} in a new tab)</span>

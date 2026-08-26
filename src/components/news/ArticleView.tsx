@@ -35,7 +35,7 @@ function NotServable() {
       <p className="mt-4 text-ui">
         <Link
           to="/"
-          className="news-link news-focus underline underline-offset-4"
+          className="news-link underline underline-offset-4"
         >
           Back to the front page
         </Link>
@@ -70,7 +70,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
 
     case 'quote':
       return (
-        <blockquote className="pretty-text news-border news-muted my-7 border-l-2 pl-5 text-lead italic">
+        <blockquote className="pretty-text news-border news-muted my-8 border-l-2 pl-6 text-lead italic">
           {block.text}
         </blockquote>
       );
@@ -84,7 +84,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
 
     case 'list':
       return (
-        <ul className="pretty-text news-muted my-5 list-disc space-y-2 pl-6 text-prose">
+        <ul className="pretty-text news-muted my-6 list-disc space-y-2 pl-6 text-prose">
           {(block.text ?? '').split('\n').filter(Boolean).map((item) => (
             <li key={item}>{formatFigures(item)}</li>
           ))}
@@ -94,7 +94,7 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
     case 'table':
     case 'paragraph':
     default:
-      return <Prose text={block.text} className="pretty-text news-muted my-5 text-prose" />;
+      return <Prose text={block.text} className="pretty-text news-muted my-6 text-prose" />;
   }
 }
 
@@ -158,7 +158,7 @@ export function ArticleView({ article }: { article: Article }) {
         <TierBadge tier={article.tier} />
         <Link
           to={`/data/${article.section}`}
-          className="news-link news-focus text-caption font-medium uppercase tracking-widest underline underline-offset-4"
+          className="news-link text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
         >
           {SECTION_LABELS[article.section] ?? article.section}
         </Link>
@@ -172,7 +172,7 @@ export function ArticleView({ article }: { article: Article }) {
         <Prose text={article.dek} className="pretty-text news-muted mt-4 text-lead" />
       )}
 
-      <div className="news-border mt-5 border-y py-4">
+      <div className="news-border mt-6 border-y py-4">
         {article.persona ? (
           <Byline
             persona={{ ...article.persona, beat: article.persona.beat }}
@@ -192,7 +192,7 @@ export function ArticleView({ article }: { article: Article }) {
           aria-label="Corrections to this article"
           className="news-border news-warning-panel mt-6 rounded-lg border px-4 py-3"
         >
-          <h2 className="news-warning text-caption font-semibold uppercase tracking-widest">Corrected</h2>
+          <h2 className="news-warning text-callout font-semibold">Corrected</h2>
           <ul className="mt-2 space-y-2">
             {article.corrections.map((correction) => (
               <li key={correction.corrected_at} className="news-warning text-ui">
@@ -218,8 +218,8 @@ export function ArticleView({ article }: { article: Article }) {
 
       <div className="mt-6">
         {article.tier === 'B' && article.syndicated?.full_text ? (
-          <div className="news-border news-panel rounded-lg border p-5">
-            <p className="news-subtle mb-3 text-caption font-medium uppercase tracking-widest">
+          <div className="news-border news-panel rounded-lg border p-6">
+            <p className="news-subtle mb-3 text-caption font-semibold uppercase tracking-widest">
               Reproduced in full, unedited
             </p>
             <div className="pretty-text news-muted whitespace-pre-line text-prose">
@@ -242,7 +242,7 @@ export function ArticleView({ article }: { article: Article }) {
           Every figure above is on the dashboard, live.{' '}
           <Link
             to={checkItHref(article, chartRefs[0])}
-            className="news-link news-focus underline underline-offset-4"
+            className="news-link underline underline-offset-4"
           >
             Check it yourself →
           </Link>

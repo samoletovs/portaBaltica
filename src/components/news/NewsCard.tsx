@@ -22,12 +22,12 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       className={
         isLead
           ? 'news-border news-panel rounded-xl border p-6 transition-colors'
-          : 'news-border border-b pb-5'
+          : 'news-border border-b pb-6'
       }
     >
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <TierBadge tier={summary.tier} />
-        <span className="news-subtle text-caption font-medium uppercase tracking-widest">
+        <span className="news-subtle text-caption font-semibold uppercase tracking-widest">
           {section}
         </span>
       </div>
@@ -41,7 +41,7 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       >
         <Link
           to={`/article/${summary.slug}`}
-          className="news-hover news-focus"
+          className="news-hover"
         >
           {summary.headline}
         </Link>

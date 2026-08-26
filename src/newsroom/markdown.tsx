@@ -18,7 +18,7 @@ const INLINE = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 
 const LINK_CLASS =
-  'news-link news-focus underline underline-offset-4';
+  'news-link underline underline-offset-4';
 
 /** Renders inline emphasis, code and links. Returns React nodes, never HTML. */
 function renderInline(text: string, keyPrefix = ''): ReactNode[] {
@@ -102,8 +102,8 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
 const HEADING_CLASSES: Record<number, string> = {
   1: 'balance-text news-fg text-headline font-semibold tracking-tight sm:text-display',
   2: 'balance-text news-fg mt-12 mb-4 text-title font-semibold tracking-tight',
-  3: 'balance-text news-fg mt-9 mb-3 text-lead font-semibold',
-  4: 'news-subtle mt-7 mb-2 text-caption font-semibold uppercase tracking-widest',
+  3: 'balance-text news-fg mt-8 mb-3 text-lead font-semibold',
+  4: 'news-subtle mt-6 mb-2 text-caption font-semibold uppercase tracking-widest',
 };
 
 function Heading({ level, text }: { level: number; text: string }) {
@@ -125,7 +125,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'meta':
       return (
-        <dl className="news-border news-panel my-5 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-ui">
+        <dl className="news-border news-panel my-6 flex flex-wrap gap-x-6 gap-y-1 rounded-lg border px-4 py-3 text-ui">
           {block.entries.map((entry, position) => (
             <div key={`${index}-m-${position}`} className="flex gap-2">
               <dt className="news-subtle">{entry.label}</dt>
@@ -139,13 +139,13 @@ function BlockView({ block, index }: { block: Block; index: number }) {
 
     case 'list':
       return block.ordered ? (
-        <ol className="pretty-text news-muted my-5 list-decimal space-y-2 pl-6 text-prose">
+        <ol className="pretty-text news-muted my-6 list-decimal space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
         </ol>
       ) : (
-        <ul className="pretty-text news-muted my-5 list-disc space-y-2 pl-6 text-prose">
+        <ul className="pretty-text news-muted my-6 list-disc space-y-2 pl-6 text-prose">
           {block.items.map((item, position) => (
             <li key={`${index}-${position}`}>{renderInline(item, `li-${index}-${position}`)}</li>
           ))}
@@ -162,7 +162,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
                   <th
                     key={`${index}-h-${position}`}
                     scope="col"
-                    className="news-subtle px-4 py-2.5 text-caption font-semibold uppercase tracking-widest"
+                    className="news-subtle px-4 py-2 text-caption font-semibold uppercase tracking-widest"
                   >
                     {renderInline(cell, `th-${index}-${position}`)}
                   </th>
@@ -178,7 +178,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
                   {row.map((cell, position) => (
                     <td
                       key={`${index}-c-${rowPosition}-${position}`}
-                      className="news-muted px-4 py-2.5 align-top leading-relaxed"
+                      className="news-muted px-4 py-2 align-top leading-relaxed"
                     >
                       {renderInline(cell, `td-${index}-${rowPosition}-${position}`)}
                     </td>
@@ -193,7 +193,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
     case 'paragraph':
     default:
       return (
-        <p className="pretty-text news-muted my-5 text-prose">
+        <p className="pretty-text news-muted my-6 text-prose">
           {renderInline(block.text, `p-${index}`)}
         </p>
       );

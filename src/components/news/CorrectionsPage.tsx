@@ -50,7 +50,7 @@ export default function CorrectionsPage() {
     <div className="mx-auto max-w-measure">
       <Markdown source={policySource} />
 
-      <section aria-labelledby="the-log" className="mt-10">
+      <section aria-labelledby="the-log" className="mt-12">
         <h2 id="the-log" className="balance-text news-fg text-title font-semibold tracking-tight">
           The log
         </h2>
@@ -75,12 +75,12 @@ export default function CorrectionsPage() {
         {entries === null ? (
           <div className="news-skeleton mt-4 h-24 animate-pulse rounded-lg" aria-busy="true" />
         ) : entries.length === 0 ? (
-          <p className="news-border news-panel news-muted mt-4 rounded-lg border px-5 py-6 text-callout">
+          <p className="news-border news-panel news-muted mt-4 rounded-lg border px-6 py-6 text-callout">
             No corrections have been issued yet. This log is published whether or not it has
             entries, so that its emptiness is verifiable rather than assumed.
           </p>
         ) : (
-          <ol className="mt-6 space-y-5">
+          <ol className="mt-6 space-y-6">
             {entries.map((entry) => (
               <li
                 key={`${entry.slug}-${entry.corrected_at}`}
@@ -96,17 +96,17 @@ export default function CorrectionsPage() {
                     year: 'numeric',
                   })}
                 </time>
-                <h3 className="balance-text news-fg mt-1.5 text-lead font-semibold">
+                <h3 className="balance-text news-fg mt-2 text-lead font-semibold">
                   <Link
                     to={`/article/${entry.slug}`}
-                    className="news-link news-focus underline underline-offset-4"
+                    className="news-link underline underline-offset-4"
                   >
                     {entry.headline}
                   </Link>
                 </h3>
                 <p className="pretty-text news-muted mt-2 text-callout">{entry.description}</p>
                 {entry.previous_value && (
-                  <p className="news-subtle mt-1.5 text-caption">Previously: {entry.previous_value}</p>
+                  <p className="news-subtle mt-2 text-caption">Previously: {entry.previous_value}</p>
                 )}
               </li>
             ))}

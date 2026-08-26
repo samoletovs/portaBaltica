@@ -27,7 +27,7 @@ const NAV = [
 
 function navClass({ isActive }: { isActive: boolean }) {
   return [
-    'news-focus whitespace-nowrap border-b-2 px-1 pb-2 text-ui transition-colors',
+    'whitespace-nowrap border-b-2 px-1 pb-2 text-ui transition-colors',
     isActive ? 'news-nav-active font-semibold' : 'news-nav-idle border-transparent',
   ].join(' ');
 }
@@ -36,16 +36,16 @@ export function NewsroomLayout() {
   return (
     <div>
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <header className="news-border border-b pt-5">
+        <header className="news-border border-b pt-6">
           <p className="news-subtle text-caption">
             Written by AI correspondents from open data, reviewed by an AI editor,{' '}
             {ACCOUNTABLE_PUBLISHER} accountable.{' '}
-            <Link to="/about/ai" className="news-link news-focus underline underline-offset-2">
+            <Link to="/about/ai" className="news-link underline underline-offset-2">
               What that means
             </Link>
           </p>
 
-          <nav aria-label="Sections" className="mt-3 flex gap-5 overflow-x-auto">
+          <nav aria-label="Sections" className="mt-3 flex gap-6 overflow-x-auto">
             {NAV.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
                 {item.label}

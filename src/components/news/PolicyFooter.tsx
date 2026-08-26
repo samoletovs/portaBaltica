@@ -13,7 +13,7 @@ export function PolicyFooter({ sourcePath }: { sourcePath: string }) {
         href={`https://github.com/samoletovs/portaBaltica/blob/master/${sourcePath}`}
         target="_blank"
         rel="noopener noreferrer"
-        className="news-link news-focus font-mono underline underline-offset-2"
+        className="news-link font-mono underline underline-offset-2"
       >
         {sourcePath}
       </a>{' '}
