@@ -8,6 +8,7 @@ import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
 import { changeDescription, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
+import { describeSeries } from '../utils/chartAccessibility';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -203,15 +204,18 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
 
-  // The sparkline is drawn in one neutral colour, always.
+  // The sparkline is coloured by the same rule as the delta, so a card reads
+  // as one object rather than as a green number above a red line.
   //
-  // It used to take its colour from the sign of the final data point, so ten
-  // years of a series turned red or green according to one quarter — and, since
-  // the colour was keyed to direction rather than meaning, a decade of falling
-  // unemployment was drawn in red. The series is the evidence; only the delta
-  // chip is allowed to editorialise, and then only when the indicator's
-  // polarity is agreed. See DESIGN.md §3.5.
-  const areaColor = chartColors.seriesDefault;
+  // It used to be coloured by the raw *direction* of the final data point,
+  // which is why a decade of falling unemployment was drawn in red. It follows
+  // meaning now: on the twelve `lower-better` series the colours flip.
+  const areaColor =
+    sentiment === 'none'
+      ? chartColors.seriesDefault
+      : sentiment === 'positive'
+        ? chartColors.positive
+        : chartColors.negative;
 
   // A series that crosses zero gets zero marked. On a percentage-change series
   // it is the most important value on the chart and it was previously invisible.
@@ -243,7 +247,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         )}
       </div>
 
-      <div className="h-20">
+      <div className="h-20" role="img" aria-label={describeSeries(title, chartData, fmt, formatPeriod)}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
@@ -428,7 +432,12 @@ export function IndicatorChart({
   const chartData = data.series.filter((p) => p.value !== null);
   const { summary } = data;
   const sentiment = sentimentOf(id, summary.change);
-  const color = chartColors.seriesDefault;
+  const color =
+    sentiment === 'none'
+      ? chartColors.seriesDefault
+      : sentiment === 'positive'
+        ? chartColors.positive
+        : chartColors.negative;
   const fmt = (v: number | null) => formatValue(v, data.unit);
 
   const values = chartData.map((p) => p.value as number);
@@ -456,7 +465,7 @@ export function IndicatorChart({
       </div>
 
       {/* Main chart */}
-      <div className="h-72 mb-4">
+      <div className="h-72 mb-4" role="img" aria-label={describeSeries(data.title, chartData, fmt, formatPeriod)}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>

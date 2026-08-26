@@ -245,10 +245,10 @@
      amber put two of three series in hues that converge under deuteranopia,
      which is around 8% of men. Every series also carries a stroke pattern, so
      colour is never the only encoding (WCAG 2.2 SC 1.4.1). */
-  --series-lv: #38bdf8;
-  --series-ee: #fbbf24;
-  --series-lt: #f472b6;
-  --series-fi: #a78bfa;
+  --series-lv: #dc3b4a;
+  --series-ee: #4da6ff;
+  --series-lt: #fdb913;
+  --series-fi: #d8b4fe;
   --series-default: #7dd3fc;
   --chart-reference: #9fb0c4;
 
@@ -292,9 +292,9 @@
   --data-negative: #be123c;
   --data-warning: #a16207;
   --data-neutral: #455468;
-  --series-lv: #0284c7;
-  --series-ee: #b45309;
-  --series-lt: #be185d;
+  --series-lv: #a4262c;
+  --series-ee: #0057a8;
+  --series-lt: #b4700a;
   --series-fi: #6d28d9;
   --series-default: #0369a1;
   --chart-reference: #455468;
@@ -352,6 +352,41 @@ h4[id],
 section[id],
 article[id] {
   scroll-margin-top: 5rem;
+}
+
+/* ─── Touch targets ────────────────────────────────────────────────────────
+   WCAG 2.2 SC 2.5.8 Target Size (Minimum, AA) asks for 24×24 CSS px; SC 2.5.5
+   (AAA) and both Apple's HIG and Material ask for 44×44. Measured across the
+   dashboard, **43 of 43** interactive elements were under 44px and the
+   country and date-range chips rendered at 26px tall.
+
+   This raises every control that is not inside running prose. Links inside a
+   paragraph are excluded deliberately — SC 2.5.8 exempts them, and padding
+   them would wreck the leading of the text they sit in. */
+button,
+[role='button'],
+summary,
+nav a,
+label,
+select,
+input:not([type='hidden']) {
+  min-height: 2.75rem;
+}
+
+/* Controls that sit in a horizontal row also need the width, but an icon
+   button must stay square rather than stretch. */
+button,
+[role='button'] {
+  min-width: 2.75rem;
+}
+
+/* A control whose whole job is to be a small inline chip inside a larger
+   target — a segmented control's segment, a filter pill in a wrapping row —
+   opts out by declaring itself, so the exception is visible in the markup
+   rather than hidden in a specificity fight. */
+.target-inline {
+  min-height: 0;
+  min-width: 0;
 }
 
 /* ─── Reduced motion ───────────────────────────────────────────────────────

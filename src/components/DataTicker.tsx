@@ -58,7 +58,16 @@ export function DataTicker() {
   if (items.length === 0) return null;
 
   return (
-    <div className="overflow-hidden" style={{ borderBottom: '1px solid var(--border-card)' }}>
+    /* The ticker duplicates its item list so the marquee can loop seamlessly,
+       which means a screen reader would read every value twice. It is also
+       purely decorative: every figure in it appears again, in context and with
+       its source, in the tiles below. So it is hidden from assistive
+       technology entirely rather than announced once. */
+    <div
+      className="overflow-hidden"
+      style={{ borderBottom: '1px solid var(--border-card)' }}
+      aria-hidden="true"
+    >
       <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
           {[...items, ...items].map((item, i) => (
             <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0">
@@ -71,7 +80,7 @@ export function DataTicker() {
               {item.change && (
                 <span style={{ color: 'var(--text-secondary)' }}>{item.change}</span>
               )}
-              <span aria-hidden="true" style={{ color: 'var(--border-card)' }}>·</span>
+              <span style={{ color: 'var(--border-card)' }}>·</span>
             </span>
           ))}
       </div>

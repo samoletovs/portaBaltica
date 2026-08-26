@@ -263,6 +263,23 @@ Windows native reverses this; on the web, lighter-on-hover is the convention.
 A hover state must never be the *only* way to discover something. The indicator
 cards reveal a `→` on hover; that is decoration, and the card is a link
 regardless.
+### 2.3 Measure it in the browser, not in the source
+
+A standing caution, learned the expensive way on this project.
+
+A static scan of the stylesheet measured the accent `#38bdf8` as a *foreground*
+against the page — 6.91:1, comfortably passing — and concluded the token was
+fine. It was being used as a **fill**, with white text on top, at **2.56:1**,
+and that was the selected state of the country switcher, the date range and the
+chart period. No amount of reading the CSS finds that; only asking a live page
+what it actually computed does.
+
+So: before claiming a contrast fix, open the page and read
+`getComputedStyle()`. The same applies to `:focus-visible`, which cannot be
+observed at all in a browser whose window is not focused — `document.hasFocus()`
+returning false means every element reports no outline, and that is the harness
+lying, not the CSS failing.
+
 
 ---
 
@@ -292,11 +309,9 @@ Lithuania in amber. Under deuteranopia — around 8% of men — emerald and ambe
 converge. Three lines, two of which a substantial minority of readers could not
 tell apart, with a legend that keyed on nothing but colour.
 
-The palette is now **cyan / amber / pink**, which are separated in hue in a way
-that survives the common confusions, and every series additionally carries a
-**stroke pattern** (solid / dashed / dotted). Carbon prefers direct labelling
-over a legend, and the latest value for each country is shown inline in the
-panel header, coloured to match.
+The palette is now the flags (§3.6), every series additionally carries a
+**stroke pattern**, and the latest value for each country is direct-labelled in
+the panel header in its own colour — which Carbon prefers over a legend anyway.
 
 ### 3.3 The y-axis
 
@@ -321,38 +336,90 @@ gridlines rendered near-black on white.
 
 Aim for **5–8 y-axis ticks**, fewer on mobile.
 
-### 3.5 Direction is not sentiment
+### 3.5 Direction, and where it stops being neutral
 
-The most important rule on this page.
+Every indicator card colours its change: **green for a rise, red for a fall.**
+That is what a reader scanning a dashboard for momentum expects, and a
+dashboard that cannot be scanned has lost the only reason to open it.
 
-Every indicator card coloured a rise green and a fall red. So rising
-unemployment was green. Rising inflation was green. Rising government debt was
-green. The dashboard was, silently and on every load, editorialising in the
-wrong direction.
+With one exception, and it is the one that matters. Twelve series are worse
+when they rise — unemployment, every inflation measure, producer prices,
+government debt, the gas price, bankruptcies. On those the colours **flip**: a
+fall is drawn green because a fall is the good news. Without that flip the
+dashboard renders rising unemployment in green, which is editorialising,
+silently, in the wrong direction, on exactly the series a reader most cares
+about.
 
-Financial UIs get away with green-up because they show *prices*, where up is
-unambiguously good for a holder. Macro statistics are not prices. The FT's own
-charts use a neutral series colour and let the reader judge.
+So each indicator declares a **polarity** in `src/utils/polarity.ts`:
 
-Therefore each indicator declares a **polarity**:
-
-| Polarity | Meaning | Treatment |
+| Polarity | Examples | Rise is drawn |
 |---|---|---|
-| `lower-better` | unemployment, inflation, PPI, government debt | a fall is `--data-positive` |
-| `higher-better` | GDP, wages, employment, renewable share, exports | a rise is `--data-positive` |
-| `neutral` | population, house prices, imports, vehicle registrations, government revenue | **no sentiment colour at all** |
+| `higher-better` | GDP, wages, exports, renewables | green |
+| `lower-better` | unemployment, inflation, PPI, debt, gas price | **red** |
+| `neutral` | house prices, population, imports, gov revenue, vehicles | green |
 
-`neutral` is the default, and it is the right default. Whether rising house
-prices are good news depends entirely on whether you own one, and it is not the
-dashboard's job to decide. Neutral indicators show the direction with an arrow
-and a sign, in `--text-secondary`.
+`neutral` is the default and is coloured by direction like everything else.
+Green there means *went up*, not *good* — and the arrow and the sign say so
+without any colour at all. The test for putting an indicator in one of the
+first two rows is whether a finance ministry, a trade union and a central bank
+would all agree on the sign. Where they would not, it stays neutral.
 
-The **series line itself is never sentiment-coloured.** It used to be: the
-sparkline took its colour from the sign of the final data point, so an entire
-ten-year series turned red or green according to one quarter. Series get a
-neutral colour; only the delta chip carries meaning.
+**Colour is the third encoding, never the first.** `--data-positive` and
+`--data-negative` are green and red, which under a Brettel deuteranopia
+simulation measure **ΔE 8 apart** — indistinguishable for roughly 8% of men.
+The ▲/▼ glyph, the explicit `+`/`−` sign and a screen-reader description are
+what actually carry the direction (WCAG 2.2 SC 1.4.1). None of them is
+optional.
 
-### 3.6 Numbers
+The **sparkline follows the same rule as the delta**, so a card reads as one
+statement rather than a green number above a red line. What it must never do
+again is take its colour from the raw sign of the last data point, which is how
+a decade of falling unemployment came to be drawn in red.
+
+### 3.6 The country palette is the flags
+
+Latvia carmine, Estonia blue, Lithuania yellow. A reader who knows the flags
+never has to consult a legend, which is the cheapest legibility win available
+on a three-country chart.
+
+| | Dark | Light |
+|---|---|---|
+| Latvia | `#dc3b4a` | `#a4262c` |
+| Estonia | `#4da6ff` | `#0057a8` |
+| Lithuania | `#fdb913` | `#b4700a` |
+| Finland *(bidding zone only)* | `#d8b4fe` | `#6d28d9` |
+
+Three measured constraints produced those exact values.
+
+1. **Raw flag colours fail.** Latvian carmine `#9E3039` is 2.40:1 on a card and
+   Lithuanian green `#006A44` is 2.87:1, both under the 3:1 SC 1.4.11 asks of a
+   graphical object. They are lightened until they pass.
+2. **Lithuania is yellow, not green.** Against Latvian carmine, flag green
+   measures **ΔE 6** under deuteranopia — total convergence, so around 8% of men
+   could not tell Latvia from Lithuania. Yellow measures ΔE 52.
+3. **Latvia must not be the same red as "declining".** At `#e4707a` it sat
+   **ΔE 8.6** from `--data-negative` — the same colour — and red would have meant
+   both *Latvia* and *falling* on one screen, which is the three-meanings defect
+   this book exists to remove. `#dc3b4a` is ΔE 23 away, and closer to the real
+   flag besides.
+
+Finland is deliberately **not** a flag colour: its flag is blue, which is
+Estonia's, and the two collide at ΔE 3 under deuteranopia. It appears only as a
+Nord Pool bidding zone, never as one of the three Baltic states.
+
+**Stroke patterns stay** — Latvia solid, Estonia `7 4`, Lithuania `2 4` — even
+though the hues are now well separated. That is measured, not cautious:
+between-series *luminance* contrast is only 1.19–1.76:1, well under the 3:1 at
+which WCAG's note on SC 1.4.1 lets lightness count as a second distinction. Hue
+is therefore the only other channel, and hue alone is precisely what the
+criterion forbids. The dash is the second channel, and it survives greyscale
+printing too.
+
+Lines are drawn at **2–2.5px**, not 1.5px. At hairline weight on a dark ground
+chroma perception collapses and two warm hues read as one colour — which is
+what "the red and the orange are hard to tell apart" actually meant.
+
+### 3.7 Numbers
 
 - **Tabular figures everywhere a number can change or align.**
   `font-variant-numeric: tabular-nums`. Our World in Data additionally sets
@@ -367,7 +434,7 @@ neutral colour; only the delta chip carries meaning.
 - **Fixed decimal places within a column.** `1.20` and not `1.2` when its
   neighbour is `1.25`.
 
-### 3.7 Attribution
+### 3.8 Attribution
 
 Every chart and every table names its source, immediately beneath, in
 `text-caption` at `--text-tertiary`. Our World in Data renders exactly this at
@@ -423,16 +490,30 @@ Where a series is stale, say so and date it. Where it is unavailable, render
 - no arbitrary sizes, no Tailwind default ramp, no inline px `fontSize`;
 - **two weights** — no `font-medium`, no `font-bold`, no inline `fontWeight`
   other than 400 and 600;
+- headings descend, an `h2` is never `text-caption`, and each heading has more
+  room above it than below;
 - spacing, gap and radius classes are on the allowlists in §1.2 and §1.3;
 - every text token clears its contrast floor in **both** themes;
+- semantic and series colours clear 4.5:1 and 3:1 respectively, in both themes;
+- **the country palette survives a deuteranopia simulation** — every pair of
+  Latvia, Estonia and Lithuania stays above ΔE 25, Latvia stays clear of
+  `--data-negative`, and Finland stays clear of Estonia's blue;
+- every series carries a stroke pattern as well as a hue;
+- polarity flips on all twelve `lower-better` series, and the ▲/▼ glyph, the
+  sign and a spoken description are all present so colour is never alone;
 - a global `:focus-visible` rule exists, is at least 2px, and no component
   disables an outline without replacing it;
+- controls have a 44px minimum target;
+- "back to the dashboard" goes to the dashboard;
+- every chart carries `role="img"` and a described label, and the decorative
+  ticker is `aria-hidden`;
 - `prefers-reduced-motion` is honoured, and nothing animates `all`;
 - charts do not hardcode a hex colour that a theme token already provides, and
-  do not use `connectNulls`.
+  do not use `connectNulls`;
+- the JS chart palette and the CSS tokens have not drifted apart.
 
-Contrast is computed, not eyeballed. If you change a colour, the test tells you
-what ratio you actually shipped.
+Contrast and colour separation are **computed**, not eyeballed. If you change a
+colour, the test tells you the ratio — or the ΔE — you actually shipped.
 
 ---
 
@@ -467,25 +548,39 @@ Select-String -Path dist\assets\*.css -Pattern '--corner-card:|--focus-ring:'
 ## 7. Known gaps
 
 Honest list of what this book describes but the site does not yet fully do.
+Several come from an independent `/impeccable` critique run against `src/App.tsx`
+in a separate session, which scored the dashboard 23/40 and found things a
+design-system audit does not surface because they are not token defects.
 
-1. **Light theme is a set of overrides, not a designed theme.** It works and it
-   now passes contrast, but it is built from `!important` rules that reach into
-   Tailwind's generated slate classes. It should be token-driven like the
-   newsroom surfaces already are.
-2. **The chart palette exists twice** — as `--series-*` in `index.css` and as
-   literals in `ThemeContext`. Recharts writes colours into SVG presentation
-   attributes where jsdom will not resolve `var()`, so the literals are needed;
-   `tests/design-system.test.ts` compares the two so they cannot drift, but one
-   source would be better than two guarded ones.
-3. **No density toggle.** The dashboard is compact by assertion, not by a
-   switch a reader can throw.
-4. **No `@media (prefers-contrast: more)` path**, and no forced-colours pass.
-5. **Charts have no keyboard or screen-reader story.** Recharts renders SVG
-   with no accessible table equivalent. Every chart should be a `<figure>` with
-   a real caption and a visually-hidden data table.
+1. **Empty states do not distinguish causes.** One grey box is rendered for
+   "upstream is down", "Eurostat does not publish this for Estonia" and "no
+   observations in range". With the API unavailable `/data` becomes roughly
+   12,000px of identical placeholders.
+2. **Only Maritime discloses data age.** `freshnessOf()` reaches three
+   components; eight tiles publish series that are routinely a quarter or more
+   behind with no as-of stamp. On a product whose pitch is traceability, this is
+   the credibility gap the newsroom closes and the dashboard reopens.
+3. **`assumptions[]` is computed server-side and never shown.** Every dashboard
+   figure should carry the passport the articles already have — dataset,
+   retrieved-at, cube, assumptions.
+4. **Dashboard chrome colonises the newsroom.** `SiteLayout` renders the
+   11-tab dashboard header, the ticker and the country/year controls above every
+   news route, and `NewsroomLayout` then adds a second nav whose "Latest" also
+   points at `/`. The reader meets the dashboard before the journalism.
+5. **Charts still have no data-table alternative.** They now carry `role="img"`
+   and a described label, which is the floor, not the finish.
 6. **Missing data is a gap, not a labelled gap.** Carbon asks for the start and
-   end of an unavailable period to be labelled, and Our World in Data hatches
-   the region. We stop at not interpolating.
-7. **No motion on data updates.** When a value changes, nothing says it changed.
-8. **Renaming the colour tokens to `--fg-*`** would end the first trap above
-   for good. It touches every dashboard component, so it is its own change.
+   end of an unavailable period to be labelled; Our World in Data hatches the
+   region. We stop at not interpolating.
+7. **Four tiles have no loading, empty or error state** — `EnergyTile`,
+   `GovernmentTile`, `LabourTile`, `TradeTile`.
+8. **Light theme is a set of overrides, not a designed theme.** It passes
+   contrast, but it is built from `!important` rules reaching into Tailwind's
+   generated slate classes.
+9. **The chart palette exists twice** — `--series-*` in CSS and literals in
+   `ThemeContext`, because recharts writes into SVG attributes where jsdom will
+   not resolve `var()`. A test compares them so they cannot drift, but one
+   source would be better than two guarded ones.
+10. **No density toggle, and no `prefers-contrast: more` path.**
+11. **Renaming the colour tokens to `--fg-*`** would end the first trap in §6
+    for good. It touches every dashboard component, so it is its own change.

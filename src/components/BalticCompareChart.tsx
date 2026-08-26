@@ -5,25 +5,27 @@ import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
+import { describeComparison } from '../utils/chartAccessibility';
 
 /**
- * Each country's identity in a chart: a hue, a stroke pattern and a label.
+ * Each country's identity in a chart: its flag colour, a stroke pattern and a
+ * label.
  *
- * The palette was sky / emerald / amber. Under deuteranopia — roughly 8% of
- * men — emerald and amber converge, so two of the three lines were
- * indistinguishable to a substantial minority of readers, and the only key was
- * a colour-coded legend. It is cyan / amber / pink now, and colour is no longer
- * the sole encoding (WCAG 2.2 SC 1.4.1): the dash pattern says the same thing
- * again, and the latest reading for each country is direct-labelled in the
- * panel header, which Carbon prefers over a legend anyway.
+ * Latvia carmine, Estonia blue, Lithuania yellow — a reader who knows the
+ * flags never has to consult a legend. The exact values, and why Lithuania is
+ * yellow rather than green, are worked out in `ThemeContext`.
  *
- * Hues come from the theme so they follow the light/dark switch; the dash
- * patterns do not, because a stroke pattern is not a colour.
+ * The stroke patterns stay even though the hues are now well separated, and
+ * that is a measured decision rather than caution. Between-series *luminance*
+ * contrast is only 1.19–1.76:1, well under the 3:1 at which WCAG 2.2's note on
+ * SC 1.4.1 lets a difference in lightness count as a second distinction. So
+ * hue is the only other channel, and hue alone is what the criterion forbids.
+ * The dash is the second channel; it also survives greyscale printing.
  */
 const COUNTRY_META: Record<string, { dash?: string; label: string; flag: string }> = {
   LV: { label: 'Latvia', flag: '🇱🇻' },
-  EE: { dash: '6 3', label: 'Estonia', flag: '🇪🇪' },
-  LT: { dash: '2 3', label: 'Lithuania', flag: '🇱🇹' },
+  EE: { dash: '7 4', label: 'Estonia', flag: '🇪🇪' },
+  LT: { dash: '2 4', label: 'Lithuania', flag: '🇱🇹' },
 };
 
 const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;
@@ -72,9 +74,10 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
 
   if (loading) {
     return (
-      <div className={`bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse ${compact ? 'h-40' : 'h-64'}`}>
-        <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-4" />
-        <div className="h-full bg-slate-800/20 rounded" />
+      <div className={`rounded-xl p-4 animate-pulse ${compact ? 'h-40' : 'h-64'}`}
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+        <div className="h-3 rounded w-1/3 mb-4" style={{ background: 'var(--border-card)' }} />
+        <div className="h-full rounded" style={{ background: 'var(--bg-raised)' }} />
       </div>
     );
   }
@@ -141,7 +144,18 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
         </div>
       </div>
 
-      <div className={compact ? 'h-32' : 'h-52'}>
+      <div
+        className={compact ? 'h-32' : 'h-52'}
+        role="img"
+        aria-label={describeComparison(
+          title ?? data.title,
+          COUNTRY_ORDER.map((geo) => ({
+            label: COUNTRY_META[geo].label,
+            points: (data.countries[geo]?.series ?? []) as { period: string; value: number | null }[],
+          })),
+          (v) => formatValue(v, data.unit),
+        )}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
@@ -182,7 +196,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
                 dataKey={geo}
                 stroke={chartColors.series[geo]}
                 strokeDasharray={COUNTRY_META[geo].dash}
-                strokeWidth={compact ? 1.5 : 2}
+                strokeWidth={compact ? 2 : 2.5}
                 dot={false}
                 isAnimationActive={false}
               />

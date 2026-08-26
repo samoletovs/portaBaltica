@@ -177,7 +177,7 @@ export function IndicatorPage() {
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-4 py-12">
           <p className="text-slate-400">Unknown indicator.</p>
-          <button onClick={() => navigate('/')} className="text-slate-300 underline mt-2 text-ui">← Back to dashboard</button>
+          <button onClick={() => navigate('/data')} className="text-slate-300 underline mt-2 text-ui">← Back to dashboard</button>
         </div>
       </div>
     );
@@ -188,7 +188,7 @@ export function IndicatorPage() {
       <main id="main" className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Breadcrumb */}
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/data')}
           className="text-ui text-slate-400 hover:text-slate-200 mb-4 inline-flex items-center gap-1"
         >
           ← Back to dashboard

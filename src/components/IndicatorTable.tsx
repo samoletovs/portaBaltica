@@ -110,10 +110,15 @@ export function IndicatorTable() {
         const change = row.summary.change;
         const isRise = change !== null && change > 0;
         const sentiment = sentimentOf(row.id, change);
-        // The trend line is neutral. It used to be green when the last change
-        // was positive and red otherwise, so a column of sparklines read as a
-        // column of verdicts. See DESIGN.md §3.5.
-        const lineColor = chartColors.seriesDefault;
+        // The trend line follows the same rule as the delta beside it, so a
+        // row reads as one statement. It used to be coloured by raw direction,
+        // which drew a decade of falling unemployment in red.
+        const lineColor =
+          sentiment === 'none'
+            ? chartColors.seriesDefault
+            : sentiment === 'positive'
+              ? chartColors.positive
+              : chartColors.negative;
 
         return (
           <button

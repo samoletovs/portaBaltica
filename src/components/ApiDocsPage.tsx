@@ -28,7 +28,7 @@ export function ApiDocsPage() {
   return (
     <div className="min-h-screen">
       <main id="main" className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <button onClick={() => navigate('/')} className="text-ui mb-4 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+        <button onClick={() => navigate('/data')} className="text-ui mb-4 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
           ← Back to dashboard
         </button>
 

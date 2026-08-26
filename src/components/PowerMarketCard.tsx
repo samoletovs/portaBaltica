@@ -141,7 +141,7 @@ export function PowerMarketCard() {
                 dataKey={zone}
                 stroke={zoneColor(zone)}
                 strokeDasharray={ZONE_DASH[zone]}
-                strokeWidth={1.6}
+                strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
               />
