@@ -1,5 +1,6 @@
 import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus } from './types';
 import { PORTS } from './types';
+import { finite } from './utils/payload';
 
 const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
 const OPEN_METEO_WEATHER = 'https://api.open-meteo.com/v1/forecast';
@@ -112,12 +113,12 @@ export async function fetchMarineWeather(port: Port): Promise<MarineWeatherForec
   return {
     portCode: port.code,
     current: {
-      waveHeight: data.current?.wave_height ?? 0,
-      waveDirection: data.current?.wave_direction ?? 0,
-      wavePeriod: data.current?.wave_period ?? 0,
-      seaSurfaceTemp: data.current?.sea_surface_temperature ?? 0,
-      windWaveHeight: data.current?.wind_wave_height ?? 0,
-      swellWaveHeight: data.current?.swell_wave_height ?? 0,
+      waveHeight: finite(data.current?.wave_height),
+      waveDirection: finite(data.current?.wave_direction),
+      wavePeriod: finite(data.current?.wave_period),
+      seaSurfaceTemp: finite(data.current?.sea_surface_temperature),
+      windWaveHeight: finite(data.current?.wind_wave_height),
+      swellWaveHeight: finite(data.current?.swell_wave_height),
     },
     hourly: {
       time: data.hourly?.time ?? [],
@@ -142,28 +143,47 @@ export async function fetchPortWeather(port: Port): Promise<PortWeather> {
 
   return {
     portCode: port.code,
-    temperature: data.current?.temperature_2m ?? 0,
-    windSpeed: data.current?.wind_speed_10m ?? 0,
-    windDirection: data.current?.wind_direction_10m ?? 0,
-    cloudCover: data.current?.cloud_cover ?? 0,
-    precipitation: data.current?.precipitation ?? 0,
+    temperature: finite(data.current?.temperature_2m),
+    windSpeed: finite(data.current?.wind_speed_10m),
+    windDirection: finite(data.current?.wind_direction_10m),
+    cloudCover: finite(data.current?.cloud_cover),
+    precipitation: finite(data.current?.precipitation),
   };
 }
 
-/** Fetch all marine + regular weather for all 3 ports.
- *  Uses allSettled so individual port failures don't break everything. */
+/**
+ * Marine and land weather for every port.
+ *
+ * Two endpoints per port, and they answer different questions: the marine API
+ * carries the sea state, which is the point of the card, and the forecast API
+ * carries air temperature and wind, which are context beside it.
+ *
+ * They are joined with `allSettled` rather than `all` because they fail
+ * independently. Under `Promise.all` a single 500 from the forecast endpoint
+ * rejected the pair, `allSettled` dropped the whole port, and a run where the
+ * marine API answered perfectly returned **no ports at all** — every card lost,
+ * including the wave heights that had arrived.
+ *
+ * `PortCard` was already built for this: it reads `weather?.temperature`
+ * through `fixed()`, which renders an em dash. The component handled the case
+ * the fetch layer made impossible.
+ *
+ * The sea state is *not* optional in the same way. A port card with no sea
+ * state has nothing to say, so a marine failure still drops that port — and
+ * only that port.
+ */
 export async function fetchAllWeather() {
   const settled = await Promise.allSettled(
     PORTS.map(async (port) => {
       const [marine, weather] = await Promise.all([
         fetchMarineWeather(port),
-        fetchPortWeather(port),
+        fetchPortWeather(port).catch(() => null),
       ]);
       return { port, marine, weather };
     })
   );
   return settled
-    .filter((r): r is PromiseFulfilledResult<{ port: Port; marine: MarineWeatherForecast; weather: PortWeather }> => r.status === 'fulfilled')
+    .filter((r): r is PromiseFulfilledResult<{ port: Port; marine: MarineWeatherForecast; weather: PortWeather | null }> => r.status === 'fulfilled')
     .map(r => r.value);
 }
 
