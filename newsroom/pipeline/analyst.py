@@ -58,6 +58,7 @@ from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
 from newsroom.pipeline import units
 from newsroom.pipeline.context import COUNTRY_NAMES, ContextPack
+from newsroom.pipeline.house_style import closing_problems
 from newsroom.pipeline.models import Signal
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for
@@ -394,7 +395,7 @@ class AnalystBrief:
         if self.affected:
             lines.append("")
             lines.append("WHO THIS LANDS ON: " + "; ".join(self.affected))
-        if self.what_to_watch:
+        if self.what_to_watch and not closing_problems(self.what_to_watch):
             lines.append("")
             lines.append(f"WHAT WOULD SETTLE IT: {self.what_to_watch}")
         if self.caveats:
@@ -444,7 +445,12 @@ OUTPUT — a single JSON object, no markdown, no commentary:
       "confidence": "established" | "consistent"}}
   ],
   "affected": ["specific groups, sectors or decisions"],
-  "what_to_watch": "the named next release or figure that would settle it",
+  "what_to_watch": "the value or threshold a named future reading would have to
+                    show for this conclusion to change — NOT merely that a
+                    release is due. 'A second quarter above 2691 thousand tonnes
+                    would make this a level shift' is useful; 'the next release,
+                    to see if the trend continues' is not, because every trend
+                    either continues or does not",
   "caveats": ["a definitional trap the correspondent must not fall into"]
 }}
 

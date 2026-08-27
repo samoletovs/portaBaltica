@@ -147,6 +147,28 @@ jobs:
           # start-up rather than at deploy time.
           remote-build: true
 
+      - name: Stamp the deployed revision
+        # So an article can say which code wrote it instead of it being
+        # inferred from timestamps. `provenance.revision` is read from this
+        # setting at runtime; when it is absent the article records
+        # `revision_unavailable` and says so, rather than carrying a plausible
+        # placeholder.
+        #
+        # AFTER the publish, deliberately. Setting it first would leave the app
+        # asserting this SHA while still serving the previous package if the
+        # publish then failed — which is precisely the false claim the field
+        # exists to prevent.
+        #
+        # BEFORE the health check, also deliberately: writing an app setting
+        # restarts the app, so the check below then validates the state the app
+        # actually settles in rather than one it is about to leave.
+        run: |
+          set -euo pipefail
+          az functionapp config appsettings set \
+            --name portabaltica-func --resource-group portabaltica-rg \
+            --settings "NEWSROOM_REVISION=${GITHUB_SHA}" --output none
+          echo "NEWSROOM_REVISION=${GITHUB_SHA}"
+
       - name: Confirm the host came back with the timer registered
         # A publish that exits zero and leaves the app unable to load its
         # functions is the failure this catches. The timer is the one that

@@ -49,6 +49,23 @@ def _setting(*names: str, default: str = "") -> str:
     return default
 
 
+#: The git revision of the code that is actually running.
+#:
+#: Set by the deploy workflow from ``github.sha`` immediately after publishing,
+#: NOT committed to the tree: a constant in the repository records what someone
+#: last typed, which is a different question from what Azure is serving.
+#:
+#: Deliberately no fallback. A default like "unknown" or a stale build-time
+#: constant is a field that always looks plausible, and a provenance stamp that
+#: cannot be false is worse than none -- it invites exactly the trust it does
+#: not earn. When this is empty the article says so, distinguishably, rather
+#: than carrying a placeholder that reads like an answer.
+#:
+#: There is no platform variable to read instead. ``SCM_COMMIT_ID`` is populated
+#: by Kudu for git deployments; this app is published as a zip by
+#: ``Azure/functions-action``, and its app settings carry no revision.
+REVISION = _setting("NEWSROOM_REVISION")
+
 STORAGE_ACCOUNT_URL = _setting("BLOB_ACCOUNT_URL", "NEWSROOM_STORAGE_ACCOUNT_URL")
 RAW_CONTAINER = _setting(
     "NEWSROOM_CONTAINER_RAW_FEEDS", "NEWSROOM_RAW_CONTAINER", default="raw-feeds"
