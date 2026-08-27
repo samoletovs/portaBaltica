@@ -132,6 +132,20 @@ class TestOnlyVerifiedNumbersReachTheWriter:
 
         assert set(signal.fields) == set(corpus_fields(corpus))
 
+    def test_a_figure_with_no_recorded_basis_says_so(self):
+        """Every ledger entry written before `comparison_basis` existed carries
+        none, and a probe of the live ledger found all eight of the week's
+        findings in that state. A bare number invites the writer to describe a
+        movement it cannot support, which the validator then refuses -- so the
+        gap is stated rather than left blank."""
+        corpus = collect_week(
+            [figure("legacy", "construction_output", basis=""), *a_week(4)], now=NOW
+        )
+        context = corpus_context(corpus)
+
+        assert "NO COMPARISON BASIS RECORDED" in context["construction_output_lv"]
+        assert "do not describe it as a rise" in context["construction_output_lv"]
+
     def test_each_field_is_explained_with_its_comparison_basis(self):
         """`check_comparison_basis_stated` refuses prose that quantifies a
         change without naming what it is measured against. A wrap cannot
@@ -501,3 +515,183 @@ class TestTheWrapDoesNotEatTheNewsroom:
         again, _ = self._keys(collect_week(a_week(4), now=NOW))
 
         assert first == again
+
+
+# ── the trigger ────────────────────────────────────────────────────────────
+
+
+class TestTheWeeklyRunIsVisibleWhenItDoesNothing:
+    """A weekly cron that never fires and a quiet week are the same silence.
+
+    One is a broken deployment and the other is the feature working as
+    designed. Two GitHub Actions runs have already sat queued here for sixteen
+    hours looking exactly like healthy ones, so this is not hypothetical: the
+    report is written whatever the outcome, and a MISSING report for a week is
+    what says the trigger did not run.
+    """
+
+    @pytest.mark.anyio
+    async def test_a_thin_week_still_leaves_a_record(self, tmp_path):
+        from newsroom.pipeline.weekly import WeeklyOutcome, write_weekly
+        from newsroom.pipeline.vintage import VintageLedger, VintageStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        vintages = VintageStore(local_dir=tmp_path, account_url="")
+        await vintages.save(VintageLedger(a_week(2)))
+
+        outcome = await write_weekly(store, writer=None, vintages=vintages, now=NOW)
+
+        assert outcome.outcome == WeeklyOutcome.NOT_ENOUGH
+        assert outcome.findings_available == 0  # none of them are reachable
+        assert "below the floor" in outcome.detail
+
+    @pytest.mark.anyio
+    async def test_the_record_reaches_storage(self, tmp_path):
+        import json
+
+        from newsroom.pipeline.weekly import (
+            WEEKLY_REPORT_BLOB,
+            WeeklyOutcome,
+            write_weekly_report,
+        )
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        outcome = WeeklyOutcome(
+            outcome=WeeklyOutcome.NOT_ENOUGH,
+            week_start="2026-08-21",
+            week_end="2026-08-27",
+            findings_available=2,
+            detail="2 finding(s) in the week, below the floor of 4",
+        )
+
+        document = await write_weekly_report(store, outcome, trigger="timer")
+
+        assert document["outcome"] == "not_enough_findings"
+        assert document["trigger"] == "timer"
+        assert document["week"] == {"start": "2026-08-21", "end": "2026-08-27"}
+        on_disk = json.loads((tmp_path / WEEKLY_REPORT_BLOB).read_text(encoding="utf-8"))
+        assert on_disk["detail"] == outcome.detail
+
+    @pytest.mark.anyio
+    async def test_a_dated_copy_is_kept(self, tmp_path):
+        """`weekly-latest` alone cannot distinguish "ran today and found
+        nothing" from "last ran in March"."""
+        from newsroom.pipeline.weekly import WeeklyOutcome, write_weekly_report
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        outcome = WeeklyOutcome(
+            outcome=WeeklyOutcome.NOT_ENOUGH,
+            week_start="2026-08-21",
+            week_end="2026-08-27",
+            findings_available=2,
+        )
+
+        document = await write_weekly_report(store, outcome, trigger="timer")
+        day = document["finished_at"][:10]
+
+        assert (tmp_path / f"runs/weekly-{day}.json").exists()
+
+    def test_the_outcomes_are_distinguishable(self):
+        """Three states, three names. "No wrap" is not one answer."""
+        from newsroom.pipeline.weekly import WeeklyOutcome
+
+        assert len({
+            WeeklyOutcome.NOT_ENOUGH,
+            WeeklyOutcome.REFUSED,
+            WeeklyOutcome.PUBLISHED,
+        }) == 3
+
+
+class TestTheTwoCadencesAreConfiguredApart:
+    def test_the_weekly_timer_does_not_read_the_daily_setting(self):
+        """The disconnected-knob failure, which this project has had once.
+
+        `NEWSROOM_SCHEDULE` sat in Azure being ignored while the decorator
+        hardcoded a different cron, so the deployment looked configured for
+        three runs a day and ran once. A second timer reading the first's
+        setting would reintroduce it, and would also weld the two cadences
+        together.
+        """
+        import pathlib
+
+        source = (
+            pathlib.Path(__file__).resolve().parents[2] / "function_app.py"
+        ).read_text(encoding="utf-8")
+        weekly = source[source.index("def newsroom_weekly") - 900 : source.index("def newsroom_weekly")]
+
+        assert "config.WEEKLY_SCHEDULE" in weekly
+        assert "config.SCHEDULE" not in weekly
+
+    def test_the_weekly_schedule_is_a_setting_not_a_constant(self):
+        import pathlib
+
+        source = (
+            pathlib.Path(__file__).resolve().parents[2] / "pipeline" / "config.py"
+        ).read_text(encoding="utf-8")
+
+        assert 'WEEKLY_SCHEDULE = _setting("NEWSROOM_WEEKLY_SCHEDULE"' in source
+
+    def test_infrastructure_supplies_it(self):
+        """A setting the app reads and the template never sets falls back to a
+        default forever, which is the same disconnected knob one layer down."""
+        import pathlib
+
+        bicep = (
+            pathlib.Path(__file__).resolve().parents[3] / "infrastructure" / "main.bicep"
+        ).read_text(encoding="utf-8")
+
+        assert "NEWSROOM_WEEKLY_SCHEDULE" in bicep
+        assert "param newsroomWeeklySchedule string" in bicep
+
+    def test_the_host_interpolation_form_is_not_used(self):
+        """`%NAME%` is resolved by the host, which has no default syntax, so a
+        missing setting fails the trigger binding and the function never
+        registers -- a silent dead timer."""
+        import pathlib
+
+        source = (
+            pathlib.Path(__file__).resolve().parents[2] / "function_app.py"
+        ).read_text(encoding="utf-8")
+
+        assert "%NEWSROOM_WEEKLY_SCHEDULE%" not in source
+
+
+class TestTheSectionMapMatchesProduction:
+    """`sections_covered` is supplied to the writer as a quotable figure, so a
+    metric falling through to the wrong beat is a wrong published number.
+
+    A probe of the live ledger found `day_ahead_power_price`, `ghg_emissions`
+    and `economic_sentiment` all landing in "economy" -- the map had been
+    written against invented names rather than the ones production uses.
+    """
+
+    #: Every metric name seen in the live vintage ledger, and where it belongs.
+    LIVE = {
+        "port_goods_containers": "maritime",
+        "port_goods_roro": "maritime",
+        "port_goods_throughput": "maritime",
+        "transport_services_balance": "trade",
+        "ghg_emissions": "environment",
+        "economic_sentiment": "economy",
+        "day_ahead_power_price": "energy",
+        "house_prices": "property",
+        "unemployment_rate": "labour",
+        "business_registrations": "business",
+        "construction_output": "property",
+    }
+
+    def test_every_live_metric_lands_on_its_own_beat(self):
+        from newsroom.pipeline.weekly import _section_of
+
+        wrong = {
+            metric: _section_of(figure("s", metric))
+            for metric, expected in self.LIVE.items()
+            if _section_of(figure("s", metric)) != expected
+        }
+
+        assert not wrong, f"these metrics land on the wrong beat: {wrong}"
+
+    def test_an_unknown_metric_falls_back_rather_than_failing(self):
+        from newsroom.pipeline.weekly import _section_of
+
+        assert _section_of(figure("s", "something_new_entirely")) == "economy"

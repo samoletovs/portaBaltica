@@ -109,6 +109,85 @@ async def newsroom_edition(timer: func.TimerRequest) -> None:
     await _run_and_report("timer")
 
 
+async def _wrap_and_report(trigger: str):
+    """Run the weekly wrap and leave a record that it happened.
+
+    The record is written whatever the outcome, and that is the whole point. A
+    weekly cron that never fires and a week with nothing worth wrapping produce
+    the same silence on the front page — a broken deployment and the feature
+    working as designed, indistinguishable. Two runs have already sat queued
+    here for sixteen hours looking exactly like healthy ones.
+
+    So a missing weekly report for a week is the signal, and it is only a
+    signal because a report is written even when no wrap is.
+    """
+    from newsroom.pipeline.publish import ArticleStore
+    from newsroom.pipeline.weekly import WeeklyOutcome, write_weekly, write_weekly_report
+    from newsroom.pipeline.write import AzureOpenAIWriter
+
+    store = ArticleStore()
+    try:
+        outcome = await write_weekly(store, AzureOpenAIWriter())
+    except Exception as exc:  # noqa: BLE001
+        log.exception("the weekly wrap failed")
+        outcome = WeeklyOutcome(
+            outcome="error",
+            week_start="",
+            week_end="",
+            findings_available=0,
+            detail=str(exc),
+        )
+
+    log.info("weekly: %s — %s", outcome.outcome, outcome.detail)
+    try:
+        await write_weekly_report(store, outcome, trigger=trigger)
+    except Exception:  # noqa: BLE001 — observability must not break the run
+        log.exception("failed to write the weekly report")
+    return outcome
+
+
+@app.function_name(name="newsroom_weekly")
+@app.timer_trigger(
+    # Its own setting, not the daily one. `NEWSROOM_SCHEDULE` is already an app
+    # setting rather than a decorator constant, because the two once disagreed
+    # and the deployment looked configured for three runs a day while running
+    # once. A second timer reading the first's setting would reintroduce that
+    # gap in a new place, and would also make the two cadences impossible to
+    # move independently.
+    #
+    # Resolved in Python for the same reason as the daily one: `%NAME%` is
+    # interpolated by the host, which has no default syntax, so a missing
+    # setting fails the trigger binding and the function never registers.
+    schedule=config.WEEKLY_SCHEDULE,
+    arg_name="timer",
+    run_on_startup=False,
+    use_monitor=True,
+)
+async def newsroom_weekly(timer: func.TimerRequest) -> None:
+    """The weekly wrap.
+
+    Sunday 15:00 UTC by default, an hour after the daily edition, so the week's
+    last articles are already in the vintage ledger the wrap reads.
+    """
+    if timer.past_due:
+        log.warning("weekly timer is past due; running anyway")
+    await _wrap_and_report("timer")
+
+
+@app.function_name(name="newsroom_weekly_now")
+@app.route(
+    route="newsroom/weekly", auth_level=func.AuthLevel.FUNCTION, methods=["POST"]
+)
+async def newsroom_weekly_now(req: func.HttpRequest) -> func.HttpResponse:
+    """Manual trigger for operators. Same code path as the weekly timer."""
+    outcome = await _wrap_and_report("manual")
+    return func.HttpResponse(
+        json.dumps(outcome.to_json(), ensure_ascii=False),
+        mimetype="application/json",
+        status_code=200,
+    )
+
+
 @app.function_name(name="newsroom_run_now")
 @app.route(route="newsroom/run", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 async def newsroom_run_now(req: func.HttpRequest) -> func.HttpResponse:

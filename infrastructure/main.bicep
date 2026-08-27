@@ -71,6 +71,9 @@ param staticWebAppResourceGroup string = 'era-rg'
 @description('NCRONTAB schedule for the newsroom timer trigger. Three runs a day; the pipeline emits fewer articles on a quiet day rather than padding.')
 param newsroomSchedule string = '0 0 5,11,17 * * *'
 
+@description('NCRONTAB schedule for the weekly wrap. Its own setting rather than sharing the daily one: the two cadences move independently, and a second timer reading the first\'s setting would reintroduce the disconnected-knob failure in a new place. Sunday 15:00 UTC sits an hour after the last daily edition, so the week\'s findings are in the vintage ledger the wrap reads.')
+param newsroomWeeklySchedule string = '0 0 15 * * 0'
+
 @description('Python version for the Flex Consumption Function App.')
 @allowed(['3.11', '3.12'])
 param pythonVersion string = '3.12'
@@ -330,6 +333,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'NEWSROOM_CONTAINER_RAW_FEEDS', value: 'raw-feeds' }
         { name: 'NEWSROOM_CONTAINER_APPROVALS', value: 'approvals' }
         { name: 'NEWSROOM_SCHEDULE', value: newsroomSchedule }
+        { name: 'NEWSROOM_WEEKLY_SCHEDULE', value: newsroomWeeklySchedule }
       ]
     }
   }

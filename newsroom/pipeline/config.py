@@ -86,6 +86,17 @@ APPROVALS_CONTAINER = _setting(
 # a disagreement rather than having to guess at one.
 SCHEDULE = _setting("NEWSROOM_SCHEDULE", default="0 0 14 * * *")
 
+# The weekly wrap runs on its own cadence and so needs its own setting. The
+# daily schedule is already an app setting rather than a decorator constant --
+# a lesson learned the hard way when the two disagreed and the deployment
+# looked configured for three runs a day while running once -- so a second
+# timer sharing the first's setting would reintroduce exactly that gap.
+#
+# Sunday 15:00 UTC by default: an hour after the daily default, so the week's
+# last edition has already published and its findings are in the ledger the
+# wrap reads.
+WEEKLY_SCHEDULE = _setting("NEWSROOM_WEEKLY_SCHEDULE", default="0 0 15 * * 0")
+
 # Local mirror of the raw archive. Always written; blob is written too when a
 # storage account is configured. Keeping the local copy unconditional means the
 # reproducibility guarantee does not depend on Azure being reachable.

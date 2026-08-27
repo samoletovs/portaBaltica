@@ -63,7 +63,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Mapping, Sequence
 
-from newsroom.pipeline.models import Signal, SourceRef, utcnow
+from newsroom.pipeline.models import Signal, SourceRef, isoformat, utcnow
 from newsroom.pipeline.vintage import PublishedFigure
 
 log = logging.getLogger(__name__)
@@ -117,21 +117,35 @@ def week_bounds(now: datetime | date) -> tuple[str, str]:
     return ((end - timedelta(days=6)).isoformat(), end.isoformat())
 
 
+#: Metric prefix to beat.
+#:
+#: Checked against the metric names production actually uses, not invented
+#: ones: a probe of the live ledger found `day_ahead_power_price`,
+#: `ghg_emissions` and `economic_sentiment` all falling through to "economy",
+#: which understated `sections_covered` — and that count is supplied to the
+#: writer as a quotable figure, so a wrong one is a wrong published number
+#: rather than a cosmetic slip.
+_SECTION_BY_PREFIX = (
+    ("port_", "maritime"),
+    ("house_prices", "property"),
+    ("construction", "property"),
+    ("day_ahead_power", "energy"),
+    ("power_", "energy"),
+    ("electricity", "energy"),
+    ("ghg_", "environment"),
+    ("greenhouse", "environment"),
+    ("air_", "environment"),
+    ("business_", "business"),
+    ("unemployment", "labour"),
+    ("labour", "labour"),
+    ("hourly", "labour"),
+)
+
+
 def _section_of(figure: PublishedFigure) -> str:
     """The beat a figure belongs to, inferred from its metric."""
     metric = figure.metric
-    for prefix, section in (
-        ("port_", "maritime"),
-        ("house_", "property"),
-        ("construction", "property"),
-        ("power_", "energy"),
-        ("electricity", "energy"),
-        ("greenhouse", "environment"),
-        ("business_", "business"),
-        ("unemployment", "labour"),
-        ("labour", "labour"),
-        ("hourly", "labour"),
-    ):
+    for prefix, section in _SECTION_BY_PREFIX:
         if metric.startswith(prefix):
             return section
     if "balance" in metric:
@@ -221,6 +235,19 @@ def corpus_context(corpus: WeeklyCorpus) -> dict[str, str]:
             label += f", in {figure.unit}"
         if figure.comparison_basis:
             label += f" — measured against {figure.comparison_basis}"
+        else:
+            # Said plainly rather than left blank. Every figure in the ledger
+            # before `comparison_basis` was added carries none, and a writer
+            # given a bare number tends to describe a movement it cannot
+            # support — which `check_comparison_basis_stated` then refuses,
+            # spending the article's attempts on a fault the prompt caused.
+            #
+            # This is not hypothetical: a probe of the live ledger found all
+            # eight of the week's findings in exactly this state.
+            label += (
+                " — NO COMPARISON BASIS RECORDED for this figure, so state the "
+                "level only and do not describe it as a rise, a fall or a record"
+            )
         context[name] = label
     return context
 
@@ -321,14 +348,58 @@ def cited_slugs(document: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(str(slug) for slug in cites if isinstance(slug, str) and slug)
 
 
+@dataclass(frozen=True, slots=True)
+class WeeklyOutcome:
+    """What one weekly run did, including when it did nothing.
+
+    THE POINT OF THIS TYPE. A weekly cron that never fires and a week with
+    nothing worth wrapping produce the same silence on the front page, and they
+    are very different problems: one is a broken deployment, the other is the
+    feature working as designed. Two GitHub Actions runs have already sat
+    queued for sixteen hours here looking exactly like healthy ones.
+
+    So every run records an outcome, whatever happened, and the absence of a
+    record for a week is itself the signal that the trigger did not fire.
+    """
+
+    outcome: str
+    week_start: str
+    week_end: str
+    findings_available: int
+    slug: str = ""
+    cites: tuple[str, ...] = ()
+    detail: str = ""
+
+    #: Ran, and the week did not earn a wrap. Not a fault.
+    NOT_ENOUGH = "not_enough_findings"
+    #: Ran, wrote a draft, and the contract refused it.
+    REFUSED = "draft_refused"
+    #: Ran and published.
+    PUBLISHED = "published"
+
+    def to_json(self) -> dict[str, Any]:
+        document: dict[str, Any] = {
+            "version": 1,
+            "outcome": self.outcome,
+            "week": {"start": self.week_start, "end": self.week_end},
+            "findings_available": self.findings_available,
+            "min_findings": MIN_FINDINGS,
+            "detail": self.detail,
+        }
+        if self.slug:
+            document["slug"] = self.slug
+            document["cites"] = list(self.cites)
+        return document
+
+
 async def write_weekly(
     store: Any,
     writer: Any,
     *,
     vintages: Any = None,
     now: datetime | None = None,
-) -> Any | None:
-    """Write and publish one wrap, or return ``None`` if the week did not earn one.
+) -> WeeklyOutcome:
+    """Write and publish one wrap, and report what happened either way.
 
     Generation goes through :func:`generate_article` unchanged. That is the
     whole design: a wrap is a Signal like any other, so every gate, every
@@ -336,9 +407,9 @@ async def write_weekly(
     saying "unless it is a wrap". The only wrap-specific step is recording
     ``provenance.cites`` afterwards, which is what makes it correctable.
 
-    Returning ``None`` rather than raising is deliberate and matches the rest
-    of the enrichment: a week without a wrap is a missing feature, and a wrap
-    that cannot be written must not take the edition down with it.
+    Always returns an outcome rather than ``None``. A week with no wrap is a
+    fact worth recording, because the alternative reading of the same silence
+    is that the trigger never ran.
     """
     from newsroom.pipeline.safety import persona_for_section
     from newsroom.pipeline.vintage import VintageStore
@@ -358,15 +429,28 @@ async def write_weekly(
         exclude=[figure.slug for figure in ledger if figure.slug not in reachable],
     )
     if not is_worth_writing(corpus):
-        return None
+        return WeeklyOutcome(
+            outcome=WeeklyOutcome.NOT_ENOUGH,
+            week_start=corpus.start,
+            week_end=corpus.end,
+            findings_available=len(corpus),
+            detail=(
+                f"{len(corpus)} finding(s) in the week, below the floor of "
+                f"{MIN_FINDINGS}; no wrap was written"
+            ),
+        )
 
     result = generate_article(corpus_signal(corpus), writer, paragraphs=5)
     if not result.publishable:
-        log.warning(
-            "weekly wrap: draft refused (%s)",
-            result.verdict.failure_summary() or "article shape",
+        detail = result.verdict.failure_summary() or "article shape"
+        log.warning("weekly wrap: draft refused (%s)", detail)
+        return WeeklyOutcome(
+            outcome=WeeklyOutcome.REFUSED,
+            week_start=corpus.start,
+            week_end=corpus.end,
+            findings_available=len(corpus),
+            detail=detail,
         )
-        return None
 
     persona = persona_for_section(dominant_section(corpus))
     if persona is not None:
@@ -384,7 +468,42 @@ async def write_weekly(
         result.article.slug,
         len(corpus.slugs),
     )
-    return result
+    return WeeklyOutcome(
+        outcome=WeeklyOutcome.PUBLISHED,
+        week_start=corpus.start,
+        week_end=corpus.end,
+        findings_available=len(corpus),
+        slug=result.article.slug,
+        cites=corpus.slugs,
+        detail=f"published, citing {len(corpus.slugs)} article(s)",
+    )
+
+
+#: Where the weekly run leaves its record. Separate from the daily
+#: ``runs/latest.json`` so one cadence failing is visible without reading the
+#: other's history and doing arithmetic on timestamps.
+WEEKLY_REPORT_BLOB = "runs/weekly-latest.json"
+
+
+async def write_weekly_report(
+    store: Any, outcome: WeeklyOutcome, *, trigger: str, finished_at: str | None = None
+) -> dict[str, Any]:
+    """Leave the record, whatever the outcome.
+
+    Written to a stable name and to a dated history, matching the daily report.
+    The dated copy is what makes a missed week visible: ``weekly-latest`` alone
+    cannot distinguish "ran today and found nothing" from "last ran in March".
+    """
+    document = outcome.to_json()
+    document["trigger"] = trigger
+    document["finished_at"] = finished_at or isoformat(utcnow())
+
+    await store.put_json(WEEKLY_REPORT_BLOB, document)
+    await store.put_json(
+        f"runs/weekly-{document['finished_at'][:10]}.json", document
+    )
+    log.info("weekly report: %s (%s)", document["outcome"], document["detail"])
+    return document
 
 
 def _persona_json(persona: Any) -> Any:
@@ -405,5 +524,8 @@ __all__ = [
     "dominant_section",
     "is_worth_writing",
     "week_bounds",
+    "WeeklyOutcome",
+    "WEEKLY_REPORT_BLOB",
     "write_weekly",
+    "write_weekly_report",
 ]
