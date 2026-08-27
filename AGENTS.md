@@ -1221,6 +1221,49 @@ and eventually will not get one.** A permanent, justified exemption — such as
 because that file *is* the theme — is a different case and may stay a filter,
 since it is not waiting on a fix.
 
+## Mark the guess in a brief
+
+Work dispatched between sessions arrives as a brief, and a brief is written from
+a **symptom** that has usually hardened into a **location** by the time it is
+read.
+
+> `comparison_basis_stated` is 5 of 6
+
+is a true observation about a counter.
+
+> the instruction upstream is thin
+
+is already a hypothesis wearing it. **Nothing in the handoff marks where one
+ends and the other begins**, so a session that acts faithfully implements the
+guess, and does it in the place the guess named.
+
+Three briefs this programme were wrong in exactly that way. Two named the wrong
+location — the indicator gap was in the *collector*, not the registry it blamed;
+`comparison_basis_stated`'s failures were in the *check*, not the writer it
+blamed. The third named a fault that did not exist at all: a dek rule reported
+as unenforced was being obeyed 17 times in 18, and the instrument it asked for
+would have fired once and destroyed correct work.
+
+All three were caught, and only because the briefs said *"my guess is"* out
+loud. **A brief that named the same location without a guess-marker would have
+been implemented.** That is a property of the format, not of the reasoning —
+a manager working from production output at a distance *should* be wrong
+sometimes, and the alternative is not sending briefs.
+
+So separate the two explicitly, every time:
+
+```
+OBSERVED   the counter, the log line, the failing assertion — with the number
+GUESS      where I think it comes from, marked as a guess
+ASK        measure the guess before implementing it; report if it is wrong
+```
+
+The cost is one line. The return is that a session knows which part it is
+allowed to overturn — and the overturned briefs were worth more than the
+correct ones, because a correct brief only produces the work already imagined,
+while a wrong one produces a measurement of something nobody had reason to
+measure.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
