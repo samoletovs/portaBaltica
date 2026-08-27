@@ -39,6 +39,7 @@ import { execFileSync } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { readFileSync, existsSync, statSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, join, extname } from 'node:path';
+import { launchForLiveCheck } from './liveBrowser';
 
 const ROOT = resolve(__dirname, '..');
 const OUT = join(ROOT, '.tmp-recovery-build');
@@ -69,15 +70,6 @@ let built = false;
  * reload *is*, and an SPA navigation does not produce one.
  */
 let documentRequests = 0;
-
-async function chromium() {
-  try {
-    const playwright = await import('playwright');
-    return playwright.chromium;
-  } catch {
-    return null;
-  }
-}
 
 beforeAll(() => {
   // Fresh build into our own directory. Never `dist/`.
@@ -116,14 +108,25 @@ afterAll(() => {
   rmSync(OUT, { recursive: true, force: true });
 });
 
-/** Loads a route with one chunk missing, and reports what the reader ends up with. */
+/**
+ * Loads a route with one chunk missing, and reports what the reader ends up with.
+ *
+ * The browser comes from `launchForLiveCheck` rather than a local launcher, so
+ * that "no browser" means the same thing here as in the other two live browser
+ * checks: **skip locally, fail in CI.** This file previously carried its own
+ * copy, which soft-skipped on a missing *package* even on a runner — safe only
+ * because `deploy.yml` runs a plain `npm ci` that happens to install
+ * devDependencies. That is safety by circumstance rather than by construction,
+ * and the circumstance is one line in a workflow away from changing. #156 is
+ * exactly what that costs: a live suite reporting a pass in 1.4 seconds having
+ * launched nothing, for weeks, over a defect it had already found.
+ */
 async function visit(route: string, killChunk: string) {
-  const browserType = await chromium();
-  if (!browserType) return null;
+  const browser = await launchForLiveCheck();
+  if (!browser) return null;
 
   killed = killChunk;
   documentRequests = 0;
-  const browser = await browserType.launch();
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on('pageerror', () => {});
