@@ -6,7 +6,7 @@
  * also used to colour text, where SC 1.4.3 asks **4.5:1** of anything under
  * 24px. Measured in a real browser against the real card surface, across both
  * themes and eleven routes, **328 of 496 series-coloured text nodes failed the
- * floor that governed them**:
+ * floor that governed them**. At the values current when that was written:
  *
  *     light  --series-lt  #c28206  3.24:1     dark  --series-lv  #dc3b4a  3.90:1
  *     light  --series-lv  #e6414e  4.01:1
@@ -15,6 +15,11 @@
  * Four failures across two themes is not four unlucky values. A hue sitting
  * just above 3:1 as a line cannot simultaneously clear 4.5:1 as text, so this
  * was structural from the moment the palette was pointed at a `<span>`.
+ *
+ * The 2026 chroma reduction demonstrated that directly. It changed all six
+ * Baltic values and *raised* most of these ratios — light Lithuania to 4.18,
+ * dark Lithuania down from 9.92 to 4.15 — and **not one crossed 4.5**. The
+ * hexes above are therefore history; the structure they illustrate is not.
  *
  * ─── Why the existing contrast tests could not see it ───
  *

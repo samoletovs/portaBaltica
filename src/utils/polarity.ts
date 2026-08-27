@@ -110,6 +110,31 @@ export function sentimentColor(sentiment: Sentiment): string {
 }
 
 /**
+ * A short note explaining a colour that contradicts the naive reading.
+ *
+ * On a `lower-better` series a fall is drawn green, which is correct and is the
+ * whole point of this module — but on a dashboard it puts a green ▼ next to a
+ * red ▼ on cards that are both falling, and a reader cannot tell from the
+ * colour whether green meant "up" or meant "good". Both were true somewhere on
+ * the screen.
+ *
+ * That was reported as "some indicators do not represent the trend with the
+ * colour — is the rate going up or down, not clear", and the report is fair:
+ * DESIGN.md §3.5 anticipated the ambiguity and judged the arrow enough to
+ * resolve it. A 12px glyph tinted the same colour as the number beside it is
+ * not enough; it reads as part of the coloured blob rather than as an
+ * independent channel.
+ *
+ * The fix is to say the thing rather than to imply it. Only `lower-better`
+ * needs a note: on `higher-better` and `neutral` a rise is already drawn green,
+ * which is what an unprimed reader assumes, so a note there would be noise
+ * explaining the obvious.
+ */
+export function polarityNote(id: string): string | null {
+  return polarityOf(id) === 'lower-better' ? 'Lower is better' : null;
+}
+
+/**
  * The direction of a change, spelled out for a screen reader.
  *
  * Colour is the third encoding here, never the first: the arrow and the sign

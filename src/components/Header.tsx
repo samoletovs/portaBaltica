@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
-import { useFilter, YEAR_OPTIONS, type YearRange } from '../FilterContext';
+import { useFilter, YEAR_OPTIONS, STROKE_OPTIONS, type YearRange } from '../FilterContext';
 import { useOverflowFade } from '../utils/useOverflowFade';
 
 const SECTIONS: { id: DashboardSection | 'all' | 'news'; label: string; path: string }[] = [
@@ -25,7 +25,7 @@ export function Header() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
   const { country, setCountry, timezone, tzAbbr } = useCountry();
-  const { years, setYears } = useFilter();
+  const { years, setYears, strokeStyle, setStrokeStyle } = useFilter();
   const [navRef, navFade] = useOverflowFade<HTMLElement>();
   const section = location.pathname.startsWith('/data/')
     ? location.pathname.slice('/data/'.length).split('/')[0]
@@ -109,6 +109,29 @@ export function Header() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => setStrokeStyle(strokeStyle === 'patterned' ? 'plain' : 'patterned')}
+              className="h-8 px-2 flex items-center gap-1 rounded-lg transition-colors"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+              // The label says what the control *does*, not what it currently
+              // is: a toggle announced as its own state reads backwards to a
+              // screen-reader user, who hears the state twice and the action
+              // never.
+              aria-label={`Draw chart lines ${strokeStyle === 'patterned' ? 'solid, marked with end shapes' : 'with dash patterns'}`}
+              title={STROKE_OPTIONS.find((o) => o.value !== strokeStyle)?.hint}
+            >
+              <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
+                <line
+                  x1="1" y1="5" x2={strokeStyle === 'patterned' ? 19 : 14} y2="5"
+                  stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round"
+                  strokeDasharray={strokeStyle === 'patterned' ? '5 3' : undefined}
+                />
+                {strokeStyle === 'plain' && <circle cx="17" cy="5" r="2.5" fill="var(--text-secondary)" />}
+              </svg>
+              <span className="sr-only">
+                Chart lines are currently {strokeStyle === 'patterned' ? 'dashed' : 'solid'}
+              </span>
+            </button>
             <button
               onClick={toggle}
               className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"

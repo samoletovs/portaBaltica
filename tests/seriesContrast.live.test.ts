@@ -25,9 +25,14 @@ import { launchForLiveCheck } from './liveBrowser';
  *
  * **Both themes, because half this class was invisible in one of them.** The
  * failure was first found as a single token in dark. Light turned out to have
- * three, and the worst of them — `--series-lt` at 3.24:1 — is comfortable at
- * 9.92:1 in dark. A single-theme run would have reported the palette as nearly
- * fine.
+ * three, and the worst of them — `--series-lt`, then `#c28206` at 3.24:1 — was
+ * comfortable at 9.92:1 in dark. A single-theme run would have reported the
+ * palette as nearly fine.
+ *
+ * Those two figures are history: the 2026 chroma reduction moved them to 4.18
+ * and 4.15. What did *not* change is the conclusion — every Baltic series still
+ * fails 4.5:1 as text in both themes, which is why this measures usage rather
+ * than trying to find a value that satisfies both floors.
  *
  * It lives in the live suite for the same reason as the layout measurement: it
  * needs a browser, and a network failure should not block a pull request.
@@ -158,34 +163,33 @@ describe('the deployed site’s series palette', () => {
       await browser.close();
     }
 
-    // ─── A known, measured, pre-existing offender ───
+    // ─── The gold-on-a-raised-track allowance, now closed ───
     //
-    // `--series-lt` in light is `#c28206`, tuned to clear 3:1 **on the white
-    // card** — and it does, at 3.24:1. The ranked-comparison and modal-split
-    // bars are not drawn on the card: they sit in a track of `--bg-raised`
-    // (`#f1f5f9`), where the same colour measures 2.95:1.
+    // This used to carry an exception. `--series-lt` in light was `#c28206`,
+    // tuned to clear 3:1 **on the white card** — and it did, at 3.24:1. The
+    // ranked-comparison and modal-split bars are not drawn on the card: they
+    // sit in a track of `--bg-raised`, where the same gold measured 2.95:1, and
+    // on `--bg-sunken` 2.88:1. It was the fault this file exists for, one level
+    // out: a floor verified against one background and then used against
+    // another.
     //
-    //     --series-lt #c28206   on --bg-card   #ffffff   3.24:1  pass
-    //                           on --bg-page   #f6f8fb   3.04:1  pass
-    //                           on --bg-raised #f1f5f9   2.95:1  FAIL
-    //                           on --bg-sunken #eef2f7   2.88:1  FAIL
+    // It was recorded rather than fixed because the fix looked like a decision
+    // — darkening gold to clear the raised track walks it into `--data-warning`
+    // (`#a16207`), trading a marginal contrast failure for a semantic one.
     //
-    // It is only gold, only light, and only on those two surfaces — LV, EE and
-    // FI clear it on raised at 3.66, 3.91 and 7.03, and every dark value
-    // clears it. This is the same fault as the one this file was written for,
-    // one level out: a floor verified against one background and then used
-    // against another.
+    // The palette change that lowered the whole light theme's chroma resolved
+    // it as a side effect, and by moving in the *opposite* direction from the
+    // one that was feared: `#9c761f` is less saturated rather than darker, so
+    // it gained contrast without approaching the warning hue.
     //
-    // It is recorded rather than fixed because the fix is a decision, not a
-    // mechanism. Darkening gold until it clears 3:1 on `--bg-raised` walks it
-    // into `--data-warning` (`#a16207`), so a Lithuania bar would become
-    // confusable with a warning — trading a marginal contrast failure for a
-    // semantic one, which is the trade DESIGN.md §3.6 already refused once for
-    // Latvia.
+    //     --series-lt #9c761f   on --bg-card   #ffffff   4.18:1  pass
+    //                           on --bg-page   #f6f8fb   3.93:1  pass
+    //                           on --bg-raised #f1f5f9   3.81:1  pass
+    //                           on --bg-sunken #eef2f7   3.72:1  pass
     //
-    // Listing it here keeps it visible and still fails on a *new* offender.
-    const KNOWN = /graphic --series-lt 2\.9\d:1/;
-    const unexpected = offenders.filter((o) => !KNOWN.test(o));
+    // So the allowance is deleted rather than left in place. A stale exception
+    // is indistinguishable from a live one, and it would have gone on excusing
+    // the next value that landed at 2.9:1.
 
     // The encoding has to still be somewhere. A page that simply deleted every
     // series colour would score zero offenders and be a worse dashboard, so
@@ -193,6 +197,6 @@ describe('the deployed site’s series palette', () => {
     // that caught a local run whose API fixtures were missing, where nothing
     // rendered and the contrast check passed over an empty page.
     expect(swatchesSeen, 'no series colour is carried by any graphic — the mapping is gone').toBeGreaterThan(0);
-    expect(unexpected, `${textNodesSeen} series-coloured text nodes measured`).toEqual([]);
+    expect(offenders, `${textNodesSeen} series-coloured text nodes measured`).toEqual([]);
   }, 180_000);
 });

@@ -261,11 +261,17 @@
      never the only encoding (WCAG 2.2 SC 1.4.1). The full derivation, and why
      Lithuania is yellow rather than green, is in ThemeContext and DESIGN.md §3.6.
 
-     Finland is fuchsia rather than its own flag blue, which is Estonia's. */
-  --series-lv: #dc3b4a;
-  --series-ee: #4da6ff;
-  --series-lt: #fdb913;
-  --series-fi: #f0abfc;
+     Finland is plum rather than its own flag blue, which is Estonia's.
+
+     Chroma is capped here, and that cap is the point. The previous values were
+     chosen for lightness and separation with nothing constraining saturation,
+     and duly landed at 80–100% of the chroma sRGB can even produce at those
+     hues — Estonia was at the gamut edge exactly. Readers reported the charts
+     as painful and they were right. See DESIGN.md §3.6. */
+  --series-lv: #bf5259;
+  --series-ee: #407cc0;
+  --series-lt: #a67300;
+  --series-fi: #9c5089;
   --series-default: #7dd3fc;
   --chart-reference: #9fb0c4;
 
@@ -333,13 +339,22 @@
   /* A chart line is a *graphical object*, so SC 1.4.11 governs it at 3:1 — not
      the 4.5:1 that governs text. The first light palette was pushed to 7:1,
      which is AAA text contrast applied to a line, and it read exactly as dark
-     and muddy as that implies: Lithuania's gold came out brown. These are the
-     brightest flag-aligned values that still clear 3:1 on the white card and
-     stay ΔE 25 apart under a deuteranopia simulation. See DESIGN.md §3.6. */
-  --series-lv: #e6414e;
-  --series-ee: #1a7ae0;
-  --series-lt: #c28206;
-  --series-fi: #8b1a9c;
+     and muddy as that implies: Lithuania's gold came out brown.
+
+     The values that replaced it over-corrected in the other direction. They
+     were tuned for lightness (L* ≥ 45) and for separation under deuteranopia,
+     and nothing in that objective constrained *saturation* — so the answer sat
+     at 80–100% of the chroma sRGB can produce at each hue. Measured: LV 80%,
+     EE 93%, LT 99% of the available gamut. That is what "too bright" is.
+
+     These sit at chroma ≈ 0.10, inside the C 0.08–0.15 band Our World in Data
+     and Tableau 10 use, and every separation improved rather than degraded:
+     the weakest deuteranopia pair went from ΔE 26 to 37, and Latvia's distance
+     from `--data-negative` from 13.9 to 37.8. See DESIGN.md §3.6. */
+  --series-lv: #c07173;
+  --series-ee: #5580b4;
+  --series-lt: #9c761f;
+  --series-fi: #96688c;
   /* Not #0369a1: that is --news-accent, the link colour, byte for byte. A
      chart is not a link (DESIGN.md §1.5). */
   --series-default: #0891b2;

@@ -6,7 +6,7 @@ import { useFilter } from '../FilterContext';
 import { useTheme } from '../ThemeContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
-import { changeDescription, sentimentColor, sentimentOf, signed } from '../utils/polarity';
+import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
@@ -130,6 +130,16 @@ export function IndicatorTable() {
             <div className="min-w-0 flex items-baseline gap-2 overflow-hidden">
               <span className="text-ui dash-fg dash-hover-fg transition-colors truncate shrink">{row.title}</span>
               <span className="text-caption dash-subtle shrink-0">{row.unit}</span>
+              {/* The same ambiguity as on the cards, in a row that has no space
+                  for the full sentence: a green ▼ here and a red ▼ two rows
+                  down are both correct and, without this, indistinguishable in
+                  meaning. Abbreviated rather than omitted — the spoken
+                  description on the delta still says it in full. */}
+              {polarityNote(row.id) && (
+                <span className="text-caption dash-subtle shrink-0 hidden sm:inline" aria-hidden="true">
+                  ↓ better
+                </span>
+              )}
             </div>
             <span className="text-caption sm:text-ui text-right dash-fg font-mono self-center">
               {formatValue(row.summary.latest, row.unit)}
