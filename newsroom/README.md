@@ -319,12 +319,43 @@ The single most important component. An article is servable only if
 | `no_lived_experience_claims` | the prose claims visiting, interviewing, witnessing or phoning |
 | `attribution_present` | a tier B/C item lacks its required attribution string |
 | `comparison_basis_stated` | a change is described without naming what it is measured against |
+| `no_repeated_findings` | two paragraphs rest on the identical set of `signal_field`s |
 
 **Write these tests so they fail when the requirement is unmet, not merely when
 the code changes.** The lab has already shipped a green PR whose test asserted
 the truncation bug it was supposed to fix. A validator test that passes because
 the validator does nothing is worse than no test, because it manufactures
 confidence. Each check needs at least one fixture that *should* be rejected.
+
+### What the validator cannot see: the article's subject
+
+Every check above is about a *figure*. None is about what the article is
+**about**, and that gap has now produced two live errors of the same shape — a
+sentence where every per-article invariant holds and the subject is wrong.
+
+**"Latvian sea passengers fell to X."** Traceable, uninvented, correctly
+compared. Also a claim about Ventspils alone, because Riga stopped filing after
+2021-Q4 and the national total has equalled one port ever since. It reads as a
+statement about a country.
+
+**"Lithuania's business bankruptcy declarations spike to 130.9 index points."**
+Traceable, uninvented, correctly compared. Also the *new registrations* series —
+the collector's cache key omitted the query, so datasets sharing a cube were
+served each other's payloads. Bankruptcies were 120.3, and the two numbers mean
+opposite things about an economy. Five of twenty tier A articles published this
+way. `AGENTS.md`, under "Adding a data source", is the authoritative account.
+
+Neither was catchable downstream. The validator confirmed that 1088.6 came from
+the signal, and it had — the signal was built from the wrong cube.
+
+So: **the contract protects figures, not subjects.** A fault in what a series
+*is* has to be caught where the series is chosen, which means the guards live in
+`tests/pipeline/test_collect.py` and run against the registry rather than
+against a fixture: no two `EurostatDataset` entries may share a cache key; no
+`unit` may contain a digit, because the unit reaches the prose; a geography that
+publishes nothing is declared rather than discovered; and where the data has an
+arithmetic identity — goods + services = the trade balance — assert it, because
+that check needs no fixture and survives republication.
 
 ## Correspondents
 

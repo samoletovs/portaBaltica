@@ -45,6 +45,63 @@ function NotServable() {
 }
 
 /**
+ * The retraction.
+ *
+ * A retracted article did not fail validation — it passed every check and was
+ * wrong anyway, because the figures were real and attached to the wrong series.
+ * Showing it the generic refusal would therefore say something false about it.
+ *
+ * The published corrections policy promises that a retracted page "stays up,
+ * showing why. We do not delete the evidence." This is that page: the notice,
+ * and nothing else.
+ *
+ * It deliberately does NOT render the headline. In the fault that first
+ * required this, the headline *was* the error — "Lithuania's business
+ * bankruptcy declarations spike to 130.9 index points" described a metric the
+ * article never measured — so setting it as the largest text on the page would
+ * republish the false claim under a banner saying we had withdrawn it. The
+ * evidence we promise not to delete is the stored document, not a re-render of
+ * the sentence that was wrong.
+ */
+function Retracted({ article }: { article: Article }) {
+  const notices = article.corrections ?? [];
+  return (
+    <div className="mx-auto max-w-measure">
+      <div
+        role="alert"
+        className="news-border news-warning-panel rounded-xl border px-6 py-8"
+      >
+        <p className="news-warning text-caption font-semibold tracking-widest uppercase">
+          Retracted
+        </p>
+        <h1 className="news-warning mt-3 text-title font-semibold">
+          We have withdrawn this article
+        </h1>
+        {notices.length > 0 ? (
+          <ul className="mt-4 space-y-3">
+            {notices.map((notice) => (
+              <li key={notice.corrected_at} className="news-warning text-callout">
+                {notice.description}
+                <span className="news-muted block text-caption">{notice.corrected_at}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="news-warning mt-4 text-callout">
+            It should not have been published. No figure in it should be relied on.
+          </p>
+        )}
+      </div>
+      <p className="mt-4 text-ui">
+        <Link to="/corrections" className="news-link underline underline-offset-4">
+          Read our corrections policy and log
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+/**
  * Prose with over-precise decimals shortened for reading.
  *
  * The exact value stays in the title attribute rather than being discarded, so
@@ -122,6 +179,11 @@ export function ArticleView({ article }: { article: Article }) {
   // Applied before anything about this article reaches the DOM. Do not move it
   // below a render of article content, and do not replace it with a check on
   // `status` alone: an article can be marked published and still have failed.
+  //
+  // A retraction is a distinct refusal, not a softer one: it still renders no
+  // article content, but it says truthfully why the page is empty instead of
+  // telling a reader the piece failed checks it actually passed.
+  if (article.status === 'retracted') return <Retracted article={article} />;
   if (!isServable(article)) return <NotServable />;
 
   // Tier C never gets an article page of its own. If one is requested we show

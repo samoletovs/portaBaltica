@@ -50,6 +50,18 @@ class NotServable(RuntimeError):
     """Raised when something tries to publish an unvalidated article."""
 
 
+#: Statuses that keep the reader-facing URL ``<slug>.json``.
+#:
+#: ``corrected`` and ``retracted`` belong here as much as ``published`` does.
+#: The corrections policy promises that a retracted story's "page stays up,
+#: showing why. We do not delete the evidence" — and a status-prefixed path
+#: would 404 the very page a reader follows a correction notice to reach.
+#: ``is_servable`` already keeps them out of the index and the feeds, which is
+#: what "removed from feeds" means; the stable URL is how the record stays
+#: public rather than merely archived.
+_READER_FACING = frozenset({"published", "corrected", "retracted"})
+
+
 def is_servable(article: Article) -> bool:
     verdict = (article.provenance or {}).get("validator") or {}
     return bool(verdict.get("passed")) and article.status == "published"
@@ -103,11 +115,19 @@ class ArticleStore:
         links led to "Article not found", with the only clue a 404 in the
         console reading "The specified blob does not exist".
 
+        A CORRECTED or RETRACTED article keeps that same address. The
+        corrections policy promises that a retracted story's "page stays up,
+        showing why. We do not delete the evidence" — and moving the blob to a
+        status prefix would 404 the very page a reader follows a correction
+        notice to reach. ``is_servable`` already keeps it out of the index and
+        the feeds, which is what "removed from feeds" means; the URL is how
+        the record stays public.
+
         Everything NOT published keeps a dated, status-prefixed path. Rejected
         drafts are an audit trail, never reachable content, and grouping them
         by day is how you review a bad afternoon.
         """
-        if article.status == "published":
+        if article.status in _READER_FACING:
             return f"{article.slug}.json"
         return f"{article.status}/{article.created_at[:10]}/{article.slug}.json"
 
@@ -426,6 +446,34 @@ class ArticleStore:
             for entry in entries
             if isinstance(entry.get("slug"), str) and entry["slug"]
         }
+
+    async def drop_from_index(self, slugs: Sequence[str]) -> int:
+        """Remove entries from the front page. Returns how many remain.
+
+        Needed because ``write_index`` MERGES the existing index with the
+        current run's articles, keyed on slug — so an article that stops being
+        servable does not leave the index by itself. A retracted story would
+        stay on the front page and in the feed, and, worse, its
+        ``signal_finding`` would go on suppressing the corrected version, so
+        the newsroom would withdraw a wrong article and then refuse to replace
+        it.
+        """
+        removing = {slug for slug in slugs if slug}
+        if not removing:
+            return 0
+        entries = [
+            entry
+            for entry in await asyncio.to_thread(self._read_existing_index)
+            if entry.get("slug") not in removing
+        ]
+        payload = {
+            "generated_at": isoformat(utcnow()),
+            "count": len(entries),
+            "articles": entries,
+        }
+        await self.put_json("index.json", payload)
+        log.warning("dropped %d article(s) from the index", len(removing))
+        return len(entries)
 
     async def published_findings(self) -> set[str]:
         """Findings already on the front page, for ranking to suppress.

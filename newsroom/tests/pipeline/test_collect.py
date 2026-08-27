@@ -648,6 +648,307 @@ class TestSourceRegistry:
             SourceRegistry.load(bad)
 
 
+class TestTheQueryIsPartOfTheResource:
+    """On a statistical API the query selects the series, not just filters it.
+
+    THE ARTICLE THIS PUBLISHED
+    --------------------------
+        "Lithuania's business bankruptcy declarations spike to 130.9 index
+         points in Q2 2026"
+
+    130.9 is the NEW REGISTRATIONS figure. Bankruptcies for that quarter were
+    120.3. The two mean opposite things about an economy — one is a recession
+    signal and the other is its reverse — and the wire published the wrong one
+    under a byline, with a provenance block asserting it traced to open data.
+
+    It did trace. Every gate passed: the figure was traceable to its signal,
+    uninvented, and correctly compared against its own basis. The basis was
+    simply attached to the wrong series, and no validator can see that. It is
+    the same shape as the Riga passenger trap — a true-looking sentence whose
+    subject is wrong — and like that one it has to be caught at collection.
+
+    THE CAUSE
+    ---------
+    ``CollectorHttp.fetch`` cached on the URL and ignored the query. Eurostat
+    exposes one endpoint per table and selects the series with parameters, so
+    nineteen datasets in this newsroom resolve to four URLs:
+
+        bop_c6_q      x7    sts_rb_q      x2
+        mar_go_qm_lv  x5    mar_go_qm_lt  x5
+
+    The first fetch of each won and the other fifteen were served its body from
+    inside a 720-minute TTL, then parsed and labelled with the metric that had
+    asked. Fifteen of nineteen series were the wrong data under the right name.
+    """
+
+    @staticmethod
+    def _payload(indicator: str, value: float) -> dict:
+        return {
+            "id": ["freq", "indic_bt", "nace_r2", "s_adj", "unit", "geo", "time"],
+            "size": [1, 1, 1, 1, 1, 1, 1],
+            "value": {"0": value},
+            "dimension": {
+                "freq": {"category": {"index": {"Q": 0}}},
+                "indic_bt": {"category": {"index": {indicator: 0}}},
+                "nace_r2": {"category": {"index": {"B-S_X_O_S94": 0}}},
+                "s_adj": {"category": {"index": {"SCA": 0}}},
+                "unit": {"category": {"index": {"I21": 0}}},
+                "geo": {"category": {"index": {"LT": 0}}},
+                "time": {"category": {"index": {"2026-Q2": 0}}},
+            },
+        }
+
+    async def test_two_series_from_one_table_are_not_the_same_series(self, tmp_path):
+        """The exact production failure, reduced to its two datasets.
+
+        The server answers correctly for whatever ``indic_bt`` it is asked
+        for, so any crossing here is entirely the client's doing.
+        """
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, collect_eurostat
+
+        asked: list[str] = []
+
+        def handler(request):
+            indicator = dict(request.url.params).get("indic_bt", "?")
+            asked.append(indicator)
+            return httpx.Response(
+                200,
+                json=self._payload(indicator, 130.9 if indicator == "REG" else 120.3),
+            )
+
+        http = CollectorHttp(
+            RawArchive(local_dir=tmp_path / "archive", account_url=""),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(tmp_path / "state.json"),
+            sleep=_no_sleep,
+        )
+        business = [s for s in EUROSTAT_DATASETS if s.section == "business"]
+        async with http:
+            series = await collect_eurostat(http, business, geographies=("LT",))
+
+        assert sorted(asked) == ["BKRT", "REG"], (
+            "one of the two series was served the other's cached body and was "
+            "never requested at all"
+        )
+        values = {s.metric: s.latest.value for s in series}
+        assert values["business_registrations"] == 130.9
+        assert values["business_bankruptcies"] == 120.3, (
+            "bankruptcies carry the registrations figure — this is the article "
+            "that published"
+        )
+
+    async def test_the_cache_key_separates_two_queries_to_one_url(self, tmp_path):
+        calls: list[str] = []
+
+        def handler(request):
+            calls.append(str(request.url))
+            return httpx.Response(200, content=str(request.url).encode())
+
+        http = CollectorHttp(
+            RawArchive(local_dir=tmp_path / "archive", account_url=""),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(tmp_path / "state.json"),
+            sleep=_no_sleep,
+        )
+        async with http:
+            first = await http.fetch(
+                source_id="eurostat", url="https://x.invalid/d",
+                cache_ttl_minutes=720, params=[("indic_bt", "REG")],
+            )
+            second = await http.fetch(
+                source_id="eurostat", url="https://x.invalid/d",
+                cache_ttl_minutes=720, params=[("indic_bt", "BKRT")],
+            )
+
+        assert len(calls) == 2
+        assert first.item is not None and second.item is not None
+        assert first.item.body != second.item.body
+
+    async def test_the_same_query_still_hits_the_cache(self, tmp_path):
+        """The TTL must keep working — this is not a licence to refetch."""
+        calls: list[str] = []
+
+        def handler(request):
+            calls.append(str(request.url))
+            return httpx.Response(200, content=b"payload")
+
+        http = CollectorHttp(
+            RawArchive(local_dir=tmp_path / "archive", account_url=""),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(tmp_path / "state.json"),
+            sleep=_no_sleep,
+        )
+        async with http:
+            await http.fetch(
+                source_id="eurostat", url="https://x.invalid/d",
+                cache_ttl_minutes=720, params=[("indic_bt", "REG")],
+            )
+            repeat = await http.fetch(
+                source_id="eurostat", url="https://x.invalid/d",
+                cache_ttl_minutes=720, params=[("indic_bt", "REG")],
+            )
+
+        assert len(calls) == 1
+        assert repeat.skipped_reason == "within_cache_ttl"
+
+    def test_the_key_does_not_depend_on_parameter_order(self):
+        """A caller that builds its query differently must not refetch."""
+        from newsroom.pipeline.collect.httpclient import _cache_key
+
+        assert _cache_key("u", [("a", "1"), ("b", "2")]) == _cache_key(
+            "u", [("b", "2"), ("a", "1")]
+        )
+        assert _cache_key("u", [("a", "1")]) != _cache_key("u", [("a", "2")])
+        assert _cache_key("u", None) == "u"
+
+    async def test_four_cargo_categories_are_four_different_series(self, tmp_path):
+        """#89's maritime work collides identically, and nobody saw it.
+
+        Five entries share ``mar_go_qm_lv``: total throughput and four cargo
+        categories. Ground truth from Eurostat for ``rep_mar=LV``, 2025-Q4 —
+        TOTAL 7828, containers 1175, dry bulk 3644, liquid bulk 1554 — so these
+        are genuinely different series and any two coming back equal is the
+        bug.
+
+        ``port_goods_throughput`` is declared first and therefore reads
+        correctly; the four categories are the ones that would have published
+        the total under a category's name. They had not published live when
+        this was found, which is luck rather than design.
+        """
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, collect_eurostat
+
+        truth = {"TOTAL": 7828.0, "LCNT": 1175.0, "DBK": 3644.0,
+                 "LBK": 1554.0, "RO_MSP": 348.0}
+
+        def handler(request):
+            cargo = dict(request.url.params).get("cargo", "TOTAL")
+            return httpx.Response(200, json={
+                "id": ["freq", "direct", "cargo", "unit", "par_mar", "rep_mar", "time"],
+                "size": [1, 1, 1, 1, 1, 1, 1],
+                "value": {"0": truth[cargo]},
+                "dimension": {
+                    "freq": {"category": {"index": {"Q": 0}}},
+                    "direct": {"category": {"index": {"TOTAL": 0}}},
+                    "cargo": {"category": {"index": {cargo: 0}}},
+                    "unit": {"category": {"index": {"THS_T": 0}}},
+                    "par_mar": {"category": {"index": {"TOTAL": 0}}},
+                    "rep_mar": {"category": {"index": {"LV": 0}}},
+                    "time": {"category": {"index": {"2025-Q4": 0}}},
+                },
+            })
+
+        http = CollectorHttp(
+            RawArchive(local_dir=tmp_path / "archive", account_url=""),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(tmp_path / "state.json"),
+            sleep=_no_sleep,
+        )
+        latvian = [
+            s for s in EUROSTAT_DATASETS
+            if s.section == "maritime" and s.dataset == "mar_go_qm_lv"
+        ]
+        assert len(latvian) == 5, "the cargo composition datasets have changed"
+        async with http:
+            series = await collect_eurostat(http, latvian)
+
+        values = {s.metric: s.latest.value for s in series}
+        assert values == {
+            "port_goods_throughput": 7828.0,
+            "port_goods_containers": 1175.0,
+            "port_goods_dry_bulk": 3644.0,
+            "port_goods_liquid_bulk": 1554.0,
+            "port_goods_roro": 348.0,
+        }, "a cargo category is carrying the total, or another category's tonnage"
+
+    def test_no_two_datasets_can_collide_on_a_key(self):
+        """The invariant, over the real configuration.
+
+        Nineteen datasets share four URLs today and more will be added; this
+        fails the moment two of them become indistinguishable to the cache.
+        """
+        from newsroom.pipeline.collect.httpclient import _cache_key
+        from newsroom.pipeline.collect.opendata import BALTIC, EUROSTAT_DATASETS
+        from newsroom.pipeline.safety import registry
+
+        endpoint = registry().get("eurostat").endpoint
+        keys: dict[str, str] = {}
+        for spec in EUROSTAT_DATASETS:
+            geographies = spec.geographies if spec.geographies is not None else BALTIC
+            params = [
+                ("format", "JSON"), ("lang", "EN"),
+                ("lastTimePeriod", str(spec.periods)),
+                *spec.params.items(),
+                *[(spec.geo_dimension, geo) for geo in geographies],
+            ]
+            key = _cache_key(endpoint.format(dataset=spec.dataset), params)
+            assert key not in keys, (
+                f"{spec.metric} and {keys[key]} are the same request to the "
+                f"cache, so one will be served the other's data and published "
+                f"under its own name"
+            )
+            keys[key] = spec.metric
+
+    async def test_the_balance_components_add_up(self, tmp_path):
+        """The check that needs no fixture: goods + services = the total.
+
+        Eurostat's own arithmetic, confirmed against the dashboard's
+        independent fetch path for the latest quarter — Latvia's goods balance
+        of -824 plus services of 523 is the -301 trade balance, exactly.
+
+        Under the collision all three read the SAME number, so the identity
+        broke in the most obvious possible way and nothing was looking. This is
+        a semantic invariant rather than a recorded value: it stays true when
+        Eurostat republishes, so it cannot rot into a test that passes because
+        it was updated to match whatever the code now does.
+        """
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, collect_eurostat
+
+        truth = {"G": -824.0, "S": 523.0, "GS": -301.0}
+
+        def handler(request):
+            item = dict(request.url.params).get("bop_item", "GS")
+            return httpx.Response(200, json={
+                "id": ["freq", "bop_item", "stk_flow", "partner", "currency",
+                       "sectpart", "sector10", "geo", "time"],
+                "size": [1, 1, 1, 1, 1, 1, 1, 1, 1],
+                "value": {"0": truth.get(item, 0.0)},
+                "dimension": {
+                    "freq": {"category": {"index": {"Q": 0}}},
+                    "bop_item": {"category": {"index": {item: 0}}},
+                    "stk_flow": {"category": {"index": {"BAL": 0}}},
+                    "partner": {"category": {"index": {"WRL_REST": 0}}},
+                    "currency": {"category": {"index": {"MIO_EUR": 0}}},
+                    "sectpart": {"category": {"index": {"S1": 0}}},
+                    "sector10": {"category": {"index": {"S1": 0}}},
+                    "geo": {"category": {"index": {"LV": 0}}},
+                    "time": {"category": {"index": {"2026-Q1": 0}}},
+                },
+            })
+
+        wanted = {"trade_balance", "goods_balance", "services_balance"}
+        specs = [s for s in EUROSTAT_DATASETS if s.metric in wanted]
+        assert len(specs) == 3
+
+        http = CollectorHttp(
+            RawArchive(local_dir=tmp_path / "archive", account_url=""),
+            client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            state=ConditionalState(tmp_path / "state.json"),
+            sleep=_no_sleep,
+        )
+        async with http:
+            series = await collect_eurostat(http, specs, geographies=("LV",))
+
+        values = {s.metric: s.latest.value for s in series}
+        assert values["goods_balance"] + values["services_balance"] == pytest.approx(
+            values["trade_balance"]
+        ), (
+            f"goods + services != the trade balance: {values}. Under the cache "
+            f"collision all three carried one number, which is how a piece "
+            f"headlined 'Baltic telecommunications services balance' came to "
+            f"be built from the aggregate trade balance."
+        )
+
+
 class TestMaritimeIsKeyedOnTheReportingPort:
     """Eurostat splits port statistics by country and keys them on ``rep_mar``.
 
