@@ -356,6 +356,33 @@ verification of production goes through `BlobServiceClient` directly, never
 through the store that wrote it. A guard that filters on a field is accompanied
 by a test that the field is emitted.
 
+**Then it happened inside that meta test.** `validate_article` iterates
+`CHECK_NAMES`; `_CHECKS` is the registry it looks names up in. A check present
+in the registry and absent from the tuple is *registered and never runs* — and
+the meta test above reads `_CHECKS`, so it stays green while the behaviour it
+claims to guard does not happen. `no_unsupported_mechanism` was added that way
+and the suite applauded.
+
+The two lists agree today and a test now asserts they always will. But the
+sharper rule the near-miss produced is:
+
+> **A guard must assert on the same object the behaviour reads.**
+
+Two structures that ought to agree are two chances to check the wrong one, and
+the mistake is invisible precisely because both look authoritative.
+
+The frontend has since supplied the worst instance of the family, which is
+worth borrowing here because it is not a test at all. A computed-colour diff
+run from a second git worktree served the *other* tree's bundle, so a branch
+was compared against itself: **0 changed across 31,908 nodes.** A measurement
+that cannot fail, failing *upward* — reporting the strongest possible evidence
+that nothing had broken. It was caught by chasing a contradiction in the data,
+not by doubting the number. That harness now asserts the bundle hash and the
+resolved theme, and throws rather than measures when either is wrong.
+
+Measurements are what we use to check the tests. So they need the rule more
+than the tests do, not less.
+
 ### What the validator cannot see: the article's subject
 
 Every check above is about a *figure*. None is about what the article is
