@@ -136,7 +136,6 @@ export function DataTicker() {
                     )}
                   </span>
                 )}
-                <span style={{ color: 'var(--border-card)' }}>·</span>
               </span>
             );
           })}

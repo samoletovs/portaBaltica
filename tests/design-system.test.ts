@@ -425,9 +425,89 @@ describe('the named colour utilities', () => {
       );
     }
   });
-});
 
-// ─── focus and motion ──────────────────────────────────────────────────────
+  it('never asks Tailwind for a variant of a class Tailwind does not own', () => {
+    // Tailwind generates `disabled:bg-slate-800` because it owns
+    // `bg-slate-800`. It cannot generate `disabled:dash-raised`, because
+    // `dash-raised` is hand-written in index.css and Tailwind has never heard
+    // of it -- so the rule is simply never emitted. Nothing warns. The class
+    // sits in the markup looking load-bearing and does nothing.
+    //
+    // That is how the beneficial-owner search button came to render
+    // identically enabled and disabled: `disabled:dash-raised` was silently
+    // inert, so the only background left was the resting one.
+    //
+    // A control's states belong in CSS beside the control -- `.dash-btn:disabled`
+    // -- where they are a rule that either exists or does not.
+    const declared = new Set(
+      [...css.matchAll(/^\s*\.([a-z][a-z0-9-]*)(?=[\s,:{])/gm)].map((m) => m[1]),
+    );
+    // Only project-owned names can be wrong this way; a Tailwind utility of the
+    // same shape is fine.
+    const owned = [...declared].filter((c) => /^(dash|news|ticker)-/.test(c));
+    expect(owned.length, 'expected project-owned utilities to exist').toBeGreaterThan(10);
+
+    const offenders: string[] = [];
+    for (const { file, text } of components()) {
+      for (const m of text.matchAll(/\b([a-z-]+(?::[a-z-]+)*):([a-z][a-z0-9-]*)\b/g)) {
+        if (owned.includes(m[2])) offenders.push(`${file}: ${m[0]}`);
+      }
+    }
+
+    expect(offenders, 'these classes are never emitted — declare the state in CSS').toEqual([]);
+  });
+
+  it('never paints text with a token meant for a border or a gridline', () => {
+    // The ticker separated its items with a `·` coloured `--border-card`, which
+    // measured 1.54:1 in dark and 1.23:1 in light -- invisible in both. It was
+    // also redundant: the track already puts 32px between items, so the mark
+    // sat 8px from its own item and read as a trailing artefact rather than a
+    // separator. It is gone.
+    //
+    // The general fault is using a token at a job whose contrast floor it was
+    // never tuned for -- a border token has no text floor to meet, so borrowing
+    // it for text cannot pass. This is the same shape as a chart-line colour
+    // used for a 12px figure.
+    //
+    // A background token as text is the one legitimate case: knockout type on
+    // an accent fill, as the error boundary's Reload button does at 8.94:1 dark
+    // and 5.58:1 light. What makes it legitimate is that the element paints its
+    // own ground, so the check asks for that rather than banning the token.
+    const offenders: string[] = [];
+    for (const { file, text } of components()) {
+      // Inline styles are objects, so read one property bag at a time: knockout
+      // text is legitimate, and the thing that makes it legitimate — the element
+      // painting its own fill — is a sibling property, not a separate concern.
+      for (const bag of text.matchAll(/style=\{\{([^}]*)\}\}/g)) {
+        const decl = bag[1];
+        const colour = decl.match(/(?:^|[\s,{])color:\s*['"`]var\((--[a-z0-9-]+)\)/);
+        if (!colour) continue;
+        const token = colour[1];
+        if (/^--(border|chart-grid|scrollbar)/.test(token)) {
+          offenders.push(`${file}: color uses ${token}`);
+        } else if (/^--bg-/.test(token) && !/background(?:Color)?:/.test(decl)) {
+          // A page or card colour as text is knockout type, which only reads
+          // if the element paints its own ground. Without one it is text in
+          // the colour of what is behind it.
+          offenders.push(`${file}: color uses ${token} with no background of its own`);
+        }
+      }
+    }
+    expect(offenders, 'these tokens have no text contrast floor at this job').toEqual([]);
+  });
+
+  it('gives a control a state it can actually move to', () => {
+    // `--bg-raised`, `--bg-card-hover` and `--bg-input` all hold the same
+    // value, so a control resting on it has nowhere to go and its hover reads
+    // as no change. DESIGN.md §2.2 requires the surface to move one step up.
+    for (const { name, tokens } of THEMES) {
+      const rest = tokens['--bg-input'];
+      const hover = tokens['--bg-control-hover'];
+      expect(hover, `${name}: --bg-control-hover must exist`).toBeTruthy();
+      expect(hover, `${name}: hover must differ from rest`).not.toBe(rest);
+    }
+  });
+});
 
 describe('focus', () => {
   it('is applied once, globally, rather than per component', () => {

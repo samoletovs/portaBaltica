@@ -198,6 +198,11 @@
   --bg-sunken: #070b13;
   --bg-card-hover: #1c2740;
   --bg-input: #1c2740;
+  /* One step above `--bg-input`, because DESIGN.md §2.2 says hover "moves the
+     surface one step up" and `--bg-raised`, `--bg-card-hover` and `--bg-input`
+     all hold the same value -- so a control that already sits on that value has
+     nowhere to move to, and its hover renders as no change at all. */
+  --bg-control-hover: #26344f;
   --border-card: #26344f;
   --border-subtle: #1a2338;
   --text-primary: #f6f8fb; /* 18.0:1 — never pure white; Carbon caps at Gray 10 */
@@ -292,6 +297,7 @@
   --bg-sunken: #eef2f7;
   --bg-card-hover: #f1f5f9;
   --bg-input: #f1f5f9;
+  --bg-control-hover: #e2e8f0;
   --border-card: #dbe2ea;
   --border-subtle: #e2e8f0;
   --text-primary: #0f172a; /*   17.9:1 */
@@ -687,6 +693,19 @@ button,
 .dash-input { background: var(--bg-raised); }
 .dash-edge { border-color: var(--border-card); }
 .dash-hover-raised:hover { background: var(--bg-card-hover); }
+
+/* A control is a surface with states, so its states belong in CSS next to it.
+   Written as Tailwind variants they silently do nothing: `disabled:dash-raised`
+   asks Tailwind to generate a variant of a class Tailwind does not know about,
+   and the rule is never emitted -- which is how the search button came to look
+   identical enabled and disabled. */
+.dash-btn { background: var(--bg-input); }
+.dash-btn:hover:not(:disabled) { background: var(--bg-control-hover); }
+.dash-btn:disabled {
+  background: var(--bg-raised);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
 
 /* Status as a fill — a dot, a bar or a tint, never text. */
 .dash-fill-positive { background: var(--data-positive); }
