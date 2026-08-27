@@ -1093,6 +1093,7 @@ no suspicion — it is triggered by the guessing, which you can always observe.
 Had that session stopped at its first guess it would have reported *"the
 maritime probe is missing from production"*: a confident false regression
 against its own merged work.
+
 All six of those were an *absent* result rather than a wrong value, and an
 earlier draft of this section generalised that into a rule. **Two cases the
 same evening falsified it**, so here is the actual taxonomy — three kinds of
