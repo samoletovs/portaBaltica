@@ -310,3 +310,43 @@ export async function fetchBalticCompare(indicator: string, years = 5): Promise<
 export async function fetchPowerPrices(): Promise<PowerPriceData> {
   return cachedFetch<PowerPriceData>('power-prices', '/api/power-prices');
 }
+
+/** One metered or forecast interval of the Estonian power system. */
+export interface LiveGridPoint {
+  time: string;
+  kind: 'actual' | 'forecast';
+  production: number | null;
+  consumption: number | null;
+  renewable: number | null;
+  /** Generation minus demand. Negative is a net import. */
+  balance: number | null;
+  renewableShare: number | null;
+}
+
+/**
+ * The physical state of the Estonian grid.
+ *
+ * `area` is always `EE`. Elering is the Estonian transmission operator and this
+ * is its own system, not a Baltic aggregate — consumption runs 670 to 870 MW
+ * where the three states together draw three to four gigawatts.
+ */
+export interface LiveGridData {
+  area: string;
+  areaLabel: string;
+  operator: string;
+  unit: string;
+  latest: LiveGridPoint | null;
+  /** Timestamp of the newest metered reading. Metering lags by over an hour. */
+  meteredTo: string | null;
+  minutesBehind: number | null;
+  actual: LiveGridPoint[];
+  forecast: LiveGridPoint[];
+  servedFromCache?: boolean;
+  readAgoMs?: number;
+  source: string;
+  fetchedAt: string;
+}
+
+export async function fetchLiveGrid(): Promise<LiveGridData> {
+  return cachedFetch<LiveGridData>('live-grid', '/api/live-grid');
+}

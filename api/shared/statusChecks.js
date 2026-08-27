@@ -192,6 +192,13 @@ const CHECKS = [
     // through a five-minute cache because the source publishes hourly.
     cadence: 'H',
     maxLag: 3,
+    // A tighter deadline than the rest, because this one is *known* to hang
+    // rather than to be slow: healthy replies measure 17–63ms, so a second is
+    // sixteen to sixty times the observed latency and anything past it is a
+    // socket that will never answer. It only matters on a cold cache, where
+    // both attempts hanging cost 6.2s of a reader's time at 3000ms and 2.2s
+    // here. Nothing legitimate is lost.
+    deadlineMs: 1000,
   },
   {
     name: 'Open-Meteo Air Quality',
@@ -202,6 +209,7 @@ const CHECKS = [
     note: 'Reached over a throttled shared egress address, so a failure here is not reliable evidence about the source',
     cadence: 'H',
     maxLag: 3,
+    deadlineMs: 1000,
   },
   {
     name: 'Newsroom pipeline',
