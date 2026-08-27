@@ -334,3 +334,87 @@ describe('which HTTP answers count as transient', () => {
       .toMatch(/err\.status = res\.statusCode/);
   });
 });
+
+describe('the published visit counts', () => {
+  /**
+   * The panel prints a traffic figure, and a traffic figure is the hardest kind
+   * of number to sanity-check: nobody knows the true value independently, so a
+   * wrong one looks exactly like a right one. There is no absurd reading to
+   * catch it the way a negative GDP or a 400% unemployment rate would be caught.
+   *
+   * So the contract is about what happens when the read *fails*. The counts
+   * come from a blob the SWA cannot write and does not control, and the one
+   * outcome that must never happen is a failed fetch rendering as zero — which
+   * would tell a reader "nobody came today" on the strength of a missing file.
+   * Absent has to stay absent all the way to the UI.
+   */
+  const cache = require('../api/shared/cache.js');
+
+  async function withResponse(responder: () => Promise<unknown>) {
+    const original = es.httpJson;
+    cache.clear();
+    es.httpJson = responder;
+    try {
+      return await status.visitStats(Date.now());
+    } finally {
+      es.httpJson = original;
+      cache.clear();
+    }
+  }
+
+  const published = {
+    metric: 'SiteHits',
+    unit: 'requests',
+    today: 2328,
+    last7Days: 4736,
+    last30Days: 12944,
+    dailyAverage30d: 431.5,
+    timezone: 'Europe/Riga',
+    generatedAt: '2026-08-27T14:39:34Z',
+  };
+
+  it('passes the counts through with the unit attached', async () => {
+    const stats = await withResponse(() => Promise.resolve(published));
+
+    expect(stats).toMatchObject({
+      today: 2328,
+      last7Days: 4736,
+      last30Days: 12944,
+      unit: 'requests',
+    });
+  });
+
+  it('never calls the figure visits', async () => {
+    // SiteHits counts every asset request, so one arrival is a dozen or more.
+    // The label is the only thing standing between request volume and a
+    // headcount, and it travels with the payload rather than living in the one
+    // component that happens to render it today.
+    const stats = await withResponse(() => Promise.resolve(published));
+    expect(stats.unit).toBe('requests');
+    expect(JSON.stringify(stats)).not.toMatch(/visits/i);
+  });
+
+  it('returns null when the blob cannot be read, rather than zeros', async () => {
+    // The whole point. `{ today: 0 }` would render as a real, quiet day.
+    const stats = await withResponse(() =>
+      Promise.reject(new Error('HTTP 404 from the stats container')));
+
+    expect(stats).toBeNull();
+  });
+
+  it('returns null when the payload is not the shape it claims', async () => {
+    // A misconfigured URL that lands on an HTML error page parses as *something*
+    // and would otherwise be spread into the response, printing "undefined" or
+    // "NaN" beside a healthy status line.
+    expect(await withResponse(() => Promise.resolve({ error: 'not found' }))).toBeNull();
+    expect(await withResponse(() => Promise.resolve({ today: 'lots' }))).toBeNull();
+    expect(await withResponse(() => Promise.resolve(null))).toBeNull();
+  });
+
+  it('reports how old the reading is', async () => {
+    // Republished hourly, so it is never live. Saying so is what stops a quiet
+    // hour being read as a crash.
+    const stats = await withResponse(() => Promise.resolve(published));
+    expect(typeof stats.ageMs).toBe('number');
+  });
+});

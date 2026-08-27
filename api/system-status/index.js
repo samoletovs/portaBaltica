@@ -578,13 +578,91 @@ const API_ENDPOINTS = [
   '/api/address-search', '/api/ai-insights', '/api/system-status',
 ];
 
+/**
+ * Traffic counts, published hourly by `.github/workflows/visit-stats.yml`.
+ *
+ * The counts are read from a public blob rather than measured here, because
+ * this app cannot measure them: the Static Web App is Free tier and has no
+ * managed identity, and its storage account disables shared keys, so a Function
+ * has no durable place to keep a tally. Anything counted in process memory
+ * would reset on every cold start and quietly under-report. Azure Monitor
+ * already records the traffic for 93 days, so the workflow reduces it to four
+ * integers and leaves them somewhere credential-free to read.
+ *
+ * This is the same arrangement `shared/newsroom.js` uses for finished articles:
+ * public JSON, fetched over plain HTTPS, no key anywhere.
+ */
+const VISIT_STATS_URL = process.env.VISIT_STATS_URL ||
+  'https://stportabalticabpmff5so.blob.core.windows.net/stats/visits.json';
+
+// The blob is rewritten hourly, so asking more often than that cannot produce a
+// new answer. The grace window is deliberately much longer than the TTL: if the
+// blob is briefly unreachable the last good counts still stand, and the panel
+// simply omits the figure rather than showing a zero.
+const VISIT_STATS_TTL_MS = 10 * 60 * 1000;
+const VISIT_STATS_GRACE_MS = 6 * 60 * 60 * 1000;
+
+// Short next to the page's own budget. This is a decorative figure on a status
+// panel: it must never be the reason a reader waits for the health of the site.
+const VISIT_STATS_DEADLINE_MS = 2000;
+
+/**
+ * Fetch the published counts, or return null.
+ *
+ * Null is a first-class answer here and the caller omits the block entirely
+ * when it gets one. The alternative — substituting zeros — would render as
+ * "no traffic today", which is a claim about the world rather than an admission
+ * that we could not read a file.
+ */
+async function visitStats(now) {
+  try {
+    const hit = await cache.memo(
+      'visit-stats|' + VISIT_STATS_URL,
+      VISIT_STATS_TTL_MS,
+      VISIT_STATS_GRACE_MS,
+      function () {
+        return es.httpJson(VISIT_STATS_URL, { deadlineMs: VISIT_STATS_DEADLINE_MS });
+      },
+      now
+    );
+
+    const stats = hit.value;
+    if (!stats || typeof stats.today !== 'number') return null;
+
+    return {
+      // Named for what Azure Monitor actually counts. `SiteHits` is every HTTP
+      // request the SWA serves, and a single-page app serves a dozen or more per
+      // arrival, so this is request volume and not a headcount. The unit travels
+      // with the payload so no consumer has to remember.
+      unit: stats.unit || 'requests',
+      metric: stats.metric || 'SiteHits',
+      today: stats.today,
+      last7Days: stats.last7Days,
+      last30Days: stats.last30Days,
+      dailyAverage30d: stats.dailyAverage30d,
+      timezone: stats.timezone || 'Europe/Riga',
+      generatedAt: stats.generatedAt || null,
+      // How old the figure is, so the panel can say "an hour ago" rather than
+      // implying it is live.
+      ageMs: hit.ageMs,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 const handler = async function (context, req) {
   const startTime = Date.now();
   const now = new Date();
 
-  const results = await Promise.all(registry.CHECKS.map(function (check) {
-    return runRegistryCheck(check, now, startTime);
-  }));
+  // Fetched alongside the probes rather than after them: this is a small,
+  // independent read and it must not add its latency to the page's.
+  const [results, visits] = await Promise.all([
+    Promise.all(registry.CHECKS.map(function (check) {
+      return runRegistryCheck(check, now, startTime);
+    })),
+    visitStats(startTime),
+  ]);
 
   const healthy = results.filter(function (r) { return r.status === 'healthy'; }).length;
   const staleCount = results.filter(function (r) { return r.status === 'stale'; }).length;
@@ -622,6 +700,9 @@ const handler = async function (context, req) {
         revenue: '€0 (pre-monetization)',
         status: 'Phase 3 — building value before monetization',
       },
+      // Omitted entirely when the published counts could not be read. An absent
+      // key renders as no row; a zero would render as "no traffic".
+      traffic: visits,
       respondedIn: Date.now() - startTime + 'ms',
       fetchedAt: new Date().toISOString(),
     }),
@@ -640,5 +721,6 @@ module.exports.newsroomObservation = newsroomObservation;
 module.exports.probe = probe;
 module.exports.runOptionalCheck = runOptionalCheck;
 module.exports.runRegistryCheck = runRegistryCheck;
+module.exports.visitStats = visitStats;
 module.exports.OPTIONAL_RESPONSE_BUDGET_MS = OPTIONAL_RESPONSE_BUDGET_MS;
 module.exports.OPTIONAL_RESULT_TTL_MS = OPTIONAL_RESULT_TTL_MS;

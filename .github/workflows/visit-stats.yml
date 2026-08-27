@@ -1,0 +1,180 @@
+name: Publish visit stats
+
+# Publishes the traffic counts the dashboard's status panel shows.
+#
+# WHY A SCHEDULED JOB RATHER THAN A COUNTER IN THE API
+# ----------------------------------------------------
+# The obvious design is to count requests in the Static Web App's own Functions.
+# It cannot work here, and the reason is worth stating so nobody rebuilds it:
+#
+#   - The SWA is Free tier, so it has no managed identity (`identity: null`,
+#     verified against the live resource). It cannot obtain an Azure token.
+#   - The storage account sets `allowSharedKeyAccess: false`, so there is no
+#     connection string it could hold instead. That is deliberate and documented
+#     as a property worth keeping.
+#
+# So the API has no durable store, and anything it counted would live in process
+# memory — which resets on every cold start. On a Free-tier app that idles out
+# in minutes, a "total visits" figure would silently return to zero several
+# times a day. A number that resets without saying so is worse than no number,
+# because a reader has no way to tell a quiet morning from a restart.
+#
+# Azure Monitor already records this traffic, durably, for 93 days, at no cost
+# and with nothing to instrument. This job reads it with a federated token,
+# reduces it to four integers, and writes them to a public blob that
+# /api/system-status reads. No secret is stored anywhere, and the browser gets
+# the counts as part of a status response it already fetches.
+#
+# WHAT THE NUMBER IS. `SiteHits` counts HTTP requests, and a single-page app
+# serves a dozen or more per arrival. It is labelled "requests" here, in the
+# published JSON, in the API response and in the UI. It is not a visitor count
+# and must never be relabelled as one without changing where the data comes
+# from.
+
+on:
+  schedule:
+    # Hourly, on the half hour to stay off the busiest cron minute. The blob is
+    # served with max-age=300, so the panel is at most an hour behind — enough
+    # for "how busy is the site today", which is the question being asked.
+    # Actions minutes are free on this public repository, and the job is a
+    # login, one metric read and one upload.
+    - cron: '30 * * * *'
+  workflow_dispatch:
+  # Runs on changes to its own moving parts, so a break is found by the change
+  # that caused it rather than at the next scheduled run.
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/visit-stats.yml'
+      - 'scripts/visit-stats.mjs'
+
+# A second run writing the same blob concurrently would be harmless but pointless.
+concurrency:
+  group: visit-stats
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # OIDC only. The federated identity holds `Monitoring Reader` on the Static
+  # Web App and `Storage Blob Data Contributor` on the storage account — the two
+  # narrowest roles that permit reading the metric and writing the result,
+  # scoped to those resources rather than to a resource group or subscription.
+  id-token: write
+
+jobs:
+  publish:
+    name: Read SiteHits and publish
+    runs-on: ubuntu-latest
+
+    env:
+      STORAGE_ACCOUNT: stportabalticabpmff5so
+      STATS_CONTAINER: stats
+      SWA_NAME: portabaltica-swa
+      # The Static Web App lives in era-rg rather than portabaltica-rg. That is
+      # a known, deliberate deviation recorded in the project instructions: the
+      # move is permitted by ARM but would require a custom-domain rebind, so it
+      # is scheduled maintenance rather than a side effect. Hardcoding the right
+      # resource group is correct until that move happens.
+      SWA_RESOURCE_GROUP: era-rg
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read SiteHits from Azure Monitor
+        run: |
+          set -euo pipefail
+
+          swa_id=$(az staticwebapp show \
+            --name "$SWA_NAME" \
+            --resource-group "$SWA_RESOURCE_GROUP" \
+            --query id -o tsv)
+
+          # `--end-time` is not optional. Given only `--start-time`, the CLI
+          # clamps the window to a single hour and returns one empty bucket,
+          # which aggregates to a confident zero rather than to an error.
+          # Measured while building this: the same command without an end time
+          # reported no traffic on a day with 2,407 requests.
+          end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          start=$(date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          # Hourly, not daily: the daily buckets Azure returns are aligned to the
+          # requested start time, not to local midnight, so days can only be cut
+          # on the Riga boundary by aggregating the hours ourselves.
+          az monitor metrics list \
+            --resource "$swa_id" \
+            --metrics SiteHits \
+            --interval PT1H \
+            --start-time "$start" \
+            --end-time "$end" \
+            --aggregation Total \
+            -o json > raw-metrics.json
+
+          echo "Metric payload: $(wc -c < raw-metrics.json) bytes"
+
+      - name: Reduce to daily counts
+        run: |
+          set -euo pipefail
+          node scripts/visit-stats.mjs raw-metrics.json visits.json
+          cat visits.json
+
+      - name: Refuse to publish an empty reading
+        # A green run that uploads zeros is the failure this guards against. If
+        # the metric read returns nothing — a renamed resource, a revoked role,
+        # a CLI change — the previous blob is left in place and the job fails
+        # loudly, rather than overwriting real counts with a plausible zero.
+        run: |
+          set -euo pipefail
+          observed=$(node -e "process.stdout.write(String(require('./visits.json').observedTo ?? ''))")
+          if [ -z "$observed" ]; then
+            echo "::error::Azure Monitor returned no observations; leaving the published counts untouched."
+            exit 1
+          fi
+          echo "Newest observed day: $observed"
+
+      - name: Publish to the public stats container
+        run: |
+          set -euo pipefail
+
+          # `--auth-mode login` is required: shared key access is disabled on
+          # this account, so the CLI's default key lookup would fail.
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$STATS_CONTAINER" \
+            --name visits.json \
+            --file visits.json \
+            --content-type 'application/json' \
+            --content-cache-control 'public, max-age=300' \
+            --auth-mode login \
+            --overwrite \
+            --only-show-errors \
+            -o none
+
+          echo "Published to https://${STORAGE_ACCOUNT}.blob.core.windows.net/${STATS_CONTAINER}/visits.json"
+
+      - name: Summarise
+        run: |
+          set -euo pipefail
+          node -e "
+            const s = require('./visits.json');
+            const rows = [
+              ['Today', s.today],
+              ['Last 7 days', s.last7Days],
+              ['Last 30 days', s.last30Days],
+              ['Daily average (30d)', s.dailyAverage30d],
+            ];
+            let out = '### Site requests (' + s.timezone + ')\n\n| Window | Requests |\n| --- | ---: |\n';
+            for (const [k, v] of rows) out += '| ' + k + ' | ' + v.toLocaleString('en-US') + ' |\n';
+            out += '\nObserved ' + s.observedFrom + ' to ' + s.observedTo + '.\n';
+            require('fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
+          "

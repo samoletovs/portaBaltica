@@ -3,7 +3,7 @@
 //
 // Resources owned by this template (resource group: portabaltica-rg):
 //   - Log Analytics + Application Insights (0.1 GB/day cap)
-//   - Storage account + blob containers: articles, raw-feeds, approvals
+//   - Storage account + blob containers: articles, raw-feeds, approvals, stats
 //   - Azure Functions on Flex Consumption (Python) — the newsroom pipeline
 //   - System-assigned managed identity on the Function App
 //   - RBAC: Blob/Queue/Table Data Contributor on its own storage
@@ -66,6 +66,9 @@ param manageStaticWebApp bool = false
 @description('Resource group that currently holds portabaltica-swa.')
 param staticWebAppResourceGroup string = 'era-rg'
 
+@description('Object id of the GitHub OIDC service principal, granted Monitoring Reader on the SWA so the visit-stats workflow can read SiteHits. Empty (the default) skips the grant.')
+param ciPrincipalId string = ''
+
 // ── Pipeline ────────────────────────────────────────────────────────────
 
 @description('NCRONTAB schedule for the newsroom timer trigger. Three runs a day; the pipeline emits fewer articles on a quiet day rather than padding.')
@@ -106,6 +109,20 @@ var newsroomContainers = ['articles', 'raw-feeds', 'approvals']
 // app's own identity, so it needs a container of its own.
 var deploymentContainerName = 'deployment'
 
+// Traffic counts for the status panel, written hourly by the visit-stats
+// workflow and read by /api/system-status.
+//
+// This is the one container that is deliberately public, and it is declared
+// that way here rather than being switched on by hand in the portal. The
+// `articles` container above is currently public in the live account while this
+// template says 'None' — undeclared drift that a redeploy would silently
+// revert. Rather than build on that, the stats file gets a container whose
+// access level is stated in the IaC, so the template and the account agree.
+//
+// Nothing sensitive can land here: the payload is four integers describing
+// aggregate request volume, already visible to anyone who can load the site.
+var statsContainerName = 'stats'
+
 var azureOpenAiEndpoint = 'https://${foundryAccountName}.openai.azure.com/'
 
 // Built-in role definition GUIDs, read from Azure with
@@ -116,6 +133,7 @@ var roleStorageBlobDataContributor = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
 var roleStorageQueueDataContributor = '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
 var roleStorageTableDataContributor = '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 var roleCognitiveServicesOpenAiUser = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+var roleMonitoringReader = '43d0d8ad-25c7-4714-9337-8ba259a9fe05'
 
 // ── Static Web App ────────────────────────────────────────────────
 // Deliberately not created by default. `portabaltica-swa` is live in era-rg,
@@ -220,6 +238,18 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   name: deploymentContainerName
   properties: {
     publicAccess: 'None'
+  }
+}
+
+// Blob-level public read, so the browser and the SWA's Functions can fetch the
+// counts with no credential at all — the same arrangement the finished article
+// JSON already relies on. 'Blob' grants read on individual blobs only; it does
+// not permit listing the container.
+resource statsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: statsContainerName
+  properties: {
+    publicAccess: 'Blob'
   }
 }
 
@@ -397,6 +427,28 @@ module foundryAccess 'modules/foundry-role-assignment.bicep' = if (grantFoundryA
     principalId: functionApp.identity.principalId
     roleDefinitionId: roleCognitiveServicesOpenAiUser
     assignmentSuffix: '${projectName}-newsroom-openai-user'
+  }
+}
+
+// ── RBAC letting CI read the SWA's traffic metrics (cross-resource-group) ──
+// The site cannot count its own traffic: the SWA is Free tier with no managed
+// identity, and this storage account disables shared keys, so a Function has
+// nowhere durable to keep a tally. Azure Monitor already records it, and
+// `.github/workflows/visit-stats.yml` reads it hourly with the repository's
+// federated identity. Declared here rather than left as a hand-made grant,
+// because a permission that lives only in a shell history is exactly the
+// undeclared drift the `stats` container comment above objects to.
+//
+// Opt-in: the principal is GitHub's, not created by this template, so its
+// object id must be supplied. Deploying without it grants nothing.
+module ciMetricsAccess 'modules/swa-metrics-role-assignment.bicep' = if (!empty(ciPrincipalId)) {
+  name: '${projectName}-ci-monitoring-reader'
+  scope: resourceGroup(staticWebAppResourceGroup)
+  params: {
+    staticWebAppName: staticWebAppName
+    principalId: ciPrincipalId
+    roleDefinitionId: roleMonitoringReader
+    assignmentSuffix: '${projectName}-visit-stats-reader'
   }
 }
 

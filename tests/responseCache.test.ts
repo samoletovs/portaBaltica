@@ -12,6 +12,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -253,5 +255,63 @@ describe('the limit still applies at the boundary', () => {
     // And a cache hit is still a request: being cheap for us is not the same as
     // being free, and the SWA request quota is consumed either way.
     expect(state.runs).toBe(1);
+  });
+});
+
+/**
+ * The registry invariant, which used to live in `tests/trackLogin.test.ts`.
+ *
+ * That file went when `/api/track-login` was removed, and the endpoint-specific
+ * cases went with it correctly. This one is not about that endpoint: it is
+ * about the whole public API surface, and it started life as a record that
+ * track-login was the one endpoint with no limiter. Losing it with the file
+ * would have quietly dropped the only thing asserting that a new endpoint
+ * cannot ship unlimited.
+ */
+describe('every public endpoint has a limiter', () => {
+  const API = resolve(__dirname, '..', 'api');
+
+  /** Every endpoint directory that serves HTTP. */
+  function endpoints() {
+    return readdirSync(API, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
+      .filter((entry) => existsSync(join(API, entry.name, 'index.js')))
+      .map((entry) => ({
+        name: entry.name,
+        source: readFileSync(join(API, entry.name, 'index.js'), 'utf-8'),
+      }));
+  }
+
+  it('limits every one of them, by one route or the other', () => {
+    // Two shapes count, because the limit moved to the boundary for most
+    // endpoints. A handler may call `rateLimit.check` itself, or it may be
+    // wrapped in `withCache`, which checks before it does anything else. What
+    // does not count is neither.
+    //
+    // Read rather than assumed: the wrapper only discharges the obligation if
+    // it actually performs the check, so this asserts that instead of trusting
+    // the name of the function.
+    const wrapper = readFileSync(join(API, 'shared', 'responseCache.js'), 'utf-8');
+    expect(wrapper, 'withCache must rate-limit before serving anything')
+      .toContain('rateLimit.check(req)');
+
+    const missing = endpoints()
+      .filter((e) => !e.source.includes('rateLimit.check') && !e.source.includes('withCache('))
+      .map((e) => e.name);
+
+    expect(missing, `endpoints with no rate limit: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('counts each request once, never twice', () => {
+    // An endpoint that both calls `rateLimit.check` and is wrapped in
+    // `withCache` records two hits for one request, which silently halves its
+    // own limit from 60 to 30 a minute. Nothing about that surfaces: the
+    // endpoint keeps working and legitimate callers are simply cut off early.
+    const doubleCounted = endpoints()
+      .filter((e) => e.source.includes('rateLimit.check') && e.source.includes('withCache('))
+      .map((e) => e.name);
+
+    expect(doubleCounted, `these limit twice per request: ${doubleCounted.join(', ')}`)
+      .toEqual([]);
   });
 });
