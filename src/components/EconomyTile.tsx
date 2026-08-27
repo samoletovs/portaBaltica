@@ -160,15 +160,13 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
       <div>
         <h3 className="text-callout font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Baltic comparison</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <BalticCompareChart indicator="gdp" title="GDP growth" compact />
-          <BalticCompareChart indicator="unemployment" title="Unemployment" compact />
           <BalticCompareChart indicator="inflation" title="Inflation (HICP)" compact />
           <BalticCompareChart indicator="core_inflation" title="Core inflation" compact />
           <BalticCompareChart indicator="energy_inflation" title="Energy inflation" compact />
           <BalticCompareChart indicator="food_inflation" title="Food inflation" compact />
           <BalticCompareChart indicator="services_inflation" title="Services inflation" compact />
           <BalticCompareChart indicator="goods_inflation" title="Goods inflation" compact />
-          <BalticCompareChart indicator="house_prices" title="House prices" compact />
+          <BalticCompareChart indicator="house_prices" title="House prices across the Baltics" compact />
           <BalticCompareChart indicator="industrial" title="Industrial production" compact />
           <BalticCompareChart indicator="business_registrations" title="New business registrations" compact />
           <BalticCompareChart indicator="bankruptcies" title="Bankruptcy declarations" compact />
