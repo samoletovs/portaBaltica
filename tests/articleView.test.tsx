@@ -78,12 +78,18 @@ describe('ArticleView — the byline always discloses', () => {
   it('rebuilds a disclosing byline when the stored one has lost the disclosure', () => {
     // The exact failure mode this guards against: a byline that reads like a
     // staff journalist's because the disclosure was dropped upstream.
+    //
+    // The expectation used to be `Nida · AI correspondent, …`, keeping the
+    // stored name. That was the broken behaviour written down: `Byline` was
+    // dropping `persona.id`, so the registry lookup never ran and only the
+    // disclosure was rebuilt. With the id passed through, the correspondent's
+    // real name is rebuilt too, which is what `renderByline` was always for.
     const article = tierAArticle();
     article.persona = { id: 'nida', name: 'Nida', beat: 'Economy & Labour', byline: 'Nida' };
 
     renderArticle(article);
 
-    expect(screen.getByText('Nida · AI correspondent, Economy & Labour')).toBeTruthy();
+    expect(screen.getByText('Ilze Nida · AI correspondent, Economy & Labour')).toBeTruthy();
     expect(screen.queryByText('Nida', { exact: true })).toBeNull();
   });
 
