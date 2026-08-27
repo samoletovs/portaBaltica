@@ -239,6 +239,15 @@ export interface ArticleSummary {
   syndicated?: Pick<Syndicated, 'attribution' | 'original_url' | 'snippet'>;
   published_at?: string;
   countries?: Country[];
+  /**
+   * The article's own state.
+   *
+   * Optional because entries written before the field existed do not carry it,
+   * and those are shown rather than hidden — the index has always held only
+   * servable articles, so absence means "written before we recorded this", not
+   * "withheld".
+   */
+  status?: ArticleStatus;
 }
 
 export interface ArticleIndex {

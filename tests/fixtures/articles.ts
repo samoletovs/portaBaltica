@@ -136,6 +136,9 @@ export function tierASummary(overrides: Partial<ArticleSummary> = {}): ArticleSu
     dek: article.dek,
     persona: { id: 'nida', name: 'Nida', byline: 'Nida · AI correspondent, Economy & Labour' },
     published_at: article.published_at,
+    // Mirrors what `write_index` emits. The index gate reads this, so a
+    // fixture without it exercises only the legacy path.
+    status: 'published',
     ...overrides,
   };
 }

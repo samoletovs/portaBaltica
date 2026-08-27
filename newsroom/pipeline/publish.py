@@ -538,6 +538,19 @@ class ArticleStore:
                 ),
                 "published_at": a.published_at or a.created_at,
                 "countries": a.countries,
+                # The article's own state, so a consumer of the index can honour
+                # it without fetching the article.
+                #
+                # `is_servable` below means every entry written here is
+                # `published`, so this looks redundant. It is not: `drop_from_index`
+                # removes a retracted article, and if that ever half-fails — a
+                # transient blob error between `write_published` and the index
+                # rebuild — the stale entry is what remains, and RSS carries a
+                # withdrawn headline to clients that never come back for the
+                # correction. `ourArticles` in `api/shared/newsroom.js` guards
+                # against exactly that, and the guard cannot fire on a field the
+                # entry does not carry.
+                "status": a.status,
                 # The deterministic signal this story came from. Two articles
                 # sharing one signal are two tellings of the same finding, not
                 # two stories, and the index dedupes on it below.
