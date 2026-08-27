@@ -426,6 +426,33 @@ whole payload could never go stale — and a probe that cannot fail is not a pro
 `freshness.extract.eleringMetered` reads `data.real` only, and matches what
 `/api/live-grid` itself treats as a reading.
 
+**A series can be published in advance, which makes its age negative.** The
+same trap as the forecast, arriving from a direction that looks like good news:
+`earn_mw_cur` carries `2026-S2` today, four months ahead of the wall clock,
+because a minimum wage is legislated before it takes effect. Anything that
+judges freshness by subtracting the newest period from now will read that as
+"fresher than fresh" and can never mark it stale — so a cadence check has to
+clamp at zero and reason about the *previous* period, not just the newest one.
+Two of the sources here are now known to publish ahead; assume more are.
+
+**The aggregate can be the emptiest code in the cube.** `TOT_KWH` reads as the
+safe default in a consumption dimension — it is the total, so it should be the
+best populated thing there. In `nrg_pc_205` it is the *worst*: measured across
+the ten half-years to 2025-S2 it carries LV=3, EE=9, LT=4 observations while all
+six numbered consumption bands carry 10/10/10. So "Electricity price (industry)"
+drew Latvia with three points in ten beside a nearly complete Estonia, which a
+reader parses as Latvia having stopped reporting rather than as us having asked
+the wrong question.
+
+Nothing about this is detectable from the latest value: the newest period *is*
+populated for all three, so the sanity band passes, the freshness check passes
+and the live contract passes. **Coverage across the window is a third question,
+separate from liveness and from freshness**, and the only one that catches it.
+And the lesson is per-cube rather than per-code — `TOT_KWH` in `nrg_pc_204`
+(households) is complete for all three and is the correct pick there. Check the
+code you are about to pin against its siblings rather than reasoning about what
+it ought to contain.
+
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by
 construction. Riga Open Data — `required: false`, powering nothing — was measured

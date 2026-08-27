@@ -150,6 +150,55 @@ describe('indicator registry', () => {
     expect(INDICATORS.life_expectancy.params).not.toMatch(/age=Y1(&|$)/);
   });
 
+  it('does not price industrial electricity off the emptiest code in the cube', () => {
+    // A code can be present, valid, correctly parsed and in-band while carrying
+    // almost no observations. Measured across the ten half-years to 2025-S2,
+    // nrg_pc_205's aggregate is the *worst*-covered code it offers:
+    //
+    //   TOT_KWH          LV= 3  EE= 9  LT= 4
+    //   MWH_LT20         LV=10  EE=10  LT=10
+    //   MWH20-499        LV=10  EE=10  LT=10
+    //   MWH500-1999      LV=10  EE=10  LT=10
+    //   MWH2000-19999    LV=10  EE=10  LT=10
+    //   MWH20000-69999   LV=10  EE=10  LT=10
+    //   MWH70000-149999  LV=10  EE=10  LT=10
+    //
+    // So the "total" drew Latvia with three points in ten beside a nearly
+    // complete Estonia, which reads as Latvia having stopped reporting rather
+    // than as us having asked the wrong question. Six complete bands sit one
+    // parameter away.
+    //
+    // Households are the opposite case and deliberately untouched: TOT_KWH in
+    // nrg_pc_204 is complete for all three, so the aggregate is the right pick
+    // there. The lesson is per-cube, not per-code.
+    expect(
+      INDICATORS.elec_price_industry.params,
+      'TOT_KWH carries 3 of 10 periods for Latvia in nrg_pc_205'
+    ).not.toContain('nrg_cons=TOT_KWH');
+    expect(INDICATORS.elec_price_industry.params).toMatch(/nrg_cons=MWH[\d-]+/);
+  });
+
+  it('names the consumption band it prices, because a band is not a total', () => {
+    // Once the series is one band rather than every consumer, the title has to
+    // say so — otherwise the chart claims a national industrial price and shows
+    // a medium consumer's. This is the same fault as a characterisation the
+    // data does not carry, one level up.
+    const { title, params } = INDICATORS.elec_price_industry;
+    const band = params.match(/nrg_cons=MWH(\d+)-(\d+)/);
+
+    expect(band, 'the industry price should pin a numbered band').not.toBeNull();
+
+    // The lower bound is exact. The upper is not asserted digit-for-digit
+    // because Eurostat itself describes this band as "500 MWh <= consumption
+    // < 2 000 MWh", so a title reading 2000 for a code reading 1999 is the
+    // source's own rounding rather than a discrepancy.
+    expect(title, 'the title must name the band it prices').toContain(band![1]);
+    expect(title, 'the title must give the band as a range').toMatch(/\d+\s*[\u2013-]\s*\d+/);
+    expect(title, 'the title must not still read as an all-consumer total')
+      .not.toMatch(/^Electricity price \(industry\)$/);
+  });
+
+
   it('does not source HICP from the frozen ECOICOP ver.1 tables', () => {
     // Eurostat migrated HICP to ECOICOP ver.2 and froze the ver.1 tables on
     // 2026-02-06 with 2025-12 as their final period. They still answer HTTP 200,

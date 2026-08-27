@@ -34,7 +34,7 @@ export function EnergyTile() {
           <BalticCompareChart indicator="elec_production" title="Electricity production" compact />
           <BalticCompareChart indicator="elec_renewable_gen" title="Renewable electricity generated" compact />
           <BalticCompareChart indicator="elec_price_household" title="Electricity price (households)" compact />
-          <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry)" compact />
+          <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry, 500–2000 MWh)" compact />
           {/* Annual, five points. A share that moves a point or two a year is a
               ranking question, not a shape-over-time one. */}
           <RankedComparison indicator="renewables" title="Renewable energy share" higherIsBetter />
