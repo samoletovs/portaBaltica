@@ -109,8 +109,18 @@ export interface AirQualityData {
   pm25: number | null;
   no2: number | null;
   aqi?: number | null;
-  status: 'good' | 'moderate' | 'unhealthy' | null;
+  /**
+   * The EEA band. Six of them, at 20/40/60/80/100.
+   *
+   * This used to be `'good' | 'moderate' | 'unhealthy'` — the US EPA's three
+   * bands and the EPA's word, applied to Europe's index. See
+   * `api/shared/airQuality.js`.
+   */
+  status: 'good' | 'fair' | 'moderate' | 'poor' | 'very-poor' | 'extremely-poor' | null;
   label: string | null;
+  /** Which band, 1–6, so a caller can draw a meter without knowing the scale. */
+  rank?: number | null;
+  bandCount?: number;
   available?: boolean;
   unavailableReason?: string;
 }

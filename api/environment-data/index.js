@@ -2,6 +2,7 @@ const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const cache = require('../shared/cache.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const airQuality = require('../shared/airQuality.js');
 
 /**
  * GET /api/environment-data
@@ -194,25 +195,28 @@ async function fetchAirQuality(country) {
     // No reading is not the same as a good reading. The old catch returned
     // `status: 'good', label: 'Good'` on failure, which told a reader the air
     // was clean on the strength of a request that never completed.
-    var status = null;
-    var label = null;
-    if (aqi !== null) {
-      if (aqi > 100) { status = 'unhealthy'; label = 'Unhealthy'; }
-      else if (aqi > 50) { status = 'moderate'; label = 'Moderate'; }
-      else { status = 'good'; label = 'Good'; }
-    }
+    //
+    // And the bands themselves were American: this index is the EEA's, which
+    // runs in six bands at 20/40/60/80/100, and it was being split at the US
+    // EPA's 50 and 100. See `shared/airQuality.js` for the measurement.
+    var band = airQuality.classifyEuropeanAqi(aqi);
 
     return {
       pm25: numberOrNull(current.pm2_5),
       no2: numberOrNull(current.nitrogen_dioxide),
       aqi: aqi,
-      status: status,
-      label: label,
+      status: band ? band.status : null,
+      label: band ? band.label : null,
+      // Which of the six EEA bands this is, so a caller can draw an ordinal
+      // meter without knowing the scale.
+      rank: band ? band.rank : null,
+      bandCount: airQuality.BAND_COUNT,
       available: aqi !== null,
     };
   } catch (e) {
     return {
       pm25: null, no2: null, aqi: null, status: null, label: null,
+      rank: null, bandCount: airQuality.BAND_COUNT,
       available: false,
       unavailableReason: e.message,
     };

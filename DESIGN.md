@@ -337,13 +337,40 @@ never reached it. The thresholds being right is what made it invisible: the
 numbers audit cleanly, and only the words are wrong. Cite the scale in the test,
 as a table, so the specification is the thing under assertion.
 
-**Two encodings of one value must claim the same granularity.** The same
-component drew five bands in three colours while its emoji showed five steps, so
-colour and emoji contradicted each other on the page. Either grouping is
-defensible on its own; disagreeing is not. `seaState.test.ts` asserts the two
-encodings group the *same* bands rather than merely the same number of them, and
-that the ramp never doubles back — a severity scale that reverses says a rougher
-sea is calmer.
+That prompted an audit of every band on the site that names an external
+standard, and it found a second one pointing the other way. **Air quality fetched
+Europe's index and banded it with America's thresholds**: `european_aqi` is the
+EEA/CAMS index, six bands at 20/40/60/80/100, and both call sites split it at the
+US EPA's 50 and 100 into Good / Moderate / **Unhealthy** — an EPA word the
+European scale does not use. Over 6696 hourly readings from the three capitals,
+**76.1% named the air better than the European scale does and 0.0% named it
+worse**; 5050 readings the EEA rates *Fair* were called "Good". A scale that only
+ever errs towards reassurance is worse than one that errs both ways, because
+nothing about it ever looks alarming enough to check.
+
+The rest of the audit came back clean, which is worth recording so it is not
+repeated: the power card has no severity bands at all, and `freshness.js`'s
+cadence names match Eurostat's own `freq` codes.
+
+**Derive a claim from the number you print, not from a band beside it.** The
+insight card printed a PM2.5 figure and asserted "Well below WHO guidelines" in
+the same sentence — but the assertion was read off the AQI band, not off the
+figure. Sampled over 6696 paired readings, PM2.5 exceeded the WHO 24-hour
+guideline of 15 µg/m³ eight times, and on **all eight** the line still said "well
+below", printing 16.9 µg/m³ and calling it well below 15. A sentence that cites
+one number and concludes from another will contradict itself the moment they
+diverge, and it will do it in prose rather than in a chart, where nothing checks.
+
+**Two encodings of one value must claim the same granularity.** The sea state
+drew five bands in three colours while its emoji showed five steps, so colour and
+emoji contradicted each other on the page; the air-quality meter drew three
+segments and said "Band n of 3" while its scale had six, so the meter understated
+the range as surely as the label understated the reading. Either grouping is
+defensible on its own; disagreeing is not, and a hardcoded count is how the
+disagreement gets in. `seaState.test.ts` and `airQualityBands.test.ts` each
+assert the two encodings group the *same* bands rather than merely the same
+number of them, and that the ramp never doubles back — a severity scale that
+reverses says a rougher sea is calmer.
 
 **A token is tuned for one job and has no floor for another.** The ticker
 separated its items with a `·` coloured `--border-card` — 1.54:1 in dark, 1.23:1

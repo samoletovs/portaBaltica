@@ -69,8 +69,10 @@ function route(over: { air?: unknown; airThrows?: boolean; weatherThrows?: boole
 describe('air quality', () => {
   it('reports a real reading normally', async () => {
     const body = await callEnvironment(route());
+    // AQI 24 is EEA band 2, "Fair". It used to read "Good", because 24 is
+    // below the US EPA's 50 — the wrong scale for a European index.
     expect(body.airQuality).toMatchObject({
-      pm25: 7.3, no2: 11.2, aqi: 24, status: 'good', label: 'Good', available: true,
+      pm25: 7.3, no2: 11.2, aqi: 24, status: 'fair', label: 'Fair', rank: 2, available: true,
     });
   });
 
@@ -93,7 +95,7 @@ describe('air quality', () => {
 
     expect(body.airQuality.pm25).toBeNull();
     expect(body.airQuality.no2).toBeNull();
-    expect(body.airQuality.status, 'the AQI itself was present').toBe('good');
+    expect(body.airQuality.status, 'the AQI itself was present').toBe('fair');
   });
 
   it('is unavailable when the AQI is absent, even though the call succeeded', async () => {
@@ -102,17 +104,23 @@ describe('air quality', () => {
     expect(body.airQuality.status).toBeNull();
   });
 
-  it('grades a real reading by its band', async () => {
+  it('grades a real reading by the European band, not the American one', async () => {
     const cache = require('../api/shared/cache.js');
-    const moderate = await callEnvironment(route({ air: { current: { european_aqi: 70 } } }));
-    expect(moderate.airQuality.label).toBe('Moderate');
+    // 70 is EEA "Poor" (band 4). The old scale called it "Moderate", because
+    // 70 sits between the EPA's 50 and 100.
+    const poor = await callEnvironment(route({ air: { current: { european_aqi: 70 } } }));
+    expect(poor.airQuality.label).toBe('Poor');
+    expect(poor.airQuality.rank).toBe(4);
 
     // Two readings in one case, so the memo has to be cleared between them —
     // otherwise the second is served the first, which is the cache doing its
     // job and hiding what this test is here to check.
     cache.clear();
-    const bad = await callEnvironment(route({ air: { current: { european_aqi: 140 } } }));
-    expect(bad.airQuality.label).toBe('Unhealthy');
+    // Above 100 is "Extremely poor" (band 6). "Unhealthy" is an EPA word and
+    // the European scale does not use it at all.
+    const worst = await callEnvironment(route({ air: { current: { european_aqi: 140 } } }));
+    expect(worst.airQuality.label).toBe('Extremely poor');
+    expect(worst.airQuality.rank).toBe(6);
   });
 });
 
