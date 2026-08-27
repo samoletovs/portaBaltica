@@ -65,6 +65,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Mapping, Sequence
 
 from newsroom import numeric_scan
+from newsroom.pipeline.desk import Finding, run_desk
 from newsroom.pipeline.models import Signal, SourceRef, isoformat, utcnow
 from newsroom.pipeline.vintage import PublishedFigure
 
@@ -639,6 +640,37 @@ class WeeklyOutcome:
         return document
 
 
+def _wrap_revision(signal: Signal, writer: Any, corpus: WeeklyCorpus) -> Any:
+    """Turn the desk's notes back into a draft, and re-gate the result.
+
+    Mirrors ``run._revision_for``. The rewrite goes through
+    ``generate_article``, so it faces the identical validator at the identical
+    tolerance, and it faces ``period_problems`` again — a revision that fixes
+    the desk's objection and reintroduces a period claim is not an improvement.
+
+    Returning ``None`` holds the article, which is the fail-closed direction:
+    the desk can only ever narrow what publishes.
+    """
+    from newsroom.pipeline.write.generator import generate_article
+
+    def revise(article: Any, notes: Any) -> Any:
+        try:
+            revised = generate_article(
+                signal, writer, paragraphs=5, editor_notes=tuple(notes)
+            )
+        except Exception:  # noqa: BLE001
+            log.exception("weekly wrap: revision failed")
+            return None
+        if not revised.publishable:
+            return None
+        if period_problems(revised.article, corpus):
+            log.warning("weekly wrap: the revision reintroduced a period claim")
+            return None
+        return revised.article
+
+    return revise
+
+
 async def write_weekly(
     store: Any,
     writer: Any,
@@ -686,7 +718,8 @@ async def write_weekly(
             ),
         )
 
-    result = generate_article(corpus_signal(corpus), writer, paragraphs=5)
+    signal = corpus_signal(corpus)
+    result = generate_article(signal, writer, paragraphs=5)
     # The period gate, applied after generation and before anything is stored.
     # A wrap that attributes a figure to the wrong period is wrong in exactly
     # the way the five retracted trade articles were: real numbers, correctly
@@ -706,6 +739,45 @@ async def write_weekly(
             week_end=corpus.end,
             findings_available=len(corpus),
             detail=detail,
+        )
+
+    # THE DESK. Not optional on this format, and the reason is measured rather
+    # than assumed: run five times against the wrap that had to be retracted,
+    # it returned "revise" five times out of five, naming the fault in its own
+    # words -- "the impact paragraph asserts a consequence that the data does
+    # not establish" -- and asking for the right remedy, a cut.
+    #
+    # The format whose failure mode is being about the wrong thing was the one
+    # shipping without the component whose job is judgement. `write_weekly`
+    # called `generate_article` and stored; it never called the desk, so every
+    # wrap carried an empty `provenance.editor` while every other tier A
+    # article carried a decision, a reason and a named editor.
+    #
+    # A revision callback is supplied, because a desk that can say "revise"
+    # with nothing able to act on it turns every fixable fault into a spike --
+    # which is exactly what happened to six of eight articles in a live run
+    # before `_revision_for` existed.
+    outcome = run_desk(
+        result.article,
+        writer,
+        revise=_wrap_revision(signal, writer, corpus),
+        finding=Finding(
+            detector=signal.detector,
+            comparison_basis=signal.comparison_basis,
+            among_strongest=True,
+        ),
+    )
+    if outcome.revised_article is not None:
+        result.article = outcome.revised_article
+    log.info("desk %s %s: %s", outcome.action.value, result.article.id, outcome.reason)
+
+    if result.article.status != "published":
+        return WeeklyOutcome(
+            outcome=WeeklyOutcome.REFUSED,
+            week_start=corpus.start,
+            week_end=corpus.end,
+            findings_available=len(corpus),
+            detail=f"the desk did not approve it: {outcome.reason}",
         )
 
     cites = cites_provenance(corpus, result.article)
