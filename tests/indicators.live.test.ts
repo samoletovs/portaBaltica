@@ -48,6 +48,18 @@ type IndicatorDef = {
 type Point = { period: string; value: number | null };
 
 const GEOS = ['LV', 'EE', 'LT'];
+
+/**
+ * How many of the newest observations must be contiguous.
+ *
+ * Eight covers two years of quarterly data and four years of half-yearly, which
+ * is where the sparse-pin defect actually lives. It is weakest on annual
+ * indicators, where a five-year window leaves as few as three observations to
+ * look at — a real limitation, and the reason this is a floor rather than a
+ * proof.
+ */
+const RECENT_RUN = 8;
+
 const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 
 describe('Eurostat indicator contracts (live)', () => {
@@ -83,6 +95,45 @@ describe('Eurostat indicator contracts (live)', () => {
           'measures something other than the label claims'
       ).toBeGreaterThanOrEqual(def.sanity[0]);
       expect(latest.value).toBeLessThanOrEqual(def.sanity[1]);
+
+      // The body of the series, not its tip.
+      //
+      // Every assertion above reads the newest observation, and #141 found a
+      // definition where that was the only populated one worth having:
+      // `elec_price_industry` pinned `TOT_KWH`, the *emptiest* code in
+      // nrg_pc_205, carrying LV=3 EE=9 LT=4 of ten half-years while all six
+      // numbered consumption bands carried 10/10/10. The newest period was
+      // populated for all three, so the sanity band passed, the freshness check
+      // passed, and this file was green — while the chart drew Latvia from
+      // three points in ten beside a nearly complete Estonia, which a reader
+      // parses as Latvia having stopped reporting.
+      //
+      // Coverage across the window is a third question, separate from liveness
+      // and from freshness, and this is the only assertion that asks it.
+      //
+      // It reads back from each country's *own* last observation, so a slower
+      // statistics office is not penalised, and it ignores anything before that
+      // country's first observation — Estonia genuinely began reporting
+      // long-term interest rates seventeen months into the window, and a
+      // leading gap is data rather than a defect.
+      //
+      // What it does not tolerate is a hole *between* two real readings, which
+      // is the signature of a pin selecting a code the country does not
+      // populate. Against the pre-#141 definition this reports 5 holes in the
+      // newest 8 for both Latvia and Lithuania and none for Estonia — and that
+      // asymmetry is exactly why nobody saw it.
+      const last = series.reduce((best, p, i) => (p.value !== null ? i : best), -1);
+      const window = series.slice(Math.max(0, last - RECENT_RUN + 1), last + 1);
+      const holes = window.filter((p) => p.value === null);
+
+      expect(
+        holes.map((p) => p.period),
+        `${id} (${def.dataset}?${def.params}) has gaps inside ${geo}'s most recent ` +
+          `${window.length} observations. A country that started late leaves a leading gap, which is data; ` +
+          'a hole between two real readings usually means the pinned code is one this country barely ' +
+          'populates, while a sibling code measuring the same thing is complete. The test worth running ' +
+          'is whether repinning fixes it without changing what the number means.'
+      ).toEqual([]);
     }
 
     // Freshness is measured on the country that is furthest ahead: one national
