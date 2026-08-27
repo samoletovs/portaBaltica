@@ -6,6 +6,55 @@ const { withSecurity } = require('../shared/securityHeaders.js');
 const GEOS = ['LV', 'EE', 'LT'];
 
 /**
+ * The European denominator, requested alongside the three but never one of them.
+ *
+ * `EU27_2020` rides on the same cube in the same request, so this costs no new
+ * upstream, no new failure mode and no new trust — it is one more `geo=` on a
+ * call we already make.
+ *
+ * It is returned under `reference`, deliberately outside `countries`. The
+ * newsroom made the same ruling for the same reason: EU27 is a **denominator,
+ * not a subject**. Everything that iterates `countries` — the ranked
+ * comparison, the indicator cards, the chart's own colour assignment — would
+ * otherwise silently acquire a fourth peer, and a Baltic dashboard would start
+ * ranking the European Union against Latvia.
+ *
+ * 53 of the 65 indicators carry it with data. The 12 that do not are not a
+ * fault: ten are `bop_c6_q`, where an EU aggregate balance of payments against
+ * itself is close to meaningless because intra-EU flows cancel, and
+ * `minimum_wage` has no EU figure because not every member state has one.
+ */
+const REFERENCE_GEO = 'EU27_2020';
+
+/**
+ * The reference series, or `null` when this cube does not carry one.
+ *
+ * **A label is not a reading.** `rail_go_quartal` lists `EU27_2020` among its
+ * geographies and populates none of it, so a check for the code's *presence*
+ * would have drawn an empty benchmark on that chart — the same mistake as a
+ * probe that goes green because the cube answered. The test is whether any
+ * finite observation exists, and `null` here is what lets the client withhold
+ * the line rather than draw nothing and call it a comparison.
+ */
+function buildReference(entry) {
+  if (!entry || !Array.isArray(entry.series)) return null;
+  const points = entry.series.filter(function (p) {
+    return typeof p.value === 'number' && Number.isFinite(p.value);
+  });
+  if (points.length === 0) return null;
+  return {
+    code: REFERENCE_GEO,
+    label: 'EU27',
+    // Spelled out once, because "EU27" alone is ambiguous between the pre- and
+    // post-Brexit composition and this is the 2020 one.
+    fullLabel: 'European Union — 27 countries (from 2020)',
+    series: entry.series,
+    latest: points[points.length - 1].value,
+    latestPeriod: points[points.length - 1].period,
+  };
+}
+
+/**
  * GET /api/baltic-compare?indicator=gdp&years=5
  * GET /api/baltic-compare?list=1
  *
@@ -57,9 +106,17 @@ const handler = async function (context, req) {
   const years = parseInt(query.years, 10) || 5;
 
   try {
-    const url = es.buildUrl(def, years, GEOS);
+    const url = es.buildUrl(def, years, GEOS.concat([REFERENCE_GEO]));
     const data = await es.httpJson(url, { deadlineMs: 20000 });
-    const parsed = es.parseJsonStat(data, GEOS);
+    const parsed = es.parseJsonStat(data, GEOS.concat([REFERENCE_GEO]));
+
+    // Split the reference out before anything else sees `countries`, so a
+    // fourth series cannot leak into a Baltic comparison by accident.
+    const countries = {};
+    GEOS.forEach(function (geo) {
+      if (parsed.countries[geo]) countries[geo] = parsed.countries[geo];
+    });
+    const reference = buildReference(parsed.countries[REFERENCE_GEO]);
 
     context.res = {
       status: 200,
@@ -68,7 +125,8 @@ const handler = async function (context, req) {
         indicator: indicator,
         title: def.title,
         unit: def.unit,
-        countries: parsed.countries,
+        countries: countries,
+        reference: reference,
         assumptions: parsed.assumptions,
         source: 'Eurostat (' + def.dataset + ')',
         dataset: def.dataset,
@@ -90,3 +148,8 @@ const handler = async function (context, req) {
 };
 
 module.exports = withSecurity(handler);
+// Exported so the split between the three and the denominator is assertable,
+// rather than being a convention a future refactor could quietly undo.
+module.exports.GEOS = GEOS;
+module.exports.REFERENCE_GEO = REFERENCE_GEO;
+module.exports.buildReference = buildReference;

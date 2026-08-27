@@ -38,6 +38,16 @@ const COUNTRY_META: Record<string, { dash?: string; label: string; flag: string 
 
 const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;
 
+/**
+ * The data key the benchmark is plotted under.
+ *
+ * Deliberately not a geo code. `COUNTRY_ORDER` and `COUNTRY_META` are the three
+ * Baltic states and nothing else, and every consumer of `data.countries`
+ * assumes that — so the reference is carried on its own key and never appears
+ * in either structure. EU27 is a denominator, not a subject.
+ */
+const REFERENCE_KEY = 'EU27';
+
 interface BalticCompareChartProps {
   indicator: string;
   title?: string;
@@ -99,6 +109,9 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   }
 
   // Merge all country series into chart-friendly format
+  // The reference series has to be summed into the periods too, or a benchmark
+  // that runs past the Baltic series would be clipped at the last national
+  // observation rather than drawn.
   const allPeriods = new Set<string>();
   for (const key of Object.keys(data.countries)) {
     for (const pt of data.countries[key].series) {
@@ -107,11 +120,22 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   }
   const sortedPeriods = Array.from(allPeriods).sort();
 
+  // The European denominator, drawn only when the cube actually carries one.
+  // `reference` is null for 12 of the 65 indicators — ten of them balance-of-
+  // payments series, where an EU aggregate against itself means little — and a
+  // chart without it has to look intentional rather than broken, which is why
+  // nothing about the benchmark renders at all in that case.
+  const reference = data.reference ?? null;
+
   const chartData = sortedPeriods.map((period) => {
     const point: Record<string, string | number | null> = { period };
     for (const [geo, cs] of Object.entries(data.countries)) {
       const match = cs.series.find((s) => s.period === period);
       point[geo] = match?.value ?? null;
+    }
+    if (reference) {
+      const match = reference.series.find((s) => s.period === period);
+      point[REFERENCE_KEY] = match?.value ?? null;
     }
     return point;
   });
@@ -135,7 +159,9 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title ?? data.title}</p>
-          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>LV vs EE vs LT · {data.unit}</p>
+          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+            LV vs EE vs LT{reference ? ' vs EU27' : ''} · {data.unit}
+          </p>
         </div>
         {/* Direct labelling: the latest reading for each country, beside a
             swatch in that country's line colour, so the chart can be read
@@ -157,6 +183,22 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
               </span>
             </div>
           ))}
+          {reference && (
+            // The benchmark, and deliberately not in the same visual grammar as
+            // the three: no flag, no series swatch, a dashed rule instead. It
+            // answers "is this good or bad", which is a different question from
+            // "who is ahead", and it must not read as a fourth competitor.
+            <div className="flex items-center gap-1 text-caption font-mono"
+              title={reference.fullLabel}>
+              <span aria-hidden="true" className="inline-block w-3 border-t border-dashed"
+                style={{ borderColor: 'var(--text-tertiary)' }} />
+              <span className="sr-only">{reference.fullLabel} average: </span>
+              <span aria-hidden="true" style={{ color: 'var(--text-tertiary)' }}>EU27</span>
+              <span style={{ color: 'var(--text-secondary)' }}>
+                {formatValue(reference.latest, data.unit)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -197,6 +239,9 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
               labelStyle={{ color: chartColors.axis }}
               formatter={(v, name) => {
                 const val = v as number | null;
+                if (name === REFERENCE_KEY) {
+                  return [val !== null ? formatValue(val, data.unit) : '—', 'EU27 average'];
+                }
                 return [val !== null ? formatValue(val, data.unit) : '—', COUNTRY_META[name as string]?.label ?? name];
               }}
             />
@@ -207,8 +252,26 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
             {!compact && (
               <Legend
                 formatter={(v: string) => (
-                  <span style={{ color: 'var(--text-body)' }}>{COUNTRY_META[v]?.label ?? v}</span>
+                  <span style={{ color: v === REFERENCE_KEY ? 'var(--text-tertiary)' : 'var(--text-body)' }}>
+                    {v === REFERENCE_KEY ? 'EU27 average' : COUNTRY_META[v]?.label ?? v}
+                  </span>
                 )}
+              />
+            )}
+            {/* The benchmark is drawn first, so the three countries paint over
+                it rather than under it. It is a denominator, not a competitor:
+                no country colour (DESIGN.md §3.6 reserves the palette for the
+                flags, and the EU is not a Baltic state), a thinner stroke, and
+                a long dash that reads as a rule rather than as a series. */}
+            {reference && (
+              <Line
+                type="monotone"
+                dataKey={REFERENCE_KEY}
+                stroke={chartColors.axis}
+                strokeDasharray="6 4"
+                strokeWidth={compact ? 1 : 1.5}
+                dot={false}
+                isAnimationActive={false}
               />
             )}
             {/* Gaps stay gaps. Carbon: "never interpolate between periods when

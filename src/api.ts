@@ -19,6 +19,23 @@ export interface BalticCompareData {
   title: string;
   unit: string;
   countries: Record<string, BalticCompareCountrySeries>;
+  /**
+   * The EU27 average, when the cube carries one — a benchmark, not a country.
+   *
+   * Kept out of `countries` on purpose: everything that iterates that record
+   * treats its keys as Baltic states, so a fourth entry would put the European
+   * Union into a ranking of Latvia, Estonia and Lithuania. `null` for the 12
+   * indicators with no usable EU figure, and a caller must withhold the
+   * benchmark entirely rather than draw an empty one.
+   */
+  reference?: {
+    code: string;
+    label: string;
+    fullLabel: string;
+    series: { period: string; value: number | null }[];
+    latest: number;
+    latestPeriod: string;
+  } | null;
   source: string;
   /** Dimensions the indicator definition failed to pin. Always empty for a
    *  correctly specified indicator — a non-empty value means the API had to
