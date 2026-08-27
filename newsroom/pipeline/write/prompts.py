@@ -676,6 +676,24 @@ def _context_section(pack: ContextPack | None, signal: Signal) -> str:
     lines.append(
         "finding. Say which period it belongs to, or do not put the two in one sentence."
     )
+
+    # Only when the fact is present. An instruction about a figure the writer
+    # has not been given is noise, and this one is absent 71% of the time.
+    if pack.of_kind("denominator"):
+        lines.append("")
+        lines.append(
+            "The EU figure is here because it moved the OPPOSITE way, and that contrast"
+        )
+        lines.append(
+            "is the whole reason you have it. Say which way it went — rose or fell —"
+        )
+        lines.append(
+            "over the same period as the finding. Do not reduce it to which number is"
+        )
+        lines.append(
+            "larger: that the EU average is higher or lower than one country is true"
+        )
+        lines.append("every month and is not what makes this worth a sentence.")
     return "\n".join(lines)
 
 
