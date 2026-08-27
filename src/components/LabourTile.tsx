@@ -1,6 +1,7 @@
 import { IndicatorCard } from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { RankedComparison } from './RankedComparison';
 import { TileHeader } from './TileHeader';
 
 export function LabourTile() {
@@ -29,8 +30,11 @@ export function LabourTile() {
               have to get that right. Letting the lines speak avoids the
               question, and the reader can see it for themselves. */}
           <BalticCompareChart indicator="labour_productivity" title="Labour productivity per person" compact />
-          <BalticCompareChart indicator="gdp_per_capita" title="GDP per capita" compact />
-          <BalticCompareChart indicator="life_expectancy" title="Life expectancy at birth" compact />
+          {/* Annual, four or five points. Higher is better for both, and a
+              ranking answers "who leads and which way is it moving" directly
+              rather than asking a reader to read it off five dots. */}
+          <RankedComparison indicator="gdp_per_capita" title="GDP per capita" higherIsBetter />
+          <RankedComparison indicator="life_expectancy" title="Life expectancy at birth" higherIsBetter />
         </div>
       </div>
     </section>
