@@ -46,6 +46,7 @@ const CHECK_LABELS: Record<ValidatorCheckName, string> = {
   attribution_present: 'Required attribution is present',
   comparison_basis_stated: 'Every change states what it is measured against',
   no_repeated_findings: 'No paragraph restates a figure another has already made',
+  no_unsupported_mechanism: 'No paragraph explains a movement the figures do not evidence',
 };
 
 function formatTimestamp(value: string | undefined): string {
