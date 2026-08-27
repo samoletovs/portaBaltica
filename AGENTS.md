@@ -480,6 +480,30 @@ Interior holes are only *usually* the pin, so the test that settles it is:
   summing components, which fabricates the suppressed one. So the gap is real
   and the pin is right.
 
+**And a gap can be invisible to a null-based check**, because the missing
+period is not represented at all. `sdg_04_70` offers the time coordinates
+`2021, 2023, 2025` — there is no 2022 or 2024 to be null. The contiguity
+assertion above sees a perfectly contiguous series, and it is right to: the
+cube is not withholding anything.
+
+What that breaks is the assumption underneath `freq`. **`freq` is the cube's
+dimension code, not the publication cadence**, and for exactly one of the
+sixty-six they disagree — the query genuinely needs `freq=A` while publication
+runs every twenty-four months. Everything downstream that reads `freq` as a
+cadence inherits the mismatch, and the sharpest is the freshness allowance: the
+newest observation's age oscillates from about 8 months just after publication
+to **30** just before the next, which is precisely `MAX_AGE_MONTHS.A`. It sat
+on the boundary rather than inside it, so a one-month slip would have marked a
+healthy series stale, and tightening the annual default to a perfectly sensible
+18 would have broken it for over half of every cycle. It carries an explicit
+`maxAgeMonths` now, so the allowance travels with the fact that explains it.
+
+The newsroom hit the same mismatch from the prose side on the same day: its
+streak detector walked the deltas between *readings* and stated the result as a
+claim about *periods*, so five readings across ten months would have read as
+"four consecutive monthly moves". Same root, two different lies — **count the
+periods, not the observations**.
+
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by
 construction. Riga Open Data — `required: false`, powering nothing — was measured
