@@ -125,6 +125,11 @@
         "signal_id": { "type": "string", "description": "The deterministic signal that triggered this story." },
         "signal_detector": { "type": "string", "description": "Which detector fired." },
         "signal_finding": { "type": "string", "description": "metric|geography|period — the reading itself, which ranking suppresses on next run so the wire does not retell a story it has already told." },
+        "cites": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Slugs of published articles this piece drew figures from. Written by the weekly wrap, which is the only format that quotes work other than its own. It is what makes the piece correctable: a wrap outlives its citations, so retracting a cited article must be able to find every wrap that rests on it."
+        },
         "comparison_basis": { "type": "string", "description": "What the finding is measured against, in the detector's own words." },
         "attempts": { "type": "integer", "minimum": 1, "description": "How many drafts this took. A rising average means the prompt, not the model, needs work." },
         "rejection": {

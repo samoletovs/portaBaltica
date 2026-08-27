@@ -264,6 +264,8 @@ class ArticleStore:
         await asyncio.to_thread(self._write_published, slug, payload)
 
     CORRECTIONS_BLOB = "corrections.json"
+    #: The front page. Named once because two modules now read it.
+    INDEX_BLOB = "index.json"
 
     def _read_corrections_log(self) -> list[dict[str, Any]]:
         container = self._container_client()
@@ -377,7 +379,7 @@ class ArticleStore:
         container = self._container_client()
         if container is not None:
             try:
-                raw = container.download_blob("index.json").readall()
+                raw = container.download_blob(self.INDEX_BLOB).readall()
                 payload = json.loads(raw.decode("utf-8"))
                 existing = payload.get("articles")
                 if isinstance(existing, list):
@@ -385,7 +387,7 @@ class ArticleStore:
             except Exception as exc:  # noqa: BLE001
                 log.info("no readable index in blob yet (%s); starting fresh", exc)
 
-        local = self._local_dir / "index.json"
+        local = self._local_dir / self.INDEX_BLOB
         if local.exists():
             try:
                 payload = json.loads(local.read_text(encoding="utf-8"))
@@ -471,7 +473,7 @@ class ArticleStore:
             "count": len(entries),
             "articles": entries,
         }
-        await self.put_json("index.json", payload)
+        await self.put_json(self.INDEX_BLOB, payload)
         log.warning("dropped %d article(s) from the index", len(removing))
         return len(entries)
 
@@ -585,20 +587,20 @@ class ArticleStore:
             ensure_ascii=False,
             indent=2,
         ).encode("utf-8")
-        await asyncio.to_thread(self._write_local, "index.json", body)
+        await asyncio.to_thread(self._write_local, self.INDEX_BLOB, body)
         container = self._container_client()
         if container is not None:
             try:
                 await asyncio.to_thread(
                     container.upload_blob,
-                    name="index.json",
+                    name=self.INDEX_BLOB,
                     data=body,
                     overwrite=True,
                     content_settings=_content_settings(_INDEX_CACHE_CONTROL),
                 )
             except Exception as exc:  # noqa: BLE001
                 log.warning("index blob write failed (%s)", exc)
-        return "index.json"
+        return self.INDEX_BLOB
 
 
 __all__ = ["ArticleStore", "NotServable", "is_servable"]

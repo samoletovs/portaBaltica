@@ -73,13 +73,38 @@ Two guards follow, and neither is about caching:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
 from newsroom.pipeline.vintage import VintageStore
+from newsroom.pipeline.weekly import cited_slugs
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class RetractionOutcome:
+    """What a retraction did, and what it obliges someone to look at.
+
+    ``wraps_to_review`` is not decoration. A weekly wrap quotes work other than
+    its own, so it is the only format a retraction elsewhere can invalidate,
+    and no other mechanism here would ever find it. It is returned rather than
+    acted on because whether the withdrawn figure was load-bearing in the
+    wrap's argument is a judgement, and a wrap citing eight stories should not
+    vanish because one was withdrawn.
+    """
+
+    retracted: list[str]
+    wraps_to_review: list[str]
+
+    def __iter__(self):
+        """Iterating gives the retracted slugs, which is what callers mean."""
+        return iter(self.retracted)
+
+    def __len__(self) -> int:
+        return len(self.retracted)
 
 
 def retraction_note(
@@ -165,7 +190,7 @@ async def retract_all(
     reason: str,
     vintages: VintageStore | None = None,
     withdraws: Mapping[str, str] | None = None,
-) -> list[str]:
+) -> RetractionOutcome:
     """Retract several articles that share one cause, then clean up after them.
 
     Three steps, and the last two are the ones that are easy to forget.
@@ -197,6 +222,30 @@ async def retract_all(
         if document is not None and document.get("status") == "retracted":
             retracted.append(slug)
 
+    # A wrap that quoted one of these may now be wrong, and nothing else would
+    # ever find it: every other correction mechanism assumes the faulty thing
+    # is the article itself.
+    #
+    # REPORTED, NOT WITHDRAWN. The first draft of this retracted the wrap
+    # automatically, on the reasoning that a flag nobody reads is a guard that
+    # cannot fire — which is a real hazard in an unattended pipeline. But
+    # proportionality wins: a wrap citing eight stories should not vanish
+    # because one of them was withdrawn, and whether the withdrawn figure was
+    # load-bearing in the wrap's argument is a judgement no machine here can
+    # make. The hazard is answered by making the report impossible to miss
+    # rather than by acting on it — it is returned to the caller and logged at
+    # warning level, and retraction is never automatic, so there is always an
+    # operator present to receive it.
+    citing: list[str] = []
+    if retracted:
+        citing = await wraps_citing(store, retracted)
+        for wrap in citing:
+            log.warning(
+                "weekly wrap %s cites a retracted article; review it: %s",
+                wrap,
+                ", ".join(sorted(set(retracted))),
+            )
+
     if retracted:
         await store.drop_from_index(retracted)
         ledger_store = vintages or VintageStore()
@@ -205,7 +254,7 @@ async def retract_all(
         if forgotten:
             await ledger_store.save(ledger)
             log.warning("vintage ledger forgot %d figure(s) from retracted articles", forgotten)
-    return retracted
+    return RetractionOutcome(retracted=retracted, wraps_to_review=citing)
 
 
 def suppression_keys(documents: Sequence[Mapping[str, Any]]) -> list[str]:
@@ -225,4 +274,39 @@ def suppression_keys(documents: Sequence[Mapping[str, Any]]) -> list[str]:
     return keys
 
 
-__all__ = ["retract", "retract_all", "retraction_note", "suppression_keys"]
+async def wraps_citing(store: ArticleStore, slugs: Sequence[str]) -> list[str]:
+    """Published wraps that quoted any of these articles.
+
+    A weekly wrap is the only format that quotes work other than its own, so it
+    is the only one that can be made wrong by a retraction elsewhere. It reads
+    the index rather than scanning storage because the index is the set of
+    things a reader can currently reach, and a wrap that is already gone needs
+    no further withdrawing.
+    """
+    withdrawn = set(slugs)
+    entries = await store.read_json(ArticleStore.INDEX_BLOB)
+    rows = entries if isinstance(entries, list) else (entries or {}).get("articles") or []
+
+    affected: list[str] = []
+    for row in rows:
+        slug = row.get("slug") if isinstance(row, Mapping) else None
+        if not isinstance(slug, str) or not slug or slug in withdrawn:
+            continue
+        document = await store.read_published(slug)
+        if document is None or document.get("status") != "published":
+            continue
+        if withdrawn.intersection(cited_slugs(document)):
+            affected.append(slug)
+    return affected
+
+
+
+
+__all__ = [
+    "RetractionOutcome",
+    "retract",
+    "retract_all",
+    "retraction_note",
+    "suppression_keys",
+    "wraps_citing",
+]
