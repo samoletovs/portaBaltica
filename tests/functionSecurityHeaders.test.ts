@@ -151,27 +151,18 @@ describe('the function inventory', () => {
 describe('the pre-handler refusal', () => {
   /**
    * The rate limiter answers before a handler does any work of its own, so it
-   * is the one response nearly every function is guaranteed to produce with no
+   * is the one response every function is guaranteed to produce with no
    * network at all.
    *
-   * `track-login` is the exception, and that is a finding rather than a
-   * tolerance: it never calls `rateLimit.check`, though `api/shared/rateLimit.js`
-   * says in as many words to "use this as the first thing in every public
-   * endpoint". It is anonymous, it is POST-only, and it sends an outbound
-   * Telegram notification on every request — so an unlimited caller gets
-   * unlimited notifications and burns the Free tier's invocation quota doing
-   * it. Fixing that is a behaviour change and belongs with whoever owns that
-   * endpoint; recording it here stops it being forgotten, and the count below
-   * fails if any *other* function quietly loses its limiter.
+   * `track-login` used to be excluded here, because it was the only endpoint
+   * that never called `rateLimit.check` despite `api/shared/rateLimit.js`
+   * saying in as many words to use it as the first thing in every public
+   * endpoint. It was anonymous, POST-only, and sent an outbound Telegram
+   * notification per request, so an unlimited caller got unlimited messages to
+   * somebody's phone. That gap is closed, and the exclusion is gone with it —
+   * a list of known exceptions is only honest while the exceptions exist.
    */
-  const RATE_LIMITED = NAMES.filter((name) => name !== 'track-login');
-
-  it('is exactly one function short of universal', () => {
-    expect(NAMES).toContain('track-login');
-    expect(RATE_LIMITED.length).toBe(NAMES.length - 1);
-  });
-
-  for (const name of RATE_LIMITED) {
+  for (const name of NAMES) {
     it(`${name} is secured when it refuses`, async () => {
       const handler = require(join(API, name, 'index.js'));
       const address = `10.99.${NAMES.indexOf(name)}.1`;
