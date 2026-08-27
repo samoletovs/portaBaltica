@@ -25,16 +25,21 @@ describe('a missing sea state', () => {
   });
 
   it('still classifies a real reading at every band boundary', () => {
+    // Thresholds unchanged — 0.1, 0.5, 1.25 and 2.5 m are the WMO sea state
+    // code boundaries and always were. The *names* moved: they used to sit one
+    // degree high all the way up, so 0.1 m read "Slight" (degree 3) when the
+    // scale calls it Smooth (degree 2), and 2.5 m read "Very Rough" (degree 6,
+    // which starts at 4 m) when it is Rough (degree 5).
     expect(classifySeaState(0)).toBe('calm');
     expect(classifySeaState(0.09)).toBe('calm');
-    expect(classifySeaState(0.1)).toBe('slight');
-    expect(classifySeaState(0.49)).toBe('slight');
-    expect(classifySeaState(0.5)).toBe('moderate');
-    expect(classifySeaState(1.24)).toBe('moderate');
-    expect(classifySeaState(1.25)).toBe('rough');
-    expect(classifySeaState(2.49)).toBe('rough');
-    expect(classifySeaState(2.5)).toBe('very-rough');
-    expect(classifySeaState(9)).toBe('very-rough');
+    expect(classifySeaState(0.1)).toBe('smooth');
+    expect(classifySeaState(0.49)).toBe('smooth');
+    expect(classifySeaState(0.5)).toBe('slight');
+    expect(classifySeaState(1.24)).toBe('slight');
+    expect(classifySeaState(1.25)).toBe('moderate');
+    expect(classifySeaState(2.49)).toBe('moderate');
+    expect(classifySeaState(2.5)).toBe('rough');
+    expect(classifySeaState(9)).toBe('rough');
   });
 
   it('names every band it can return', () => {
