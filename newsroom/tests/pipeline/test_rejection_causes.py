@@ -436,3 +436,151 @@ class TestTheSchemaIsActuallyTheContract:
         ]
 
         assert provenance_errors == []
+
+
+# ── 3.7 the cut ────────────────────────────────────────────────────────────
+
+
+class TestAnEmptyClosingIsCutRatherThanRewritten:
+    """The fourth iteration, and the first that does not ask the model.
+
+    Three strategies have failed against a live model. A blacklist lost to
+    paraphrase across ten of ten articles. A structural check was satisfied by
+    swapping WILL for WOULD in three of three. Revised prompt guidance did not
+    help either, because ``generate_article`` publishes a validated article once
+    its attempts run out -- house style adds no rejection path, so a check the
+    model can outlast is bounded by the retry budget rather than by its own
+    correctness.
+
+    So the last attempt deletes the paragraph. Asking still happens first,
+    because a model that fixes the closing gives us a real one and the attempts
+    were going to be spent anyway.
+    """
+
+    def _article(self, *texts):
+        from newsroom.pipeline.models import Article, Block
+
+        return Article(
+            id="1", slug="s", tier="A", status="draft",
+            headline="Container traffic at Klaipeda reaches a series high",
+            section="maritime", created_at="2026-08-26T00:00:00Z", provenance={},
+            body=[Block(type="paragraph", text=t) for t in texts],
+        )
+
+    def test_the_paragraph_is_gone(self):
+        from newsroom.pipeline.house_style import apply_house_style
+
+        article = self._article("Volumes reached a series high.", LIVE_FORMULA_CLOSINGS[0])
+
+        report = apply_house_style(article, cut_empty_closings=True)
+
+        assert len(article.body) == 1
+        assert article.body[0].text == "Volumes reached a series high."
+        assert report.cuts and "empty closing" in report.cuts[0]
+
+    def test_asking_comes_first_so_a_good_rewrite_is_still_possible(self):
+        """Without the flag it is reported, not cut. The generator sets the flag
+        only on the final attempt, so the writer gets its chances."""
+        from newsroom.pipeline.house_style import apply_house_style
+
+        article = self._article("Volumes reached a series high.", LIVE_FORMULA_CLOSINGS[0])
+
+        report = apply_house_style(article)
+
+        assert len(article.body) == 2, "cut on an attempt the writer could still use"
+        assert any("points at a future release" in v for v in report.violations)
+
+    def test_the_last_paragraph_is_never_taken(self):
+        """An article of nothing but formula is a generation failure, not a
+        copy-editing one. Emptying it would hide that from the validator."""
+        from newsroom.pipeline.house_style import apply_house_style
+
+        article = self._article(LIVE_FORMULA_CLOSINGS[0])
+
+        report = apply_house_style(article, cut_empty_closings=True)
+
+        assert len(article.body) == 1
+        assert not report.cuts
+        assert any("points at a future release" in v for v in report.violations)
+
+    def test_a_real_closing_survives_the_cut(self):
+        from newsroom.pipeline.house_style import apply_house_style
+
+        article = self._article("Volumes reached a series high.", REAL_CLOSINGS[0])
+
+        report = apply_house_style(article, cut_empty_closings=True)
+
+        assert len(article.body) == 2
+        assert not report.cuts
+
+    def test_a_second_empty_closing_underneath_is_also_taken(self):
+        from newsroom.pipeline.house_style import apply_house_style
+
+        article = self._article(
+            "Volumes reached a series high.",
+            LIVE_FORMULA_CLOSINGS[0],
+            LIVE_FORMULA_CLOSINGS[1],
+        )
+
+        apply_house_style(article, cut_empty_closings=True)
+
+        assert len(article.body) == 1
+
+    def test_the_loop_cuts_when_the_writer_never_converges(self):
+        """End to end. The writer returns the same formula every time, which is
+        what it actually did in production, and the article publishes without
+        the paragraph rather than with it."""
+        payload = json.loads(json.dumps(GOOD_PAYLOAD))
+        payload["blocks"][-1] = {"text": LIVE_FORMULA_CLOSINGS[4], "figures": []}
+        writer = StubWriter([json.loads(json.dumps(payload)) for _ in range(3)])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable, "a formulaic closing must not spike the article"
+        texts = [b.text for b in result.article.body if b.type == "paragraph"]
+        assert LIVE_FORMULA_CLOSINGS[4] not in texts, "the empty closing was published"
+        assert texts, "the article was emptied"
+
+    def test_the_verdict_describes_the_article_that_remains(self):
+        """A cut invalidates the stored verdict, which was computed against
+        prose that is now gone. Re-running it keeps provenance honest."""
+        payload = json.loads(json.dumps(GOOD_PAYLOAD))
+        payload["blocks"][-1] = {"text": LIVE_FORMULA_CLOSINGS[4], "figures": []}
+        writer = StubWriter([json.loads(json.dumps(payload)) for _ in range(3)])
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.article.provenance["validator"]["passed"] is True
+        assert result.verdict.passed
+
+
+class TestTheGuidanceAgreesWithTheCheck:
+    """A persona that teaches a closing the check deletes sets the writer up.
+
+    ``closing_move`` for the economy beat used to read "names the specific
+    release date and dataset that would confirm or overturn the reading" --
+    which is the empty formula, described approvingly, in the instructions the
+    writer is given. The check and the guidance have to be the same rule.
+    """
+
+    def test_no_persona_teaches_a_closing_the_check_refuses(self):
+        import yaml
+
+        from newsroom.pipeline.house_style import closing_problems
+
+        raw = yaml.safe_load(
+            (pathlib.Path(__file__).resolve().parents[3] / "newsroom" / "personas.yaml")
+            .read_text(encoding="utf-8")
+        )
+        moves = [
+            (spec.get("id") or spec.get("name"), spec["voice"]["closing_move"])
+            for spec in (raw.get("personas") or [])
+            if isinstance(spec, dict) and spec.get("voice", {}).get("closing_move")
+        ]
+
+        assert moves, "no closing_move found; the guard is reading the wrong shape"
+        offenders = [(n, m) for n, m in moves if closing_problems(m)]
+        assert not offenders, (
+            "these personas instruct the writer to produce a closing house style "
+            f"would delete: {offenders}"
+        )

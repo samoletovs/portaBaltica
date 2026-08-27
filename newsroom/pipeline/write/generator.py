@@ -226,7 +226,22 @@ def generate_article(
         )
 
         # Copy-edit here rather than after the loop. See ``_style_faults``.
-        style = apply_house_style(result.article)
+        #
+        # The closing is cut only on the final attempt: while the writer still
+        # has an attempt left, an empty closing is handed back so it can write
+        # a real one, which is a better article than one that simply stops.
+        # When the attempts are gone the paragraph goes, because house style
+        # has no rejection path and would otherwise publish it.
+        last_attempt = attempt == attempts
+        style = apply_house_style(result.article, cut_empty_closings=last_attempt)
+        # A cut deletes prose the verdict was computed against, so the stored
+        # verdict now describes an article that no longer exists. Re-run it.
+        # Removing a paragraph can only withdraw claims, so this cannot turn a
+        # passing article into a failing one on the traceability checks — but
+        # "cannot" is a belief about eight interacting rules, and re-validating
+        # costs nothing and needs no such belief.
+        if style.cuts:
+            _revalidate(result.article, signal)
         if result.publishable and best is None:
             best = result
 
@@ -468,6 +483,28 @@ def _verdict_for(article: Article, signal: Signal) -> Verdict:
     signal_payload = signal.to_json()
     signal_payload["payload"] = dict(signal.fields)
     return validate(article.to_json(), signal=signal_payload)
+
+
+def _revalidate(article: Article, signal: Signal) -> None:
+    """Recompute the verdict after prose was deleted, and re-decide status.
+
+    ``apply_house_style`` may cut an empty closing, which leaves the stored
+    verdict describing a paragraph that is gone. This keeps the artefact
+    honest: what ``provenance.validator`` says was checked is what a reader can
+    actually read.
+
+    It can promote as well as demote. A closing that repeated an earlier
+    paragraph's findings fails ``no_repeated_findings``; cutting it removes the
+    repetition, and the article becomes publishable for the same reason the
+    desk would have approved it.
+    """
+    verdict = _verdict_for(article, signal)
+    article.provenance["validator"] = verdict.to_dict()
+    if verdict.passed and _shape_is_publishable(article):
+        article.status = "published"
+        article.published_at = article.published_at or isoformat(utcnow())
+    else:
+        article.status = "rejected"
 
 
 def _shape_is_publishable(article: Article) -> bool:
