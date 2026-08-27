@@ -244,10 +244,14 @@ change; and no year, count or derived percentage appears anywhere.
 THE TWO MISTAKES THAT REJECT MOST ARTICLES, AND EXACTLY HOW TO AVOID THEM:
 
   1. A BARE NUMERAL THAT IS NOT A VERIFIED FIGURE.
-     "fell from 2025 levels" contains the numeral 2025 and is rejected. So is
-     "9 of the 10 categories" and any percentage you worked out yourself.
-     Only the values in VERIFIED FIGURES and the supplied period labels may
-     appear as digits, anywhere, including in the standfirst.
+     "9 of the 10 categories" is rejected, and so is any percentage you worked
+     out yourself. Only the values in VERIFIED FIGURES and the supplied period
+     labels may appear as digits, anywhere, including in the standfirst.
+
+     A YEAR IS NOT A BARE NUMERAL. In the body, "the highest reading since
+     2019" is correct and passes: a period label says WHEN, and claims nothing
+     about magnitude. Naming when a series last did this is usually the most
+     informative thing you can add, so reach for it rather than avoiding it.
 
      THE STANDFIRST MUST CONTAIN NO DIGITS AT ALL. Say why it matters in
      words: "the longest run of falls since the series began", not "a third

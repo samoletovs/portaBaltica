@@ -80,6 +80,32 @@ def test_the_prompt_forbids_digits_in_the_standfirst() -> None:
     The dek carries no figures array of its own, so every digit in it has to be
     declared somewhere in the body, and the model kept not doing that. Removing
     digits from the standfirst removes the failure rather than managing it.
+
+    **This asserts the instruction exists, not that the dek obeys it**, and the
+    distinction is the whole reason the label now says so. It passes for any
+    output whatever, so it can never report that the rule stopped working --
+    a documented decision that nothing enforces decays into an assumption, and
+    a test that reads the prompt rather than the artefact is the most
+    convincing possible substitute for one.
+
+    What is enforced, and where:
+
+    * an *untraceable* numeral in the dek is rejected by `no_invented_numbers`
+      -- ``test_validator_rejects.py`` covers it directly, and did not before
+    * a *traceable* one is deliberately allowed, because the dek is checked
+      against the union of every block's figures; two accepting fixtures in
+      ``test_validator_accepts.py`` depend on that
+    * a period label is allowed and scans to nothing, by design
+
+    So the prompt is stricter than the contract on purpose, as prophylaxis
+    against a common rejection rather than because a digit in a dek is untrue.
+
+    Measured before assuming it was being ignored: across 18 drafts on
+    2026-08-27, **17 deks carried no digits, 1 did, and 0 carried an
+    untraceable one.** The instruction is obeyed. Enforcing it deterministically
+    would have cut a correct, fully traceable standfirst in the only case it
+    ever fired on -- a coaching note that tells a writer to do what it is
+    already doing makes it worse.
     """
     assert "MUST CONTAIN NO DIGITS" in prompts._SYSTEM_TEMPLATE
 
