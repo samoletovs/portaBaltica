@@ -599,11 +599,28 @@ healthy series stale, and tightening the annual default to a perfectly sensible
 18 would have broken it for over half of every cycle. It carries an explicit
 `maxAgeMonths` now, so the allowance travels with the fact that explains it.
 
+`tests/indicators.live.test.ts` asserts this too, and **not as an exception
+list**: an indicator whose observed publication interval differs from its
+declared `freq` must carry an explicit `maxAgeMonths`. The override *is* the
+declaration. A definition that publishes off its stated frequency has to say
+so in the one field that makes the freshness check correct anyway, which means
+the next off-cadence series is caught when it is added rather than when it
+breaks.
+
+**Keep both checks. Neither subsumes the other.** The contiguity assertion
+finds a pin selecting a code a country barely populates — holes *between* real
+readings. The cadence assertion finds a frequency the definition does not
+actually have — a gap with no null to find, because the period is not
+represented. Each is blind to the other's shape, and running only one of them
+looks like coverage.
+
 The newsroom hit the same mismatch from the prose side on the same day: its
 streak detector walked the deltas between *readings* and stated the result as a
 claim about *periods*, so five readings across ten months would have read as
 "four consecutive monthly moves". Same root, two different lies — **count the
-periods, not the observations**.
+periods, not the observations**. Its `detect_record_extreme` had the answer all
+along and says *"across 14 observations since 1999"*: it counts observations,
+calls them observations, claims no time unit, and is true at any cadence.
 
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by
