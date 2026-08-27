@@ -1,6 +1,7 @@
 const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const cache = require('../shared/cache.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
  * GET /api/environment-data
@@ -240,7 +241,7 @@ async function fetchCapitalPopulation(country) {
   }
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   try {
@@ -281,3 +282,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

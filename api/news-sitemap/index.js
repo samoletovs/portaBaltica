@@ -1,5 +1,6 @@
 const newsroom = require('../shared/newsroom.js');
 const rateLimit = require('../shared/rateLimit.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 const CORRESPONDENTS = ['nida', 'akmensrags', 'kolka', 'ristna', 'irbene'];
 const SECTIONS = [
@@ -13,7 +14,7 @@ const SECTIONS = [
  * Our own pages only. Tier C items live on other people's domains and belong
  * in other people's sitemaps.
  */
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
@@ -70,3 +71,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

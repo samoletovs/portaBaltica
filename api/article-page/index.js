@@ -2,7 +2,7 @@ const https = require('https');
 const newsroom = require('../shared/newsroom.js');
 const rateLimit = require('../shared/rateLimit.js');
 const meta = require('../shared/articleMeta.js');
-const { withSecurityHeaders } = require('../shared/securityHeaders.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
  * GET /article/<slug> (rewritten to /api/article-page)
@@ -108,7 +108,7 @@ async function getArticle(slug) {
   return article;
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
@@ -122,11 +122,11 @@ module.exports = async function (context, req) {
     // every crawler is built to retry.
     context.res = {
       status: 503,
-      headers: withSecurityHeaders({
+      headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store',
         'Retry-After': '5',
-      }),
+      },
       body: '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
         '<title>portaBaltica</title><meta name="robots" content="noindex">' +
         '</head><body><p>This page is temporarily unavailable. Please try again.</p></body></html>',
@@ -153,10 +153,10 @@ module.exports = async function (context, req) {
     context.log.warn('no slug in request; serving the shell untouched');
     context.res = {
       status: 200,
-      headers: withSecurityHeaders({
+      headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': CACHE_CONTROL,
-      }),
+      },
       body: shell,
     };
     return;
@@ -226,10 +226,12 @@ module.exports = async function (context, req) {
 
   context.res = {
     status: status,
-    headers: withSecurityHeaders({
+    headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': CACHE_CONTROL,
-    }),
+    },
     body: html != null ? html : shell,
   };
 };
+
+module.exports = withSecurity(handler);

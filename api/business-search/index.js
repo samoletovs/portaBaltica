@@ -1,5 +1,6 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -29,7 +30,7 @@ const UBO_RESOURCE_ID = '20a9b26d-d056-4dbb-ae18-9ff23c87bdee';
  * Searches the UBO (beneficial owners) registry by company registration number
  * or person surname. Returns matching records from the official PLG dataset.
  */
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   var query = (req.query && req.query.q) || '';
@@ -102,3 +103,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

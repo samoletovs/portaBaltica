@@ -4,6 +4,7 @@ const cubeHealth = require('../shared/cubeHealth.js');
 const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
 const cache = require('../shared/cache.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
  * GET /api/system-status
@@ -577,7 +578,7 @@ const API_ENDPOINTS = [
   '/api/address-search', '/api/ai-insights', '/api/system-status',
 ];
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   const startTime = Date.now();
@@ -629,6 +630,7 @@ module.exports = async function (context, req) {
   };
 };
 
+module.exports = withSecurity(handler);
 module.exports.overallStatus = overallStatus;
 module.exports.newsroomObservation = newsroomObservation;
 module.exports.probe = probe;
