@@ -310,8 +310,15 @@ class TestEveryDetectorHonoursIt:
         assert "8 consecutive" not in basis
 
 
-class TestNoUnitCarriesANumeral:
-    """A unit string ends up inside pipeline-authored prose.
+#: Every configured string a writer reads and may restate. A digit in any of
+#: them is a digit in the article that no verified field can declare, so
+#: `no_invented_numbers` rejects the piece and no revision can save it: the
+#: writer is quoting the name we gave the statistic.
+PROSE_FIELDS = ("unit", "metric_label")
+
+
+class TestNoConfiguredProseCarriesANumeral:
+    """These strings end up inside pipeline-authored prose.
 
     ``comparison_basis`` interpolates ``series.unit`` and the writer is
     REQUIRED to restate the basis, so a digit in a unit is a digit in the
@@ -319,24 +326,61 @@ class TestNoUnitCarriesANumeral:
     = 100)" put a bare 100 into every economic-sentiment basis, and
     "index (2021 = 100)" put both 2021 and 100 into every business one.
 
+    ``metric_label`` reaches prose more directly still: it is the natural name
+    of the statistic, so the writer uses it in the headline and throughout the
+    body. ``passenger cars per 1,000 inhabitants`` flagged ``1,000`` seven
+    times in one article and could not be published by any revision.
+
+    That defect shipped while a test named "no unit carries a numeral" passed,
+    because it read ``unit`` and the writer read the label -- a guard asserting
+    on one field while the behaviour reads another. Hence a list of fields
+    rather than a single one: the next string we hand the writer joins it.
+
     Caught here rather than in the basis contract because it is a property of
     the configuration, so it fails the moment a dataset is added rather than
     only when that dataset happens to fire a detector.
     """
 
-    def test_no_dataset_declares_a_unit_containing_a_digit(self):
+    @pytest.mark.parametrize("field", PROSE_FIELDS)
+    def test_no_dataset_declares_a_numeral(self, field):
         from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS
 
         offenders = {
-            spec.metric: spec.unit
+            spec.metric: getattr(spec, field)
             for spec in EUROSTAT_DATASETS
-            if any(character.isdigit() for character in spec.unit)
+            if any(character.isdigit() for character in str(getattr(spec, field) or ""))
         }
 
         assert not offenders, (
-            f"these units carry a numeral into every comparison basis they "
-            f"appear in, where no figure can declare it: {offenders}. The index "
+            f"these {field} strings carry a numeral into prose the writer "
+            f"restates, where no figure can declare it: {offenders}. The index "
             f"base belongs on the chart axis, not in every sentence."
+        )
+
+    def test_the_field_list_covers_what_the_writer_is_shown(self):
+        """The companion, because a list is only as good as its coverage.
+
+        A prose-bearing string added to `EurostatDataset` and left off
+        `PROSE_FIELDS` is unguarded, and the failure is silent: the article is
+        rejected for an invented number that came from our own configuration.
+        """
+        from newsroom.pipeline.collect.opendata import EurostatDataset
+
+        spec = EurostatDataset(
+            dataset="d", metric="m", metric_label="l", unit="u",
+            section="economy", params={},
+        )
+        prose_like = {
+            name
+            for name, value in vars(spec).items()
+            if isinstance(value, str) and name not in {"dataset", "metric", "section",
+                                                       "frequency", "chart_ref",
+                                                       "geo_dimension"}
+        }
+
+        assert prose_like == set(PROSE_FIELDS), (
+            f"EurostatDataset carries prose fields not covered by PROSE_FIELDS: "
+            f"{prose_like - set(PROSE_FIELDS)}"
         )
 
     def test_the_sharp_move_basis_exposes_the_periods_it_measured(self):

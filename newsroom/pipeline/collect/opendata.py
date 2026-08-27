@@ -990,7 +990,7 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="road_eqs_carhab",
         metric="vehicles",
-        metric_label="passenger cars per 1,000 inhabitants",
+        metric_label="passenger cars per thousand inhabitants",
         unit="cars per thousand inhabitants",
         section="trade",
         frequency="annual",
