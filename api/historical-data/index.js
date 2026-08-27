@@ -2,6 +2,7 @@ const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
 const EUROSTAT_INDICATORS = require('../shared/indicators.js');
 const es = require('../shared/eurostat.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 function httpsPost(url, body) {
   return new Promise(function (resolve, reject) {
@@ -413,7 +414,7 @@ function readPxWebSeries(data, transform) {
  * does not. `source` always names the provider that actually answered, so a
  * fallback is visible rather than silent.
  */
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   var indicator = (req.query && req.query.indicator) || '';
@@ -526,3 +527,4 @@ module.exports = async function (context, req) {
   };
 };
 
+module.exports = withSecurity(handler);

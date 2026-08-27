@@ -1,6 +1,7 @@
 const rateLimit = require('../shared/rateLimit.js');
 const eurostat = require('../shared/eurostat.js');
 const ports = require('../shared/ports.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
  * Baltic port statistics: cargo tonnage, passengers and vessel arrivals.
@@ -242,7 +243,7 @@ function groupLatest(group) {
   return newestOf(group.entries.map(function (e) { return e.latest; }));
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
@@ -323,3 +324,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

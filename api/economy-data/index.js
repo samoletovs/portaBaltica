@@ -2,6 +2,7 @@ const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
 const businessRegistry = require('../shared/businessRegistry.js');
 const http = require('http');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 function httpGet(url) {
   const lib = url.startsWith('https') ? https : http;
@@ -223,7 +224,7 @@ async function fetchPxWebIndicators() {
   return indicators;
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   try {
@@ -269,3 +270,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

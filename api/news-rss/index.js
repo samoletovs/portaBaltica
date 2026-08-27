@@ -1,5 +1,6 @@
 const newsroom = require('../shared/newsroom.js');
 const rateLimit = require('../shared/rateLimit.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
  * GET /rss.xml (rewritten to /api/news-rss)
@@ -7,7 +8,7 @@ const rateLimit = require('../shared/rateLimit.js');
  * RSS 2.0 for portaBaltica's own articles. Tier C link-outs are excluded —
  * see api/shared/newsroom.js for why.
  */
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
@@ -67,3 +68,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

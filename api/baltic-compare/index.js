@@ -1,6 +1,7 @@
 const rateLimit = require('../shared/rateLimit.js');
 const INDICATORS = require('../shared/indicators.js');
 const es = require('../shared/eurostat.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 const GEOS = ['LV', 'EE', 'LT'];
 
@@ -17,7 +18,7 @@ const GEOS = ['LV', 'EE', 'LT'];
  * to read — the failure mode that previously produced blank and mislabelled
  * charts without anything going red.
  */
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
@@ -87,3 +88,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

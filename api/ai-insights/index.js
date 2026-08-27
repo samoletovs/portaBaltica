@@ -1,5 +1,6 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -46,7 +47,7 @@ function httpGetText(url) {
   });
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
   try {
@@ -170,3 +171,5 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+module.exports = withSecurity(handler);

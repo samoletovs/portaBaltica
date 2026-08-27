@@ -1,4 +1,5 @@
 const https = require('https');
+const { withSecurity } = require('../shared/securityHeaders.js');
 
 const TELEGRAM_NOTIFY_URL = process.env.TELEGRAM_NOTIFY_URL || '';
 
@@ -23,7 +24,7 @@ function postNotification(message) {
   });
 }
 
-module.exports = async function (context, req) {
+const handler = async function (context, req) {
   try {
     const timestamp = new Date().toISOString();
 
@@ -43,3 +44,5 @@ module.exports = async function (context, req) {
     context.res = { status: 200, body: JSON.stringify({ ok: false }) };
   }
 };
+
+module.exports = withSecurity(handler);
