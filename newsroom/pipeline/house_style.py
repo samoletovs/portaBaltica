@@ -232,9 +232,16 @@ SPECULATIVE_IMPACT = tuple(
 #: Pointing at a future release. Necessary for an empty closing, not sufficient:
 #: "the next day-ahead auction settles on Monday" points at a future event and
 #: is a fact about the world, so this is only half the test.
+#: A decimal point is not a full stop. ``[^.]`` stopped dead at the "." in a
+#: figure, so "the next 2.4 percent release will be crucial to confirm the
+#: trend" went uncaught -- the sentences carrying numbers being exactly the
+#: ones this cannot afford to miss. Found while fixing the identical mistake in
+#: `weekly.period_problems`.
+_GAP = r"(?:[^.]|\.(?=\d))"
+
 _FORWARD_LOOKING = re.compile(
     r"\b(?:next|upcoming|future|forthcoming|coming|subsequent|later)\b"
-    r"[^.]{0,60}?\b(?:release|releases|report|reports|reading|readings|data|"
+    + _GAP + r"{0,60}?\b(?:release|releases|report|reports|reading|readings|data|"
     r"figures|print|prints|statistic|statistics|numbers|settlement|auction|"
     r"update|quarter|month|year)\b",
     re.IGNORECASE,
@@ -245,7 +252,7 @@ _FORWARD_LOOKING = re.compile(
 #: formula never does, which is exactly why none of the ten contained one.
 _NAMES_A_CONSEQUENCE = re.compile(
     r"\bwould\b"
-    r"|\bif\b[^.]{0,80}\b(?:then|that would|it would)\b"
+    r"|\bif\b" + _GAP + r"{0,80}\b(?:then|that would|it would)\b"
     r"|\bany\s+\w+\s+(?:above|below|under|over)\b",
     re.IGNORECASE,
 )
