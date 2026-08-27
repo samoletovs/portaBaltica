@@ -408,6 +408,39 @@ class AnalystBrief:
                     f"anything while carrying no figures is rejected, however "
                     f"carefully it is worded."
                 )
+        else:
+            # An absence is not a statement. With no mechanisms the section
+            # simply said nothing about them, and the writer filled the
+            # silence: across four runs it produced the explanatory paragraph
+            # whether or not it had anything to ground it. Two runs holding
+            # eighteen admissible mechanisms rejected 71% and 43% of drafts on
+            # `no_unsupported_mechanism`; the run holding three rejected 86%.
+            # The paragraph was unconditional and only its groundedness varied.
+            #
+            # So the absence is stated, and the instruction is to omit rather
+            # than to attempt. The brief is the last place that knows a
+            # mechanism was looked for and not found -- downstream, "no
+            # mechanism" and "nobody checked" are the same silence.
+            lines.append("")
+            lines.append("MECHANISMS: none. There is no cause available to you.")
+            if self.discarded:
+                lines.append(
+                    f"  {len(self.discarded)} were proposed and every one was "
+                    f"dropped for resting on nothing the figures establish."
+                )
+            lines.append(
+                "  Do NOT write a paragraph explaining why this happened. There "
+                "is no wording that makes an ungrounded cause publishable, and a "
+                "draft that attempts one is rejected rather than revised."
+            )
+            lines.append(
+                "  Say the data does not show what drove it, once, and spend the "
+                "space on what it DOES show: how large against its own history, "
+                "who it lands on, how it compares with the neighbours, what the "
+                "next release would have to show. If none of those is worth a "
+                "paragraph, END THE PIECE EARLIER -- that is the right outcome "
+                "and not a failure."
+            )
         if self.affected:
             lines.append("")
             lines.append("WHO THIS LANDS ON: " + "; ".join(self.affected))

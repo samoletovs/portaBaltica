@@ -115,9 +115,10 @@ informative.
 NO PARAGRAPH MAY RESTATE A FACT ALREADY ESTABLISHED. If the same value and the
 same comparison appeared in an earlier paragraph, the new paragraph adds nothing
 and must be replaced with one that advances the story: a new comparison, a
-mechanism from the brief, a consequence for a named group, or a specific next
-event. Read your own draft back: if you can delete a paragraph and the reader
-loses nothing, you must delete it.
+mechanism the brief actually lists, a consequence for a named group, or a
+specific next event. If the brief lists no mechanism there is none to use, and
+reaching for one is the most common way a draft dies. Read your own draft back:
+if you can delete a paragraph and the reader loses nothing, you must delete it.
 
 This one is checked, not requested. Two paragraphs that declare the identical
 set of "signal_field" names in their figures arrays are the same paragraph
