@@ -702,6 +702,14 @@ def detect_seasonal_deviation(
 # ---------------------------------------------------------------------------
 # 6. Sharp period-over-period moves
 # ---------------------------------------------------------------------------
+# `detect_record_extreme` words its basis "across N observations since <period>":
+# it counts observations, says observations, and names where the window starts.
+# That is true at any cadence and survives a hole. `detect_sharp_move` used to
+# count the same deltas and name them in the series' cadence -- "over the
+# preceding 14 quarters" -- which is the same claim `detect_streak` made about
+# consecutive months, and false in the same way. Estonia filed no vessel
+# statistics at all in 2024, so a series with that shape spans 19 quarters
+# across 15 readings, and the sentence understated the window by five.
 def detect_sharp_move(
     series: TimeSeries,
     *,
@@ -763,9 +771,8 @@ def detect_sharp_move(
         unit=series.unit,
         comparison_basis=(
             f"the previous reading of {previous.value:g} {series.unit} in {previous.period}, "
-            f"against a typical {series.frequency} move of {sigma:.3g} {series.unit} "
-            f"over the preceding {len(deltas)} "
-            f"{reading_word(series.frequency, len(deltas))}"
+            f"against a typical move of {sigma:.3g} {series.unit} "
+            f"across {len(deltas)} readings since {series.periods[0]}"
         ),
         score=score,
         section=series.section,
