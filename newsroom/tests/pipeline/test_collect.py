@@ -867,26 +867,94 @@ class TestTheQueryIsPartOfTheResource:
         fails the moment two of them become indistinguishable to the cache.
         """
         from newsroom.pipeline.collect.httpclient import _cache_key
-        from newsroom.pipeline.collect.opendata import BALTIC, EUROSTAT_DATASETS
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, request_params
         from newsroom.pipeline.safety import registry
 
         endpoint = registry().get("eurostat").endpoint
         keys: dict[str, str] = {}
         for spec in EUROSTAT_DATASETS:
-            geographies = spec.geographies if spec.geographies is not None else BALTIC
-            params = [
-                ("format", "JSON"), ("lang", "EN"),
-                ("lastTimePeriod", str(spec.periods)),
-                *spec.params.items(),
-                *[(spec.geo_dimension, geo) for geo in geographies],
-            ]
-            key = _cache_key(endpoint.format(dataset=spec.dataset), params)
+            # The collector's own function, not a copy of it. This used to
+            # rebuild the list here and hardcoded the three Baltic states,
+            # while the collector's default had become COLLECTED_GEOGRAPHIES.
+            # It changed no outcome, which is why it went unnoticed.
+            key = _cache_key(endpoint.format(dataset=spec.dataset), request_params(spec))
             assert key not in keys, (
                 f"{spec.metric} and {keys[key]} are the same request to the "
                 f"cache, so one will be served the other's data and published "
                 f"under its own name"
             )
             keys[key] = spec.metric
+
+    def test_the_guard_reads_the_collector_s_own_query(self):
+        """The guard must not rebuild what the collector builds.
+
+        This test existed and rebuilt the parameter list itself, hardcoding the
+        three Baltic states. #125 changed the collector's default to
+        ``COLLECTED_GEOGRAPHIES``, which adds the EU aggregate, and the guard
+        kept checking the old shape. It changed no outcome -- the extra
+        parameter applies to every spec equally, so no collision appeared or
+        disappeared -- which is precisely why it went unnoticed for a day.
+
+        Both now call ``request_params``. This asserts the default it returns
+        is the collector's, so the copy cannot silently drift back.
+        """
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, request_params
+        from newsroom.pipeline.detect.series import COLLECTED_GEOGRAPHIES
+
+        spec = next(d for d in EUROSTAT_DATASETS if d.geographies is None)
+        asked = [v for k, v in request_params(spec) if k == spec.geo_dimension]
+
+        assert asked == list(COLLECTED_GEOGRAPHIES)
+
+    def test_a_spec_that_pins_its_own_axis_is_asked_for_no_geography(self):
+        """The maritime cubes. ``geo=LV`` to one of these is an HTTP 400.
+
+        Note what this compares. These specs carry ``rep_mar`` inside their own
+        ``params`` -- the port code *is* the pin -- so asserting the key is
+        simply absent fails on a correct collector. What must be true is that
+        the geography mechanism adds nothing on top of it.
+        """
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, request_params
+
+        pinned = [d for d in EUROSTAT_DATASETS if d.geographies == ()]
+        assert pinned, "no self-pinning dataset left to check"
+        for spec in pinned:
+            asked = [k for k, _ in request_params(spec) if k == spec.geo_dimension]
+            declared = [k for k in spec.params if k == spec.geo_dimension]
+
+            assert asked == declared, (
+                f"{spec.metric} had a geography added on top of its own pin"
+            )
+
+    def test_one_cube_two_slices_are_two_keys(self):
+        """The hazard when mirroring, stated as an invariant.
+
+        ``bop_c6_q`` backs ten dashboard definitions and ``prc_hicp_minr``
+        eight; they differ only in a pinned dimension. If the key does not
+        cover the parameters, ``youth_unemployment`` is served the all-ages
+        rate and published under its own name -- true numbers, wrong subject,
+        and every editorial gate passes.
+        """
+        from newsroom.pipeline.collect.httpclient import _cache_key
+        from newsroom.pipeline.collect.opendata import EurostatDataset, request_params
+
+        def spec(age: str) -> EurostatDataset:
+            return EurostatDataset(
+                dataset="une_rt_m",
+                metric=f"unemployment_{age.lower()}",
+                metric_label="unemployment rate",
+                unit="%",
+                section="labour",
+                params={"unit": "PC_ACT", "s_adj": "SA", "sex": "T", "age": age},
+            )
+
+        url = "https://example.invalid/une_rt_m"
+        all_ages = _cache_key(url, request_params(spec("TOTAL")))
+        under_25 = _cache_key(url, request_params(spec("Y_LT25")))
+
+        assert all_ages != under_25, (
+            "one pinned dimension apart and the cache cannot tell them apart"
+        )
 
     async def test_the_balance_components_add_up(self, tmp_path):
         """The check that needs no fixture: goods + services = the total.
