@@ -406,6 +406,26 @@ Give every outbound call an explicit deadline via `api/shared/eurostat.js`'s
 actually uses, so a removed action shows up as an outage rather than passing
 because some other path on the same host still answers.
 
+**Ask the application for that URL; do not restate it.** Both Eurostat probes
+used to be hand-built strings that said the same thing as `buildUrl` and
+`ports.seriesUrls`. The unemployment one was byte-identical, which sounds
+harmless and is the whole problem — the identity was maintained by hand and
+nothing checked it. The maritime one had already drifted: it pinned
+`rep_mar=LV_0LVRIX`, Riga alone, over three years, while `/api/port-data` asks
+for all four Latvian ports over eight. So the probe was blind to Ventspils,
+Liepāja and Skulte, and went red whenever Riga alone was quiet — the false red
+that check has already produced once. Measured, the honest query is also the
+cheaper one, 37–60ms against 53–110ms, so there was never a cost argument for
+the narrower slice.
+
+The newsroom's collision guard failed the same way on the same day, rebuilding
+the collector's query parameters with a hardcoded geography list while the
+collector's default moved underneath it — and changing no outcome, which is
+exactly why nobody noticed. **A guard that reproduces the logic it guards is
+not a guard, it is a second implementation that can disagree.** Same family as
+an instrument that cannot fail: it stops measuring the thing and says nothing
+about having stopped.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because
@@ -479,6 +499,30 @@ Interior holes are only *usually* the pin, so the test that settles it is:
   only available "fixes" are hotels-only, which is a different statistic, or
   summing components, which fabricates the suppressed one. So the gap is real
   and the pin is right.
+
+**And a gap can be invisible to a null-based check**, because the missing
+period is not represented at all. `sdg_04_70` offers the time coordinates
+`2021, 2023, 2025` — there is no 2022 or 2024 to be null. The contiguity
+assertion above sees a perfectly contiguous series, and it is right to: the
+cube is not withholding anything.
+
+What that breaks is the assumption underneath `freq`. **`freq` is the cube's
+dimension code, not the publication cadence**, and for exactly one of the
+sixty-six they disagree — the query genuinely needs `freq=A` while publication
+runs every twenty-four months. Everything downstream that reads `freq` as a
+cadence inherits the mismatch, and the sharpest is the freshness allowance: the
+newest observation's age oscillates from about 8 months just after publication
+to **30** just before the next, which is precisely `MAX_AGE_MONTHS.A`. It sat
+on the boundary rather than inside it, so a one-month slip would have marked a
+healthy series stale, and tightening the annual default to a perfectly sensible
+18 would have broken it for over half of every cycle. It carries an explicit
+`maxAgeMonths` now, so the allowance travels with the fact that explains it.
+
+The newsroom hit the same mismatch from the prose side on the same day: its
+streak detector walked the deltas between *readings* and stated the result as a
+claim about *periods*, so five readings across ten months would have read as
+"four consecutive monthly moves". Same root, two different lies — **count the
+periods, not the observations**.
 
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by

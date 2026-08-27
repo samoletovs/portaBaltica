@@ -150,6 +150,39 @@ describe('indicator registry', () => {
     expect(INDICATORS.life_expectancy.params).not.toMatch(/age=Y1(&|$)/);
   });
 
+  it('gives the one biennial series an allowance that does not depend on a default', () => {
+    // `freq` is the cube's dimension code, not the publication cadence, and for
+    // exactly one of the sixty-six they disagree: sdg_04_70 says A and
+    // publishes 2021, 2023, 2025 with no 2022 or 2024 coordinate at all.
+    // Measured across the cycle, the newest observation's age runs 8 months
+    // after publication to 30 just before the next — which is precisely the
+    // annual default, so it sits on the boundary rather than inside it.
+    const def = INDICATORS.digital_skills;
+
+    expect(def.freq, 'the query still needs freq=A').toBe('A');
+    expect(def.params).toContain('freq=A');
+
+    expect(
+      def.maxAgeMonths,
+      'a biennial series on the shared annual allowance goes falsely stale on a ' +
+        "one-month publication slip, and breaks outright if anyone tightens it"
+    ).toBeGreaterThan(30);
+  });
+
+  it('leaves every genuinely annual series on the shared allowance', () => {
+    // Guarding the guard: an override is a claim that this series is unusual.
+    // If they spread, the default stops meaning anything and a real freeze
+    // hides behind a generous number.
+    const overridden = entries
+      .filter(([, def]) => typeof (def as { maxAgeMonths?: number }).maxAgeMonths === 'number')
+      .map(([id]) => id);
+
+    expect(
+      overridden,
+      'only sdg_04_70 publishes off its declared cadence; a second override needs the same evidence'
+    ).toEqual(['digital_skills']);
+  });
+
   it('does not price industrial electricity off the emptiest code in the cube', () => {
     // A code can be present, valid, correctly parsed and in-band while carrying
     // almost no observations. Measured across the ten half-years to 2025-S2,
