@@ -327,6 +327,23 @@ the truncation bug it was supposed to fix. A validator test that passes because
 the validator does nothing is worse than no test, because it manufactures
 confidence. Each check needs at least one fixture that *should* be rejected.
 
+That failure has now recurred three times in different clothes, and the third
+is the one worth remembering:
+
+* `all_detector_signals()` did not cover `sharp_move`, `streak` or
+  `threshold_cross`, so the invariant test over "every detector" was green
+  while three detectors went unchecked;
+* the cross-run suppression fixtures were alphabetically lucky, so a test that
+  should have proved ordering proved nothing;
+* and the first verification of the retraction read back through `ArticleStore`,
+  which is **local-first** — so it reported success for a write that never
+  reached blob storage at all.
+
+The third is the same defect one level up: a *verification* that cannot fail,
+which is harder to spot than a test that cannot fail because it sits outside
+the suite where nobody is looking for it. Assertions about production go
+through `BlobServiceClient` directly, never through the store that wrote them.
+
 ### What the validator cannot see: the article's subject
 
 Every check above is about a *figure*. None is about what the article is

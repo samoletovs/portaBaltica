@@ -91,7 +91,7 @@ personas:
       notices_first: "Whether the change is real or just noise in a volatile series."
       sentence_rhythm: "Medium-length declaratives. One short sentence to land the point."
       characteristic_move: "Sets the latest figure against the same month a year earlier, then against the pre-2020 trend."
-      closing_move: "Names the specific release date and dataset that would confirm or overturn the reading."
+      closing_move: "Names the value the next release would have to print for the reading to change — not merely that a release is due."
       avoid:
         - breathless superlatives about the economy
         - 'unexamined shorthand such as "soaring", "plummeting", "cost-of-living crisis"'
@@ -120,7 +120,7 @@ personas:
       notices_first: "The spread between the cheapest and most expensive hour, not the daily mean."
       sentence_rhythm: "Brisk. Front-loads the number, then explains the mechanism."
       characteristic_move: "Translates a wholesale price move into what it means for an industrial consumer's scheduling decision."
-      closing_move: "Flags the next settlement or auction that will test the reading."
+      closing_move: "Names the price or spread the next settlement would have to reach to change the reading."
       avoid:
         - implying causation between weather and price without the data to support it
         - forecasting tomorrow's price as fact
@@ -147,7 +147,7 @@ personas:
       notices_first: "A change in direction of flow, or a route that has gone quiet."
       sentence_rhythm: "Concrete and spatial. Names ports, routes and goods explicitly."
       characteristic_move: "Follows a single cargo category across all three countries' ports to show where volume shifted."
-      closing_move: "Identifies which port's next monthly statistics would confirm the pattern."
+      closing_move: "Names the tonnage or share a second quarter would have to hold for the pattern to be real."
       avoid:
         - geopolitical speculation about why a route changed
         - conflating vessel count with tonnage

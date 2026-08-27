@@ -229,16 +229,14 @@ SPECULATIVE_IMPACT = tuple(
 # stops. That distinction is structural and it survives paraphrase, because the
 # paraphrases are all of the empty half.
 
-#: Pointing at a future release, however it is phrased.
+#: Pointing at a future release. Necessary for an empty closing, not sufficient:
+#: "the next day-ahead auction settles on Monday" points at a future event and
+#: is a fact about the world, so this is only half the test.
 _FORWARD_LOOKING = re.compile(
     r"\b(?:next|upcoming|future|forthcoming|coming|subsequent|later)\b"
     r"[^.]{0,60}?\b(?:release|releases|report|reports|reading|readings|data|"
     r"figures|print|prints|statistic|statistics|numbers|settlement|auction|"
-    r"update|quarter|month|year)\b"
-    r"|\bwill\s+(?:be\s+)?(?:crucial|essential|key|important|critical|vital|"
-    r"instrumental|necessary|useful|telling)\b"
-    r"|\bwill\s+(?:provide|offer|give|shed|clarify|reveal|determine|confirm|"
-    r"indicate|show|tell)\b",
+    r"update|quarter|month|year)\b",
     re.IGNORECASE,
 )
 
@@ -251,6 +249,48 @@ _NAMES_A_CONSEQUENCE = re.compile(
     r"|\bany\s+\w+\s+(?:above|below|under|over)\b",
     re.IGNORECASE,
 )
+
+#: Verbs whose object is knowledge rather than the world.
+#:
+#: This list is the reason the check needed a third iteration. Requiring a
+#: conditional caught the blacklist's paraphrases, so the model paid the
+#: smallest possible price and swapped WILL for WOULD: "the next release WOULD
+#: clarify whether this trend continues" satisfied ``_NAMES_A_CONSEQUENCE`` via
+#: a bare ``would`` while saying precisely what "will clarify" said. Three of
+#: three measured closings did this.
+#:
+#: A consequence expressed with one of these verbs is not a consequence. "Would
+#: clarify whether X continues" promises that information will exist, which is
+#: true of every release ever scheduled.
+_INFORMATION_VERB = (
+    r"(?:crucial|essential|key|important|critical|vital|instrumental|necessary|"
+    r"useful|telling|informative|insightful|provide|offer|give|shed|clarify|"
+    r"reveal|determine|confirm|indicate|show|tell|prove|establish|demonstrate|"
+    r"assess|understand|illuminate|elucidate|verify|validate|ascertain|test)"
+)
+
+_INFORMATIONAL_PROMISE = re.compile(
+    rf"\b(?:will|would|should|could|may|might|shall)\s+(?:be\s+)?(?:\w+\s+)?"
+    rf"(?:to\s+)?{_INFORMATION_VERB}\b"
+    rf"|\b(?:is|are)\s+what\s+(?:will|would)\s+{_INFORMATION_VERB}\b"
+    rf"|\bprovide[sd]?\s+(?:further\s+)?(?:insight|insights|clarity)\b",
+    re.IGNORECASE,
+)
+
+#: A specific reading: a threshold with a number, or a named ordinal period.
+#:
+#: This is what rescues a legitimate closing that happens to use an information
+#: verb — "a revision below 100 would show the recovery had stalled" names the
+#: value that would change the conclusion, and is exactly the sentence the
+#: guidance asks for.
+_NAMES_A_READING = re.compile(
+    r"\b(?:above|below|under|over|beneath|beyond|exceed(?:s|ing)?)\b[^.]{0,24}?\d"
+    r"|\d[^.]{0,24}?\b(?:or (?:higher|lower|more|less|above|below))\b"
+    r"|\b(?:a\s+)?(?:second|third|fourth|fifth|another)\s+(?:consecutive\s+)?"
+    r"(?:month|quarter|year|reading|print|release|observation)\b",
+    re.IGNORECASE,
+)
+
 
 #: Or it says plainly where the evidence stops, which is the third legitimate
 #: shape and a complete closing on its own.
@@ -270,10 +310,27 @@ def closing_problems(text: str, *, where: str = "the closing") -> list[str]:
     Only ever applied to the last paragraph, because the rule is about how an
     article STOPS. A forward reference mid-article — "the figure is released
     quarterly" — is ordinary reporting and must stay legal.
+
+    An empty closing needs BOTH halves: it points at future information, and it
+    promises that the information will resolve something. Either alone is
+    legitimate. "The next day-ahead auction settles on Monday" points forward
+    and reports a scheduled fact; "a reading below 95 would show the recovery
+    had stalled" promises a resolution but names the reading that produces it.
+    Only the pair — a future release that will tell us more, with no reading
+    named — says nothing, and it says nothing about every release ever
+    scheduled.
     """
-    if not text or not _FORWARD_LOOKING.search(text):
+    if not text:
         return []
-    if _NAMES_A_CONSEQUENCE.search(text) or _STATES_A_LIMIT.search(text):
+    if not (_FORWARD_LOOKING.search(text) and _INFORMATIONAL_PROMISE.search(text)):
+        return []
+    # Either legitimate shape on its own terms, whatever else the sentence does.
+    if _STATES_A_LIMIT.search(text) or _NAMES_A_READING.search(text):
+        return []
+    # A conditional counts only if its consequence is about the world. A
+    # conditional whose consequence is that we will know more is the empty
+    # formula with one word changed, which is what beat the previous version.
+    if _NAMES_A_CONSEQUENCE.search(text) and not _INFORMATIONAL_PROMISE.search(text):
         return []
     return [
         f"{where}: points at a future release without saying what it would "
@@ -374,6 +431,11 @@ class StyleReport:
     violations: list[str] = field(default_factory=list)
     #: Corrections applied automatically. Recorded so the trail shows them.
     corrections: list[str] = field(default_factory=list)
+    #: Prose deleted outright, as opposed to rewritten. Separate from
+    #: ``corrections`` because a caller that has already validated the article
+    #: has to re-validate when this is non-empty: the verdict describes prose
+    #: that no longer exists.
+    cuts: list[str] = field(default_factory=list)
 
     @property
     def clean(self) -> bool:
@@ -447,7 +509,7 @@ def review_headline(headline: str) -> tuple[str, list[str], list[str]]:
     return fixed, violations, corrections
 
 
-def apply_house_style(article) -> StyleReport:
+def apply_house_style(article, *, cut_empty_closings: bool = False) -> StyleReport:
     """Copy-edit an article in place and report what is left.
 
     Corrections are applied; violations are recorded and returned separately,
@@ -481,13 +543,74 @@ def apply_house_style(article) -> StyleReport:
     # And how it ends, which is a different question from how it reads. Applied
     # to the last prose paragraph only: a forward reference in the middle of a
     # piece — "the figure is released quarterly" — is ordinary reporting.
-    prose = [
-        (index, block.text)
-        for index, block in enumerate(article.body or [])
-        if getattr(block, "type", None) == "paragraph" and block.text
-    ]
-    if prose:
-        last_index, last_text = prose[-1]
-        report.violations.extend(closing_problems(last_text, where=f"body[{last_index}]"))
+    #
+    # ASK FIRST, THEN CUT. ``cut_empty_closings`` is set by the generator on the
+    # final attempt only, so the shape is: hand it back while the writer still
+    # has an attempt to spend, and delete the paragraph if it never converges.
+    #
+    # Neither half is sufficient alone. Asking is not, because three strategies
+    # have now failed — a blacklist, which lost to paraphrase across ten of ten
+    # articles; a structural check, which the model satisfied by swapping WILL
+    # for WOULD in three of three; and revised prompt guidance — and because
+    # house style adds no rejection path, so a validated article publishes once
+    # its attempts run out, style faults and all. A check the model can outlast
+    # is bounded by the retry budget rather than by its own correctness.
+    #
+    # But cutting alone would throw away the good outcome. A model that fixes
+    # the closing when told gives us a real one, which beats no closing; the
+    # attempts were going to be spent regardless. So the cut is the floor, not
+    # the policy, and the guidance already names it: "if none of these produces
+    # a sentence worth reading, end the article one paragraph earlier."
+    if cut_empty_closings:
+        _cut_empty_closings(article, report)
+    else:
+        prose = [
+            (index, block.text)
+            for index, block in enumerate(article.body or [])
+            if getattr(block, "type", None) == "paragraph" and block.text
+        ]
+        if prose:
+            last_index, last_text = prose[-1]
+            report.violations.extend(closing_problems(last_text, where=f"body[{last_index}]"))
 
     return report
+
+
+#: A cut can expose another empty closing beneath it. Bounded so that a body of
+#: nothing but formula cannot loop, and so an article is never reduced to none.
+_MAX_CLOSING_CUTS = 3
+
+
+def _cut_empty_closings(article, report: StyleReport) -> None:
+    """Delete trailing paragraphs that only promise future information.
+
+    Never removes the last surviving paragraph. An article whose every
+    paragraph is an empty closing is a generation failure, not a copy-editing
+    one, and it must reach the validator looking like what it is rather than
+    being silently emptied.
+    """
+    for _ in range(_MAX_CLOSING_CUTS):
+        prose = [
+            (index, block.text)
+            for index, block in enumerate(article.body or [])
+            if getattr(block, "type", None) == "paragraph" and block.text
+        ]
+        if not prose:
+            return
+
+        last_index, last_text = prose[-1]
+        problems = closing_problems(last_text, where=f"body[{last_index}]")
+        if not problems:
+            return
+
+        if len(prose) == 1:
+            # Nothing left to fall back on, so report it instead of cutting.
+            report.violations.extend(problems)
+            return
+
+        del article.body[last_index]
+        report.cuts.append(
+            f"body[{last_index}]: cut an empty closing that promised a future "
+            f"release would tell us more — {last_text[:80]!r}"
+        )
+        report.corrections.append("removed a closing paragraph that said nothing")

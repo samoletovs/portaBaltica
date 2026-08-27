@@ -40,8 +40,8 @@ GOOD_PAYLOAD = {
         },
         {
             "text": (
-                "The next monthly labour release from Eurostat is what would confirm "
-                "or overturn the reading."
+                "A second month above 6.8% would make this a level shift rather "
+                "than a spike."
             ),
             "figures": [],
         },
