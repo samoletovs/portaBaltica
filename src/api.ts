@@ -91,6 +91,7 @@ export interface PowerPriceData {
   fetchedAt: string;
 }
 
+
 /**
  * Live marine and surface weather for the three ports, in one request.
  *
@@ -100,13 +101,20 @@ export interface PowerPriceData {
  * republishes hourly. It was also the only data on the site that could not be
  * cached server-side, because it never reached our server.
  *
- * `/api/sea-state` answers all three ports from one cached response. A port
- * Open-Meteo did not answer for is named in `unavailable` rather than dropped
- * silently, and every reading is `number | null` — never a zero standing in for
- * absence, because zero is an ordinary wave height.
+ * `/api/sea-state` answers all three ports from one cached response. Every
+ * reading is `number | null` — never a zero standing in for absence, because
+ * zero is an ordinary wave height.
+ *
+ * The two upstream services fail independently, and the endpoint keeps that
+ * asymmetry rather than flattening it. A port whose *land* forecast failed is
+ * still returned, with `weather: null`, because the sea state is the point of
+ * the card and the air temperature is context beside it — joining them with
+ * `Promise.all` meant one 500 from the forecast API dropped a port whose wave
+ * heights had arrived perfectly. A port whose *marine* call failed has nothing
+ * to say and is named in `unavailable` instead.
  */
 export interface SeaStateResponse {
-  ports: { port: Port; marine: MarineWeatherForecast; weather: PortWeather }[];
+  ports: { port: Port; marine: MarineWeatherForecast; weather: PortWeather | null }[];
   unavailable: string[];
   source: string;
   fetchedAt: string;

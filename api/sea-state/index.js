@@ -128,13 +128,30 @@ function weatherOf(port, data) {
 
 const handler = async function (context, req) {
   const settled = await Promise.allSettled(PORTS.map(async function (port) {
-    // Both calls for a port together, and all three ports together: the whole
-    // endpoint costs one round trip, not six.
+    // The two services fail independently and are not equally important, so
+    // they are awaited independently.
+    //
+    // Joining them with `Promise.all` was the defect #143 fixed on the browser
+    // side, and moving the fetch to the server would have reintroduced it: a
+    // single 500 from the land forecast rejected the pair and dropped the whole
+    // port, so a run where the marine API answered perfectly returned no ports
+    // at all — every card lost, including the wave heights that had arrived.
+    //
+    // The sea state is the point of the card; the air temperature is context
+    // beside it. So a land failure yields `weather: null` and the port stays,
+    // and a marine failure drops that port and only that port. `PortCard` was
+    // always written for this: it reads `weather?.temperature` through
+    // `fixed()`, which renders an em dash.
     const [marine, weather] = await Promise.all([
       es.httpJson(marineUrl(port), { deadlineMs: DEADLINE_MS, retries: RETRIES }),
-      es.httpJson(weatherUrl(port), { deadlineMs: DEADLINE_MS, retries: RETRIES }),
+      es.httpJson(weatherUrl(port), { deadlineMs: DEADLINE_MS, retries: RETRIES })
+        .catch(function () { return null; }),
     ]);
-    return { port: port, marine: marineOf(port, marine), weather: weatherOf(port, weather) };
+    return {
+      port: port,
+      marine: marineOf(port, marine),
+      weather: weather === null ? null : weatherOf(port, weather),
+    };
   }));
 
   const ports = settled

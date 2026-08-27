@@ -89,7 +89,18 @@ export function PowerMarketCard() {
     ? Math.round((data.decoupledIntervals / data.totalIntervals) * 100)
     : 0;
 
-  const chartData = list<PowerPricePoint>(data.series).map((p) => ({ ...p, label: formatHour(p.time) }));
+  // The axis keys on the instant, not on its label. Two days of quarter-hours
+  // produce 184 points carrying only 96 distinct `HH:mm` strings — every label
+  // appears exactly twice — and a `ReferenceLine` resolves its `x` against the
+  // category domain. A duplicated domain cannot be resolved, so recharts drew
+  // neither marker and reported nothing.
+  //
+  // That is the same repetition the boundary marker exists to explain, which
+  // means the remedy was disabled by the condition it was introduced for.
+  // Formatting at the tick instead of in the data keeps the axis reading
+  // `03:00` while leaving the domain unique, and it removes the same ambiguity
+  // from the tooltip, which could not say which `17:30` a reader was hovering.
+  const chartData = list<PowerPricePoint>(data.series);
   const zoneColor = (id: string) => chartColors.series[ZONE_SERIES[id as keyof typeof ZONE_SERIES]];
 
   // The window is two days on purpose — "day-ahead" means tomorrow — but
@@ -159,7 +170,8 @@ export function PowerMarketCard() {
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
-              dataKey="label"
+              dataKey="time"
+              tickFormatter={formatHour}
               tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
@@ -175,17 +187,18 @@ export function PowerMarketCard() {
             <Tooltip
               contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis }}
+              labelFormatter={(v) => formatHour(String(v))}
               formatter={(v, name) => {
                 const zone = list<PowerPriceZone>(data.zones).find((z) => z.id === name);
                 return [v === null ? '—' : `€${(v as number).toFixed(2)}`, zone?.label ?? String(name)];
               }}
             />
             {data.currentTime && (
-              <ReferenceLine x={formatHour(data.currentTime)} stroke={chartColors.reference} strokeDasharray="2 2" />
+              <ReferenceLine x={data.currentTime} stroke={chartColors.reference} strokeDasharray="2 2" />
             )}
             {firstTomorrow && (
               <ReferenceLine
-                x={formatHour(firstTomorrow.time)}
+                x={firstTomorrow.time}
                 stroke={chartColors.reference}
                 label={{ value: 'tomorrow', position: 'insideTopRight', fill: chartColors.axis, fontSize: CHART_TICK_SIZE }}
               />

@@ -512,6 +512,32 @@ publishes nothing is declared rather than discovered; and where the data has an
 arithmetic identity — goods + services = the trade balance — assert it, because
 that check needs no fixture and survives republication.
 
+### Reject what is wrong; coach what is weak
+
+Two instruments act on a draft and they are not interchangeable. The validator
+**rejects**: it is for faults that make an article untrue, untraceable or
+mechanistically unsupported, and its cost is the whole piece plus the six model
+calls that produced it. Prompt guidance **coaches**: it cannot reject anything,
+so it is free, and it is the right instrument whenever the fault is that a true
+sentence is a weak one.
+
+The denominator fact is the worked example. Offered the EU reading, the writer
+used the intended direction contrast in four of five samples; in the fifth it
+wrote *"6.1%, which is lower than Latvia's rate"* — true, traceable, no
+unsupported mechanism, and a waste of the fact, since a European average is
+higher or lower than any one country every month of the year. A validator check
+would have burned a whole article to improve one paragraph. Sharpening the
+prompt to name the direction took it to ten of ten, and did something a gate
+could not have: the direction moved from a trailing clause echoing the fact's
+own label to the main verb of a sentence the writer composed.
+
+Getting this backwards is expensive in both directions. A gate on a weak-but-
+true sentence throws away good journalism; guidance on a false one publishes it
+whenever the retries run out. That second half is why *house style has no
+rejection path* remains true and is not in tension with this: **house style must
+never be asked to carry a truth fault.** The test is not how badly the sentence
+reads, it is whether it is *wrong*.
+
 ## Correspondents
 
 Five personas in `newsroom/personas.yaml`, each owning a beat with a distinct

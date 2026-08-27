@@ -147,10 +147,33 @@ REPORTING TASK:
   paraphrase or imitate their headlines or reporting.
 - WHERE NOTHING ESTABLISHES A CAUSE, SAY SO IN ONE PLAIN SENTENCE AND MOVE ON.
   "The data does not show what drove the change" is publishable and honest.
-  Never write that a movement "reflects", "indicates", "highlights",
-  "underscores" or "points to" something the figures do not establish. Never
-  attribute a change to "market dynamics", "various factors", "underlying
-  pressures" or "economic conditions": they say nothing and read as padding.
+
+  This is checked structurally, not against a list of banned words. The check
+  asks ONE question of any sentence that attributes a movement to something:
+  IS THE THING YOU ARE POINTING AT PRESENT IN THIS ARTICLE'S OWN FIGURES?
+
+    ALLOWED   "the rise extends a streak of eight consecutive increases"
+              — the streak is a declared figure in this piece.
+    ALLOWED   "the data does not show what drove the change"
+              — denying a mechanism needs no evidence.
+    ALLOWED   "the ministry attributes it to the tariff change"
+              — a named source is on the record and is cited.
+    REJECTED  "the rise reflects growing capacity at its ports"
+              — capacity is nowhere in this article's figures.
+
+  Swapping the verb does not help. "reflects", "suggests", "indicates",
+  "points to", "stems from", "is driven by", "underscores", "highlights",
+  "is attributable to" and every synonym you have not thought of are the same
+  sentence to the check, because it is not reading your verb. A draft handed
+  back for this and returned with a new verb will be handed back again.
+
+  There are exactly two ways to fix it: ground the claim in a figure this
+  article declares, or delete the claim. Deleting is usually right, and a
+  shorter accurate piece is the better outcome.
+
+  Never attribute a change to "market dynamics", "various factors",
+  "underlying pressures" or "economic conditions": those say nothing and read
+  as padding.
 - Saying why it MATTERS is always possible even when why it HAPPENED is not:
   who it lands on, what it changes in practice, whether it is a record or
   routine, how it compares with the neighbours.
@@ -436,6 +459,25 @@ HOW TO READ THAT:
 
   YOU HAVE ALREADY FAILED THIS CHECK ON AN EARLIER ATTEMPT. Rewriting the same
   paragraph with the same structure will fail it again. Change the sentence.
+- "attributes the change to something the figures do not establish" means a
+  sentence pointed at a cause, and the thing it pointed at is not among the
+  figures this article declares.
+
+  THE CHECK IS NOT READING YOUR VERB. "reflects", "suggests", "indicates",
+  "points to", "stems from", "is driven by", "underscores", "highlights",
+  "is attributable to" and every synonym you have not thought of are the same
+  sentence to it. Handing back the identical claim with a different verb --
+  or moving it to a different paragraph -- fails again, and that is the most
+  common way an article dies at this stage.
+
+  There are exactly two fixes:
+    (a) point at something this article already declares as a figure —
+        "the rise extends a run of eight consecutive increases" works when
+        the run length is one of your figures; or
+    (b) DELETE THE CLAIM. A shorter accurate piece is the better outcome, and
+        "the data does not show what drove the change" is publishable.
+
+  Denying a mechanism is always safe. Attributing one is not.
 
 Every rule in the brief still applies in full. The checks are not negotiable
 and will run again unchanged: an article that fails them a second time is

@@ -349,6 +349,20 @@ const INDICATORS = {
     title: 'Basic digital skills',
     unit: '% of individuals',
     sanity: [10, 95],
+    // The cube's `freq` dimension says A and the query needs it, but Eurostat
+    // publishes this one every **two** years — 2021, 2023, 2025, with no 2022
+    // or 2024 coordinate at all. That distinction matters: `freq` here is the
+    // dimension code, not the publication cadence, and for this single
+    // indicator of the sixty-six they disagree.
+    //
+    // The age of the newest observation therefore oscillates from about 8
+    // months just after publication to **30** just before the next one, which
+    // is exactly the annual default. So it sits on the boundary: a one-month
+    // slip in publication marks a healthy series stale, and anyone tightening
+    // MAX_AGE_MONTHS.A to a perfectly sensible 18 breaks it for more than half
+    // of every cycle. Pinned here so the allowance travels with the fact that
+    // explains it rather than depending on a shared default staying generous.
+    maxAgeMonths: 36,
   },
   online_shoppers: {
     // Individuals who bought online in the last 12 months. Digital skills say
@@ -526,10 +540,22 @@ const INDICATORS = {
   },
   elec_price_industry: {
     dataset: 'nrg_pc_205',
-    params: 'freq=S&nrg_cons=TOT_KWH&tax=X_TAX&currency=EUR&unit=KWH',
+    // `TOT_KWH` is the emptiest code in this cube, not the fullest. Measured
+    // across the ten half-years to 2025-S2 it carries LV=3, EE=9, LT=4
+    // observations, while all six real consumption bands carry 10/10/10 — so
+    // the "total" drew a Latvian line with three points in ten and a Lithuanian
+    // one with four, next to a nearly complete Estonian line. Nothing was
+    // malformed; the chart simply implied Latvia had stopped reporting.
+    //
+    // MWH500-1999 is Eurostat's band IC, the medium industrial consumer it uses
+    // for its own headline non-household price, and it is complete for all
+    // three countries. The band is named in the title because a band is not a
+    // total and the reader is entitled to know which one they are looking at.
+    params: 'freq=S&nrg_cons=MWH500-1999&tax=X_TAX&currency=EUR&unit=KWH',
     freq: 'S',
-    title: 'Electricity price (industry)',
+    title: 'Electricity price (industry, 500\u20132000 MWh)',
     unit: 'EUR/kWh',
+    // Observed 0.0834 to 0.3294 EUR/kWh for this band across the same window.
     sanity: [0.02, 1],
   },
   vehicles: {
@@ -633,6 +659,38 @@ const INDICATORS = {
     unit: 'M tonne-km',
     // Observed 897 (Estonia, 2025-Q4) to 17,547 (Lithuania).
     sanity: [100, 40000],
+  },
+
+  /**
+   * The same network as `rail_freight`, carrying people instead of tonnes.
+   *
+   * It is worth having precisely because it does not track the freight series:
+   * Latvia carries roughly twice Estonia's rail passengers and nearly four
+   * times Lithuania's (4,653k, 2,058k and 1,198k thousand in the latest
+   * quarter), which is the inverse of the freight ranking. A reader who has
+   * just seen Latvian rail freight fall by nearly 90% since 2022 would
+   * reasonably assume the railway is emptying; the passenger series says the
+   * opposite, and the two together are a different story than either alone.
+   *
+   * Every dimension is pinned — the cube offers only `freq`, `unit`, `geo` and
+   * `time`, and all three of the first are fixed here, so the parser is never
+   * asked to choose a slice.
+   */
+  rail_passengers: {
+    dataset: 'rail_pa_quartal',
+    // The cube offers exactly two units, and they differ by a factor of ~25:
+    // MIO_PKM (Latvia 162–212) and THS_PAS (Latvia 4,653–6,074). Pinning the
+    // wrong one yields a well-formed series of plausible-looking numbers, so
+    // the sanity band below is set to catch that specific mis-pin.
+    params: 'freq=Q&unit=THS_PAS',
+    freq: 'Q',
+    title: 'Rail passengers',
+    unit: 'k passengers',
+    // Observed 519 (Lithuania, at the 2020 trough) to 6,074 (Latvia) over
+    // 2019-Q1..2026-Q2. The floor sits above Latvia's entire MIO_PKM range and
+    // still 42% below the lowest quarter ever recorded, including the pandemic
+    // collapse; the ceiling is about 2.5x the highest.
+    sanity: [300, 15000],
   },
 
   // Real labour productivity per person, indexed to 2020.

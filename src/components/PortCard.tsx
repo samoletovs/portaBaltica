@@ -5,7 +5,9 @@ import { fixed, finite, list } from '../utils/payload';
 interface PortCardProps {
   port: Port;
   marine: MarineWeatherForecast;
-  weather: PortWeather;
+  /** Absent when the land forecast failed while the marine call succeeded.
+   *  Every reading below already routes through `fixed`/`finite`. */
+  weather: PortWeather | null;
 }
 
 function windDirectionLabel(deg: number): string {
@@ -16,11 +18,6 @@ function windDirectionLabel(deg: number): string {
 export function PortCard({ port, marine, weather }: PortCardProps) {
   const seaState = classifySeaState(marine.current?.waveHeight);
   const stateInfo = seaState ? SEA_STATE_LABELS[seaState] : null;
-  // Narrowed once here rather than re-read inside the JSX. `finite()` returns
-  // the value or null, so using its result is what actually proves the reading
-  // exists — testing it and then reading the raw field again asserts the same
-  // thing twice and only the second one reaches `windDirectionLabel`.
-  const windDirection = finite(weather?.windDirection);
   // `classifySeaState` already treats an absent wave height as unknown, and
   // every reading below came from the same payload — so guarding one and
   // calling `.toFixed()` straight on the others would have the card announce
@@ -39,6 +36,10 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       return value === null ? [] : [{ height: value, time: marine.hourly?.time?.[i] }];
     });
   const peak = Math.max(...forecast.map((p) => p.height), 1);
+  // Read once and narrowed, rather than calling `finite` for the guard and
+  // reaching past it for the value — which is how the check and the thing
+  // checked drift apart.
+  const windDirection = finite(weather?.windDirection);
 
   return (
     <div className="dash-card border dash-edge rounded-xl p-6 dash-hover-edge transition-colors">
@@ -79,9 +80,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
           <div>
             <p className="text-callout font-semibold dash-fg">{fixed(weather?.windSpeed, 0)}</p>
             <p className="text-caption dash-muted">
-              km/h {windDirection === null
-                ? '—'
-                : windDirectionLabel(windDirection)}
+              km/h {windDirection === null ? '—' : windDirectionLabel(windDirection)}
             </p>
           </div>
           <div>

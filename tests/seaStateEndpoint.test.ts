@@ -126,6 +126,42 @@ describe('the response', () => {
     expect(body.unavailable).toEqual(['LVLPX']);
   });
 
+  it('keeps a port whose land forecast failed but whose sea state arrived', async () => {
+    // The asymmetry #143 established on the browser side, which moving the
+    // fetch to the server would otherwise have undone. Under `Promise.all` a
+    // single 500 from the forecast API rejected the pair and dropped the whole
+    // port — so a run where the marine API answered perfectly returned no ports
+    // at all, losing every card including the wave heights that had arrived.
+    //
+    // The sea state is the point of the card; the air temperature is context.
+    const res = await withUpstream(async (url) => {
+      if (!url.includes('marine')) throw new Error('HTTP 500 from forecast');
+      return marinePayload;
+    }, call);
+
+    const body = JSON.parse(res.body);
+    expect(body.ports, 'a land outage must not cost the sea state').toHaveLength(3);
+    expect(body.unavailable).toEqual([]);
+    expect(body.ports[0].marine.current.waveHeight).toBe(0.6);
+    // Absent, and shaped as absent — `PortCard` reads it through `fixed()`.
+    expect(body.ports[0].weather).toBeNull();
+  });
+
+  it('drops only the port whose sea state is missing', async () => {
+    // The other half of the asymmetry: a marine failure leaves the card with
+    // nothing to say, so that port goes — and only that port.
+    const res = await withUpstream(async (url) => {
+      if (url.includes('marine') && url.includes('latitude=57.4')) {
+        throw new Error('Deadline exceeded');
+      }
+      return answerBoth(url);
+    }, call);
+
+    const body = JSON.parse(res.body);
+    expect(body.ports).toHaveLength(2);
+    expect(body.unavailable).toEqual(['LVVNT']);
+  });
+
   it('fails rather than reporting an empty, becalmed coastline', async () => {
     const res = await withUpstream(async () => { throw new Error('Deadline exceeded'); }, call);
     expect(res.status).toBe(502);

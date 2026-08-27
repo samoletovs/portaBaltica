@@ -413,6 +413,26 @@ Give every outbound call an explicit deadline via `api/shared/eurostat.js`'s
 actually uses, so a removed action shows up as an outage rather than passing
 because some other path on the same host still answers.
 
+**Ask the application for that URL; do not restate it.** Both Eurostat probes
+used to be hand-built strings that said the same thing as `buildUrl` and
+`ports.seriesUrls`. The unemployment one was byte-identical, which sounds
+harmless and is the whole problem — the identity was maintained by hand and
+nothing checked it. The maritime one had already drifted: it pinned
+`rep_mar=LV_0LVRIX`, Riga alone, over three years, while `/api/port-data` asks
+for all four Latvian ports over eight. So the probe was blind to Ventspils,
+Liepāja and Skulte, and went red whenever Riga alone was quiet — the false red
+that check has already produced once. Measured, the honest query is also the
+cheaper one, 37–60ms against 53–110ms, so there was never a cost argument for
+the narrower slice.
+
+The newsroom's collision guard failed the same way on the same day, rebuilding
+the collector's query parameters with a hardcoded geography list while the
+collector's default moved underneath it — and changing no outcome, which is
+exactly why nobody noticed. **A guard that reproduces the logic it guards is
+not a guard, it is a second implementation that can disagree.** Same family as
+an instrument that cannot fail: it stops measuring the thing and says nothing
+about having stopped.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because
@@ -432,6 +452,84 @@ minutes in the past while `data.plan` ran 178 minutes ahead. A probe reading the
 whole payload could never go stale — and a probe that cannot fail is not a probe.
 `freshness.extract.eleringMetered` reads `data.real` only, and matches what
 `/api/live-grid` itself treats as a reading.
+
+**A series can be published in advance, which makes its age negative.** The
+same trap as the forecast, arriving from a direction that looks like good news:
+`earn_mw_cur` carries `2026-S2` today, four months ahead of the wall clock,
+because a minimum wage is legislated before it takes effect. Anything that
+judges freshness by subtracting the newest period from now will read that as
+"fresher than fresh" and can never mark it stale — so a cadence check has to
+clamp at zero and reason about the *previous* period, not just the newest one.
+Two of the sources here are now known to publish ahead; assume more are.
+
+**The aggregate can be the emptiest code in the cube.** `TOT_KWH` reads as the
+safe default in a consumption dimension — it is the total, so it should be the
+best populated thing there. In `nrg_pc_205` it is the *worst*: measured across
+the ten half-years to 2025-S2 it carries LV=3, EE=9, LT=4 observations while all
+six numbered consumption bands carry 10/10/10. So "Electricity price (industry)"
+drew Latvia with three points in ten beside a nearly complete Estonia, which a
+reader parses as Latvia having stopped reporting rather than as us having asked
+the wrong question.
+
+Nothing about this is detectable from the latest value: the newest period *is*
+populated for all three, so the sanity band passes, the freshness check passes
+and the live contract passes. **Coverage across the window is a third question,
+separate from liveness and from freshness**, and the only one that catches it.
+And the lesson is per-cube rather than per-code — `TOT_KWH` in `nrg_pc_204`
+(households) is complete for all three and is the correct pick there. Check the
+code you are about to pin against its siblings rather than reasoning about what
+it ought to contain.
+
+`tests/indicators.live.test.ts` now asserts it: the newest eight observations
+must be contiguous, read back from each country's *own* last observation. All
+sixty-six definitions pass it today, which is the useful half of the result —
+one bad pin, not a class of them.
+
+**Where a gap is data rather than a defect**, because the sweep found both and
+the difference is not obvious. Sparseness has a shape:
+
+| Shape | Reading |
+|---|---|
+| **Leading** run of nulls | The country began reporting later. Data. Estonia's long-term interest rate starts seventeen months into the window. |
+| **Trailing** null | Ordinary publication lag; the freshness check already owns this. |
+| **Interior** hole between two real readings | Usually the pin. This is the signature. |
+
+Interior holes are only *usually* the pin, so the test that settles it is:
+**can it be fixed by repinning without changing what the number means?**
+
+- `elec_price_industry` — yes. A sibling code measured the same statistic and
+  was complete 10/10/10, so the gap was ours.
+- `tourism` — no. Estonia is missing eleven months of `tour_occ_nim`, all of
+  them historical and clustered in the off-season. The components `I551` and
+  `I552` carry those months but the aggregate `I551-I553` does not, because
+  `I553` is suppressed and Eurostat will not publish a total without it. The
+  only available "fixes" are hotels-only, which is a different statistic, or
+  summing components, which fabricates the suppressed one. So the gap is real
+  and the pin is right.
+
+**And a gap can be invisible to a null-based check**, because the missing
+period is not represented at all. `sdg_04_70` offers the time coordinates
+`2021, 2023, 2025` — there is no 2022 or 2024 to be null. The contiguity
+assertion above sees a perfectly contiguous series, and it is right to: the
+cube is not withholding anything.
+
+What that breaks is the assumption underneath `freq`. **`freq` is the cube's
+dimension code, not the publication cadence**, and for exactly one of the
+sixty-six they disagree — the query genuinely needs `freq=A` while publication
+runs every twenty-four months. Everything downstream that reads `freq` as a
+cadence inherits the mismatch, and the sharpest is the freshness allowance: the
+newest observation's age oscillates from about 8 months just after publication
+to **30** just before the next, which is precisely `MAX_AGE_MONTHS.A`. It sat
+on the boundary rather than inside it, so a one-month slip would have marked a
+healthy series stale, and tightening the annual default to a perfectly sensible
+18 would have broken it for over half of every cycle. It carries an explicit
+`maxAgeMonths` now, so the allowance travels with the fact that explains it.
+
+The newsroom hit the same mismatch from the prose side on the same day: its
+streak detector walked the deltas between *readings* and stated the result as a
+claim about *periods*, so five readings across ten months would have read as
+"four consecutive monthly moves". Same root, two different lies — **count the
+periods, not the observations**.
 
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by
@@ -700,6 +798,41 @@ take; and a comparison between two stages of a pipeline where one already
 filters the other — as `publishable` does before the desk ever runs — is empty
 by construction and will report a confident zero. Before measuring, ask what
 result would look identical whether the hypothesis is true or false.
+
+## A merged pull request is not proof that the branch head merged
+
+`gh pr merge` merges the SHA **the pull request record holds**, which is not
+always the SHA the branch actually points at. After a force-push, or when
+GitHub's ref sync lags, the PR can stay pinned to an older commit while
+`git ls-remote` and the git-ref API both report a newer one.
+
+This happened here, and it cost two commits. `#146` was merged while its record
+held `010634b`; the branch was at `462cc17`. The mirror landed and a truth fault
+in `detect_streak` — counting *readings* while claiming *consecutive periods* —
+did not, along with a collision test for a live crossing. Both had to be
+rebuilt as a second pull request.
+
+The failure is silent in both directions. The pull request shows as merged, CI
+was green on the stale tree, and nothing anywhere says a commit was skipped.
+
+It also defeats the obvious way of reviewing a change before merging it: fetch
+the branch, merge it locally onto master, run everything, then merge the pull
+request. **That verifies one tree and lands another** — the same shape as a
+guard reading a different object from the behaviour it guards, one level out
+in the tooling.
+
+So before merging anything, compare the two:
+
+```powershell
+git ls-remote origin <branch>                  # what the branch really is
+gh pr view <n> --json headRefOid -q .headRefOid # what the merge will use
+```
+
+If they differ, push an empty commit or re-target the pull request until they
+agree. And after merging something whose content you care about, assert the
+content is on master rather than trusting the merge — `git show
+origin/master:path | Select-String <the thing>` takes seconds and answers the
+question the pull request's own status cannot.
 
 ## Measuring the newsroom after a change
 

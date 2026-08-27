@@ -147,6 +147,12 @@ _RANK_WORDS = ("highest", "second-highest", "third-highest", "fourth-highest")
 _RANK_WORDS_LOW = ("lowest", "second-lowest", "third-lowest", "fourth-lowest")
 
 _QUARTER = re.compile(r"^(\d{4})-?[Qq]([1-4])$")
+#: Eurostat publishes electricity prices and minimum wages by semester,
+#: ``2026-S2``. Without this the parser returns None, and the callers that
+#: ask "the latest reading at or before this period" fall back to the latest
+#: reading full stop — which is how a companion from another period gets
+#: presented as contemporaneous.
+_SEMESTER = re.compile(r"^(\d{4})-?[Ss]([12])$")
 _DAY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 _MONTH = re.compile(r"^(\d{4})-(\d{2})$")
 _YEAR = re.compile(r"^(\d{4})$")
@@ -265,6 +271,14 @@ def _period_span(period: str) -> tuple[int, int] | None:
             date(year, start_month, 1).toordinal(),
             date(year, end_month, monthrange(year, end_month)[1]).toordinal(),
         )
+    if match := _SEMESTER.match(text):
+        year, half = int(match.group(1)), int(match.group(2))
+        start_month = 1 if half == 1 else 7
+        end_month = start_month + 5
+        return (
+            date(year, start_month, 1).toordinal(),
+            date(year, end_month, monthrange(year, end_month)[1]).toordinal(),
+        )
     if match := _DAY.match(text):
         year, month, day = (int(part) for part in match.groups())
         try:
@@ -290,6 +304,8 @@ def _period_start_month(period: str) -> int | None:
     text = str(period).strip()
     if match := _QUARTER.match(text):
         return int(match.group(1)) * 12 + (int(match.group(2)) - 1) * 3
+    if match := _SEMESTER.match(text):
+        return int(match.group(1)) * 12 + (int(match.group(2)) - 1) * 6
     if match := _DAY.match(text) or _MONTH.match(text):
         year, month = int(match.group(1)), int(match.group(2))
         if 1 <= month <= 12:

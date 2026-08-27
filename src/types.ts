@@ -278,17 +278,18 @@ export const PORTS: Port[] = [
 /**
  * Marine weather from Open-Meteo, via `/api/sea-state`.
  *
- * Every reading is nullable because a request can fail, and **zero is an
- * ordinary value for all of these** — a calm Baltic really does read 0.0m, and
- * the sea really does sit at 0°C in February. The browser-side fetch these
- * replaced coalesced absence to zero with `?? 0`, so a failed request rendered
- * as a flat calm in the same colours as a measurement.
+ * Every reading is nullable, and that is load-bearing rather than defensive
+ * typing. The fetch layer used to coerce each field with `?? 0`, which made
+ * `classifySeaState`'s "unknown" branch unreachable through the only path that
+ * calls it: a payload missing `wave_height` arrived as `0`, and 0 m is not
+ * absence — it is the calmest band on the WMO scale. So a reading we never
+ * received rendered as "Calm", confidently, in the colour that means the sea is
+ * fine.
  *
- * The consumers never needed that: `PortCard` reads every field through
- * `fixed()`, which renders an em dash for null, and `classifySeaState` already
- * declared `number | null | undefined` and returns null rather than guessing a
- * band. They were written defensively and the fabricated zero was the only
- * thing defeating them.
+ * The coercion is now gone from both ends. The browser no longer calls
+ * Open-Meteo at all — `/api/sea-state` answers all three ports from one cached
+ * response — and that endpoint applies the same rule at the source, returning
+ * `null` for a reading it did not receive rather than a plausible zero.
  */
 export interface MarineWeather {
   waveHeight: number | null;       // meters
@@ -304,8 +305,8 @@ export interface MarineWeatherForecast {
   current: MarineWeather;
   hourly: {
     time: string[];
-    waveHeight: number[];
-    seaSurfaceTemp: number[];
+    waveHeight: (number | null)[];
+    seaSurfaceTemp: (number | null)[];
   };
 }
 

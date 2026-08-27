@@ -123,6 +123,72 @@ describe('the registry covers the endpoint live-grid actually calls', () => {
   });
 });
 
+/**
+ * "Probe the endpoint the app actually uses" was satisfied by *restating* the
+ * app's query rather than by asking for it.
+ *
+ * Both Eurostat probes were hand-built strings. The unemployment one happened
+ * to be byte-identical to `buildUrl` output, which sounds harmless and is the
+ * whole problem — the identity was maintained by hand and nothing checked it.
+ *
+ * The maritime one had already drifted. It pinned `rep_mar=LV_0LVRIX`, Riga
+ * alone, over three years; `/api/port-data` asks for all four Latvian ports
+ * over eight. So the probe could not see a failure at Ventspils, Liepāja or
+ * Skulte, and went red whenever Riga alone was quiet — which is the false red
+ * this very check has already produced once.
+ *
+ * The newsroom's collision guard failed the same way on the same day: it
+ * rebuilt the collector's query parameters itself with a hardcoded geography
+ * list while the collector's default moved underneath it, and changed no
+ * outcome, which is exactly why nobody noticed. **A guard that reproduces the
+ * logic it guards is not a guard, it is a second implementation that can
+ * disagree.**
+ */
+describe('the Eurostat probes ask the app for its query rather than restating it', () => {
+  const eurostat = require('../api/shared/eurostat.js');
+  const indicators = require('../api/shared/indicators.js');
+  const ports = require('../api/shared/ports.js');
+
+  it('probes the comparison charts with the charts\u2019 own URL', () => {
+    const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat');
+    expect(check.url).toBe(eurostat.buildUrl(indicators.unemployment, 2, ['LV']));
+  });
+
+  it('probes the maritime tile with the maritime tile\u2019s own URL', () => {
+    const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat maritime');
+    expect(check.url).toBe(ports.seriesUrls('LV').vessels);
+  });
+
+  it('covers every Latvian port, not just the one that lags', () => {
+    // The concrete regression. Riga is routinely behind the other three, so a
+    // Riga-only probe reports a healthy feed as dead — and is blind to the
+    // three ports it does not ask about.
+    const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat maritime');
+    const asked = (check.url.match(/rep_mar=/g) || []).length;
+
+    expect(asked, 'the probe must ask for every port the tile draws')
+      .toBe(ports.PORTS.LV.length);
+    expect(asked).toBeGreaterThan(1);
+  });
+
+  it('builds no Eurostat query by hand anywhere in the registry', () => {
+    // The general form. A literal cube path in this file is a second
+    // implementation of a query that lives somewhere else.
+    const offenders = registry.CHECKS
+      .filter((c: { url?: string; name: string }) =>
+        (c.url || '').startsWith(eurostat.EUROSTAT_BASE) &&
+        c.url !== eurostat.buildUrl(indicators.unemployment, 2, ['LV']) &&
+        c.url !== ports.seriesUrls('LV').vessels)
+      .map((c: { name: string }) => c.name);
+
+    expect(
+      offenders,
+      'these probe Eurostat with a URL no application code produces, so they can ' +
+        'pass while the query the app makes fails, or fail while it works'
+    ).toEqual([]);
+  });
+});
+
 describe('an optional source never costs the reader the wait', () => {
   beforeEach(() => { cache.clear(); vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); cache.clear(); });
