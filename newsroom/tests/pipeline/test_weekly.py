@@ -932,8 +932,15 @@ class TestTheWrapCanActuallyBeStored:
                 {"text": "The data does not establish a common cause.", "figures": []},
             ]
         )
+        # The writer answers twice: once for the article, once for the desk.
+        # `write_weekly` runs the desk now, and a StubWriter that only knows
+        # how to write an article leaves the editor with nothing to say.
+        approve = {"decision": "approve", "reason": "runs as filed", "notes": []}
         outcome = await write_weekly(
-            store, StubWriter([payload, payload, payload]), vintages=vintages, now=NOW
+            store,
+            StubWriter([payload, approve, approve]),
+            vintages=vintages,
+            now=NOW,
         )
         return store, outcome
 
@@ -989,3 +996,106 @@ class TestTheWrapCanActuallyBeStored:
 
         assert list(outcome.cites) == list(stored)
         assert str(len(stored)) in outcome.detail
+
+
+class TestTheWrapGoesPastTheDesk:
+    """The format whose failure mode is being about the wrong thing was the one
+    shipping without the component whose job is judgement.
+
+    `write_weekly` called `generate_article` and stored. It never called the
+    desk, so every wrap carried an empty `provenance.editor` while every other
+    tier A article carried a decision, a reason and a named editor.
+
+    Wiring it in is evidence-backed rather than assumed: run five times against
+    the wrap that had to be retracted, the desk returned "revise" five times
+    out of five and named the fault in its own words -- "the impact paragraph
+    asserts a consequence that the data does not establish".
+    """
+
+    async def _run(self, tmp_path, *responses):
+        from newsroom.pipeline.vintage import VintageLedger, VintageStore
+        from newsroom.pipeline.write import StubWriter
+        from newsroom.pipeline.weekly import write_weekly
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        vintages = VintageStore(local_dir=tmp_path, account_url="")
+        figures = a_week(5)
+        await vintages.save(VintageLedger(figures))
+        await _seed(store, [_stored(f.slug) for f in figures])
+        return store, await write_weekly(
+            store, StubWriter(list(responses)), vintages=vintages, now=NOW
+        )
+
+    def _payload(self):
+        return _wrap_payload(
+            [
+                {
+                    "text": "Latvian house prices stood at 1.0%, against the same quarter a year earlier.",
+                    "figures": [HOUSE],
+                },
+                {"text": "The data does not establish a common cause.", "figures": []},
+            ]
+        )
+
+    @pytest.mark.anyio
+    async def test_an_approved_wrap_records_the_decision(self, tmp_path):
+        store, outcome = await self._run(
+            tmp_path,
+            self._payload(),
+            {"decision": "approve", "reason": "runs as filed", "notes": []},
+        )
+
+        editor = (await store.read_published(outcome.slug))["provenance"]["editor"]
+        assert editor["decision"] == "approve"
+        assert editor["reason"]
+        assert editor["editor"]
+
+    @pytest.mark.anyio
+    async def test_a_wrap_the_desk_refuses_is_not_published(self, tmp_path):
+        """The point of the whole change. A reject must stop it, not annotate
+        it -- and `write_weekly` must notice, because the desk stamps the
+        article rather than raising."""
+        store, outcome = await self._run(
+            tmp_path,
+            self._payload(),
+            {"decision": "reject", "reason": "asserts a cause the data does not carry", "notes": []},
+        )
+
+        assert outcome.outcome == "draft_refused"
+        assert "the desk did not approve it" in outcome.detail
+        assert "asserts a cause" in outcome.detail
+
+    @pytest.mark.anyio
+    async def test_nothing_is_stored_when_the_desk_refuses(self, tmp_path):
+        """A refused wrap must not reach storage or the index. Storing it and
+        marking it rejected would leave the piece one status flip from the
+        front page."""
+        store, outcome = await self._run(
+            tmp_path,
+            self._payload(),
+            {"decision": "reject", "reason": "no", "notes": []},
+        )
+
+        index = await store.read_json(ArticleStore.INDEX_BLOB)
+        rows = index if isinstance(index, list) else (index or {}).get("articles") or []
+        assert not any(r.get("slug", "").startswith("the-week") for r in rows)
+        assert outcome.slug == ""
+
+    @pytest.mark.anyio
+    async def test_a_revise_that_cannot_be_satisfied_holds_the_piece(self, tmp_path):
+        """A desk that says "revise" with nothing able to act on it turns every
+        fixable fault into a spike -- six of eight articles in a live run,
+        before `_revision_for` existed. The callback is supplied, but a
+        revision that fails the gate still holds rather than publishes."""
+        bad = _wrap_payload([{"text": "Nothing here.", "figures": []}])
+        store, outcome = await self._run(
+            tmp_path,
+            self._payload(),
+            {"decision": "revise", "reason": "thin", "notes": ["say more"]},
+            bad,
+            bad,
+            bad,
+            {"decision": "reject", "reason": "still thin", "notes": []},
+        )
+
+        assert outcome.outcome == "draft_refused"
