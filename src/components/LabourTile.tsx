@@ -31,8 +31,6 @@ export function LabourTile() {
           <BalticCompareChart indicator="labour_productivity" title="Labour productivity per person" compact />
           <BalticCompareChart indicator="gdp_per_capita" title="GDP per capita" compact />
           <BalticCompareChart indicator="life_expectancy" title="Life expectancy at birth" compact />
-          <BalticCompareChart indicator="digital_skills" title="Basic digital skills" compact />
-          <BalticCompareChart indicator="online_shoppers" title="Online shoppers" compact />
         </div>
       </div>
     </section>

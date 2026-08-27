@@ -23,9 +23,7 @@ export function GovernmentTile() {
           <BalticCompareChart indicator="consumer_confidence" title="Consumer confidence" compact />
           <BalticCompareChart indicator="current_account" title="Current account balance" compact />
           <BalticCompareChart indicator="inequality" title="Income inequality (Gini)" compact />
-          <BalticCompareChart indicator="poverty_risk" title="At risk of poverty or exclusion" compact />
           <BalticCompareChart indicator="rd_spending" title="R&D expenditure" compact />
-          <BalticCompareChart indicator="net_migration" title="Net migration rate" compact />
         </div>
       </div>
     </section>
