@@ -473,6 +473,41 @@ A cheap invariant catches it either way: `goods_balance + services_balance`
 equals `trade_balance`, so if the three ever agree exactly, they are the same
 series wearing three names.
 
+## A word list encodes your examples; a structure encodes your rule
+
+Four checks were written as lexical proxies in a single day and **all four were
+beaten by ordinary prose the author had not thought of**. The pattern is
+reliable enough to plan around.
+
+| Check | The proxy | What beat it |
+|---|---|---|
+| Empty closings | a blacklist of phrases | paraphrase, in 10 of 10 articles |
+| Empty closings, v2 | `will` as the promise marker | the model wrote `would`, 3 of 3 |
+| The analyst's seed | the same modal patterns | *"to see if"* uses no modal at all |
+| The wrap's period gate | the words `period` and `week` | *"in the same **quarter**"* |
+
+And a fifth of the same family: `[^.]{0,60}` as "within one sentence" stopped
+dead at the decimal point in *"the next 2.4 percent release"*, so the sentences
+carrying figures — the ones a numeric check can least afford to miss — were
+exactly the ones it skipped. The fix, `(?:[^.]|\.(?=\d))`, is still lexical but
+at least it now means what it was trying to say.
+
+The structural replacements have held. The wrap's period gate no longer reads
+the prose for time words: it resolves each paragraph's figures back to the
+corpus and asks whether they *actually* share a period. That version cannot be
+beaten by a synonym, because it is not looking at words.
+
+So: **when a check is about a property, test the property.** Reach for a word
+list only when the thing genuinely is a vocabulary — house style's banned
+change-words are a real word list, because the rule really is about those
+words. Everything else is a structure wearing a vocabulary's clothes, and it
+will be beaten by the first phrasing you did not imagine.
+
+The corollary is about how you find out. Every one of the four was caught by a
+human reading the output, never by the suite — a lexical check's tests are
+written from the same imagination as the check, so they agree with it. **Read
+the artefact.**
+
 ## Measuring the newsroom after a change
 
 **A green deploy job means the package was uploaded, not that the app is
