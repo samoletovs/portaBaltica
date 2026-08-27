@@ -265,3 +265,44 @@ describe('the rest of the site is untouched', () => {
     expect(page.body).toContain('id="root"');
   });
 });
+
+describe('the deploy-race recovery reaches readers', () => {
+  /**
+   * Whether the inline recovery survives the build is a question about what
+   * ships, so it is asked of what ships.
+   *
+   * It used to be asked of `dist/index.html`, which is gitignored and which
+   * `npm test` never builds — so in CI the file was absent and the assertion
+   * could not pass, and locally it read whatever stale build happened to be in
+   * the working directory. Behaviour and ordering are checked from source in
+   * `tests/deployRecovery.test.ts`; this is the half that needs a real build,
+   * and the deployed HTML is the realest one there is.
+   */
+  for (const route of ['/', '/data']) {
+    it(`${route} carries it`, async () => {
+      const page = await get(`${BASE}${route}`);
+      expect(page.body).toContain('pb-asset-recovery');
+      expect(page.body).toContain('unhandledrejection');
+    });
+  }
+
+  it('an article page carries it, and before the bundle it guards', async () => {
+    // This route is assembled by a function rather than served as a file, so
+    // it is the one where the recovery could be dropped without anyone noticing.
+    const page = await get(`${BASE}/article/${tierA[0].slug}`);
+    const recovery = page.body.indexOf('pb-asset-recovery');
+    const entry = page.body.indexOf('<script type="module"');
+    expect(recovery).toBeGreaterThanOrEqual(0);
+    expect(entry).toBeGreaterThanOrEqual(0);
+    expect(recovery).toBeLessThan(entry);
+  });
+
+  it('watches the path the deployed bundle is actually served from', async () => {
+    // The guard only fires on `/assets/`. If a build ever emitted the entry
+    // somewhere else, it would sit watching for something that never happens.
+    const page = await get(`${BASE}/`);
+    const entry = /<script type="module"[^>]*src="([^"]+)"/.exec(page.body);
+    expect(entry, 'deployed HTML has no module entry').not.toBeNull();
+    expect((entry as RegExpExecArray)[1]).toContain('/assets/');
+  });
+});

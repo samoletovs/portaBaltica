@@ -44,7 +44,7 @@
  * memory.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -267,32 +267,57 @@ describe('the loop guard', () => {
   });
 });
 
-describe('the script the browser actually receives', () => {
-  let built: string;
+describe('where the recovery sits in the document', () => {
+  /**
+   * WHY THIS READS THE SOURCE AND NOT `dist/`
+   * -----------------------------------------
+   * It used to read `dist/index.html`, and that was wrong twice over.
+   *
+   * `dist` is gitignored and `npm test` never builds, so in CI — which runs
+   * `npm ci`, lint, `tsc -b`, `npm test`, with the build in a separate job —
+   * the file simply is not there and these tests could never pass. They failed
+   * the merge of #134 and, because `build_and_deploy` declares
+   * `needs: quality`, blocked its deployment.
+   *
+   * Locally it was worse than failing: it read whatever build happened to be
+   * lying in the working directory. Against a STALE `dist` the presence check
+   * failed while the ordering check below passed for the wrong reason —
+   * `indexOf` answers `-1` when the string is absent, and `-1` is less than any
+   * position, so an assertion about ordering silently passed on a file that did
+   * not contain the thing being ordered. One visible failure, one inert
+   * assertion, and a rebuild made both green. That is what a flake that
+   * "re-runs away" is made of.
+   *
+   * Ordering is a property of the source: Vite rewrites the module script's src
+   * but does not move script tags past each other. Whether the recovery
+   * survives the build at all is a question about what actually ships, so it is
+   * asked in `tests/articleMeta.live.test.ts` against the deployed HTML — the
+   * only copy whose contents matter to a reader.
+   */
+  const html = readFileSync(INDEX, 'utf-8');
 
-  beforeEach(() => {
-    // Vite rewrites index.html; the recovery must survive that, not merely
-    // exist in the source.
-    const dist = resolve(__dirname, '..', 'dist/index.html');
-    built = readFileSync(dist, 'utf-8');
-  });
-
-  it('is present in the built HTML', () => {
-    expect(built).toContain('pb-asset-recovery');
-    expect(built).toContain('unhandledrejection');
-  });
-
-  it('still matches the hashed asset paths the build emits', () => {
-    // The build's own output is the fixture: whatever path shape Vite emits
-    // for the entry bundle has to be one the guard recognises.
-    const entry = /<script type="module"[^>]*src="([^"]+)"/.exec(built);
-    expect(entry, 'built HTML has no module entry').not.toBeNull();
-    expect(/\/assets\//.test((entry as RegExpExecArray)[1])).toBe(true);
+  it('is in the document at all', () => {
+    // Stated separately so the ordering assertion below cannot stand in for it.
+    expect(html.indexOf('pb-asset-recovery')).toBeGreaterThanOrEqual(0);
+    expect(html.indexOf('unhandledrejection')).toBeGreaterThanOrEqual(0);
   });
 
   it('runs before the bundle it is guarding', () => {
     // A listener registered after the failing tag never hears about it.
-    const entry = built.indexOf('<script type="module"');
-    expect(built.indexOf('pb-asset-recovery')).toBeLessThan(entry);
+    const recovery = html.indexOf('pb-asset-recovery');
+    const entry = html.indexOf('<script type="module"');
+    // Both must be present before comparing, or `-1` makes this pass by
+    // accident — which is exactly how it passed against a stale build.
+    expect(recovery).toBeGreaterThanOrEqual(0);
+    expect(entry).toBeGreaterThanOrEqual(0);
+    expect(recovery).toBeLessThan(entry);
+  });
+
+  it('recognises the path shape the build rewrites that entry to', () => {
+    // Vite turns `/src/main.tsx` into `/assets/index-<hash>.js`. The guard only
+    // fires on `/assets/`, so a build that emitted anything else would leave it
+    // watching for something that never happens.
+    expect(html).toContain('<script type="module" src="/src/main.tsx">');
+    expect(/\/assets\//.test('/assets/index-COMvuAev.js')).toBe(true);
   });
 });
