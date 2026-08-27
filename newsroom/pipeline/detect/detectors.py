@@ -27,7 +27,9 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence
 
 from newsroom.pipeline.detect.series import (
+    SUBJECT_GEOGRAPHIES,
     Observation,
+    is_reference,
     TimeSeries,
     pct_change,
     reading_word,
@@ -756,6 +758,12 @@ def detect_all(
     for series in series_list:
         if not series.observations:
             continue
+        # A reference geography is a denominator. Every detector below asks
+        # "is this reading remarkable for this series", which is a sensible
+        # question about Latvia and a story we have no standing to write
+        # about the EU as a whole.
+        if is_reference(series.geography):
+            continue
         candidates = [
             detect_record_extreme(series),
             detect_streak(series),
@@ -767,7 +775,7 @@ def detect_all(
 
     by_metric: dict[str, dict[str, TimeSeries]] = {}
     for series in series_list:
-        if series.geography in ("LV", "EE", "LT"):
+        if series.geography in SUBJECT_GEOGRAPHIES:
             by_metric.setdefault(series.metric, {})[series.geography] = series
     for group in by_metric.values():
         divergence = detect_divergence(group)

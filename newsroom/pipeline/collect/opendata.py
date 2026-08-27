@@ -17,13 +17,21 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Sequence
 
 from newsroom.pipeline.collect.httpclient import CollectorHttp
-from newsroom.pipeline.detect.series import Observation, TimeSeries
+from newsroom.pipeline.detect.series import (
+    COLLECTED_GEOGRAPHIES,
+    SUBJECT_GEOGRAPHIES,
+    Observation,
+    TimeSeries,
+)
 from newsroom.pipeline.models import SourceRef, isoformat, utcnow
 from newsroom.pipeline.safety import registry
 
 log = logging.getLogger(__name__)
 
-BALTIC = ("LV", "EE", "LT")
+#: The three states this wire reports on. Re-exported from the detection layer
+#: so the collector, the detectors and the context builder cannot disagree
+#: about who is a subject and who is a denominator.
+BALTIC = SUBJECT_GEOGRAPHIES
 
 
 # ---------------------------------------------------------------------------
@@ -605,7 +613,7 @@ async def collect_eurostat(
     http: CollectorHttp,
     datasets: Iterable[EurostatDataset] = EUROSTAT_DATASETS,
     *,
-    geographies: Sequence[str] = BALTIC,
+    geographies: Sequence[str] = COLLECTED_GEOGRAPHIES,
 ) -> list[TimeSeries]:
     source = registry().get("eurostat")
     out: list[TimeSeries] = []
