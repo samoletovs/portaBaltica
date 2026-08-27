@@ -891,3 +891,101 @@ class TestCitesRecordsWhatWasUsed:
         corpus = collect_week(a_week(5), now=NOW)
 
         assert cites_provenance(corpus)["cites"] == list(corpus.slugs)
+
+
+class TestTheWrapCanActuallyBeStored:
+    """Every dry run stopped short of `store.put`, and the first real publish
+    crashed on it: `TypeError: Object of type Persona is not JSON serializable`.
+
+    `write_weekly` had been overriding the article's persona with the dominant
+    beat's, passing the dataclass rather than the dict shape `Article.persona`
+    holds. Nothing caught it because the checks all run on the in-memory
+    article, and serialisation is the one step after them.
+
+    So this asserts the article survives the round trip it is actually subject
+    to, and that the byline agrees with the section rather than being bolted on
+    afterwards.
+    """
+
+    async def _publish(self, tmp_path):
+        """Through `write_weekly`, not `generate_article`.
+
+        The distinction is the whole point. The bug lived in the step AFTER
+        generation, so a test that stopped at `generate_article` passed on the
+        broken code -- which is what the first version of this class did.
+        """
+        from newsroom.pipeline.vintage import VintageLedger, VintageStore
+        from newsroom.pipeline.write import StubWriter
+        from newsroom.pipeline.weekly import write_weekly
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        vintages = VintageStore(local_dir=tmp_path, account_url="")
+        figures = a_week(5)
+        await vintages.save(VintageLedger(figures))
+        await _seed(store, [_stored(fig.slug) for fig in figures])
+        payload = _wrap_payload(
+            [
+                {
+                    "text": "Latvian house prices stood at 1.0%, against the same quarter a year earlier.",
+                    "figures": [HOUSE],
+                },
+                {"text": "The data does not establish a common cause.", "figures": []},
+            ]
+        )
+        outcome = await write_weekly(
+            store, StubWriter([payload, payload, payload]), vintages=vintages, now=NOW
+        )
+        return store, outcome
+
+    @pytest.mark.anyio
+    async def test_it_publishes_rather_than_crashing(self, tmp_path):
+        """`store.put` raised `TypeError: Object of type Persona is not JSON
+        serializable` on the first real publish."""
+        _, outcome = await self._publish(tmp_path)
+
+        assert outcome.outcome == "published", outcome.detail
+
+    @pytest.mark.anyio
+    async def test_the_stored_persona_is_a_dict(self, tmp_path):
+        store, outcome = await self._publish(tmp_path)
+
+        persona = (await store.read_published(outcome.slug))["persona"]
+        assert isinstance(persona, dict)
+        assert {"id", "name", "byline"} <= set(persona)
+
+    @pytest.mark.anyio
+    async def test_the_stored_byline_discloses_ai(self, tmp_path):
+        """A persona attached by hand bypasses `render_byline`, which is what
+        puts the disclosure there."""
+        store, outcome = await self._publish(tmp_path)
+
+        persona = (await store.read_published(outcome.slug))["persona"]
+        assert "AI correspondent" in persona["byline"]
+
+    @pytest.mark.anyio
+    async def test_the_section_agrees_with_the_byline(self, tmp_path):
+        """A maritime correspondent on a piece filed under economy is
+        incoherent on the section pages and in the index."""
+        store, outcome = await self._publish(tmp_path)
+
+        document = await store.read_published(outcome.slug)
+        assert document["section"] == dominant_section(
+            collect_week(a_week(5), now=NOW)
+        )
+
+
+    @pytest.mark.anyio
+    async def test_the_report_and_the_article_agree_on_citations(self, tmp_path):
+        """The first published wrap reported eight citations and stored three.
+
+        The outcome was built from what the corpus OFFERED while the article
+        recorded what the prose USED, so the run report and the artefact
+        disagreed about the same piece -- and the run report is what an
+        operator reads when deciding whether a retraction elsewhere matters.
+        """
+        store, outcome = await self._publish(tmp_path)
+
+        stored = (await store.read_published(outcome.slug))["provenance"]["cites"]
+
+        assert list(outcome.cites) == list(stored)
+        assert str(len(stored)) in outcome.detail
