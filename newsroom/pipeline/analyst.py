@@ -163,7 +163,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "energy": Expert(
         id="energy",
-        name="Marek Soosaar",
+        name="Marek Akmeņrags",
         discipline="power market analyst",
         knows=(
             "- The Baltic day-ahead price is set by marginal generation in the Nord Pool market\n"
@@ -187,7 +187,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "property": Expert(
         id="property",
-        name="Kadri Lepik",
+        name="Kadri Ristna",
         discipline="housing and construction economist",
         knows=(
             "- The house price index is transaction-weighted and lags the market by a quarter or\n"
@@ -208,7 +208,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "trade": Expert(
         id="trade",
-        name="Gintaras Vaitkus",
+        name="Gintaras Kolka",
         discipline="trade economist",
         knows=(
             "- A balance is a difference between credits and debits, so it can widen because\n"
@@ -231,7 +231,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "maritime": Expert(
         id="maritime",
-        name="Gintaras Vaitkus",
+        name="Gintaras Kolka",
         discipline="maritime and logistics economist",
         knows=(
             "- Baltic port volumes are a transit business: the cargo is mostly not for or from\n"
@@ -251,7 +251,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "environment": Expert(
         id="environment",
-        name="Kadri Lepik",
+        name="Kadri Ristna",
         discipline="climate and environment analyst",
         knows=(
             "- A single reading is weather; a distribution of readings is climate. Only the\n"
@@ -268,7 +268,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "government": Expert(
         id="government",
-        name="Rasa Petrauskaitė",
+        name="Rasa Irbene",
         discipline="public policy analyst",
         knows=(
             "- Statistics are published on a fixed calendar, and the release date is itself\n"
@@ -285,7 +285,7 @@ EXPERTS: Mapping[str, Expert] = {
     ),
     "business": Expert(
         id="business",
-        name="Rasa Petrauskaitė",
+        name="Rasa Irbene",
         discipline="business and industry analyst",
         knows=(
             "- Registry counts measure administrative events, not economic activity: a spike in\n"

@@ -86,7 +86,7 @@ class TestAnUnreadableDateIsRefusedRatherThanGuessed:
             article_id=card.id,
             action=EditorAction.APPROVE,
             reason="Routine Baltic item.",
-            editor="Dace Vaivode",
+            editor="Dace Saulkrasti",
             decided_at=RUN_TIME,
         )
         _apply_outcome(card, outcome)
@@ -106,7 +106,7 @@ class TestAnUnreadableDateIsRefusedRatherThanGuessed:
                 article_id=card.id,
                 action=EditorAction.APPROVE,
                 reason="Routine.",
-                editor="Dace Vaivode",
+                editor="Dace Saulkrasti",
                 decided_at=RUN_TIME,
             ),
         )

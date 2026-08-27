@@ -385,7 +385,7 @@ def test_should_reject_an_article_that_cites_no_source_at_all(
 def test_should_reject_a_byline_missing_the_ai_disclosure(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:
-    tier_a_article["persona"]["byline"] = "Marek Soosaar · Energy correspondent"
+    tier_a_article["persona"]["byline"] = "Marek Akmeņrags · Energy correspondent"
 
     verdict = validate(tier_a_article, signal=signal)
 
@@ -429,9 +429,9 @@ def test_should_reject_a_byline_on_work_we_did_not_write(
 ) -> None:
     tier_c_article["persona"] = {
         "id": "kolka",
-        "name": "Gintaras Vaitkus",
+        "name": "Gintaras Kolka",
         "beat": "Maritime & Trade",
-        "byline": "Gintaras Vaitkus · AI correspondent, Maritime & Trade",
+        "byline": "Gintaras Kolka · AI correspondent, Maritime & Trade",
     }
 
     verdict = validate(
@@ -471,7 +471,7 @@ def test_should_reject_a_correspondent_named_as_the_actor_of_a_physical_verb(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:
     # Third person makes it no less false: a lighthouse attended nothing.
-    tier_a_article["body"][1]["text"] += " Marek Soosaar attended the auction in Tallinn."
+    tier_a_article["body"][1]["text"] += " Marek Akmeņrags attended the auction in Tallinn."
 
     verdict = validate(tier_a_article, signal=signal)
 

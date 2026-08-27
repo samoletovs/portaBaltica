@@ -32,7 +32,7 @@ function tierA(overrides: Partial<Article> = {}): Article {
     section: 'labour',
     created_at: '2026-08-24T12:00:00Z',
     published_at: '2026-08-24T12:00:00Z',
-    persona: { id: 'ristna', name: 'Marek Soosaar', beat: 'Energy & Markets' },
+    persona: { id: 'ristna', name: 'Kadri Ristna', beat: 'Environment & Climate' },
     body: [{ type: 'paragraph', text: 'The rate fell.' }],
     provenance: {
       sources: [{ source_id: 'eurostat', retrieved_at: '2026-08-24T10:00:00Z' }],
