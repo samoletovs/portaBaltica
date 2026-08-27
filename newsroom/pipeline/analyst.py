@@ -575,13 +575,44 @@ def _research_section(research: ResearchContext | None) -> str:
     )
 
 
+#: Fact kinds that bring a *different* series. ``placement`` and ``trajectory``
+#: describe the finding's own history, so a mechanism resting only on those is
+#: still a claim about one series.
+_CROSS_SERIES_KINDS = frozenset({"peer", "companion", "denominator"})
+
+
 def _ground(
-    raw: Sequence[Any], allowed: Mapping[str, float]
+    raw: Sequence[Any],
+    allowed: Mapping[str, float],
+    cross_series: frozenset[str] = frozenset(),
 ) -> tuple[list[Mechanism], list[str]]:
     """Keep only mechanisms that rest on fields the pipeline actually verified.
 
     This is the guard described in the module docstring. It runs *after* the
     model, in code, so no prompt-following failure can get past it.
+
+    It also enforces the second half of that docstring, which it previously did
+    not: *"Two verified series and a named relationship between them."* A
+    mechanism naming only the detector's own fields is not a relationship
+    between two series — it is the finding restated, and the opening paragraph
+    has already stated it.
+
+    That is not theoretical. Three articles in one run were rejected for
+    ``no_repeated_findings``, every one of them ``body[3] rests on the same
+    figures as body[0]``, and the fields named were the signal's own::
+
+        (early_gap, gap)
+        (latest_value, streak_length, streak_start_value)
+        (latest_value, previous_record_value)
+
+    The chain is worth stating because each link was doing its job. The analyst
+    admitted a self-grounded mechanism; the brief told the writer to declare the
+    fields it rested on; the writer did; and those were the figures the opening
+    had already spent. Every component correct, and the article unpublishable.
+
+    Discarding here is the cheap end of that chain. The prompt already says to
+    end an article a paragraph early rather than pad it, so the outcome is a
+    shorter piece that publishes instead of a longer one that does not.
     """
     kept: list[Mechanism] = []
     discarded: list[str] = []
@@ -604,6 +635,13 @@ def _ground(
                 else f"names unverified field(s): {', '.join(unknown)}"
             )
             discarded.append(f"{claim} — {reason}")
+            continue
+        if cross_series and not (set(names) & cross_series):
+            discarded.append(
+                f"{claim} — rests only on the finding's own fields "
+                f"({', '.join(names)}), so it restates the opening rather than "
+                f"relating two series"
+            )
             continue
 
         confidence: Confidence = (
@@ -665,7 +703,12 @@ def analyse(
         log.warning("analyst returned %r for %s", type(payload), signal.id)
         return empty
 
-    mechanisms, discarded = _ground(payload.get("mechanisms") or [], signal.fields)
+    cross_series = frozenset(
+        fact.field for fact in (pack.facts if pack else ()) if fact.kind in _CROSS_SERIES_KINDS
+    )
+    mechanisms, discarded = _ground(
+        payload.get("mechanisms") or [], signal.fields, cross_series
+    )
     if discarded:
         log.info(
             "analyst: dropped %d ungrounded mechanism(s) for %s: %s",
