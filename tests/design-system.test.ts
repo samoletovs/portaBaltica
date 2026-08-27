@@ -319,22 +319,26 @@ function overriddenColour(className: string, tokens: Record<string, string>, the
   return resolved;
 }
 
-describe('the Tailwind compatibility layer', () => {
-  // Every hardcoded colour class in the components that carries *status*
-  // meaning. These are text, so SC 1.4.3 governs them at 4.5:1 — not the 3:1
-  // that governs a chart line, which is the confusion the old literals encoded.
-  const STATUS_TEXT = [
-    'text-emerald-400',
-    'text-green-400',
-    'text-red-400',
-    'text-orange-400',
-    'text-yellow-400',
-    'text-amber-400',
-    'text-amber-300',
-  ];
+describe('the named colour utilities', () => {
+  // The three classes that carry *status* meaning as text. These are text, so
+  // SC 1.4.3 governs them at 4.5:1 — not the 3:1 that governs a chart line,
+  // which is exactly the confusion the old literals encoded when
+  // `.text-emerald-400` was pinned to #059669 at 3.77:1.
+  //
+  // They used to be Tailwind classes rescued by an `!important` override, and
+  // this suite could only reach them by resolving the cascade. They are
+  // declared now, which is the point of naming them: a declared rule is
+  // measurable, an absent one is not.
+  const STATUS_TEXT = ['dash-positive', 'dash-negative', 'dash-warning'];
+  const TEXT_RAMP: Record<string, number> = {
+    'dash-fg': 12,
+    'dash-body': 10,
+    'dash-muted': 7,
+    'dash-subtle': 4.5,
+  };
 
   for (const { name, tokens } of THEMES) {
-    it(`states status legibly in ${name} once the override layer has run`, () => {
+    it(`states status legibly in ${name}`, () => {
       for (const className of STATUS_TEXT) {
         const resolved = overriddenColour(className, tokens, name);
         expect(resolved, `.${className} resolves to nothing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
@@ -346,14 +350,54 @@ describe('the Tailwind compatibility layer', () => {
         ).toBeGreaterThanOrEqual(4.5);
       }
     });
+
+    it(`states status legibly on its own tint in ${name}`, () => {
+      // A badge and a stale-data notice put `--data-warning` text on a
+      // warning-coloured background, so the floor has to be measured against
+      // *that* background rather than against the card.
+      //
+      // This exists because deriving the tint with
+      // `color-mix(--data-warning, --bg-card)` passes in dark and fails in
+      // light: there `--data-warning` is a dark amber, so mixing it into a
+      // white card darkens the ground and drags the text down with it —
+      // 4.21:1 at 12%, 4.32:1 at 10%, and 6% is the most that clears the floor
+      // while being too faint to see. The tint is a value per theme, not a
+      // formula, and this measures the value.
+      const tint = tokens['--tint-warning'];
+      expect(tint, `--tint-warning missing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
+
+      const ratio = contrast(tokens['--data-warning'], tint);
+      expect(
+        Number(ratio.toFixed(2)),
+        `${name} --data-warning on --tint-warning is ${ratio.toFixed(2)}:1, needs 4.5:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`clears every text floor through the class a component writes in ${name}`, () => {
+      // The same floors §1.5 gives the tokens, asserted through the class the
+      // components actually use. A utility wired to the wrong token would pass
+      // every token test and fail here.
+      for (const [className, floor] of Object.entries(TEXT_RAMP)) {
+        const resolved = overriddenColour(className, tokens, name);
+        expect(resolved, `.${className} resolves to nothing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
+
+        const ratio = contrast(resolved!, tokens['--bg-card']);
+        expect(
+          Number(ratio.toFixed(2)),
+          `${name} .${className} is ${ratio.toFixed(2)}:1 on a card, needs ${floor}:1`,
+        ).toBeGreaterThanOrEqual(floor);
+      }
+    });
   }
 
   it('leaves no status colour class uncovered', () => {
-    // A literal has to be restated once per theme per class, so a class nobody
-    // remembered kept its raw Tailwind value and rendered a dark-theme colour
-    // on white. Four did: `text-amber-300`, `text-amber-400/80`,
-    // `text-green-400` and `text-orange-400` had no light rule at all. This
-    // fails on the next one rather than waiting for a reader to find it.
+    // The historical failure: a literal had to be restated once per theme per
+    // class, so a class nobody remembered kept its raw Tailwind value and
+    // rendered a dark-theme colour on white. Four did — `text-amber-300`,
+    // `text-amber-400/80`, `text-green-400` and `text-orange-400`.
+    //
+    // Named classes remove the category rather than patch it, so this asserts
+    // the absence: no component writes a raw status colour at all.
     const used = new Set<string>();
     for (const { text } of components()) {
       for (const match of text.matchAll(
@@ -363,23 +407,23 @@ describe('the Tailwind compatibility layer', () => {
       }
     }
 
-    const uncovered = [...used].filter(
-      (className) => !THEMES.some(({ name, tokens }) => overriddenColour(className, tokens, name)),
-    );
-
-    expect(uncovered, 'these classes reach the browser as raw Tailwind colours').toEqual([]);
+    expect([...used], 'use dash-positive / dash-negative / dash-warning').toEqual([]);
   });
 
   it('routes status colour through the tokens rather than a second set of hexes', () => {
-    // One source of truth. A literal here is a value that can drift from the
-    // token it was copied from, and silently did.
-    const layer = css.slice(css.indexOf('/* Status text.'));
-    const rules = layer.slice(0, layer.indexOf('/* Border colors'));
-
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-positive\)/);
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-negative\)/);
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-warning\)/);
-    expect(rules, 'no literal hexes in the status text block').not.toMatch(/color:\s*#[0-9a-f]{3,6}/i);
+    // One source of truth. A literal is a value that can drift from the token
+    // it was copied from, and silently did: `.text-emerald-400` was pinned to
+    // #059669 while `--data-positive` sat correct and unused two hundred lines
+    // above it.
+    for (const [utility, token] of [
+      ['dash-positive', '--data-positive'],
+      ['dash-negative', '--data-negative'],
+      ['dash-warning', '--data-warning'],
+    ]) {
+      expect(css, `.${utility} must reference ${token}`).toMatch(
+        new RegExp(String.raw`\.${utility}\s*\{\s*color:\s*var\(${token}\)\s*;?\s*\}`),
+      );
+    }
   });
 });
 

@@ -429,30 +429,36 @@ describe('the maritime tile in light mode', () => {
     expect(offenders, `${file} sets an unremapped text colour`).toEqual([]);
   });
 
-  it('confirms the compatibility layer now covers these classes', () => {
-    // This assertion is the inverse of the one it replaces, and the reversal
-    // is the point.
+  it('states its status colours through named classes, not through a rescued one', () => {
+    // This assertion has now been inverted twice, and the history is the
+    // useful part.
     //
-    // As written in #78 it asserted the layer *missed* `text-orange-400`,
-    // `text-amber-300` and the slashed `text-amber-400/80` — documenting a
-    // real gap, with a comment saying that if a later change closed it the
-    // test should be "removed deliberately, not silently". #81 closed it, in
-    // a parallel branch, by moving those rules out of `[data-theme="light"]`
-    // so they bind in both themes. Master went red the moment the two met.
+    // #78 asserted the compatibility layer *missed* `text-orange-400`,
+    // `text-amber-300` and the slashed `text-amber-400/80` — a real gap, with
+    // a comment saying that if a later change closed it the test should be
+    // "removed deliberately, not silently". #81 closed it by moving those
+    // rules out of `[data-theme="light"]`, and the assertion was flipped to
+    // require the layer to cover them.
     //
-    // So this is that deliberate removal. Asserting the gap is closed is the
-    // more useful invariant anyway: the earlier form would have gone green
-    // again if someone deleted the override, which is the failure it existed
-    // to catch.
+    // The colour migration removes the question entirely: these components
+    // write `dash-positive` / `dash-negative` / `dash-warning`, which are
+    // declared classes rather than generated ones, so there is no layer left
+    // to cover anything. Asserting the absence of the raw class is the
+    // invariant that survives — it cannot go green again by deleting a rule,
+    // which is the failure mode both earlier forms had.
     const css = readFileSync(resolve('src/index.css'), 'utf8');
 
-    expect(css, 'text-orange-400 is remapped').toMatch(/\.text-orange-400\s*[,{]/);
-    expect(css, 'text-amber-300 is remapped').toMatch(/\.text-amber-300\s*[,{]/);
-    // The slashed variant is a distinct class from the bare one — Tailwind
-    // emits `.text-amber-400\/80` separately, which is precisely how the
-    // footnote escaped the layer in the first place. Naming the bare class is
-    // not enough and never was.
-    expect(css, 'the slashed amber-400 variant is remapped too').toMatch(/\.text-amber-400\\\//);
+    for (const utility of ['dash-positive', 'dash-negative', 'dash-warning']) {
+      expect(css, `.${utility} must be declared`).toMatch(
+        new RegExp(String.raw`\.${utility}\s*\{\s*color:\s*var\(--data-`),
+      );
+    }
+
+    for (const file of ['PortPanelParts.tsx', 'MaritimeTile.tsx', 'PortCard.tsx']) {
+      expect(codeOf(file), `${file} still writes a raw status colour`).not.toMatch(
+        /text-(?:emerald|green|red|orange|amber|yellow)-\d{3}/,
+      );
+    }
   });
 
   it('colours the delta through the polarity module, not the sign', () => {

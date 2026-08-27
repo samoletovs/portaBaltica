@@ -42,7 +42,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
       {/* Live operational data */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Electricity — hourly bar chart */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
+        <div className="dash-card border dash-edge rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-2">
             <p className="text-caption dash-muted font-semibold uppercase tracking-widest">Electricity</p>
             {data && (
@@ -78,10 +78,10 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             return (
               <>
                 <div className="flex items-center gap-3 mb-2 text-caption">
-                  <span className="text-emerald-400">Low €{minPrice.toFixed(2)}</span>
-                  <span className="text-red-400">High €{maxPrice.toFixed(2)}</span>
+                  <span className="dash-positive">Low €{minPrice.toFixed(2)}</span>
+                  <span className="dash-negative">High €{maxPrice.toFixed(2)}</span>
                   {data.electricityCurrent < 0 && (
-                    <span className="text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded">Negative price</span>
+                    <span className="dash-warning dash-tint-warning px-2 py-0.5 rounded">Negative price</span>
                   )}
                 </div>
                 <div className="h-28">
@@ -107,13 +107,13 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               </>
             );
           })() : (
-            <div className="h-28 animate-pulse bg-slate-800/30 rounded" />
+            <div className="h-28 animate-pulse dash-raised rounded" />
           )}
           <p className="text-caption dash-subtle mt-1">NordPool day-ahead · Elering API</p>
         </div>
 
         {/* Exchange rates table */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
+        <div className="dash-card border dash-edge rounded-xl p-4">
           <p className="text-caption dash-muted font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
           {data ? (
             <div className="space-y-1">
@@ -129,7 +129,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             </div>
           ) : (
             <div className="space-y-2 animate-pulse">
-              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 bg-slate-700/30 rounded" />)}
+              {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 dash-skeleton rounded" />)}
             </div>
           )}
           <p className="text-caption dash-subtle mt-2">ECB official rates · Updated daily 16:00 CET</p>
@@ -204,7 +204,7 @@ function StatCard({ label, hint, value }: { label: string; hint?: string; value:
   const available = typeof value === 'number' && Number.isFinite(value);
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-center" title={hint}>
+    <div className="dash-card border dash-edge rounded-xl p-3 text-center" title={hint}>
       <p
         className="text-prose font-semibold font-mono"
         style={{ color: available ? 'var(--text-primary)' : 'var(--text-tertiary)' }}

@@ -294,7 +294,7 @@ export default function App() {
         <SystemStatusFooter />
 
         {/* Footer */}
-        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-caption dash-subtle">
+        <footer className="mt-12 pt-6 border-t dash-edge text-caption dash-subtle">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
             <p>Economy — <a href="https://data.stat.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
             <p>Business — <a href="https://data.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>

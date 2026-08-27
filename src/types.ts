@@ -15,9 +15,9 @@ export interface Insight {
 }
 
 export const INSIGHT_BADGES: Record<InsightLevel, { label: string; color: string; emoji: string }> = {
-  routine: { label: 'Routine', color: 'text-emerald-400', emoji: '🟢' },
-  notable: { label: 'Notable', color: 'text-yellow-400', emoji: '🟡' },
-  significant: { label: 'Significant', color: 'text-red-400', emoji: '🔴' },
+  routine: { label: 'Routine', color: 'dash-positive', emoji: '🟢' },
+  notable: { label: 'Notable', color: 'dash-warning', emoji: '🟡' },
+  significant: { label: 'Significant', color: 'dash-negative', emoji: '🔴' },
 };
 
 // ─── Economy & Business types ───
@@ -403,9 +403,9 @@ export function classifySeaState(waveHeight: number | null | undefined): SeaStat
 }
 
 export const SEA_STATE_LABELS: Record<SeaState, { label: string; color: string; emoji: string }> = {
-  'calm': { label: 'Calm', color: 'text-emerald-400', emoji: '🟢' },
-  'slight': { label: 'Slight', color: 'text-green-400', emoji: '🟡' },
-  'moderate': { label: 'Moderate', color: 'text-yellow-400', emoji: '🟠' },
-  'rough': { label: 'Rough', color: 'text-orange-400', emoji: '🔴' },
-  'very-rough': { label: 'Very Rough', color: 'text-red-400', emoji: '⛔' },
+  'calm': { label: 'Calm', color: 'dash-positive', emoji: '🟢' },
+  'slight': { label: 'Slight', color: 'dash-positive', emoji: '🟡' },
+  'moderate': { label: 'Moderate', color: 'dash-warning', emoji: '🟠' },
+  'rough': { label: 'Rough', color: 'dash-negative', emoji: '🔴' },
+  'very-rough': { label: 'Very Rough', color: 'dash-negative', emoji: '⛔' },
 };

@@ -17,7 +17,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
   const stateInfo = seaState ? SEA_STATE_LABELS[seaState] : null;
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 dash-hover-edge transition-colors">
+    <div className="dash-card border dash-edge rounded-xl p-6 dash-hover-edge transition-colors">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -46,7 +46,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       </div>
 
       {/* Weather conditions */}
-      <div className="border-t border-slate-800/40 pt-3">
+      <div className="border-t dash-edge pt-3">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-callout font-semibold dash-fg">{weather.temperature.toFixed(0)}°</p>
@@ -65,7 +65,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
 
       {/* 3-day wave mini-chart using simple bars */}
       {marine.hourly.waveHeight.length > 0 && (
-        <div className="mt-4 border-t border-slate-800/40 pt-3">
+        <div className="mt-4 border-t dash-edge pt-3">
           <p className="text-caption dash-muted mb-2">Wave height — next 72h</p>
           <div className="flex items-end gap-px h-12">
             {marine.hourly.waveHeight.slice(0, 72).map((h, i) => {
@@ -91,7 +91,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-slate-800/40 rounded-lg p-2 text-center">
+    <div className="dash-raised rounded-lg p-2 text-center">
       <p className="text-ui font-semibold dash-fg font-mono">{value}</p>
       <p className="text-caption dash-muted">{label}</p>
     </div>

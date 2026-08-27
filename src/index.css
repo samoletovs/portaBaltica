@@ -238,6 +238,15 @@
   --data-negative: #ff7a85;
   --data-warning: #fbbf24;
   --data-neutral: #9fb0c4;
+  /* The warning tint behind a badge or a notice, as a value per theme rather
+     than a formula. It cannot be `color-mix(--data-warning, --bg-card)`: in the
+     light theme `--data-warning` is a *dark* amber, so mixing it into the card
+     darkens the ground and drags the badge's own text down with it — measured
+     at 4.21:1 against the 4.5:1 floor, from 4.58:1 before, and 6% is the most
+     that clears the floor while being too faint to see. This is the exact
+     colour the translucent original composited to, so the badge is unchanged
+     and no longer depends on alpha. */
+  --tint-warning: #2e2f2d;
 
   /* ─── Data-visualisation series ───
      A separate palette from the accent above, so a chart line is never
@@ -311,6 +320,9 @@
   --data-positive: #047857;
   --data-negative: #be123c;
   --data-warning: #a16207;
+  /* The colour the translucent original composited to on white. See the dark
+     declaration above for why this cannot be derived from `--data-warning`. */
+  --tint-warning: #fef9c3;
   --data-neutral: #455468;
   /* A chart line is a *graphical object*, so SC 1.4.11 governs it at 3:1 — not
      the 4.5:1 that governs text. The first light palette was pushed to 7:1,
@@ -544,22 +556,25 @@ button,
   background: var(--news-warning-panel);
 }
 
-/* ─── Theme-aware utility classes ─── */
-/* These override Tailwind's hardcoded colors to respond to the theme toggle */
+/* ─── The compatibility layer, and its absence ───────────────────────────────
+   About 150 lines here used to remap ~270 hardcoded Tailwind colour classes
+   onto theme tokens with `!important`. The dashboard is migrated; they are all
+   gone, and every colour rule in this file now *declares* a named class rather
+   than overriding a generated one.
 
-/* Card backgrounds */
-.bg-slate-900\/50, [class*="bg-slate-900"] {
-  background: var(--bg-card) !important;
-}
-.bg-slate-800\/50, .bg-slate-800\/40, .bg-slate-800\/30, .bg-slate-800\/20,
-[class*="bg-slate-800"] {
-  background: var(--bg-card-hover) !important;
-}
+   Two things about that layer are worth keeping, because the shape recurs.
 
-/* Borders */
-[class*="border-slate-800"] {
-  border-color: var(--border-card) !important;
-}
+   Three of its rules were `[class*="bg-slate-900"]` attribute selectors,
+   matching a substring of the class *attribute*. That is what made most
+   opacity variants theme-aware — Tailwind emits `bg-slate-900/50` as a class
+   distinct from `bg-slate-900`, so a plain `.bg-slate-900` rule never touched
+   it — and it is also what made them indiscriminate, since any future class
+   whose name merely contained that text would have been repainted.
+
+   And the layer was invisible to its own tests. A contrast test can only
+   measure a class the sheet *claims*; thirteen classes had no rule at all and
+   rendered as raw Tailwind in both themes, at ratios from 1.66:1 to 4.76:1. A
+   declared class can be measured; an absent one cannot. */
 
 /* Ticker animation. The duration is long on purpose — a scroll a reader
    cannot outrun is not information, it is a distraction — and it stops
@@ -610,123 +625,9 @@ button,
   contain: paint;
 }
 
-/* The text ramp's compatibility rules are gone: nothing in src/ writes
-   `text-white` or a `text-slate-*` any more, so there is nothing left to
-   rescue. The four named steps are defined once, further down, as
-   `.dash-fg` / `.dash-body` / `.dash-muted` / `.dash-subtle` — declared rather
-   than overridden, and therefore visible to the tests that measure them. */
-
-/* Inputs and selected controls.
-   `bg-slate-600` was mapped to `--text-secondary` — a *text* token used as a
-   background — and the components that use it put `text-white` on top. That
-   is white on #94a3b8: 2.56:1, and it was the treatment for the selected
-   country, the selected date range and the selected chart period. The
-   selected state of a control was the least legible text on the page. */
-.bg-slate-600 {
-  background: var(--bg-raised) !important;
-}
-.hover\:bg-slate-500:hover {
-  background: var(--bg-card-hover) !important;
-}
-
-/* Loading skeleton pulses */
-.bg-slate-700\/30 {
-  background: var(--border-card) !important;
-}
-
-/* Active tab / accent */
-.border-slate-400 {
-  border-color: var(--news-accent) !important;
-}
-
-/* ─── Light-theme-specific overrides ─── */
-/* These fix remaining dark-only patterns that CSS variables alone don't catch */
-
-/* Colored status backgrounds — swap dark tints for light tints */
-[data-theme="light"] .bg-emerald-900\/30 {
-  background: #ecfdf5 !important;
-}
-[data-theme="light"] .bg-yellow-900\/30 {
-  background: #fefce8 !important;
-}
-[data-theme="light"] .bg-red-900\/30 {
-  background: #fef2f2 !important;
-}
-[data-theme="light"] .bg-red-950\/50 {
-  background: #fef2f2 !important;
-}
-[data-theme="light"] .bg-yellow-400\/10,
-[data-theme="light"] .bg-amber-400\/10 {
-  background: #fef9c3 !important;
-}
-
-/* Status text.
-   These route to the semantic tokens rather than to a second set of hexes,
-   for two reasons.
-
-   The first is correctness. The light overrides here used to be literals:
-   `.text-emerald-400` mapped to #059669 and both amber classes to #d97706,
-   which measure 3.77:1 and 3.19:1 on a white card. Both clear SC 1.4.11 for a
-   graphical object and both *fail* SC 1.4.3 for normal text at 4.5:1 — and
-   they colour actual text, "Low €28.50" and the change deltas. The tokens two
-   hundred lines above were already correct at 5.48:1 and 4.92:1; the override
-   simply did not use them.
-
-   The second is coverage. A literal has to be written once per theme per
-   class, so a class nobody remembered silently kept its Tailwind value:
-   `text-amber-300`, `text-amber-400/80`, `text-green-400` and `text-orange-400`
-   had no light rule at all and rendered a dark-theme colour on white. Pointing
-   at a token means the rule is written once and both themes follow, which is
-   why these are no longer nested under [data-theme="light"].
-
-   Direction is never carried by colour alone in any case — the ▲/▼ glyph, the
-   sign and a spoken description carry it (DESIGN.md §3.5). */
-.text-emerald-400,
-.text-green-400 {
-  color: var(--data-positive) !important;
-}
-.text-red-400,
-.text-orange-400 {
-  color: var(--data-negative) !important;
-}
-.text-yellow-400,
-.text-amber-400,
-.text-amber-300,
-.text-amber-400\/80 {
-  color: var(--data-warning) !important;
-}
-
-/* Border colors for ring-style elements */
-[data-theme="light"] .border-emerald-500 {
-  border-color: #10b981 !important;
-}
-[data-theme="light"] .border-emerald-500\/30 {
-  border-color: rgba(16, 185, 129, 0.2) !important;
-}
-
-/* Colored chart bars — keep visible but lighter */
-[data-theme="light"] .bg-cyan-500 {
-  background: #0891b2 !important;
-}
-[data-theme="light"] .bg-teal-500 {
-  background: #0d9488 !important;
-}
-
-/* Status dots and bars. Same tokens as the text above, so a dot and the label
-   beside it cannot drift apart. */
-.bg-emerald-400 {
-  background: var(--data-positive) !important;
-}
-.bg-red-400 {
-  background: var(--data-negative) !important;
-}
-.bg-yellow-400 {
-  background: var(--data-warning) !important;
-}
-
 /* ─── Dashboard text ─────────────────────────────────────────────────────────
    The neutral text ramp, as four named classes rather than as Tailwind slate
-   numbers rescued by `!important` further down this file.
+   numbers rescued by a compatibility rule further down this file.
 
    These are the same four steps DESIGN.md §1.5 gives contrast floors to, which
    is the reason the dashboard uses `--text-*` and not the near-identical
@@ -755,6 +656,59 @@ button,
 
 .dash-hover-fg:hover { color: var(--text-primary); }
 .dash-hover-body:hover { color: var(--text-body); }
+
+/* ─── Dashboard surfaces ─────────────────────────────────────────────────────
+   The four surface steps of §1.4, named. Same argument as the text ramp above:
+   `bg-slate-900/50` describes a shade and a transparency, neither of which
+   survives inverting the background, while `dash-card` describes a role.
+
+   **The transparency in those names was never rendered.** The compatibility
+   layer overrode every one of them *unconditionally* with an opaque token, so
+   a card measured `#121b2e` in dark and `#ffffff` in light — not the `#0d1322`
+   and `#838893` those classes actually describe. The violation of the
+   opaque-surface rule was real but textual: it misled every reader of the
+   component and no reader of the page. Still worth removing, because a class
+   that lies about what it does is how someone eventually relies on the lie.
+
+   Surfaces are opaque, and that is what makes them measurable: while a card
+   was `rgba(15,23,42,0.5)` over the page there was no single answer to what
+   colour a caption sat on, and so no way to test it. */
+.dash-card { background: var(--bg-card); }
+/* In the light theme a card is white on a near-white page — a 1.06:1 step — so
+   the surface alone cannot delimit it and the border does all the work. A
+   hairline shadow gives it the edge the dark theme gets for free from its
+   surface step. Carried over from the old layer rather than dropped with it:
+   it was keyed on `.bg-slate-900\/50`, so removing that rule without noticing
+   would have quietly flattened every card in the light theme. */
+[data-theme="light"] .dash-card {
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+}
+.dash-raised { background: var(--bg-card-hover); }
+.dash-input { background: var(--bg-raised); }
+.dash-edge { border-color: var(--border-card); }
+.dash-hover-raised:hover { background: var(--bg-card-hover); }
+
+/* Status as a fill — a dot, a bar or a tint, never text. */
+.dash-fill-positive { background: var(--data-positive); }
+.dash-fill-negative { background: var(--data-negative); }
+.dash-fill-warning { background: var(--data-warning); }
+.dash-tint-warning { background: var(--tint-warning); }
+.dash-fill-cat1 { background: var(--cat-1); }
+.dash-fill-cat2 { background: var(--cat-2); }
+
+/* Status as text. These route to the semantic tokens rather than to a second
+   set of hexes. The light overrides they replace were literals —
+   `.text-emerald-400` pinned to #059669 and both amber classes to #d97706,
+   which measure 3.77:1 and 3.19:1 on a white card. Both clear SC 1.4.11 for a
+   graphical object and both *fail* SC 1.4.3 for text at 4.5:1, and they
+   coloured actual text. The tokens were already correct at 5.48:1 and 4.92:1;
+   the override simply did not use them.
+
+   Direction is never carried by colour alone in any case — the ▲/▼ glyph, the
+   sign and a spoken description carry it (DESIGN.md §3.5). */
+.dash-positive { color: var(--data-positive); }
+.dash-negative { color: var(--data-negative); }
+.dash-warning { color: var(--data-warning); }
 
 /* ─── Dashboard utilities ────────────────────────────────────────────────────
    Named classes for the handful of patterns that had no rule in the
@@ -809,12 +763,6 @@ button,
 .edge-fade-end {
   -webkit-mask-image: linear-gradient(to right, #000 97%, transparent);
   mask-image: linear-gradient(to right, #000 97%, transparent);
-}
-
-/* Card shadows for depth in light mode */
-[data-theme="light"] .bg-slate-900\/50,
-[data-theme="light"] [class*="bg-slate-900"] {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Scrollbar styling */

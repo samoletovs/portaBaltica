@@ -202,7 +202,7 @@ export function IndicatorPage() {
         <p className="text-ui mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{info.description}</p>
 
         {/* Main chart */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 mb-6">
+        <div className="dash-card border dash-edge rounded-xl p-6 mb-6">
           <IndicatorChart id={id} />
         </div>
 
@@ -226,7 +226,7 @@ export function IndicatorPage() {
                   <button
                     key={relId}
                     onClick={() => navigate(`/indicator/${relId}`)}
-                    className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left dash-hover-edge transition-colors"
+                    className="dash-card border dash-edge rounded-xl p-3 text-left dash-hover-edge transition-colors"
                   >
                     <p className="text-ui dash-fg">{rel.title}</p>
                     <p className="text-caption dash-muted mt-0.5">Click to explore →</p>

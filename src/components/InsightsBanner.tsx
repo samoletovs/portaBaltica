@@ -48,9 +48,9 @@ export function InsightsBanner() {
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" role="status" aria-label="Loading insights">
           {[1, 2, 3].map((placeholder) => (
-            <div key={placeholder} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 animate-pulse">
+            <div key={placeholder} className="dash-card border dash-edge rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 animate-pulse">
               <div className="h-3 w-20 rounded dash-skeleton mb-3" />
-              <div className="h-4 w-3/4 rounded bg-slate-700/30 mb-2" />
+              <div className="h-4 w-3/4 rounded dash-skeleton mb-2" />
               <div className="h-3 w-full rounded dash-skeleton mb-1" />
               <div className="h-3 w-5/6 rounded dash-skeleton" />
             </div>
@@ -83,15 +83,15 @@ export function InsightsBanner() {
           // blank screen.
           const badge = INSIGHT_BADGES[insight.level] ?? { label: insight.level, color: '', emoji: '' };
           const dot =
-            badge.color === 'text-emerald-400'
-              ? 'bg-emerald-400'
-              : badge.color === 'text-yellow-400'
-                ? 'bg-yellow-400'
-                : 'bg-red-400';
+            badge.color === 'dash-positive'
+              ? 'dash-fill-positive'
+              : badge.color === 'dash-warning'
+                ? 'dash-fill-warning'
+                : 'dash-fill-negative';
           return (
             <div
               key={`${insight.level}-${insight.headline}-${i}`}
-              className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0"
+              className="dash-card border dash-edge rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0"
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />

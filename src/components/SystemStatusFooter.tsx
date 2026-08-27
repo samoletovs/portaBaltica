@@ -48,18 +48,18 @@ export function SystemStatusFooter() {
   }
 
   const statusColor =
-    status.status === 'healthy' ? 'text-emerald-400' :
-    status.status === 'degraded' ? 'text-yellow-400' : 'text-red-400';
+    status.status === 'healthy' ? 'dash-positive' :
+    status.status === 'degraded' ? 'dash-warning' : 'dash-negative';
 
   return (
-    <div className="mt-8 bg-slate-900/40 border border-slate-800/30 rounded-xl p-4">
+    <div className="mt-8 dash-card border dash-edge rounded-xl p-4">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between w-full text-left"
         aria-label="Toggle system status details"
       >
         <div className="flex items-center gap-3">
-          <span className={`w-2 h-2 rounded-full ${status.status === 'healthy' ? 'bg-emerald-400' : status.status === 'degraded' ? 'bg-yellow-400' : 'bg-red-400'}`} />
+          <span className={`w-2 h-2 rounded-full ${status.status === 'healthy' ? 'dash-fill-positive' : status.status === 'degraded' ? 'dash-fill-warning' : 'dash-fill-negative'}`} />
           <span className={`text-ui ${statusColor}`}>
             System {status.status}
           </span>
@@ -71,7 +71,7 @@ export function SystemStatusFooter() {
       </button>
 
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-slate-800/30">
+        <div className="mt-3 pt-3 border-t dash-edge">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Data source health */}
             <div>
