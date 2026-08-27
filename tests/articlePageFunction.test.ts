@@ -66,15 +66,21 @@ const RETRACTED = {
   headline: "Lithuania's business bankruptcy declarations spike to 130.9 index points in Q2 2026",
 };
 
-type Route = { status: number; body: string } | 'error';
+type Route = { status: number; body: string; etag?: string } | 'error';
 
 /** url → what the network should do. */
 let routes: Record<string, Route> = {};
 
+/** Every outbound request the handler made, so cache behaviour is observable. */
+let requests: { url: string; ifNoneMatch: string | null }[] = [];
+
 function stubNetwork() {
-  https.get = ((url: string, _options: unknown, callback: (res: unknown) => void) => {
+  https.get = ((url: string, options: { headers?: Record<string, string> }, callback: (res: unknown) => void) => {
     const request = new EventEmitter() as EventEmitter & { destroy: (e?: Error) => void };
     request.destroy = () => {};
+
+    const ifNoneMatch = (options && options.headers && options.headers['If-None-Match']) || null;
+    requests.push({ url, ifNoneMatch });
 
     const route = routes[url];
     process.nextTick(() => {
@@ -82,8 +88,26 @@ function stubNetwork() {
         request.emit('error', new Error('stubbed network failure for ' + url));
         return;
       }
-      const response = Readable.from([route.body]) as Readable & { statusCode: number };
+
+      // A real origin answers 304 to a conditional request whose validator
+      // still matches, and sends no body at all.
+      if (ifNoneMatch && route.etag && ifNoneMatch === route.etag) {
+        const notModified = Readable.from([]) as Readable & {
+          statusCode: number;
+          headers: Record<string, string>;
+        };
+        notModified.statusCode = 304;
+        notModified.headers = { etag: route.etag };
+        callback(notModified);
+        return;
+      }
+
+      const response = Readable.from([route.body]) as Readable & {
+        statusCode: number;
+        headers: Record<string, string>;
+      };
       response.statusCode = route.status;
+      response.headers = route.etag ? { etag: route.etag } : {};
       callback(response);
     });
     return request;
@@ -103,6 +127,26 @@ interface Res {
 }
 
 let ip = 0;
+
+/** One request against a handler instance the caller owns, so caches persist. */
+async function invoke(
+  handler: (context: unknown, req: unknown) => Promise<void>,
+  slug: string,
+  headers: Record<string, string> = {}
+): Promise<Res> {
+  const context: { res?: Res; log: Record<string, unknown> } = {
+    log: Object.assign(() => {}, { warn: () => {}, error: () => {}, info: () => {} }),
+  };
+  await handler(context, {
+    headers: {
+      'x-ms-original-url': `https://portabaltica.naurolabs.com/article/${slug}`,
+      'x-forwarded-for': `10.0.0.${++ip % 250}`,
+      ...headers,
+    },
+    url: '/api/article-page',
+  });
+  return context.res as Res;
+}
 
 async function call(slug: string): Promise<Res> {
   const handler = loadHandler();
@@ -147,8 +191,9 @@ function escapeAttr(value: string): string {
 
 beforeEach(() => {
   stubNetwork();
+  requests = [];
   routes = {
-    [SHELL_URL]: { status: 200, body: SHELL },
+    [SHELL_URL]: { status: 200, body: SHELL, etag: '"shell-v1"' },
     [blob(ARTICLE.slug)]: { status: 200, body: JSON.stringify(ARTICLE) },
     [blob(RETRACTED.slug)]: { status: 200, body: JSON.stringify(RETRACTED) },
     [blob('gone-forever-abc123')]: { status: 404, body: '' },
@@ -330,6 +375,121 @@ describe('when the request does not say which article it is', () => {
     expect(res.body).toContain('<meta name="robots" content="index, follow" />');
     expect(res.body).toContain('<div id="root"></div>');
     expect(res.headers['Content-Security-Policy']).toContain("default-src 'self'");
+  });
+});
+
+describe('the shell cache across a deploy', () => {
+  /**
+   * The window this closes.
+   *
+   * The shell is cached in process, so no deployment can invalidate it. Static
+   * Web Apps replaces the asset set on deploy rather than keeping the old one
+   * — measured, every hash this function served earlier today now 404s — so a
+   * shell held from before a deploy names a bundle that is gone. That is a
+   * blank page rather than a caught error, because the bundle that fails to
+   * load is the one containing the error boundary.
+   *
+   * The recovery script in index.html reloads when it sees that happen, and
+   * `location.reload()` sends `Cache-Control: max-age=0` (measured in
+   * Chromium). These tests are the server half: that the reload is answered
+   * with a fresh shell rather than the same dead one, which is what makes the
+   * recovery terminate instead of giving up after its one permitted attempt.
+   */
+  const NEXT_SHELL = SHELL.replace('index-CUmohATZ.js', 'index-NEWHASH1.js');
+
+  it('serves the cached shell to an ordinary request, without asking again', async () => {
+    const handler = loadHandler();
+    await invoke(handler, ARTICLE.slug);
+    const afterFirst = requests.filter((r) => r.url === SHELL_URL).length;
+
+    await invoke(handler, ARTICLE.slug);
+    expect(requests.filter((r) => r.url === SHELL_URL).length).toBe(afterFirst);
+  });
+
+  it('holds a shell that a deploy has already replaced', async () => {
+    // The behaviour being hardened against, stated plainly. Without a reason
+    // to look again, the handler goes on naming a bundle that is gone.
+    const handler = loadHandler();
+    const first = await invoke(handler, ARTICLE.slug);
+    expect(first.body).toContain('index-CUmohATZ.js');
+
+    routes[SHELL_URL] = { status: 200, body: NEXT_SHELL, etag: '"shell-v2"' };
+
+    const second = await invoke(handler, ARTICLE.slug);
+    expect(second.body).toContain('index-CUmohATZ.js');
+    expect(second.body).not.toContain('index-NEWHASH1.js');
+  });
+
+  it('fetches a fresh shell when the reader asks not to be served a cached one', async () => {
+    const handler = loadHandler();
+    await invoke(handler, ARTICLE.slug);
+    routes[SHELL_URL] = { status: 200, body: NEXT_SHELL, etag: '"shell-v2"' };
+
+    // What location.reload() sends.
+    const reloaded = await invoke(handler, ARTICLE.slug, { 'cache-control': 'max-age=0' });
+
+    expect(reloaded.body).toContain('index-NEWHASH1.js');
+    expect(reloaded.body).not.toContain('index-CUmohATZ.js');
+  });
+
+  it('honours the other spellings of the same request', async () => {
+    for (const headers of [
+      { 'cache-control': 'no-cache' },
+      { 'Cache-Control': 'no-cache' },
+      { pragma: 'no-cache' },
+      { 'cache-control': 'max-age=0' },
+    ]) {
+      const handler = loadHandler();
+      await invoke(handler, ARTICLE.slug);
+      routes[SHELL_URL] = { status: 200, body: NEXT_SHELL, etag: '"shell-v2"' };
+
+      const reloaded = await invoke(handler, ARTICLE.slug, headers);
+      expect(reloaded.body, JSON.stringify(headers)).toContain('index-NEWHASH1.js');
+
+      routes[SHELL_URL] = { status: 200, body: SHELL, etag: '"shell-v1"' };
+    }
+  });
+
+  it('revalidates conditionally, so an unchanged shell costs no body', async () => {
+    const handler = loadHandler();
+    await invoke(handler, ARTICLE.slug);
+
+    // Nothing deployed in between: the origin answers 304 and we keep serving
+    // what we hold. This is the common case and it must not refetch the page.
+    const response = await invoke(handler, ARTICLE.slug, { 'cache-control': 'no-cache' });
+
+    const conditional = requests.filter((r) => r.url === SHELL_URL && r.ifNoneMatch);
+    expect(conditional.length).toBe(1);
+    expect(conditional[0].ifNoneMatch).toBe('"shell-v1"');
+    expect(response.status).toBe(200);
+    expect(response.body).toContain('index-CUmohATZ.js');
+    expect(response.body).toContain('og:title');
+  });
+
+  it('keeps serving the shell it has when revalidation fails outright', async () => {
+    // A reader reloading during an origin blip must not be handed nothing.
+    const handler = loadHandler();
+    await invoke(handler, ARTICLE.slug);
+
+    routes[SHELL_URL] = 'error';
+    const response = await invoke(handler, ARTICLE.slug, { 'cache-control': 'no-cache' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toContain('<div id="root"></div>');
+    expect(response.body).toContain('og:title');
+  });
+
+  it('does not let a bad shell replace a good one on revalidation', async () => {
+    // If the origin answers with an error page rather than the app, injecting
+    // an article's metadata into it would advertise a page that cannot render.
+    const handler = loadHandler();
+    await invoke(handler, ARTICLE.slug);
+
+    routes[SHELL_URL] = { status: 200, body: '<html><body>gateway error</body></html>', etag: '"bad"' };
+    const response = await invoke(handler, ARTICLE.slug, { 'cache-control': 'no-cache' });
+
+    expect(response.body).toContain('<div id="root"></div>');
+    expect(response.body).toContain('index-CUmohATZ.js');
   });
 });
 
