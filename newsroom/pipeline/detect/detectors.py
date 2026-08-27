@@ -22,6 +22,7 @@ test suite asserts both directions.
 from __future__ import annotations
 
 import re
+from datetime import date
 
 import logging
 import statistics
@@ -44,8 +45,26 @@ from newsroom.pipeline import units
 log = logging.getLogger(__name__)
 
 
-#: Months between two consecutive readings, by declared cadence.
-_CADENCE_MONTHS = {"monthly": 1, "quarterly": 3, "semi-annual": 6, "annual": 12}
+#: One step of each cadence, as ``(scale, size)``. Two scales are needed
+#: because a day is not a whole number of months: Elering publishes power
+#: prices daily and Eurostat publishes everything else on a calendar grid.
+#:
+#: Every value ``_READING_WORDS`` knows appears here, and
+#: ``test_cadence_vocabulary.py`` asserts the two lists match. They did not.
+#: ``_READING_WORDS`` carried ``daily`` and this table did not, and the miss
+#: returned ``True`` from ``_adjacent`` -- so the contiguity check was silently
+#: switched off for the two daily series in the collector, and a gapped run of
+#: power prices reported "four consecutive daily moves" across an eighteen-day
+#: hole. The guard written to stop a detector lying about its own window had
+#: the same hole in it, in the same shape: a vocabulary in two places, and a
+#: lookup miss that fails open.
+_CADENCE_STEP: dict[str, tuple[str, int]] = {
+    "daily": ("day", 1),
+    "monthly": ("month", 1),
+    "quarterly": ("month", 3),
+    "semi-annual": ("month", 6),
+    "annual": ("month", 12),
+}
 
 _PERIOD_MONTHS = (
     (re.compile(r"^(\d{4})-(\d{2})$"), lambda m: int(m[1]) * 12 + int(m[2]) - 1),
@@ -53,6 +72,8 @@ _PERIOD_MONTHS = (
     (re.compile(r"^(\d{4})-?[Ss]([12])$"), lambda m: int(m[1]) * 12 + (int(m[2]) - 1) * 6),
     (re.compile(r"^(\d{4})$"), lambda m: int(m[1]) * 12),
 )
+
+_PERIOD_DAY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
 
 
 def _period_months(period: str) -> int | None:
@@ -62,6 +83,20 @@ def _period_months(period: str) -> int | None:
         if match := pattern.match(text):
             return to_months(match)
     return None
+
+
+def _period_days(period: str) -> int | None:
+    """A dated period as an ordinal day, or None if it is not a date."""
+    if match := _PERIOD_DAY.match(str(period).strip()):
+        try:
+            return date(int(match[1]), int(match[2]), int(match[3])).toordinal()
+        except ValueError:
+            return None
+    return None
+
+
+def _position(period: str, scale: str) -> int | None:
+    return _period_days(period) if scale == "day" else _period_months(period)
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -165,11 +200,12 @@ def _adjacent(series: TimeSeries, delta_index: int) -> bool:
     label degrades to the previous behaviour rather than silencing a detector.
     Silence is indistinguishable from a series with nothing to say.
     """
-    step = _CADENCE_MONTHS.get(series.frequency)
-    if step is None:
+    cadence = _CADENCE_STEP.get(series.frequency)
+    if cadence is None:
         return True
-    earlier = _period_months(series.observations[delta_index].period)
-    later = _period_months(series.observations[delta_index + 1].period)
+    scale, step = cadence
+    earlier = _position(series.observations[delta_index].period, scale)
+    later = _position(series.observations[delta_index + 1].period, scale)
     if earlier is None or later is None:
         return True
     return later - earlier == step
