@@ -211,26 +211,6 @@ describe('the deployed site under prefers-reduced-motion', () => {
       await browser.close();
     }
 
-    // ─── One known offender, owned elsewhere ───
-    //
-    // `/corrections` overflows by 42px at 320px. The cause is in the newsroom
-    // session's files, not this one: `newsroom/policy/corrections.md` line 51
-    // links with the label `github.com/samoletovs/portaBaltica/issues`, a
-    // 41-character token with no break opportunity, and `LINK_CLASS` in
-    // `src/newsroom/markdown.tsx` does not allow it to break. It pushes the
-    // sentence after it past the viewport. Exactly the `/api-docs` mechanism
-    // with a repository URL in place of a query string.
-    //
-    // Named rather than tolerated by a count, and attributed rather than left
-    // anonymous, so it is deleted when it is fixed instead of quietly becoming
-    // the baseline. Widening this route list would otherwise leave the check
-    // red on every deploy, which is how a real signal becomes wallpaper.
-    //
-    // A *new* offender on that route, or any offender anywhere else, still
-    // fails.
-    const KNOWN = /^320px \/corrections: maxScrollLeft 4\d /;
-    const unexpected = offenders.filter((o) => !KNOWN.test(o));
-
-    expect(unexpected, 'these routes scroll sideways into blank space').toEqual([]);
+    expect(offenders, 'these routes scroll sideways into blank space').toEqual([]);
   }, 600_000);
 });
