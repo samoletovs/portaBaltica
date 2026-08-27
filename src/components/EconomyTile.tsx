@@ -44,10 +44,10 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         {/* Electricity — hourly bar chart */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest">Electricity</p>
+            <p className="text-caption dash-muted font-semibold uppercase tracking-widest">Electricity</p>
             {data && (
-              <p className="text-lead font-semibold text-white font-mono">
-                €{fixed(data.electricityCurrent, 2)}<span className="text-caption font-normal text-slate-500 ml-1">/MWh</span>
+              <p className="text-lead font-semibold dash-fg font-mono">
+                €{fixed(data.electricityCurrent, 2)}<span className="text-caption font-normal dash-subtle ml-1">/MWh</span>
               </p>
             )}
           </div>
@@ -109,21 +109,21 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
           })() : (
             <div className="h-28 animate-pulse bg-slate-800/30 rounded" />
           )}
-          <p className="text-caption text-slate-600 mt-1">NordPool day-ahead · Elering API</p>
+          <p className="text-caption dash-subtle mt-1">NordPool day-ahead · Elering API</p>
         </div>
 
         {/* Exchange rates table */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
-          <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
+          <p className="text-caption dash-muted font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
           {data ? (
             <div className="space-y-1">
               {list<{ currency: string; name: string; rate: number }>(data.exchangeRates).map((rate) => (
                 <div key={rate.currency} className="flex items-center justify-between py-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-ui text-slate-300">EUR/{rate.currency}</span>
-                    <span className="text-caption text-slate-500">{rate.name}</span>
+                    <span className="text-ui dash-body">EUR/{rate.currency}</span>
+                    <span className="text-caption dash-subtle">{rate.name}</span>
                   </div>
-                  <span className="text-ui font-mono text-white">{fixed(rate.rate, 4)}</span>
+                  <span className="text-ui font-mono dash-fg">{fixed(rate.rate, 4)}</span>
                 </div>
               ))}
             </div>
@@ -132,7 +132,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 bg-slate-700/30 rounded" />)}
             </div>
           )}
-          <p className="text-caption text-slate-600 mt-2">ECB official rates · Updated daily 16:00 CET</p>
+          <p className="text-caption dash-subtle mt-2">ECB official rates · Updated daily 16:00 CET</p>
         </div>
       </div>
 
@@ -151,7 +151,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               value={finite(data.businessPulse?.suspendedBusinesses)}
             />
           </div>
-          <p className="text-caption text-slate-600 mt-2">
+          <p className="text-caption dash-subtle mt-2">
             State Revenue Service registers via data.gov.lv
           </p>
         </div>
@@ -211,8 +211,8 @@ function StatCard({ label, hint, value }: { label: string; hint?: string; value:
       >
         {available ? value.toLocaleString() : '—'}
       </p>
-      <p className="text-caption text-slate-400">{label}</p>
-      {!available && <p className="text-caption text-slate-600">Unavailable</p>}
+      <p className="text-caption dash-muted">{label}</p>
+      {!available && <p className="text-caption dash-subtle">Unavailable</p>}
     </div>
   );
 }

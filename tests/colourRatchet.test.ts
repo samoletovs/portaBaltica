@@ -92,22 +92,21 @@ function hasRule(className: string): boolean {
  * line. When the map is empty, delete the compatibility layer.
  */
 const REMAINING: Record<string, number> = {
-  'src/components/BusinessTile.tsx': 50,
-  'src/components/EnvironmentTile.tsx': 38,
-  'src/components/SystemStatusFooter.tsx': 25,
-  'src/components/EconomyTile.tsx': 24,
-  'src/components/PropertyTile.tsx': 24,
-  'src/components/PortCard.tsx': 17,
-  'src/components/IndicatorTable.tsx': 16,
-  'src/components/CargoPanel.tsx': 14,
-  'src/components/PortPanelParts.tsx': 13,
-  'src/components/IndicatorPage.tsx': 12,
-  'src/components/InsightsBanner.tsx': 12,
-  'src/components/MaritimeTile.tsx': 10,
+  'src/components/BusinessTile.tsx': 20,
+  'src/components/EnvironmentTile.tsx': 19,
+  'src/components/PropertyTile.tsx': 13,
+  'src/components/EconomyTile.tsx': 12,
+  'src/components/SystemStatusFooter.tsx': 11,
+  'src/components/InsightsBanner.tsx': 10,
+  'src/components/IndicatorTable.tsx': 9,
   'src/types.ts': 8,
+  'src/components/MaritimeTile.tsx': 7,
   'src/components/IndicatorCard.tsx': 6,
-  'src/App.tsx': 3,
-  'src/components/PassengerPanel.tsx': 1,
+  'src/components/CargoPanel.tsx': 5,
+  'src/components/PortCard.tsx': 5,
+  'src/components/IndicatorPage.tsx': 4,
+  'src/components/PortPanelParts.tsx': 3,
+  'src/App.tsx': 1,
 };
 
 describe('the hardcoded-colour ratchet', () => {
@@ -143,6 +142,46 @@ describe('the hardcoded-colour ratchet', () => {
 });
 
 describe('the compatibility layer', () => {
+  it('no longer rescues the text ramp, because nothing writes it', () => {
+    // The neutral text ramp is migrated: `text-white` and every `text-slate-*`
+    // are gone from src/, and the four `!important` rules that used to remap
+    // them are deleted rather than left as a safety net. A dormant rule is an
+    // invitation to write the class again.
+    for (const className of [
+      'text-white',
+      'text-slate-200',
+      'text-slate-300',
+      'text-slate-400',
+      'text-slate-500',
+      'text-slate-600',
+    ]) {
+      expect(
+        instances().filter((i) => i.className === className),
+        `${className} is back in a component; use dash-fg/body/muted/subtle`,
+      ).toEqual([]);
+      expect(
+        css,
+        `the override for ${className} should be gone, not dormant`,
+      ).not.toMatch(new RegExp(String.raw`^\.${className}\s*[,{]`, 'm'));
+    }
+  });
+
+  it('declares the four named text steps it replaced them with', () => {
+    // Declared rather than overridden, which is what makes them visible to the
+    // contrast tests: those resolve a class through the cascade, and a rule
+    // that does not exist cannot be measured.
+    for (const [utility, token] of [
+      ['dash-fg', '--text-primary'],
+      ['dash-body', '--text-body'],
+      ['dash-muted', '--text-secondary'],
+      ['dash-subtle', '--text-tertiary'],
+    ]) {
+      expect(css, `.${utility} is missing`).toMatch(
+        new RegExp(String.raw`\.${utility}\s*\{\s*color:\s*var\(${token}\)`),
+      );
+    }
+  });
+
   it('has a rule for every hardcoded class that is still in use', () => {
     // This is the structural check. Contrast tests can only measure a class the
     // layer *claims*; a class with no rule at all is invisible to them, renders

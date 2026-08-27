@@ -37,11 +37,11 @@ export function SystemStatusFooter() {
           <span className={`text-ui ${statusColor}`}>
             System {status.status}
           </span>
-          <span className="text-caption text-slate-500">
+          <span className="text-caption dash-subtle">
             {counts.healthy}/{counts.total} data sources · {status.apis?.total ?? '—'} APIs · {status.version}
           </span>
         </div>
-        <span className="text-caption text-slate-500">{expanded ? '▲' : '▼'}</span>
+        <span className="text-caption dash-subtle">{expanded ? '▲' : '▼'}</span>
       </button>
 
       {expanded && (
@@ -49,15 +49,15 @@ export function SystemStatusFooter() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Data source health */}
             <div>
-              <p className="text-caption text-slate-400 mb-2">Data Sources</p>
+              <p className="text-caption dash-muted mb-2">Data Sources</p>
               <div className="space-y-1">
                 {(counts.checks ?? []).map((check) => (
                   <div key={check.name} className="flex items-center justify-between text-caption">
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${check.status === 'healthy' ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                      <span className="text-slate-300">{check.name}</span>
+                      <span className="dash-body">{check.name}</span>
                     </div>
-                    <span className="text-slate-500 font-mono">{check.latency}ms</span>
+                    <span className="dash-subtle font-mono">{check.latency}ms</span>
                   </div>
                 ))}
               </div>
@@ -65,23 +65,23 @@ export function SystemStatusFooter() {
 
             {/* Self-sustaining metrics */}
             <div>
-              <p className="text-caption text-slate-400 mb-2">Moonshot Status</p>
+              <p className="text-caption dash-muted mb-2">Moonshot Status</p>
               <div className="space-y-2 text-caption">
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Infrastructure cost</span>
-                  <span className="text-white font-mono">{status.selfSustaining.monthlyInfrastructureCost}/mo</span>
+                  <span className="dash-body">Infrastructure cost</span>
+                  <span className="dash-fg font-mono">{status.selfSustaining.monthlyInfrastructureCost}/mo</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Revenue</span>
-                  <span className="text-white font-mono">{status.selfSustaining.revenue}</span>
+                  <span className="dash-body">Revenue</span>
+                  <span className="dash-fg font-mono">{status.selfSustaining.revenue}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Phase</span>
-                  <span className="text-slate-400">{status.phase}</span>
+                  <span className="dash-body">Phase</span>
+                  <span className="dash-muted">{status.phase}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-300">Response time</span>
-                  <span className="text-white font-mono">{status.respondedIn}</span>
+                  <span className="dash-body">Response time</span>
+                  <span className="dash-fg font-mono">{status.respondedIn}</span>
                 </div>
               </div>
             </div>

@@ -52,7 +52,7 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
   return (
     <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
       <div className="flex items-center justify-between mb-2 gap-2">
-        <h3 className="text-callout font-semibold text-white">{title}</h3>
+        <h3 className="text-callout font-semibold dash-fg">{title}</h3>
         {hasPorts && hasMix && (
           <div className="flex gap-1 bg-slate-800/50 rounded-lg p-0.5">
             <ViewButton label="By port" active={showing === 'port'} onClick={() => setView('port')} />
@@ -93,7 +93,7 @@ function ViewButton({ label, active, onClick }: { label: string; active: boolean
     <button
       onClick={onClick}
       className={`px-2 py-1 text-caption rounded-lg transition-colors ${
-        active ? 'bg-slate-600 text-white' : 'text-slate-400 hover:text-slate-200'
+        active ? 'bg-slate-600 dash-fg' : 'dash-muted dash-hover-fg'
       }`}
     >
       {label}
@@ -120,12 +120,12 @@ function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix
   return (
     <>
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-title font-semibold text-white font-mono">
+        <span className="text-title font-semibold dash-fg font-mono">
           {mix.total !== null ? formatMeasure(mix.total, 'THS_T') : formatMeasure(total, 'THS_T')}
         </span>
-        <span className="text-caption text-slate-500">across {categories.length} cargo types</span>
+        <span className="text-caption dash-subtle">across {categories.length} cargo types</span>
       </div>
-      <p className="text-caption text-slate-500 mb-3">
+      <p className="text-caption dash-subtle mb-3">
         national total{mix.period ? ` · ${formatPeriod(mix.period)}` : ''}
       </p>
 
@@ -135,10 +135,10 @@ function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix
           return (
             <div key={c.code}>
               <div className="flex items-center justify-between text-caption mb-0.5">
-                <span className="text-slate-200 truncate max-w-[55%]" title={c.name}>{c.name}</span>
+                <span className="dash-body truncate max-w-[55%]" title={c.name}>{c.name}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-400">{share}%</span>
-                  <span className="text-white font-mono w-16 text-right">
+                  <span className="dash-muted">{share}%</span>
+                  <span className="dash-fg font-mono w-16 text-right">
                     {formatMeasure(c.weight, 'THS_T')}
                   </span>
                 </div>

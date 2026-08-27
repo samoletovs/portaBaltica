@@ -537,6 +537,47 @@ picture of a chart.
 Where a series is stale, say so and date it. Where it is unavailable, render
 `—` and the word "Unavailable", never `0`.
 
+**Absence is never rendered as a value.** This is the rule the site has broken
+in three different directions, which is why it is written down rather than
+assumed:
+
+| Component | Absent data rendered as | Because |
+|---|---|---|
+| `classifySeaState` | **"Very Rough"** — a storm, in red | every `<` is false for `NaN`, so a missing wave height fell past the whole chain to the final `return` |
+| air quality | **"Good"** — clean air | `AQI_STYLES.good` was the fallback for an unrecognised status |
+| EU funds bars | **"all statuses equal"** | a zero total made every width `Infinity`, which CSS drops silently |
+
+Three components, three different plausible answers, one cause. A default that
+looks like data is worse than a crash, because a crash is at least visible —
+and each of these was found by accident rather than reported, precisely because
+it looked like a considered result.
+
+`src/utils/payload.ts` is the general answer: `list()` yields nothing to draw
+and `finite()` yields `null` to render as a dash, and neither invents a number.
+`finite()` also refuses `'42'` rather than coercing it, because a field that
+silently became a string is something to notice, not to absorb.
+
+### 3.9 Two components can take down the whole site
+
+`Header` and `DataTicker` are rendered by `SiteLayout`, which wraps **every**
+route — the newsroom included. `App` gives each dashboard section its own error
+boundary, so a tile that throws costs one tile; these two sit outside all of
+them, and a failure in either removes the articles as well as the dashboard.
+
+So a field read added in those two files is not the same as one added in a
+tile, and a contributor has no way to know that from the code. Treat any new
+payload access there as needing a guard by default.
+
+`SystemStatusFooter` was in the same position and demonstrated the point: the
+component whose entire job is to report an outage was able to remove the site
+while doing it.
+
+This is also the reason the masthead is **not** sticky. Making it so would put
+130px of dashboard chrome above every article — a fifth of a phone viewport,
+permanently — and deepen the colonisation described in §7.4. The dashboard's
+own section rail costs 44px and appears only where there is something to
+navigate.
+
 ---
 
 ## 4. Editorial layout
@@ -688,21 +729,30 @@ design-system audit does not surface because they are not token defects.
 7. **Four tiles have no loading, empty or error state** — `EnergyTile`,
    `GovernmentTile`, `LabourTile`, `TradeTile`.
 8. **Light theme is a set of overrides, not a designed theme.** It passes
-   contrast, but it is built from `!important` rules reaching into Tailwind's
-   generated slate classes. The layer is now *measured* rather than merely
-   present — see §5 — so a wrong value fails a test instead of reaching a
-   reader, and `tests/colourRatchet.test.ts` holds the count so it can only go
-   down. **273 hardcoded instances across 16 files remain**, and migrating them
-   to named, token-backed utilities — as `src/components/news/**` already does —
-   is the real fix. The compatibility layer is deleted when the ratchet empties.
+   contrast, but the dashboard's remaining colours are `!important` rules
+   reaching into Tailwind's generated slate classes. The layer is now
+   *measured* rather than merely present — see §5 — and
+   `tests/colourRatchet.test.ts` holds the count so it can only go down.
 
-   Two things that pass made the gap invisible for a long time. A contrast test
-   can only measure a class the layer *claims*: thirteen classes had no rule at
-   all, rendered as raw Tailwind in both themes, and ranged from 1.66:1 to
-   4.76:1 — including a text placeholder below the SC 1.4.3 floor. And a scan
-   that stops at the numeric step matches `text-amber-400` but not
-   `text-amber-400/80`, which Tailwind emits as a different class; ninety
-   opacity variants were invisible to tooling for that reason alone.
+   **The neutral text ramp is migrated**: `text-white` and every `text-slate-*`
+   are gone, replaced by `.dash-fg` / `.dash-body` / `.dash-muted` /
+   `.dash-subtle`, and the rules that used to rescue them are deleted rather
+   than left dormant. That took the debt from 273 instances to **133**.
+   Surfaces, borders and status tints are what remain. The compatibility layer
+   is deleted when the ratchet empties.
+
+   Two things made the gap invisible for a long time. A contrast test can only
+   measure a class the layer *claims*: thirteen classes had no rule at all,
+   rendered as raw Tailwind in both themes, and ranged from 1.66:1 to 4.76:1 —
+   including a text placeholder below the SC 1.4.3 floor. And a scan that stops
+   at the numeric step matches `text-amber-400` but not `text-amber-400/80`,
+   which Tailwind emits as a different class.
+
+   A named class is not just tidier. `text-slate-400` means "the fourth grey"
+   and stops being true the moment the background inverts; `dash-muted` means
+   "quieter than the body text", which stays true in both themes — and, being
+   *declared* rather than overridden, it is visible to the tests that measure
+   it.
 9. **The chart palette exists twice** — `--series-*` in CSS and literals in
    `ThemeContext`, because recharts writes into SVG attributes where jsdom will
    not resolve `var()`. A test compares them so they cannot drift, but one

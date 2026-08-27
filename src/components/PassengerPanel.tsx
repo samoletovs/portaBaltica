@@ -31,7 +31,7 @@ export function PassengerPanel({ measure }: { measure: PortMeasure }) {
       <MeasureHeadline measure={measure} />
       <PortBars measure={measure} />
       <DormantPorts measure={measure} />
-      <p className="text-caption text-slate-500 mt-2">Excludes cruise passengers.</p>
+      <p className="text-caption dash-subtle mt-2">Excludes cruise passengers.</p>
       <PanelNote measure={measure} table="mar_pa_qm" />
     </PanelShell>
   );

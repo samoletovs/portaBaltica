@@ -37,15 +37,15 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         {/* Construction permits */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-3">
-            <p className="text-caption text-slate-400">Construction Permits</p>
-            <p className="text-lead font-semibold text-white font-mono">{totalPermits === null ? '—' : totalPermits.toLocaleString()}</p>
+            <p className="text-caption dash-muted">Construction Permits</p>
+            <p className="text-lead font-semibold dash-fg font-mono">{totalPermits === null ? '—' : totalPermits.toLocaleString()}</p>
           </div>
           <div className="space-y-2">
             {permits.slice(0, 8).map((p) => (
               <div key={p.municipality}>
                 <div className="flex items-center justify-between text-caption mb-0.5">
-                  <span className="text-slate-200 truncate max-w-[60%]">{p.municipality}</span>
-                  <span className="text-white font-mono">{p.count}</span>
+                  <span className="dash-body truncate max-w-[60%]">{p.municipality}</span>
+                  <span className="dash-fg font-mono">{p.count}</span>
                 </div>
                 <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
                   <div
@@ -56,22 +56,22 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
               </div>
             ))}
           </div>
-          <p className="text-caption text-slate-500 mt-2">BVKB via data.gov.lv</p>
+          <p className="text-caption dash-subtle mt-2">BVKB via data.gov.lv</p>
         </div>
 
         {/* Energy profile by carrier */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <div className="flex items-baseline justify-between mb-3">
-            <p className="text-caption text-slate-400">Building Energy Profile</p>
-            <p className="text-lead font-semibold text-white font-mono">{totalCerts === null ? '—' : totalCerts.toLocaleString()}</p>
+            <p className="text-caption dash-muted">Building Energy Profile</p>
+            <p className="text-lead font-semibold dash-fg font-mono">{totalCerts === null ? '—' : totalCerts.toLocaleString()}</p>
           </div>
           {certs.length > 0 ? (
             <div className="space-y-2">
               {certs.map((cert) => (
                 <div key={cert.rating}>
                   <div className="flex items-center justify-between text-caption mb-0.5">
-                    <span className="text-slate-200 truncate max-w-[65%]">{cert.rating}</span>
-                    <span className="text-white font-mono">{cert.count}</span>
+                    <span className="dash-body truncate max-w-[65%]">{cert.rating}</span>
+                    <span className="dash-fg font-mono">{cert.count}</span>
                   </div>
                   <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
                     <div
@@ -83,9 +83,9 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
               ))}
             </div>
           ) : (
-            <p className="text-ui text-slate-500">Awaiting energy data...</p>
+            <p className="text-ui dash-subtle">Awaiting energy data...</p>
           )}
-          <p className="text-caption text-slate-500 mt-2">Energy carrier distribution · data.gov.lv</p>
+          <p className="text-caption dash-subtle mt-2">Energy carrier distribution · data.gov.lv</p>
         </div>
       </div>
 

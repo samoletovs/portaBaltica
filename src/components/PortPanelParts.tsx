@@ -18,7 +18,7 @@ import { dormantPorts, formatMeasure, formatPct, isDiscontinued, measureNoun, to
 export function PanelShell({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-      <h3 className="text-callout font-semibold text-white mb-2">{title}</h3>
+      <h3 className="text-callout font-semibold dash-fg mb-2">{title}</h3>
       {children}
     </section>
   );
@@ -27,7 +27,7 @@ export function PanelShell({ title, children }: { title: string; children: React
 export function PanelEmpty({ title, reason }: { title: string; reason: string }) {
   return (
     <PanelShell title={title}>
-      <p className="text-slate-400 text-ui">{reason}</p>
+      <p className="dash-muted text-ui">{reason}</p>
     </PanelShell>
   );
 }
@@ -71,7 +71,7 @@ export function MeasureHeadline({ measure }: { measure: PortMeasure }) {
   return (
     <>
       <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-title font-semibold text-white font-mono">
+        <span className="text-title font-semibold dash-fg font-mono">
           {total !== null ? formatMeasure(total, unit) : '—'}
         </span>
         {yoy ? (
@@ -83,13 +83,13 @@ export function MeasureHeadline({ measure }: { measure: PortMeasure }) {
               {formatPct(yoy.pct)}
               <span className="sr-only"> {changeDescription(POLARITY_ID[unit], yoy.pct)}</span>
             </span>
-            <span className="text-caption text-slate-500">year on year</span>
+            <span className="text-caption dash-subtle">year on year</span>
           </>
         ) : (
-          <span className="text-caption text-slate-500">no year-earlier quarter to compare</span>
+          <span className="text-caption dash-subtle">no year-earlier quarter to compare</span>
         )}
       </div>
-      <p className="text-caption text-slate-500 mb-3">
+      <p className="text-caption dash-subtle mb-3">
         {unitLabel(unit)}
         {measure.latest ? ` · ${formatPeriod(measure.latest)}` : ''}
       </p>
@@ -123,10 +123,10 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
         return (
           <div key={row.name}>
             <div className="flex items-center justify-between text-caption mb-0.5">
-              <span className="text-slate-200 truncate max-w-[55%]" title={row.name}>{row.name}</span>
+              <span className="dash-body truncate max-w-[55%]" title={row.name}>{row.name}</span>
               <div className="flex items-center gap-2">
-                <span className="text-slate-400">{share}%</span>
-                <span className="text-white font-mono w-16 text-right">
+                <span className="dash-muted">{share}%</span>
+                <span className="dash-fg font-mono w-16 text-right">
                   {formatMeasure(row.value, unit)}
                 </span>
               </div>
@@ -153,7 +153,7 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
  */
 export function PanelNote({ measure, table }: { measure: PortMeasure; table: string }) {
   return (
-    <p className="text-caption text-slate-600 mt-3">
+    <p className="text-caption dash-subtle mt-3">
       {measure.countryOnly && (
         // `text-amber-400/80` looks covered by the theme layer in `index.css`
         // and is not: that layer remaps `.text-amber-400`, and the slashed

@@ -97,8 +97,8 @@ export function InsightsBanner() {
                 <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
                 <span className={`text-caption ${badge.color}`}>{badge.label}</span>
               </div>
-              <p className="text-ui font-semibold text-white mb-1">{insight.headline}</p>
-              <p className="text-caption text-slate-300 leading-relaxed">{insight.description}</p>
+              <p className="text-ui font-semibold dash-fg mb-1">{insight.headline}</p>
+              <p className="text-caption dash-body leading-relaxed">{insight.description}</p>
             </div>
           );
         })}

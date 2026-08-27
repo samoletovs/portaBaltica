@@ -294,17 +294,17 @@ export default function App() {
         <SystemStatusFooter />
 
         {/* Footer */}
-        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-caption text-slate-500">
+        <footer className="mt-12 pt-6 border-t border-slate-800/40 text-caption dash-subtle">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
-            <p>Economy — <a href="https://data.stat.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
-            <p>Business — <a href="https://data.gov.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>
-            <p>Environment — <a href="https://open-meteo.com/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
-            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://ec.europa.eu/eurostat/web/transport/database" className="hover:text-slate-300" target="_blank" rel="noopener noreferrer">Eurostat maritime</a></p>
+            <p>Economy — <a href="https://data.stat.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
+            <p>Business — <a href="https://data.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>
+            <p>Environment — <a href="https://open-meteo.com/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
+            <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://ec.europa.eu/eurostat/web/transport/database" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Eurostat maritime</a></p>
           </div>
-          <p className="mt-4 text-slate-600">
-            Built by <a href="https://naurolabs.com" className="hover:text-slate-400">NauroLabs</a>
+          <p className="mt-4 dash-subtle">
+            Built by <a href="https://naurolabs.com" className="dash-hover-body">NauroLabs</a>
             {' · '}
-            <a href="/api-docs" className="hover:text-slate-400">API docs & pricing</a>
+            <a href="/api-docs" className="dash-hover-body">API docs & pricing</a>
           </p>
         </footer>
       </main>
