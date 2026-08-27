@@ -66,6 +66,11 @@ _READING_WORDS = {
     "monthly": ("month", "months"),
     "quarterly": ("quarter", "quarters"),
     "annual": ("year", "years"),
+    # Eurostat prices electricity and legislates minimum wages by semester.
+    # Without an entry these degrade to the safe but vague "readings", and the
+    # docstring above is about exactly that: a reader cannot tell 119 days from
+    # 119 semesters, and neither can the writer.
+    "semi-annual": ("semester", "semesters"),
 }
 
 
