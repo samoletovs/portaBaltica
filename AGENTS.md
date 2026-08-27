@@ -288,6 +288,40 @@ The `stats` container is the one container deliberately declared `publicAccess:
 the template says `'None'` — undeclared drift a redeploy would revert. The stats
 file does not build on that; its access level is stated in the IaC.
 
+The metric read needs one grant: **`Monitoring Reader` on `portabaltica-swa`**
+for the CI service principal (`portabaltica-github-deploy`), which already held
+`Storage Blob Data Contributor` on the storage account for the write. It is
+scoped to the single Static Web App resource — not `era-rg`, not the
+subscription — and the role is read-only, so it cannot deploy or reconfigure the
+site.
+
+Because the SWA is in `era-rg` and `main.bicep` is scoped to `portabaltica-rg`,
+that grant is a cross-RG module, exactly like the Foundry one:
+`modules/swa-metrics-role-assignment.bicep`. It is opt-in, since the principal is
+GitHub's rather than one this template creates:
+
+```powershell
+$sp = az ad sp show --id (az ad app list --display-name portabaltica-github-deploy `
+  --query "[0].appId" -o tsv) --query id -o tsv
+
+az deployment group create -g portabaltica-rg --template-file infrastructure/main.bicep `
+  -p ciPrincipalId=$sp
+```
+
+Deploy without `ciPrincipalId` and nothing is granted. If the deploying principal
+cannot write role assignments in `era-rg`, make it out of band instead — and read
+the GUID from Azure rather than copying one:
+
+```powershell
+$scope = az staticwebapp show -n portabaltica-swa -g era-rg --query id -o tsv
+
+az role assignment create `
+  --assignee-object-id $sp `
+  --assignee-principal-type ServicePrincipal `
+  --role "Monitoring Reader" `
+  --scope $scope
+```
+
 ### Cost
 
 Target is €3–5/mo for the newsroom. Flex Consumption's free grant is
