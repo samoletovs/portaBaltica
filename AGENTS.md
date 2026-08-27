@@ -1170,6 +1170,57 @@ And prefer measuring a checkout of `origin/master` over your own worktree
 whenever the claim is about what production does. The claim is about master; so
 must the measurement be.
 
+## Write an exemption as an assertion, not a filter
+
+An exemption for a known offender is often right: naming one and attributing
+it beats widening a route list, and beats letting a red check become
+wallpaper. But **the shape you write it in decides whether it removes itself
+when the offender is fixed, or lives on forever matching nothing.**
+
+Two shipped this programme and both were filters.
+
+```js
+// tests/reducedMotionLayout.live.test.ts -- /corrections overflowed by 42px
+const KNOWN = /^320px \/corrections: maxScrollLeft 4\d /;
+const unexpected = offenders.filter((o) => !KNOWN.test(o));
+expect(unexpected).toEqual([]);
+```
+
+`#169` fixed that overflow. `KNOWN` then matched nothing, `filter` removed
+nothing, and the test went on passing with a dead clause inside it — its own
+comment said *"so it is deleted when it is fixed"*, and nothing deleted it. The
+same evening, `functionSecurityHeaders.test.ts` carried a list of endpoints
+allowed to have no rate limiter; `track-login` was the only member, and when it
+was fixed and then removed the list had to be deleted by hand as well.
+
+**A filter cannot notice that it has stopped matching.** An assertion can, and
+the repo already contains the correct form:
+
+```js
+// tests/typecheckGate.test.ts -- five files excluded from the typecheck
+expect(excluded.sort(), 'a new exclusion hides an error rather than fixing it')
+  .toEqual([...KNOWN].sort());
+```
+
+Fix one of those files and remove it from the config, and `excluded` no longer
+equals `KNOWN`: the test goes **red**, and the only way to make it green is to
+update the list. The exemption forces its own retirement. Its comment gives the
+other half of the reason — a named list makes "exclude one more" a reviewable
+change rather than a number quietly going up.
+
+So: **state the exemption as an equality against the full set, not as a
+subtraction from it.** `expect(offenders).toEqual([...KNOWN])` rather than
+`expect(offenders.filter(not(KNOWN))).toEqual([])`. Both pass today; only the
+first fails the day the exemption becomes a lie.
+
+The distinction generalises past exemptions, and it is the same asymmetry as
+everywhere else in this file: **a thing that fails loudly when it stops being
+true needs no one to remember it; a thing that fails silently needs a human,
+and eventually will not get one.** A permanent, justified exemption — such as
+`design-system.test.ts` excusing `ThemeContext.tsx` from the colour rule,
+because that file *is* the theme — is a different case and may stay a filter,
+since it is not waiting on a fix.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
