@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
+import { useCountry } from '../CountryContext';
 import { fetchPowerPrices, type PowerPriceData, type PowerPricePoint, type PowerPriceZone } from '../api';
 import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
 import { list } from '../utils/payload';
+import { hourFormatter, dayFormatter, firstDayChange } from '../utils/marketClock';
 import { SeriesSwatch } from './SeriesSwatch';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
@@ -23,10 +25,21 @@ const ZONE_DASH: Record<string, string | undefined> = {
   fi: '30 9',
 };
 
-function formatHour(iso: string): string {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
+/**
+ * The hours this chart labels and the day boundary it marks come from the same
+ * clock, and the rule for that lives in `utils/marketClock`.
+ *
+ * They did not agree. `formatHour` read `d.getHours()` — the *browser's* local
+ * hour — while `data.day` is grouped by the API in **UTC**, and the "tomorrow"
+ * marker was placed at the first point whose UTC day was tomorrow. Measured
+ * against production from a UTC+3 machine, that marker was drawn at **03:00**,
+ * twelve quarter-hour points and 180 minutes after the local midnight the axis
+ * itself had just labelled `00:00`.
+ *
+ * This is #81's defect in a second component. That fix taught the rule and
+ * repaired `EconomyTile`; nobody grepped for the mechanism, so this instance
+ * stayed.
+ */
 
 /**
  * Baltic day-ahead power market.
@@ -41,6 +54,9 @@ export function PowerMarketCard() {
   const [data, setData] = useState<PowerPriceData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
+  const { timezone, tzAbbr } = useCountry();
+  const formatHour = hourFormatter(timezone);
+  const dayOf = dayFormatter(timezone);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,16 +97,21 @@ export function PowerMarketCard() {
   // quarter-hours whose `HH:mm` labels repeat: 00:00 appears twice with nothing
   // to say which is which. The boundary is marked rather than every label
   // lengthened, which would fight the axis for room.
-  const firstTomorrow = data.tomorrow
-    ? data.series.find((p) => p.day === data.tomorrow)
-    : undefined;
+  //
+  // The boundary is found by re-reading each point's day **in the zone the
+  // axis is labelled in**, not by trusting `p.day`. The API groups by UTC day,
+  // so `p.day === data.tomorrow` selects the first point after *UTC* midnight
+  // — measured at 03:00 on a UTC+3 machine, three hours and twelve points
+  // past the `00:00` the axis had just drawn. The marker has to land on the
+  // midnight a reader can see.
+  const firstTomorrow = firstDayChange(list<PowerPricePoint>(data.series), dayOf);
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-start justify-between mb-3 gap-3">
         <div>
           <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>Baltic power market</p>
-          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Day-ahead price by bidding zone · {data.unit}</p>
+          <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Day-ahead price by bidding zone · {data.unit} · times {tzAbbr}</p>
         </div>
         <div
           className={`px-2 py-1 rounded text-caption font-semibold whitespace-nowrap ${
