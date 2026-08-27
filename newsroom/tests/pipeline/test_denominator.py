@@ -224,3 +224,42 @@ class TestItReachesTheWriter:
         rendered = prompts._context_section(build_context(signal, [latvia(), europe()]), signal)
 
         assert "denominator_eu" not in rendered
+
+
+class TestTheWriterIsToldWhatTheFigureIsFor:
+    """Offering the fact was not enough on its own.
+
+    Measured over five generations against the real signal, the writer used
+    the direction contrast four times and reduced it to a level comparison
+    once -- "6.1%, which is lower than Latvia's rate". That sentence is true,
+    traceable, and wastes the fact: the EU average being higher or lower than
+    one country is true every month, so it is not what makes this worth
+    printing.
+
+    A validator check was the wrong instrument. The sentence breaks no part of
+    the contract, so rejecting the article would spend six model calls and a
+    whole story to improve one paragraph. Naming the job in the prompt costs
+    nothing and cannot reject anything. After it, ten of ten used the
+    direction, and the verb moved from a trailing clause borrowed from the
+    label ("stood at 6.1%, which rose") into the main clause ("rose to 6.1%").
+    """
+
+    def test_the_instruction_arrives_with_the_fact(self) -> None:
+        signal = signal_at("2026-02", 6.7)
+        rendered = prompts._context_section(
+            build_context(signal, [latvia(), europe()]), signal
+        )
+
+        assert "moved the OPPOSITE way" in rendered
+        assert "rose or fell" in rendered
+
+    def test_it_stays_away_when_the_fact_does_not_come(self) -> None:
+        """The companion. The fact is absent 71% of the time, and an
+        instruction about a figure the writer has not been given is noise."""
+        signal = signal_at("2026-06", 6.8)
+        rendered = prompts._context_section(
+            build_context(signal, [latvia(), europe()]), signal
+        )
+
+        assert "moved the OPPOSITE way" not in rendered
+        assert "rose or fell" not in rendered
