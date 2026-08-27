@@ -582,6 +582,67 @@ rejection path* remains true and is not in tension with this: **house style must
 never be asked to carry a truth fault.** The test is not how badly the sentence
 reads, it is whether it is *wrong*.
 
+### Both instruments assume the diagnosis is right
+
+The choice above is between a gate and a coaching note. It has a precondition
+nobody had stated: that the fault is where the rejection counter says it is.
+
+`comparison_basis_stated` reached the top of that counter — five of the six
+rejected drafts in the run of 2026-08-27. The diagnosis was the familiar one,
+and it was written down as a guess: the plan asks for a comparative sentence in
+a slot that does not carry the comparison, so the instruction upstream is thin.
+Every previous entry in this file fits that shape.
+
+Eighteen drafts were generated across three signals and every rejection read in
+full, with its paragraph and its declared figures. **Nine of nine were false
+positives.** Not one was the writer omitting a basis.
+
+Seven were the closing paragraph house style asks for:
+
+> The next release would need to show a decrease **below 141.6%** to indicate a
+> potential easing of energy inflation.
+
+**A threshold is a reference point.** Two more stated a basis the pattern list
+did not happen to contain — it required the article, *"a year earlier"*, and the
+writer wrote the numeral, in a block whose declared figure was named
+`value_one_year_earlier`. **The data knew what the regex did not.**
+
+So neither instrument was the answer, because the writer was already correct:
+
+> **A coaching note that tells a writer to do what it is already doing makes it
+> worse.**
+
+That is the part with teeth. The wrong diagnosis does not fail safe here — it
+would have added guidance against a working behaviour, and the resulting
+degradation would have been slow, plausible and attributed to the model.
+
+Two things made it invisible. First, the check had not changed. #160 and #168
+removed the *other* causes of rejection, and a check whose false-positive rate
+was always high rose to the top by subtraction:
+
+> **A gate does not have to change to become the bottleneck.** Everything else
+> getting better looks identical to this one getting worse.
+
+Second, the failure message names the token it matched — `'decrease'` — which is
+exactly the information that cannot distinguish a missing basis from an
+unrecognised one. **The counter says which check fired, never whether it was
+right to.** Reading the prose was the only way to tell, and it took eighteen
+drafts to say so with a straight face.
+
+The correction is not "trust gates less". It is the same discipline the
+denominator fact got, one level earlier:
+
+> **Before choosing an instrument, confirm the fault is real. Read the
+> artefact.**
+
+And the counterweight, because widening a gate is how it stops protecting
+anything: the repair admits `above` and `below` as comparative prepositions
+governing a figure — `than` was already there — and deliberately **refuses
+`over` and `under`, because `over 3 months` is a duration**. A time span
+admitted as a reference point would leave a check that still looks like a
+check. The exclusion is load-bearing, so it has its own test; the judgement
+survives only because something asserts it.
+
 ## Correspondents
 
 Five personas in `newsroom/personas.yaml`, each owning a beat with a distinct
