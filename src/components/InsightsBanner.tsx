@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import type { Insight } from '../types';
 import { INSIGHT_BADGES } from '../types';
 import { useCountry } from '../CountryContext';
+import { useOverflowFade } from '../utils/useOverflowFade';
 
 export function InsightsBanner() {
   const [insights, setInsights] = useState<Insight[]>([]);
   const [loading, setLoading] = useState(true);
   const { country } = useCountry();
+  const [fadeRef, fadeClass] = useOverflowFade<HTMLDivElement>();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,7 @@ export function InsightsBanner() {
           <h2 className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>Insights</h2>
           <span className="text-caption px-2 py-0.5 rounded" style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card-hover)' }}>Refreshing</span>
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide edge-fade-x" role="status" aria-label="Loading insights">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" role="status" aria-label="Loading insights">
           {[1, 2, 3].map((placeholder) => (
             <div key={placeholder} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 animate-pulse">
               <div className="h-3 w-20 rounded bg-slate-700/40 mb-3" />
@@ -71,7 +73,7 @@ export function InsightsBanner() {
       {/* The row scrolls sideways when there are more insights than fit, and
           used to clip dead at the right edge with nothing to say so. The mask
           lets the last card fade rather than be severed. */}
-      <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide edge-fade-x" aria-live="polite">
+      <div ref={fadeRef} className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide ${fadeClass}`} aria-live="polite">
         {insights.map((insight, i) => {
           // An unrecognised level used to take the whole dashboard down: this
           // read `badge.color` straight off the lookup, so one unexpected

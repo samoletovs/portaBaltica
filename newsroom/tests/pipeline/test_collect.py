@@ -775,3 +775,55 @@ class TestTheBusinessBeatHasASource:
             # 'business_bankruptcies' to match our own metric would 404.
             "business_bankruptcies": "bankruptcies",
         }
+
+
+class TestTheEnvironmentBeatHasASource:
+    """The last silent section, and the only collection gap left.
+
+    Not Open-Meteo, which the dashboard uses: it serves history on demand and
+    the app stores nothing, so a detector cannot say "the warmest August since"
+    without refetching years of hourly readings on every check. The caching
+    layer added in #86 does not help — it is a per-process ``Map`` inside the
+    Static Web App's managed functions, holding one hourly reading, in a
+    different app from the newsroom.
+    """
+
+    def test_should_collect_a_quarterly_emissions_series(self):
+        env = [s for s in EUROSTAT_DATASETS if s.section == "environment"]
+
+        assert env, "the environment beat still has no data source"
+        assert [s.metric for s in env] == ["ghg_emissions"]
+        assert env[0].frequency == "quarterly"
+
+    def test_should_read_the_only_breakdown_that_carries_values(self):
+        """``TOTAL_HH`` and nothing finer, because nothing finer exists.
+
+        The cube lists ten NACE breakdowns and every one returns 40 periods and
+        **zero** values for the Baltics, on both the adjusted and unadjusted
+        slice — checked live for A, C, D, H and HH. A sector series would look
+        like a working configuration and fetch nothing, which is the same trap
+        as asking Estonia for a cargo breakdown.
+        """
+        spec = next(s for s in EUROSTAT_DATASETS if s.section == "environment")
+
+        assert spec.params["nace_r2"] == "TOTAL_HH"
+
+    def test_should_carry_no_digit_in_its_unit(self):
+        """"CO2 equivalent" would put a bare 2 into every comparison basis."""
+        spec = next(s for s in EUROSTAT_DATASETS if s.section == "environment")
+
+        assert not any(character.isdigit() for character in spec.unit)
+        assert "carbon dioxide" in spec.unit
+
+    def test_every_eurostat_section_now_has_a_source(self):
+        """The masthead names correspondents for all of these.
+
+        A section with no series is a byline that can never file, which is
+        worse than one fewer name on the masthead.
+        """
+        covered = {s.section for s in EUROSTAT_DATASETS}
+
+        assert {
+            "labour", "economy", "property", "trade",
+            "maritime", "business", "environment",
+        } <= covered

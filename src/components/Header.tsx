@@ -4,6 +4,7 @@ import type { DashboardSection } from '../types';
 import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
 import { useFilter, YEAR_OPTIONS, type YearRange } from '../FilterContext';
+import { useOverflowFade } from '../utils/useOverflowFade';
 
 const SECTIONS: { id: DashboardSection | 'all' | 'news'; label: string; path: string }[] = [
   { id: 'news', label: 'News', path: '/' },
@@ -25,6 +26,7 @@ export function Header() {
   const { theme, toggle } = useTheme();
   const { country, setCountry, timezone, tzAbbr } = useCountry();
   const { years, setYears } = useFilter();
+  const [navRef, navFade] = useOverflowFade<HTMLElement>();
   const section = location.pathname.startsWith('/data/')
     ? location.pathname.slice('/data/'.length).split('/')[0]
     : null;
@@ -46,16 +48,20 @@ export function Header() {
   return (
     <header>
       <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        {/* Top bar */}
-        <div className="flex items-center justify-between h-14">
+        {/* Top bar. It wraps rather than clipping: at 375 the country, range
+            and theme controls together are wider than the viewport, and a
+            fixed-height row simply cut the last one off at the edge. The clock
+            steps aside first, because the time is the least load-bearing thing
+            in the row. */}
+        <div className="flex flex-wrap items-center justify-between gap-y-2 py-2 sm:h-14 sm:py-0">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-callout font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               porta<span style={{ color: 'var(--news-accent)' }}>Baltica</span>
             </Link>
             <span className="hidden sm:inline text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-caption font-mono" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <span className="hidden sm:inline text-caption font-mono" style={{ color: 'var(--text-secondary)' }}>
               {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
               <span style={{ color: 'var(--text-tertiary)' }} className="ml-1">{tzAbbr}</span>
             </span>
@@ -116,8 +122,17 @@ export function Header() {
 
         {/* Section tabs. The active tab is marked by the accent rule beneath it
             and by weight, so the state survives both a colour-blind reader and
-            a forced-colours mode. */}
-        <nav className="flex gap-0 -mb-px overflow-x-auto" aria-label="Site sections">
+            a forced-colours mode.
+
+            The strip scrolls sideways below about 900px, and at 375px it used
+            to clip the last tab mid-character — "T…" — with nothing to say the
+            row continued. A hard cut reads as a layout bug rather than as more
+            content, so the mask fades the ends instead. */}
+        <nav
+          ref={navRef}
+          className={`flex gap-0 -mb-px overflow-x-auto ${navFade}`}
+          aria-label="Site sections"
+        >
           {SECTIONS.map((s) => (
             <Link
               key={s.id}

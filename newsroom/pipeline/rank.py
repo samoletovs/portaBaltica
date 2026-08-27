@@ -62,6 +62,31 @@ DETECTOR_PRIORITY = {
 METRIC_FAMILIES = {
     "day_ahead_power_price": "baltic_power_market",
     "day_ahead_power_spread": "baltic_power_market",
+    # One balance-of-payments release, read seven ways. These are not seven
+    # findings: they are NESTED. The goods-and-services balance IS goods plus
+    # services, and services is transport plus financial plus telecoms plus
+    # other business services plus the rest — so the same euro is reported in
+    # three of them and a front page carrying all seven has told one story
+    # seven times while double-counting it.
+    #
+    # Measured on the live collection: trade produced 26 of 47 signals from
+    # these alone and took three of the eight slots, which is why maritime's
+    # best signal — a container record at 0.95 — landed seventh of eight and
+    # was the first thing lost to any jitter.
+    #
+    # The split stays in COLLECTION, deliberately: the whole reason it exists
+    # is that "the total hides the finding", since all three states run a
+    # similar goods deficit and the entire divergence sits in services. Folding
+    # here keeps that. The strongest COMPONENT wins the slot, so the wire says
+    # "the transport services balance diverged" rather than the vaguer thing
+    # the headline total would have supported.
+    "trade_balance": "external_balance",
+    "goods_balance": "external_balance",
+    "services_balance": "external_balance",
+    "transport_services_balance": "external_balance",
+    "financial_services_balance": "external_balance",
+    "ict_services_balance": "external_balance",
+    "other_business_services_balance": "external_balance",
 }
 
 
@@ -94,7 +119,7 @@ def finding_key(metric: str, geography: str, period: str) -> str:
 
 
 def release_key(metric: str, period: str) -> str:
-    """One release of one series, whichever country's reading was written up.
+    """One release of one series, whichever reading of it was written up.
 
     The country fold has to survive the run that performed it. Without this it
     did not, and the live sequence was:
@@ -105,8 +130,16 @@ def release_key(metric: str, period: str) -> str:
 
     which is the three-thin-articles problem again, spread over two days
     instead of one page. Publishing one country's reading closes the release.
+
+    Keyed on the FAMILY for the same reason, one level up. Seven nested
+    balance-of-payments series are one release; keyed on the metric, run 1
+    published the transport services balance, run 2 the financial services
+    balance, run 3 services, run 4 the headline total — four articles about one
+    quarter of one release, arriving on four consecutive runs. Within a run
+    they were correctly folded; across runs they were not, which is the same
+    bug in the same shape as the country fold and needed the same fix.
     """
-    return f"{metric}|*|{period}"
+    return f"{family_of(metric)}|*|{period}"
 
 
 def _release_of(key: str) -> str | None:
@@ -272,7 +305,13 @@ def _one_per_release(signals: list[Signal], report: RankingReport) -> list[Signa
         if signal.geography not in _COVERAGE:
             passthrough.append(signal)
             continue
-        key = (signal.metric, signal.period)
+        # Keyed on the FAMILY, not the metric, so that "one release" means the
+        # release rather than one reading of it. Seven nested balance-of-
+        # payments series published together are one release; keyed on metric
+        # they were seven, and trade took three of the eight slots with the
+        # same euro counted in several of them. For a metric with no declared
+        # family this is identical to keying on the metric itself.
+        key = (family_of(signal.metric), signal.period)
         incumbent = best.get(key)
         if incumbent is None:
             best[key] = signal

@@ -49,7 +49,7 @@ from typing import Mapping, Sequence
 
 from newsroom import numeric_scan
 from newsroom.pipeline.models import Block, Figure
-from newsroom.pipeline.units import unit_for_field
+from newsroom.pipeline.units import is_count, unit_for_field
 log = logging.getLogger(__name__)
 
 
@@ -60,15 +60,59 @@ def _already_declared(token: numeric_scan.NumericToken, figures: Sequence[Figure
 def _matching_fields(
     token: numeric_scan.NumericToken, fields: Mapping[str, float]
 ) -> list[tuple[str, float]]:
+    """Verified fields that could account for ``token``.
+
+    "Could account for" is the validator's own rounding rule, so a field is a
+    candidate when the token is that number written at the token's precision.
+    An ambiguous token — two candidates — is left alone, because guessing which
+    field a number came from is the sort of plausible invention this pipeline
+    exists to prevent.
+
+    ONE EXCEPTION, AND ONLY ONE: a count beats a measurement that merely rounds
+    to it. The seasonal basis says "the five-year average", the writer renders
+    it "the 5-year average", and the token ``5`` has two parents —
+    ``baseline_years`` is 5 exactly and ``deviation`` is 5.4, which rounds to 5
+    at zero decimals. The reconciler declined, the validator saw an undeclared
+    number, and the article died. A forensic pass over three days of rejected
+    drafts found this one shape in **8 of 16** ``no_invented_numbers`` kills,
+    10% of every tier A rejection.
+
+    It is not the general rule "exact beats rounded", which would be a guess
+    dressed as a policy — it is that a count and a measurement are different
+    kinds of quantity. A count is ``float(len(...))``: it is a whole number by
+    construction and can never be a rounded rendering of anything else. A
+    measurement that happens to round to the same integer is a coincidence, not
+    a competing explanation. So this narrows what may be chosen rather than
+    widening it, only ever fires when a count matches outright, and cannot
+    touch a token carrying decimals — "5.0" does not match a ``deviation`` of
+    5.4 at all, so there is nothing to disambiguate.
+    """
+    exact_counts: list[tuple[str, float]] = []
     matches: list[tuple[str, float]] = []
     for name, value in fields.items():
         try:
             numeric = float(value)
         except (TypeError, ValueError):
             continue
-        if numeric_scan.value_justifies(token, numeric):
-            matches.append((name, numeric))
+        if not numeric_scan.value_justifies(token, numeric):
+            continue
+        matches.append((name, numeric))
+        if is_count(name) and _is_exact(token, numeric):            exact_counts.append((name, numeric))
+
+    if len(exact_counts) == 1 and len(matches) > 1:
+        return exact_counts
     return matches
+
+
+#: Floating-point slack for "the same number", not editorial slack.
+_EXACT = 1e-9
+
+
+def _is_exact(token: numeric_scan.NumericToken, value: float) -> bool:
+    return any(
+        abs(abs(candidate) - abs(value)) <= _EXACT
+        for candidate in token.candidate_values()
+    )
 
 
 def reconcile_block(

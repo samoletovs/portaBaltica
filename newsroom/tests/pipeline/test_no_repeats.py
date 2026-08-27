@@ -255,12 +255,131 @@ class TestTheEditorDoesNotReDecideACardItHasRun:
             "run_once no longer reads what it has already published, so the "
             "editor re-decides every card on every run"
         )
-        assert "card.slug not in live" in source, (
-            "the already-published cards are read but not filtered out"
+        assert "refused_slugs()" in source, (
+            "a card the editor refused never reaches the index, so without the "
+            "ledger it is re-sent to be refused again on every run"
+        )
+        assert "card.slug not in decided" in source, (
+            "the already-decided cards are read but not filtered out"
         )
         assert source.index("published_slugs()") < source.index(
             "edit_syndicated_articles("
         ), "the skip must happen before the editor, not after it"
+
+
+class TestARefusalIsRememberedRatherThanRepeated:
+    """103 of 111 tier C rejections were Azure content-filter refusals.
+
+    Ukraine and Russia military coverage, political opinion — 59 unique
+    headlines, re-sent on every run to be refused again, because a refused card
+    never reaches the index and so ``published_slugs`` cannot see it.
+
+    Remembered rather than filtered by topic, deliberately. A Baltic wire that
+    quietly drops military stories has an editorial problem, not a cost one.
+    """
+
+    @staticmethod
+    def _outcome(action: str, reason: str = "content filter"):
+        from newsroom.pipeline.editor import EditorAction, EditorOutcome
+
+        return EditorOutcome(
+            article_id="a",
+            action=EditorAction(action),
+            reason=reason,
+            editor="Dace",
+            decided_at="2026-08-26T14:00:00Z",
+        )
+
+    @pytest.mark.anyio
+    async def test_should_remember_a_rejection(self, tmp_path):
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("lsm-strike-abc123", self._outcome("reject"))])
+
+        assert await ledger.refused_slugs() == {"lsm-strike-abc123"}
+
+    @pytest.mark.anyio
+    async def test_should_remember_an_escalation(self, tmp_path):
+        """Waiting on a human. Re-asking does not make them answer faster, and
+        it would re-notify them."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("err-opinion-def456", self._outcome("escalate"))])
+
+        assert await ledger.refused_slugs() == {"err-opinion-def456"}
+
+    @pytest.mark.anyio
+    async def test_should_not_remember_an_approval(self, tmp_path):
+        """An approved card is in the index, and ``published_slugs`` covers it.
+
+        Recording it here too would be a second source of truth for one fact.
+        """
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        await ledger.remember([("lsm-storm-abc123", self._outcome("approve"))])
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_survive_a_missing_ledger(self, tmp_path):
+        """No memory must mean "decide everything", never "decide nothing"."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_survive_a_corrupt_ledger(self, tmp_path):
+        from newsroom.pipeline.decisions import DECISIONS_BLOB, DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        target = tmp_path / DECISIONS_BLOB
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("{ not json", encoding="utf-8")
+        ledger = DecisionLedger(ArticleStore(local_dir=tmp_path, account_url=""))
+
+        assert await ledger.refused_slugs() == set()
+
+    @pytest.mark.anyio
+    async def test_should_accumulate_across_runs(self, tmp_path):
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+
+        await DecisionLedger(store).remember([("a", self._outcome("reject"))])
+        await DecisionLedger(store).remember([("b", self._outcome("reject"))])
+
+        assert await DecisionLedger(store).refused_slugs() == {"a", "b"}
+
+    @pytest.mark.anyio
+    async def test_should_keep_the_reason_so_a_human_can_audit_it(self, tmp_path):
+        """A refusals cache nobody can read is indistinguishable from a filter."""
+        from newsroom.pipeline.decisions import DecisionLedger
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        ledger = DecisionLedger(store)
+
+        await ledger.remember(
+            [("lsm-strike-abc123", self._outcome("reject", "content filter: violence"))]
+        )
+
+        record = (await ledger.load())["lsm-strike-abc123"]
+        assert record["decision"] == "reject"
+        assert "violence" in record["reason"]
+        assert record["decided_at"] == "2026-08-26T14:00:00Z"
 
 
 class TestOneArticlePerEvent:
@@ -281,7 +400,12 @@ class TestOneArticlePerEvent:
 
         assert len(report.selected) == 1
         assert report.selected[0].metric == "day_ahead_power_price"
-        assert report.same_event == 1
+        # Which of the two folds caught it is an implementation detail and has
+        # moved: keying the release fold on the family means a Baltic-wide pair
+        # is absorbed there, and the event fold now covers the geographies the
+        # release fold passes through. The contract is one story, not which
+        # counter incremented.
+        assert report.same_release + report.same_event == 1
 
     def test_should_leave_unrelated_metrics_alone(self):
         """A metric standing on its own is its own family.
@@ -312,6 +436,115 @@ class TestOneArticlePerEvent:
                         geography="Baltic", period="2026-08-24"),
             make_signal(score=0.85, metric="day_ahead_power_spread",
                         geography="Baltic", period="2026-08-25"),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 2
+
+
+class TestOneReleaseIsOneStoryHoweverManyWaysItIsRead:
+    """Seven nested balance-of-payments series are one release.
+
+    The goods-and-services balance IS goods plus services, and services is
+    transport plus financial plus telecoms plus other business services — so
+    the same euro appears in three of them. On the live collection they
+    produced **26 of 47 signals** and took three of the eight slots, which is
+    why maritime's best signal, a container record scoring 0.95, landed
+    seventh of eight and was the first thing lost to any jitter.
+
+    Folding them fixed the front page without a section quota: measured over
+    the same 47 signals, trade goes from three slots to one and maritime from
+    nothing to four articles, two of them on the first run's page.
+    """
+
+    BOP = (
+        "trade_balance",
+        "goods_balance",
+        "services_balance",
+        "transport_services_balance",
+        "financial_services_balance",
+        "ict_services_balance",
+        "other_business_services_balance",
+    )
+
+    @pytest.mark.parametrize("metric", BOP)
+    def test_every_component_belongs_to_the_family(self, metric):
+        assert family_of(metric) == "external_balance"
+
+    def test_one_release_yields_one_article(self):
+        signals = [
+            make_signal(score=0.90 + index / 100, metric=metric,
+                        geography="Baltic", period="2026-Q1")
+            for index, metric in enumerate(self.BOP)
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert len(report.selected) == 1
+
+    def test_the_strongest_component_wins_not_the_headline_total(self):
+        """The split exists because "the total hides the finding".
+
+        All three states run a similar goods deficit and the entire divergence
+        sits in services, so collection keeps the components deliberately.
+        Folding must preserve that: the wire should say "the transport services
+        balance diverged", not fall back to the vaguer headline number.
+        """
+        signals = [
+            make_signal(score=0.70, metric="trade_balance",
+                        geography="Baltic", period="2026-Q1"),
+            make_signal(score=0.99, metric="transport_services_balance",
+                        geography="Baltic", period="2026-Q1"),
+        ]
+
+        report = rank(signals, POLICY)
+
+        assert [s.metric for s in report.selected] == ["transport_services_balance"]
+
+    def test_a_later_run_does_not_publish_another_component(self):
+        """Within a run they were folded; across runs they were not.
+
+        Live, that produced transport services on run 1, financial services on
+        run 2, services on run 3 and the headline total on run 4 — four
+        articles about one quarter of one release, on four consecutive runs.
+        Same bug as the country fold, in the same shape, needing the same fix.
+        """
+        published = {finding_key("transport_services_balance", "Baltic", "2026-Q1")}
+
+        report = rank(
+            [
+                make_signal(score=0.99, metric="financial_services_balance",
+                            geography="Baltic", period="2026-Q1"),
+                make_signal(score=0.98, metric="goods_balance",
+                            geography="EE", period="2026-Q1"),
+            ],
+            POLICY,
+            published=published,
+        )
+
+        assert report.selected == []
+        assert report.already_published == 2
+
+    def test_a_new_quarter_is_a_new_release(self):
+        published = {finding_key("transport_services_balance", "Baltic", "2026-Q1")}
+
+        report = rank(
+            [make_signal(score=0.9, metric="goods_balance",
+                         geography="Baltic", period="2026-Q2")],
+            POLICY,
+            published=published,
+        )
+
+        assert len(report.selected) == 1
+
+    def test_an_unrelated_metric_is_untouched(self):
+        """Only declared families fold. A metric on its own is its own family."""
+        signals = [
+            make_signal(score=0.9, metric="unemployment_rate",
+                        geography="Baltic", period="2026-06"),
+            make_signal(score=0.85, metric="goods_balance",
+                        geography="Baltic", period="2026-06"),
         ]
 
         report = rank(signals, POLICY)
