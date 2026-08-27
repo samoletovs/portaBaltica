@@ -38,6 +38,8 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BalticCompareChart } from '../src/components/BalticCompareChart';
 
 const fetchBalticCompare = vi.fn();
@@ -122,5 +124,44 @@ describe('the comparison chart header', () => {
 
     const dashed = container.querySelector('span.border-dashed');
     expect(dashed, 'the reference lost its dashed rule').not.toBeNull();
+  });
+});
+
+describe('the API docs endpoint rows', () => {
+  /**
+   * The same defect as the legend, with a URL where the legend entry was.
+   *
+   * A query string has no space to break at, so `?indicator=gdp&years=5` is
+   * one unbreakable token whose min-content is its full width. Three of those
+   * in a rigid `flex` row overflowed the card at 320px and scrolled the page
+   * by 45px — found by probing routes no live check covered, since `/api-docs`
+   * was in none of them.
+   *
+   * That makes it the second instance of a mechanism already fixed once, which
+   * is the fourth time today that writing a rule down did not find the
+   * instances that already existed.
+   *
+   * Wiring guard, as in the legend case: jsdom does not lay out, so the real
+   * measurement is the live check. This holds the structure that lets the row
+   * give way.
+   */
+  const source = readFileSync(resolve('src/components/ApiDocsPage.tsx'), 'utf8');
+
+  it('lets an endpoint row wrap', () => {
+    expect(source, 'the endpoint row must be able to wrap').toMatch(
+      /className="flex flex-wrap items-center[^"]*"/,
+    );
+  });
+
+  it('lets an unbreakable query string break', () => {
+    // Without this the row wraps and the token still overflows on its own: a
+    // 148px `?indicator=gdp&years=5` cannot fit a 320px viewport's card
+    // whatever the row does around it.
+    const codeTags = [...source.matchAll(/<code className="([^"]*)"/g)].map((m) => m[1]);
+    const params = codeTags.filter((c) => c.includes('font-mono'));
+    expect(params.length, 'expected the endpoint rows to render <code>').toBeGreaterThan(0);
+    for (const cls of params) {
+      expect(cls, `a mono <code> that cannot break: "${cls}"`).toMatch(/break-all|break-words/);
+    }
   });
 });
