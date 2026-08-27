@@ -156,8 +156,30 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
+      {/* The header is two blocks — a title and a direct-labelling legend —
+          and both must be able to give way.
+
+          They could not. Neither was `min-w-0`, so as flex items both took the
+          default `min-width: auto`, which is their *min-content*: the legend's
+          four entries plus their gaps came to 377px and simply refused to be
+          narrower. When #132 added the EU27 reference the row gained a fourth
+          entry, and on a card halved by `md:grid-cols-2` it stopped fitting —
+          overflowing the card, then the page, so `/data` scrolled sideways
+          into blank space.
+
+          Measured on master in 4px steps, the page overflowed at **98 of 177
+          widths between 320 and 1024**, in two bands: 768–960 (the two-column
+          grid) and 320–512 (where the viewport itself is narrower than the
+          legend). Both are wider than they look, and the second exists at
+          every phone size.
+
+          So the row wraps rather than truncates. Truncation would hide the
+          figure the legend exists to show, and dropping the fourth entry at
+          tablet width would remove the EU27 denominator exactly where a small
+          chart is hardest to read (#125). Wrapping costs a line and keeps
+          every number. */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-3">
+        <div className="min-w-0">
           <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title ?? data.title}</p>
           <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
             LV vs EE vs LT{reference ? ' vs EU27' : ''} · {data.unit}
@@ -172,7 +194,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
             line — 3.90:1 for Latvia in dark, 3.24:1 for Lithuania in light,
             both under the 4.5:1 that SC 1.4.3 asks of text this size. The
             swatch carries the same mapping at the floor it was built for. */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {COUNTRY_ORDER.map((geo) => (
             <div key={geo} className="flex items-center gap-1 text-caption font-mono">
               <SeriesSwatch color={chartColors.series[geo]} />
