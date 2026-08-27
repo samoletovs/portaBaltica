@@ -24,7 +24,7 @@ const { withSecurity } = require('../shared/securityHeaders.js');
 
 const SHELL_URL = newsroom.SITE_URL + '/index.html';
 
-/** How long a fetched shell is trusted before revalidating. */
+/** How long a fetched shell is trusted before it is revalidated. */
 const SHELL_TTL_MS = 30 * 1000;
 
 /**
@@ -37,50 +37,136 @@ const SHELL_TTL_MS = 30 * 1000;
  */
 const CACHE_CONTROL = 'public, must-revalidate, max-age=30';
 
-const shellCache = { html: null, fetchedAt: 0 };
+const shellCache = { html: null, etag: null, fetchedAt: 0 };
 const articleCache = new Map();
 const ARTICLE_TTL_MS = 60 * 1000;
 const ARTICLE_CACHE_MAX = 200;
 
-function httpText(url, timeoutMs) {
+/**
+ * Fetches the shell, conditionally when we already hold one.
+ *
+ * Resolves `{ status, html, etag }`. A 304 carries no body and means the copy
+ * we hold is still current — which is the cheap answer, and the common one.
+ */
+function fetchShell(etag, timeoutMs) {
   return new Promise(function (resolve, reject) {
-    const req = https.get(url, { timeout: timeoutMs }, function (res) {
+    const options = { timeout: timeoutMs, headers: {} };
+    if (etag) options.headers['If-None-Match'] = etag;
+
+    const req = https.get(SHELL_URL, options, function (res) {
+      if (res.statusCode === 304) {
+        res.resume();
+        return resolve({ status: 304, html: null, etag: etag });
+      }
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+        return reject(new Error('HTTP ' + res.statusCode + ' from ' + SHELL_URL));
       }
       let data = '';
       res.setEncoding('utf8');
       res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () { resolve(data); });
+      res.on('end', function () {
+        resolve({ status: 200, html: data, etag: res.headers.etag || null });
+      });
     });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
+    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + SHELL_URL)); });
     req.on('error', reject);
   });
 }
 
 /**
+ * Did this reader just fail to load an asset?
+ *
+ * `location.reload()` sends `Cache-Control: max-age=0` — measured in Chromium,
+ * not assumed — and the recovery script in index.html reloads exactly when a
+ * hashed asset 404s. So a request carrying a revalidation directive is either
+ * a reader asking for a fresh copy or the recovery asking on their behalf, and
+ * both mean the same thing: do not hand back what is in memory.
+ *
+ * Honouring it is what makes the recovery terminate. Without this, a reader
+ * who reloads because `/assets/index-OLDHASH.js` is gone is served the same
+ * cached shell naming the same dead file, the recovery's own guard stops it
+ * reloading a second time, and they are left on a blank page until the TTL
+ * happens to lapse.
+ *
+ * It costs nothing on the ordinary path, because ordinary requests do not send
+ * it, and the revalidation it triggers is a conditional GET that answers 304
+ * with no body whenever the shell has not in fact changed. Anyone can send the
+ * header deliberately; the per-IP rate limit bounds what that is worth.
+ */
+function wantsFreshShell(req) {
+  const headers = (req && req.headers) || {};
+  const cacheControl = String(
+    headers['cache-control'] || headers['Cache-Control'] || ''
+  ).toLowerCase();
+  const pragma = String(headers['pragma'] || headers['Pragma'] || '').toLowerCase();
+  return (
+    cacheControl.indexOf('no-cache') >= 0 ||
+    cacheControl.indexOf('max-age=0') >= 0 ||
+    pragma.indexOf('no-cache') >= 0
+  );
+}
+
+/**
  * The app shell, fetched from our own origin and cached in process.
+ *
+ * THE STALENESS THIS CACHE CREATES
+ * --------------------------------
+ * The comment on CACHE_CONTROL above says a shell cached across a deployment
+ * "points at files that no longer exist and boots to a blank page". That is
+ * measured, not theoretical: every asset hash this function served earlier
+ * today — `index-CUmohATZ.js`, `index-BAFFXFvb.js`, `index-HUuJcc7k.js` — now
+ * answers 404. Static Web Apps replaces the asset set on deploy rather than
+ * keeping the old one alongside.
+ *
+ * The response header was written with that in mind. This cache was not: it is
+ * process memory, so no deployment can invalidate it, and for up to the TTL
+ * after a deploy every reader hitting this instance is handed HTML naming a
+ * bundle that is gone. It is a worse failure than the lazy-chunk one, because
+ * the bundle that fails to load is the one containing the error boundary — so
+ * there is nothing to catch it and nothing to show. The reader gets a blank
+ * page.
+ *
+ * Whether the window is ever actually open depends on whether a deployment
+ * restarts the managed-function host and clears this memory. It very probably
+ * does, and I could not verify it without observing a deploy, so this is
+ * hardening against a window that may already be shut rather than a fix for a
+ * fault seen in production. It is worth doing anyway because it is nearly free:
+ * the conditional GET below answers 304 with no body when nothing has changed.
+ *
+ * Crawlers are unaffected either way. The metadata is injected per request from
+ * the article JSON, so a stale shell changes only the asset tags — a shared
+ * link previews correctly even while a reader following it would not boot.
  *
  * On a fetch failure the last good shell is served however old it is. A stale
  * shell still boots the app in the overwhelming majority of cases — the asset
  * hashes only move on deploy — whereas failing the request serves nothing at
  * all. Freshness is the thing worth losing here; the page is not.
  */
-async function getShell(context) {
+async function getShell(context, force) {
   const now = Date.now();
-  if (shellCache.html && now - shellCache.fetchedAt < SHELL_TTL_MS) return shellCache.html;
+  if (!force && shellCache.html && now - shellCache.fetchedAt < SHELL_TTL_MS) {
+    return shellCache.html;
+  }
 
   try {
-    const html = await httpText(SHELL_URL, 5000);
+    const result = await fetchShell(shellCache.html ? shellCache.etag : null, 5000);
+
+    if (result.status === 304) {
+      // Still current. Nothing transferred, and the clock restarts.
+      shellCache.fetchedAt = now;
+      return shellCache.html;
+    }
+
     // Refuse anything that is not this site's shell rather than injecting into
     // it. A body without `id="root"` means we fetched something else — an error
     // page, a redirect interstitial — and dressing that up with an article's
     // metadata would advertise a page that cannot render.
-    if (html.indexOf('id="root"') >= 0 && html.indexOf('</head>') >= 0) {
-      shellCache.html = html;
+    if (result.html.indexOf('id="root"') >= 0 && result.html.indexOf('</head>') >= 0) {
+      shellCache.html = result.html;
+      shellCache.etag = result.etag;
       shellCache.fetchedAt = now;
-      return html;
+      return result.html;
     }
     if (context) context.log.warn('shell fetch returned something that is not the app shell');
   } catch (error) {
@@ -113,7 +199,7 @@ const handler = async function (context, req) {
   if (rl) { context.res = rl; return; }
 
   const slug = meta.slugFromRequest(req);
-  const shell = await getShell(context);
+  const shell = await getShell(context, wantsFreshShell(req));
 
   if (!shell) {
     // No shell has ever been fetched on this instance and the origin is not

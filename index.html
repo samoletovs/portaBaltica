@@ -76,6 +76,71 @@
       // Prevent theme flash: set data-theme before CSS applies
       (function(){var t=localStorage.getItem('pb-theme');if(t)document.documentElement.setAttribute('data-theme',t);})();
     </script>
+    <!--
+      Recover from a deploy that lands mid-visit.
+
+      Vite gives every bundle a content hash, and Static Web Apps replaces the
+      asset set on deploy rather than keeping the previous one alongside —
+      measured: every hash this site served earlier today now answers 404. So a
+      reader holding HTML from before a deploy is holding filenames that no
+      longer exist. On ~20 deploys in a day that window opens ~20 times.
+
+      There are two failures and they are not equally visible:
+
+        - a LAZY CHUNK 404s. React is running, the error boundary catches it,
+          and the reader gets "Something went wrong" over the text "Failed to
+          fetch dynamically imported module" and a Reload button they have to
+          find and press. Handled, but handled badly: the message describes our
+          build system to someone who wanted to read an article.
+
+        - the MAIN BUNDLE 404s. Nothing boots, so the error boundary does not
+          exist to catch anything. The reader gets a blank page.
+
+      The second is why this lives here rather than in src/. No code in the
+      bundle can catch the bundle failing to load, so a React-side retry — the
+      usual advice — covers only the first case by construction.
+
+      Both are the same event to a browser, and both are catchable from here:
+      a failed <script> is an `error` event on the element, which only capture
+      phase sees, and a failed import() is an unhandled promise rejection.
+
+      The reload is guarded and deliberately timid. It happens at most once per
+      thirty seconds per tab, so if reloading does not help — a genuinely broken
+      deploy, an offline reader, an extension eating requests — the page fails
+      visibly instead of thrashing. Verified in Chromium against a server whose
+      assets always 404: exactly two loads over six seconds, not a loop. If
+      sessionStorage throws, we do nothing at all, because the alternative is
+      an unbounded reload with no way to count.
+
+      `location.reload()` sends `Cache-Control: max-age=0` — measured, not
+      assumed — and /api/article-page reads that as "do not serve the shell you
+      have in memory". Without that the reload would be handed the same HTML
+      naming the same dead bundle, the guard below would refuse a second
+      attempt, and the reader would stay on the blank page.
+    -->
+    <script>
+      (function () {
+        var KEY = 'pb-asset-recovery';
+        function recover() {
+          try {
+            var last = parseInt(sessionStorage.getItem(KEY) || '0', 10);
+            if (Date.now() - last < 30000) return;
+            sessionStorage.setItem(KEY, String(Date.now()));
+            location.reload();
+          } catch (e) { /* no sessionStorage: never reload rather than risk a loop */ }
+        }
+        window.addEventListener('error', function (event) {
+          var el = event.target;
+          // A resource that failed to load, not a runtime error: those report
+          // window as their target and must not trigger anything.
+          if (el && el.tagName === 'SCRIPT' && /\/assets\//.test(el.src || '')) recover();
+        }, true);
+        window.addEventListener('unhandledrejection', function (event) {
+          var message = (event.reason && event.reason.message) || '';
+          if (/dynamically imported module|Importing a module script failed/i.test(message)) recover();
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
