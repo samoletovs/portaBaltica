@@ -51,8 +51,18 @@ INDICATORS_JS = NEWSROOM_DIR.parent / "api" / "shared" / "indicators.js"
 #: ``freq`` is a frequency declaration, not a slice of the cube: the dashboard
 #: writes it into its query string, while the newsroom carries it as the
 #: ``frequency`` attribute and only pins it in params where a dataset needs it.
-#: Comparing it would fail on a difference that is not a disagreement.
+#: Comparing it *as a param* would fail on a difference that is not a
+#: disagreement.
+#:
+#: It is compared as an attribute instead, by ``TestTheCadencesAgree`` below.
+#: This note named the field the newsroom carries it in and nothing checked
+#: that field, so the exclusion read as "not comparable" rather than "compared
+#: elsewhere" -- and the newsroom's cadence went unverified from the day it was
+#: written.
 NOT_COMPARED = {"freq"}
+
+#: Eurostat's dimension code for a cadence, as the newsroom names it.
+FREQUENCY_OF_CODE = {"M": "monthly", "Q": "quarterly", "A": "annual", "S": "semi-annual"}
 
 #: Metrics whose chart lives outside ``indicators.js``, exempt from the chart
 #: join and checked against their own dashboard module instead.
@@ -252,6 +262,64 @@ class TestTheConfigsAgree:
             f"{spec.chart_ref!r}. An unpinned or differently-pinned dimension "
             f"selects a different slice of the same cube, so both sides return "
             f"numbers and only one of them is the indicator being named."
+        )
+
+
+class TestTheCadencesAgree:
+    """The newsroom's ``frequency`` against the dashboard's ``freq``.
+
+    ``frequency`` is not decoration. ``detect_streak`` uses it to decide
+    whether two readings are one period apart -- a run is broken by a gap --
+    and ``reading_word`` uses it to name the unit in prose. A wrong value
+    silences the detector on a healthy series and there is nothing to see: the
+    metric simply never produces a streak, which is indistinguishable from a
+    metric with nothing to say.
+
+    That is the failure that needs a *detector* rather than a threshold,
+    because nothing announces it. This is that detector, and it is offline:
+    the dashboard's declaration is in the repo, so no network is needed to
+    notice the two have drifted apart.
+
+    What it does **not** check is whether either declaration matches how
+    Eurostat actually publishes. ``digital_skills`` says annual on both sides
+    and arrives every twenty-four months; the dashboard's live contract owns
+    that comparison. The two guards chain rather than overlap -- this one ties
+    the newsroom to the dashboard, that one ties the dashboard to reality --
+    and neither on its own reaches from one end to the other.
+    """
+
+    @pytest.mark.parametrize("spec", CHARTED_DATASETS, ids=lambda s: s.metric)
+    def test_the_declared_cadence_matches(self, spec, dashboard) -> None:
+        code = dashboard[spec.chart_ref]["params"].get("freq")
+        if code is None:
+            pytest.skip(f"{spec.chart_ref} pins no freq in its query string")
+        expected = FREQUENCY_OF_CODE.get(code)
+
+        assert expected is not None, f"unmapped Eurostat freq code {code!r}"
+        assert spec.frequency == expected, (
+            f"{spec.metric} declares frequency={spec.frequency!r} while the "
+            f"dashboard queries {spec.chart_ref!r} with freq={code!r}. "
+            f"detect_streak reads this to decide whether two readings are one "
+            f"period apart, so a wrong value silences the detector on a healthy "
+            f"series and says nothing."
+        )
+
+    def test_every_charted_series_is_actually_covered(self, dashboard) -> None:
+        """The companion. A parametrised test that skips everything passes.
+
+        If the dashboard stopped writing freq into its query strings, every
+        case above would skip and the suite would stay green while checking
+        nothing.
+        """
+        covered = [
+            spec
+            for spec in CHARTED_DATASETS
+            if dashboard[spec.chart_ref]["params"].get("freq")
+        ]
+
+        assert len(covered) > 20, (
+            f"only {len(covered)} of {len(CHARTED_DATASETS)} charted datasets "
+            f"carry a freq to compare against"
         )
 
 
