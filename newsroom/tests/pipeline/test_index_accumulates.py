@@ -34,9 +34,9 @@ def article(slug: str, *, published_at: str, headline: str | None = None) -> Art
         body=[],
         persona={
             "id": "nida",
-            "name": "Ilze Bērziņa",
+            "name": "Ilze Nida",
             "beat": "Economy & Labour",
-            "byline": "Ilze Bērziņa · AI correspondent, Economy & Labour",
+            "byline": "Ilze Nida · AI correspondent, Economy & Labour",
         },
         provenance={
             "sources": [{"source_id": "eurostat", "retrieved_at": published_at}],

@@ -70,7 +70,7 @@ shared:
 
 personas:
   - id: nida
-    name: "Ilze Bērziņa"
+    name: "Ilze Nida"
     beat: "Economy & Labour"
     country: LV
     sections: [economy, labour, business]
@@ -99,7 +99,7 @@ personas:
         - reciting a deviation and then restating it as a percentage of itself
 
   - id: akmensrags
-    name: "Marek Soosaar"
+    name: "Marek Akmeņrags"
     beat: "Energy & Markets"
     country: EE
     sections: [energy, economy]
@@ -127,7 +127,7 @@ personas:
         - treating one negative-price hour as a systemic story
 
   - id: kolka
-    name: "Gintaras Vaitkus"
+    name: "Gintaras Kolka"
     beat: "Maritime & Trade"
     country: LT
     sections: [maritime, trade]
@@ -154,7 +154,7 @@ personas:
         - treating seasonal shipping variation as news
 
   - id: ristna
-    name: "Kadri Lepik"
+    name: "Kadri Ristna"
     beat: "Environment & Climate"
     country: EE
     sections: [environment, property]
@@ -181,7 +181,7 @@ personas:
         - using air-quality figures without naming the measurement station
 
   - id: irbene
-    name: "Rasa Petrauskaitė"
+    name: "Rasa Irbene"
     beat: "Government, EU & Society"
     country: LT
     sections: [government, business]
@@ -209,7 +209,7 @@ personas:
         - rounding away the difference between committed, contracted and paid funds
 
   - id: saulkrasti
-    name: "Dace Vaivode"
+    name: "Dace Saulkrasti"
     beat: "Editorial Review"
     country: Baltic
     sections: [government]

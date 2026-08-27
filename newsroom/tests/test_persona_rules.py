@@ -21,7 +21,7 @@ def _document(**overrides: Any) -> dict[str, Any]:
         "personas": [
             {
                 "id": "nida",
-                "name": "Ilze Bērziņa",
+                "name": "Ilze Nida",
                 "beat": "Economy & Labour",
                 "sections": ["economy"],
                 "voice": {"summary": "Patient."},
@@ -90,7 +90,7 @@ def test_should_raise_for_a_section_with_no_routed_correspondent(
 def test_should_build_a_byline_that_discloses_ai_authorship(
     personas: PersonaRegistry,
 ) -> None:
-    assert personas.byline_for("kolka") == "Gintaras Vaitkus · AI correspondent, Maritime & Trade"
+    assert personas.byline_for("kolka") == "Gintaras Kolka · AI correspondent, Maritime & Trade"
 
 
 def test_should_build_a_disclosed_byline_for_every_correspondent(
@@ -105,7 +105,7 @@ def test_should_build_a_disclosed_byline_for_every_correspondent(
 def test_should_not_accept_a_byline_missing_the_disclosure(
     personas: PersonaRegistry,
 ) -> None:
-    assert personas.byline_discloses_ai("Gintaras Vaitkus · Maritime correspondent") is False
+    assert personas.byline_discloses_ai("Gintaras Kolka · Maritime correspondent") is False
     assert personas.byline_discloses_ai(None) is False
     assert personas.byline_discloses_ai("") is False
 
@@ -113,7 +113,7 @@ def test_should_not_accept_a_byline_missing_the_disclosure(
 def test_should_route_a_section_to_its_correspondent(personas: PersonaRegistry) -> None:
     assert personas.persona_for_section("energy").id == "akmensrags"
     assert personas.persona_for_section("maritime").id == "kolka"
-    assert personas.byline_for_section("environment").startswith("Kadri Lepik")
+    assert personas.byline_for_section("environment").startswith("Kadri Ristna")
 
 
 def test_should_route_deterministically(personas: PersonaRegistry) -> None:
@@ -135,7 +135,7 @@ def test_should_route_deterministically(personas: PersonaRegistry) -> None:
         "We phoned the regulator for comment.",
         "When we asked, the operator declined.",
         "In an interview with us, the operator confirmed it.",
-        "Gintaras Vaitkus travelled to the port of Klaipėda.",
+        "Gintaras Kolka travelled to the port of Klaipėda.",
         "The minister told this reporter the plan was on track.",
     ],
 )
@@ -179,7 +179,7 @@ def test_should_report_a_byline_missing_the_disclosure_as_a_problem(
     personas: PersonaRegistry,
 ) -> None:
     problems = personas.validate_output(
-        "kolka", "The data shows cargo fell.", byline="Gintaras Vaitkus · Maritime correspondent"
+        "kolka", "The data shows cargo fell.", byline="Gintaras Kolka · Maritime correspondent"
     )
 
     assert any(AI_DISCLOSURE in problem for problem in problems)
@@ -191,7 +191,7 @@ def test_should_report_no_problems_for_compliant_output(
     problems = personas.validate_output(
         "kolka",
         "The data shows cargo volumes fell 4.2% against the same month a year earlier.",
-        byline="Gintaras Vaitkus · AI correspondent, Maritime & Trade",
+        byline="Gintaras Kolka · AI correspondent, Maritime & Trade",
     )
 
     assert problems == ()

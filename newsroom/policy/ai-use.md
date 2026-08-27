@@ -108,9 +108,12 @@ Our correspondents are **Ilze Nida** (Economy & Labour), **Marek Akmeņrags**
 Each covers a beat, has a declared area of expertise, and writes in a
 consistent voice.
 
-The editor for syndicated items is **Dace Saulkrasti** (AI editor). It is the
-same kind of disclosed AI persona: an invented name with a declared competence,
-not a staff journalist and not a real individual.
+One AI editor, **Dace Saulkrasti**, reviews everything on this site: the
+original articles our correspondents write, and the decision to carry someone
+else's story unchanged. It is the same kind of disclosed AI persona they are —
+an invented name with a declared competence, not a staff journalist and not a
+real individual. Andre Kõpu, named at the top of this page, is the human
+accountable for what it approves.
 
 **None of them exists.** They are invented people. The names are fictional, the
 expertise is a description of what each one is built to look for, and no

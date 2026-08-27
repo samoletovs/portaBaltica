@@ -117,9 +117,9 @@ def test_should_accept_a_figure_rendered_with_a_scale_word(
     tier_a_article["section"] = "government"
     tier_a_article["persona"] = {
         "id": "irbene",
-        "name": "Rasa Petrauskaitė",
+        "name": "Rasa Irbene",
         "beat": "Government, EU & Society",
-        "byline": "Rasa Petrauskaitė · AI correspondent, Government, EU & Society",
+        "byline": "Rasa Irbene · AI correspondent, Government, EU & Society",
     }
     tier_a_article["headline"] = "Baltic grid allocation reaches EUR 1.2 billion"
     tier_a_article["dek"] = "The committed allocation is €1.2 billion, against nothing a decade earlier."

@@ -93,9 +93,9 @@ def tier_a_entry(**overrides: Any) -> dict[str, Any]:
         "dek": "Below the four-year average for this point in the year.",
         "persona": {
             "id": "nida",
-            "name": "Ilze Bērziņa",
+            "name": "Ilze Nida",
             "beat": "Economy & Labour",
-            "byline": "Ilze Bērziņa · AI correspondent, Economy & Labour",
+            "byline": "Ilze Nida · AI correspondent, Economy & Labour",
         },
         "syndicated": None,
         "published_at": "2026-08-24T12:48:57Z",
@@ -117,12 +117,12 @@ class TestTheFrontendCanRenderWhatWePublish:
         """
         broken = tier_a_entry()
         broken.pop("persona")
-        broken["byline"] = "Ilze Bērziņa · AI correspondent, Economy & Labour"
+        broken["byline"] = "Ilze Nida · AI correspondent, Economy & Labour"
         assert not is_renderable_summary(broken)
 
     def test_a_persona_without_a_name_is_not_renderable(self) -> None:
         assert not is_renderable_summary(
-            tier_a_entry(persona={"id": "nida", "byline": "Ilze Bērziņa · AI correspondent"})
+            tier_a_entry(persona={"id": "nida", "byline": "Ilze Nida · AI correspondent"})
         )
 
     def test_a_tier_c_entry_needs_a_syndicated_object(self) -> None:
@@ -180,9 +180,9 @@ class TestTheWriterProducesThatShape:
             body=[],
             persona={
                 "id": "nida",
-                "name": "Ilze Bērziņa",
+                "name": "Ilze Nida",
                 "beat": "Economy & Labour",
-                "byline": "Ilze Bērziņa · AI correspondent, Economy & Labour",
+                "byline": "Ilze Nida · AI correspondent, Economy & Labour",
             },
             provenance={
                 "sources": [{"source_id": "eurostat", "retrieved_at": "2026-08-24T00:00:00Z"}],

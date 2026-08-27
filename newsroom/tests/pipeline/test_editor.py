@@ -102,7 +102,7 @@ def test_editor_should_approve_a_valid_routine_link_card_without_rewriting():
     assert card.provenance["approved_at"] == outcome.decided_at
     assert card.body == []
     assert card.syndicated == original_syndicated
-    assert card.provenance["approved_by"].startswith("Dace Vaivode")
+    assert card.provenance["approved_by"].startswith("Dace Saulkrasti")
     assert card.provenance["editor"]["decision"] == "approve"
 
 
