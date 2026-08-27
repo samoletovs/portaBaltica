@@ -611,6 +611,20 @@ async def _watch_revisions(
                 revision.figure.slug,
             )
             continue
+        # Only a published article can be corrected. Annotating a retracted one
+        # with "the source has restated this" is incoherent — we withdrew the
+        # story because its premise was wrong, so there is no claim left to
+        # correct — and it would recur on every run, because the ledger drives
+        # this loop rather than the article does. `retract` forgets the figures
+        # for exactly that reason; this is the second lock on the same door, for
+        # the case where a figure outlives its article by some other route.
+        if document.get("status") != "published":
+            log.info(
+                "revised figure belongs to %s, which is %s; not correcting it",
+                revision.figure.slug,
+                document.get("status"),
+            )
+            continue
         annotated = annotate(document, revision)
         if annotated is None:
             continue  # already noted on a previous run
