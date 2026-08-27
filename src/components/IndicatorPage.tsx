@@ -226,7 +226,7 @@ export function IndicatorPage() {
                   <button
                     key={relId}
                     onClick={() => navigate(`/indicator/${relId}`)}
-                    className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left hover:border-slate-600/60 transition-colors"
+                    className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-3 text-left dash-hover-edge transition-colors"
                   >
                     <p className="text-ui text-white">{rel.title}</p>
                     <p className="text-caption text-slate-400 mt-0.5">Click to explore →</p>

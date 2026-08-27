@@ -7,10 +7,30 @@ interface EnvironmentTileProps {
   loading: boolean;
 }
 
-const AQI_STYLES: Record<string, { bg: string; text: string; ring: string }> = {
-  good: { bg: 'bg-emerald-900/30', text: 'text-emerald-400', ring: 'border-emerald-500' },
-  moderate: { bg: 'bg-yellow-900/30', text: 'text-yellow-400', ring: 'border-yellow-500' },
-  unhealthy: { bg: 'bg-red-900/30', text: 'text-red-400', ring: 'border-red-500' },
+/**
+ * The three air-quality bands.
+ *
+ * Colour comes from the semantic tokens rather than raw Tailwind, so both
+ * themes follow and both are contrast-checked. The ring used to be
+ * `border-yellow-500` and `border-red-500`, which on a white card measure
+ * 1.91:1 and 3.81:1 — the moderate ring was very nearly invisible in the light
+ * theme, and neither was reachable by the compatibility layer.
+ *
+ * `rank` is the part that matters most. Good and unhealthy are green and red,
+ * and under a deuteranopia simulation they measure **ΔE 8.3** apart in the dark
+ * theme — indistinguishable for roughly 8% of men. In light, moderate and
+ * unhealthy sit at 23.1, also under the 25 floor. The glyph and the band label
+ * were the only other encodings, and a glyph is easy to miss at 14px.
+ *
+ * So the band is also drawn as an ordinal meter: three segments, filled up to
+ * the current band. That is a *position* encoding, which survives any colour
+ * vision and greyscale printing, and it suits the data — air quality is
+ * ordered, not categorical. See DESIGN.md §3.2.
+ */
+const AQI_BANDS: Record<string, { token: string; glyph: string; rank: number }> = {
+  good: { token: '--data-positive', glyph: '✓', rank: 1 },
+  moderate: { token: '--data-warning', glyph: '!', rank: 2 },
+  unhealthy: { token: '--data-negative', glyph: '✕', rank: 3 },
 };
 
 const WEATHER_ICONS: Record<string, string> = {
@@ -36,7 +56,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
   // measurement now has no colour of its own to borrow.
   const aq = data.airQuality;
   const aqAvailable = aq.available !== false && aq.status !== null;
-  const aqiStyle = aqAvailable ? (AQI_STYLES[aq.status ?? 'good'] ?? AQI_STYLES.good) : null;
+  const band = aqAvailable && aq.status ? AQI_BANDS[aq.status] ?? null : null;
   const capitals: Record<string, string> = { LV: 'Riga', EE: 'Tallinn', LT: 'Vilnius' };
   const capital = capitals[country] || 'Riga';
   const coverage = data.weatherCoverage;
@@ -82,19 +102,49 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
         {/* Air quality + Population */}
         <div className="space-y-4">
           {/* Air quality */}
-          {aqAvailable && aqiStyle ? (
-            <div className={`${aqiStyle.bg} backdrop-blur-sm border ${aqiStyle.ring}/30 rounded-xl p-6`}>
+          {aqAvailable && band ? (
+            <div
+              className="rounded-xl p-6"
+              style={{
+                background: `color-mix(in srgb, var(${band.token}) 10%, var(--bg-card))`,
+                border: `1px solid color-mix(in srgb, var(${band.token}) 35%, var(--border-card))`,
+              }}
+            >
               <p className="text-caption text-slate-400 mb-2">Air Quality · {capital}</p>
               <div className="flex items-center gap-3 mb-2">
-                <div className={`w-12 h-12 rounded-full border-3 ${aqiStyle.ring} flex items-center justify-center`}>
-                  <span className={`text-ui font-semibold ${aqiStyle.text}`}>
-                    {aq.status === 'good' ? '✓' : aq.status === 'moderate' ? '!' : '✕'}
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+                  style={{ border: `3px solid var(${band.token})` }}
+                >
+                  <span className="text-ui font-semibold" style={{ color: `var(${band.token})` }} aria-hidden="true">
+                    {band.glyph}
                   </span>
                 </div>
                 <div>
-                  <p className={`text-prose font-semibold ${aqiStyle.text}`}>{aq.label}</p>
+                  <p className="text-prose font-semibold" style={{ color: `var(${band.token})` }}>{aq.label}</p>
                   <p className="text-caption text-slate-400">European AQI</p>
                 </div>
+              </div>
+              {/* The ordinal encoding. Good and unhealthy are green and red,
+                  which converge under deuteranopia (ΔE 8.3 in dark), so the
+                  band cannot be carried by hue. Three segments filled to the
+                  current band is a position encoding: it survives any colour
+                  vision, and greyscale. */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex gap-1" aria-hidden="true">
+                  {[1, 2, 3].map((step) => (
+                    <span
+                      key={step}
+                      className="h-1.5 w-6 rounded"
+                      style={{
+                        background: step <= band.rank ? `var(${band.token})` : 'var(--border-card)',
+                      }}
+                    />
+                  ))}
+                </div>
+                <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+                  Band {band.rank} of 3
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>

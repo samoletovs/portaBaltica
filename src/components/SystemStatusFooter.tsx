@@ -10,7 +10,16 @@ export function SystemStatusFooter() {
     fetchSystemStatus().then(setStatus).catch(() => {});
   }, []);
 
-  if (!status) return null;
+  // `!status` guarded a rejected fetch but not a *resolved* one carrying the
+  // wrong shape, and `status.dataSources.healthy` then threw. This footer sits
+  // outside the per-section error boundaries in App, so that one read took the
+  // whole page down — the status line, of all things, reporting an outage by
+  // removing the site. A payload missing its counts is treated the same as no
+  // payload: the footer simply does not render.
+  const counts = status?.dataSources;
+  if (!status || !counts || typeof counts.healthy !== 'number' || typeof counts.total !== 'number') {
+    return null;
+  }
 
   const statusColor =
     status.status === 'healthy' ? 'text-emerald-400' :
@@ -29,7 +38,7 @@ export function SystemStatusFooter() {
             System {status.status}
           </span>
           <span className="text-caption text-slate-500">
-            {status.dataSources.healthy}/{status.dataSources.total} data sources · {status.apis.total} APIs · {status.version}
+            {counts.healthy}/{counts.total} data sources · {status.apis?.total ?? '—'} APIs · {status.version}
           </span>
         </div>
         <span className="text-caption text-slate-500">{expanded ? '▲' : '▼'}</span>
@@ -42,7 +51,7 @@ export function SystemStatusFooter() {
             <div>
               <p className="text-caption text-slate-400 mb-2">Data Sources</p>
               <div className="space-y-1">
-                {status.dataSources.checks.map((check) => (
+                {(counts.checks ?? []).map((check) => (
                   <div key={check.name} className="flex items-center justify-between text-caption">
                     <div className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${check.status === 'healthy' ? 'bg-emerald-400' : 'bg-red-400'}`} />

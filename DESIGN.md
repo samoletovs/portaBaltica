@@ -313,6 +313,26 @@ The palette is now the flags (§3.6), every series additionally carries a
 **stroke pattern**, and the latest value for each country is direct-labelled in
 the panel header in its own colour — which Carbon prefers over a legend anyway.
 
+**Status bands need the same treatment, and a glyph is not enough on its own.**
+Air quality is drawn on `--data-positive` / `--data-warning` / `--data-negative`,
+and green against red measures **ΔE 8.3** under deuteranopia in the dark theme —
+indistinguishable. In light, moderate against unhealthy is **23.1**, also under
+the 25 floor. A ✓/!/✕ glyph at 14px was the only other channel.
+
+So a band also carries its **ordinal position**: three segments, filled up to
+the current band, with "Band 2 of 3" beside them. Position survives every
+colour vision and greyscale, and it suits the data — air quality is ordered
+rather than categorical, so the reader learns *how bad* and not merely *which
+colour*.
+
+**A ranked bar does not need five hues.** The port and cargo bars used cyan,
+teal, emerald and two greys for series whose rank is already carried by bar
+length. Hue variety bought nothing and cost legibility: `bg-slate-400` measured
+2.63:1 on a white card, and three of the five had no rule in the compatibility
+layer at all. They are now `--cat-1` … `--cat-5`, one hue in five lightness
+steps, every step measured above 3:1 on its own card, `--cat-1` always the most
+prominent in both themes.
+
 ### 3.3 The y-axis
 
 > "Always start numerical axes at zero for part-to-whole and comparison charts,
@@ -432,6 +452,16 @@ Four measured constraints produced those exact values.
    **ΔE 8.6** from `--data-negative` — the same colour — and red would have meant
    both *Latvia* and *falling* on one screen, which is the three-meanings defect
    this book exists to remove.
+
+   The value that shipped is **ΔE 13.9** in light and 22.7 in dark. That light
+   figure is the tightest separation in the whole palette — every *series* pair
+   is 26 or more — and it is recorded here rather than left implicit because
+   the rejected 8.6 above is the only reason anyone thought to measure it. It
+   is a deliberate trade: constraint 4 caps gold near `L* 60`, Latvia has to
+   stay clear of gold under deuteranopia, and that pins it into a band which
+   happens to sit near the negative red. If a future change loosens any of
+   those three, this is the number to re-open. The floor the test enforces is
+   12.
 4. **3:1 is the floor, not the target.** The first light palette answered
    constraint 1 by pushing all three to about **7:1** — `#a4262c`, `#0057a8`,
    `#b4700a` — which is AAA *text* contrast applied to a line. Readers reported
@@ -559,7 +589,7 @@ Where a series is stale, say so and date it. Where it is unavailable, render
 - every text token clears its contrast floor in **both** themes;
 - semantic and series colours clear 4.5:1 and 3:1 respectively, in both themes;
 - **the Tailwind compatibility layer is resolved and measured, not just the
-  tokens.** The layer remaps ~224 hardcoded colour classes with `!important`,
+  tokens.** The layer remaps ~270 hardcoded colour classes with `!important`,
   and the token tests could not see any of it — so `.text-emerald-400` was
   pinned to `#059669` at **3.77:1** and both amber classes to `#d97706` at
   **3.19:1**, failing SC 1.4.3 on text, while the correct tokens sat unused two
@@ -567,6 +597,13 @@ Where a series is stale, say so and date it. Where it is unavailable, render
   follows the `var()`, and fails on the ratio it actually computes. It also
   fails on a status class the layer does not cover at all — four had none —
   and on a literal hex where a token belongs;
+- **every hardcoded class in use has a rule, and the count only goes down.**
+  `tests/colourRatchet.test.ts` fails on a class with *no* rule anywhere, which
+  is the state the contrast tests are blind to; it holds a per-file budget that
+  cannot grow, and a second check fails when a budget drifts above reality so a
+  migrated file cannot keep its allowance. Its matcher includes the
+  `/NN` opacity form, and a test guards that, because dropping it would leave
+  every other check passing while covering strictly less;
 - the three Baltic series stay at **L\* ≥ 45** in both themes, because contrast
   alone cannot express "too dark";
 - a chart line is never the link accent;
@@ -654,9 +691,18 @@ design-system audit does not surface because they are not token defects.
    contrast, but it is built from `!important` rules reaching into Tailwind's
    generated slate classes. The layer is now *measured* rather than merely
    present — see §5 — so a wrong value fails a test instead of reaching a
-   reader, but ~224 hardcoded colour classes across 14 dashboard components are
-   still the thing being rescued. Migrating them to semantic classes, as
-   `src/components/news/**` already does, is the real fix.
+   reader, and `tests/colourRatchet.test.ts` holds the count so it can only go
+   down. **273 hardcoded instances across 16 files remain**, and migrating them
+   to named, token-backed utilities — as `src/components/news/**` already does —
+   is the real fix. The compatibility layer is deleted when the ratchet empties.
+
+   Two things that pass made the gap invisible for a long time. A contrast test
+   can only measure a class the layer *claims*: thirteen classes had no rule at
+   all, rendered as raw Tailwind in both themes, and ranged from 1.66:1 to
+   4.76:1 — including a text placeholder below the SC 1.4.3 floor. And a scan
+   that stops at the numeric step matches `text-amber-400` but not
+   `text-amber-400/80`, which Tailwind emits as a different class; ninety
+   opacity variants were invisible to tooling for that reason alone.
 9. **The chart palette exists twice** — `--series-*` in CSS and literals in
    `ThemeContext`, because recharts writes into SVG attributes where jsdom will
    not resolve `var()`. A test compares them so they cannot drift, but one
