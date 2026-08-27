@@ -349,6 +349,20 @@ const INDICATORS = {
     title: 'Basic digital skills',
     unit: '% of individuals',
     sanity: [10, 95],
+    // The cube's `freq` dimension says A and the query needs it, but Eurostat
+    // publishes this one every **two** years — 2021, 2023, 2025, with no 2022
+    // or 2024 coordinate at all. That distinction matters: `freq` here is the
+    // dimension code, not the publication cadence, and for this single
+    // indicator of the sixty-six they disagree.
+    //
+    // The age of the newest observation therefore oscillates from about 8
+    // months just after publication to **30** just before the next one, which
+    // is exactly the annual default. So it sits on the boundary: a one-month
+    // slip in publication marks a healthy series stale, and anyone tightening
+    // MAX_AGE_MONTHS.A to a perfectly sensible 18 breaks it for more than half
+    // of every cycle. Pinned here so the allowance travels with the fact that
+    // explains it rather than depending on a shared default staying generous.
+    maxAgeMonths: 36,
   },
   online_shoppers: {
     // Individuals who bought online in the last 12 months. Digital skills say
