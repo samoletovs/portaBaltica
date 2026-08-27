@@ -473,6 +473,67 @@ A cheap invariant catches it either way: `goods_balance + services_balance`
 equals `trade_balance`, so if the three ever agree exactly, they are the same
 series wearing three names.
 
+## What was surveyed and deliberately not added
+
+A full survey of candidate new sources was run on 2026-08-27, measured against
+the live APIs rather than read from documentation. **Its conclusion was that
+nothing new beat reading what we already hold against the standard it claims to
+implement**, and this section records the measurements so the question is not
+re-opened from scratch.
+
+The evidence for that conclusion is five defects found in data we already had,
+none of them visible to any numeric test:
+
+| Found | In data we already held |
+|---|---|
+| `classifySeaState` named every band one WMO degree too alarming | 92% of 8928 readings |
+| `european_aqi` banded on US EPA thresholds | 76% of 6696 readings understated, 0% overstated |
+| `total > 0 ? share : '0.0'` printing a confident zero for a measured category | every row, whenever one was absent |
+| `EU27_2020` listed by `rail_go_quartal` and populated with nothing | would have drawn an empty benchmark |
+| four endpoints keying lower-case maps with an unnormalised parameter | Latvia returned under another country's heading |
+
+**Candidates measured and rejected**, with the reason, so each is a settled
+question rather than an open one:
+
+| Candidate | Measured | Verdict |
+|---|---|---|
+| `irt_st_m` short-term rates | returns only `LV, LT` for the Baltics and **zero non-null cells** across both — euro-area members do not publish national short rates | Dead. Killed the yield-curve-inversion idea outright. |
+| `hlth_cd_asdr2` causes of death | 31.9-month lag, 3647ms, 93 ICD codes | Permanently retrospective |
+| `crim_off_cat`, `env_wat_cat`, `nrg_ind_id` | 19.9-month lag | Permanently retrospective |
+| `isoc_ci_ifp_iu` internet use | 182 `ind_type` values, 7.9-month lag | Unpinnable at reasonable cost |
+| `migr_asyappctzm` monthly asylum | HTTP 413 unpinned, 400 pinned | Newsworthy; codes unresolved. Worth another attempt. |
+| Statistics Estonia (`andmed.stat.ee`) | HTTP 200, 224–518ms, **PxWeb** — the protocol `api/historical-data` already speaks | Technically cheap, strategically wrong: buys depth in one country and manufactures the asymmetry the Baltic grid exists to avoid |
+| Statistics Lithuania (`osp-rs.stat.gov.lt`) | HTTP 200, 2386ms, **SDMX 2.1**, 7.3 MB dataflow catalogue | Different protocol entirely, for the same strategic cost |
+
+**Candidates measured and worth adding**, in order:
+
+- **`demo_r_mwk_ts` — weekly deaths.** The one exception to the conclusion.
+  Fully pinned (`freq=W&sex=T` leaves nothing for a parser to choose), 1383–1384
+  weekly points per country from 2000-W01, 99.7% fill, **18-day lag**. Sanity
+  band `[50, 2000]` from the observed range. It is the *only* candidate that adds
+  articles without either rewriting detectors or publishing stale news, because
+  every other source here is monthly or slower — **cadence is the one lever
+  mining cannot supply**. Note LV runs a week ahead of EE/LT, so per-country
+  `latest` must drive display.
+- **`sts_cobp_q` building permits.** `indic_bt=BPRM_SQM` with any of nine
+  `cpa2_1` codes is **106/106/106**. Carries a composition — residential,
+  office, non-residential — so it can be a different *shape* of answer rather
+  than three more lines. ⚠️ `indic_bt=PSQM`, the obvious guess, returns **zero
+  for all three countries** while answering HTTP 200.
+- **`nrg_pc_202` gas prices.** Fully pinned, **37/37/37**. Completeness, not
+  news: semi-annual with an 8-month lag.
+
+**Why "more periods" is not the cheap lever it appears to be.** The dashboard
+caps history at `years=5` and `?years=30` already works — 3.3× to 5.8× more
+observations for one query parameter, and 4.9× the data yields 5.2× the
+findings. But all seven newsroom detectors read `series.latest`, a single
+accessor, so passing more periods changes nothing without rewriting them and
+re-keying suppression from tens of keys to thousands — and `editor.py` is
+written to reject the stale findings that would produce. Measured directly:
+across 18 indicator/country pairs, deeper history changed the verdict on the
+latest observation **zero times**. Depth buys *significance* — "highest since
+2009" rather than "highest in five years" — not volume.
+
 ## A word list encodes your examples; a structure encodes your rule
 
 Four checks were written as lexical proxies in a single day and **all four were

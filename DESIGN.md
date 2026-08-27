@@ -352,6 +352,40 @@ The rest of the audit came back clean, which is worth recording so it is not
 repeated: the power card has no severity bands at all, and `freshness.js`'s
 cadence names match Eurostat's own `freq` codes.
 
+**The audit scoped itself too narrowly, and the third instance was outside it.**
+It looked at *components* that band a value. `/api/ai-insights` bands prices in
+prose, and prose was not searched — so the same defect sat one directory over
+for another day. Measured against 5856 Latvian intervals across 62 days:
+
+| Said | Fired on |
+|---|---|
+| "spike … significantly above normal" (`maxP > 100`) | **58 of 62 days, 93.5%** |
+| "Below seasonal average" (`avg < 30`) | 12 of 62, against a statistic computed nowhere |
+| "Within normal Baltic market range" | the `else` branch, asserted against nothing |
+| "Euro strengthening against the dollar" (`> 1.12`) | **100% of the ECB's last 64 trading days** |
+
+The median daily peak over that window was **168**, so the "spike" constant sat
+*below the typical day* and called the ordinary exceptional — with advice
+attached, on 93.5% of days. A severity that almost always fires carries no
+information, and one that carries instructions teaches readers to ignore it.
+
+**Where there is no published scale, derive the comparison or say nothing.** Sea
+state had the WMO code and air quality had the EEA's; day-ahead power has no
+equivalent, and that absence is exactly what invited a made-up constant. The
+honest options are to compute the comparison from the series already held — a
+trailing percentile needs no new data, only a wider `start` on a call already
+made — or to state the figures and stop. "Peak €244/MWh, day average €130" is
+true, useful, and needs no threshold. A named percentile also carries its own
+basis, which a literal never can: "in the highest tenth of daily peaks over the
+last 31 days" can be checked, and "significantly above normal" cannot.
+
+**A direction is not a level.** "Strengthening" and "weakening" describe a
+*change*, and that block fetched a single day's reference rate and held no
+previous value — so no threshold could have made the claim supportable. The
+calibration was wrong too, but the category error came first: check that the
+data can answer the *kind* of question before arguing about where to put the
+cut.
+
 **Derive a claim from the number you print, not from a band beside it.** The
 insight card printed a PM2.5 figure and asserted "Well below WHO guidelines" in
 the same sentence — but the assertion was read off the AQI band, not off the
