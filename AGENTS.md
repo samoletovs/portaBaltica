@@ -958,6 +958,31 @@ And **an assertion that something is absent needs a companion proving it could
 have been present.** Otherwise the assertion passes on a fixture that never had
 the thing at all, which is the same fault one level up.
 
+### When a probe reports "absent", check the probe can see anything
+
+The reading `refLines: 0` is true on master, true on a fixed branch, and true
+for a chart that does not exist. jsdom gives `ResponsiveContainer` no size, so
+recharts draws nothing at all — and every query against it returns zero.
+
+What broke the tie was not looking harder at the markers. It was noticing that
+`lines: 0` came back too: the chart's four ordinary series were missing as well.
+**Had the harness drawn those four and no markers, the zero would have been
+believed.** The instrument's failure was legible only because something that
+should certainly have been present was also absent.
+
+So: **an absent result is a claim about the instrument before it is a claim
+about the code.** Before reporting "not there", confirm the probe can see a
+thing you already know is there — a control that must be present, measured the
+same way. This costs one extra assertion and it is the only thing standing
+between a tooling failure and a confident wrong bug report.
+
+The manager did this twice in one evening, both times against merged and
+working code: probing an endpoint for a field named `electricity` when it was
+`electricityPrices`, and testing a JavaScript bundle for a hex colour after a
+regex matched three `.js` assets and no stylesheet. Both returned a clean,
+reproducible *absent*. Both were caught only because the result contradicted
+something already verified — which is luck, not method.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
