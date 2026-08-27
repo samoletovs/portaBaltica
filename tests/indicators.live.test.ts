@@ -66,8 +66,14 @@ const RECENT_RUN = 8;
  * The whole point of the last assertion in this file is that `freq` is a
  * dimension code and this table is an *assumption* about it — true for
  * sixty-five of sixty-six, and worth checking rather than trusting.
+ *
+ * Keyed on the union rather than on `string`, so adding a frequency fails the
+ * compiler here instead of silently yielding `undefined` and demanding a
+ * `maxAgeMonths` override for every series that carries it. The runtime list
+ * lives in `api/shared/eurostat.js` and `tests/indicators.test.ts` asserts the
+ * two agree; this is the type-level half of the same partition.
  */
-const EXPECTED_STEP: Record<string, number> = { M: 1, Q: 3, S: 6, A: 12 };
+const EXPECTED_STEP: Record<IndicatorDef['freq'], number> = { M: 1, Q: 3, S: 6, A: 12 };
 
 const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 

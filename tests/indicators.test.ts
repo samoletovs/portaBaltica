@@ -150,6 +150,46 @@ describe('indicator registry', () => {
     expect(INDICATORS.life_expectancy.params).not.toMatch(/age=Y1(&|$)/);
   });
 
+  it('lists every frequency in exactly one place, and looks them all up', () => {
+    // The vocabulary lived in four copies — `MAX_AGE_MONTHS`, `EXPECTED_STEP`
+    // in the live contract, and a `'A' | 'S' | 'Q' | 'M'` literal in each of
+    // two test files — with nothing tying them together. Nothing in the
+    // toolchain notices a union growing a member while a lookup table does
+    // not: TypeScript never compares the two literals, and `MAX_AGE_MONTHS` is
+    // plain JavaScript.
+    //
+    // It fails silently, and in the wrong direction. A frequency missing from
+    // the table falls to `|| 30`, the *annual* allowance, so a new weekly
+    // series would be permitted thirty months of staleness before the gate
+    // said anything — which is precisely the failure that table exists to
+    // catch. The newsroom hit the identical shape the same afternoon, where a
+    // `FactKind` absent from `_CROSS_SERIES_KINDS` was classified as
+    // same-series by nobody.
+    const declared = [...es.FREQUENCIES].sort();
+
+    expect(
+      Object.keys(es.MAX_AGE_MONTHS).sort(),
+      'every declared frequency needs a staleness allowance, or it silently inherits the annual one'
+    ).toEqual(declared);
+
+    // And the other direction: an allowance for a frequency nothing declares is
+    // a rename that left a table looking populated.
+    expect(
+      declared.filter((f: string) => !(f in es.MAX_AGE_MONTHS)),
+      'these are declared but have no allowance'
+    ).toEqual([]);
+  });
+
+  it('declares a frequency the registry knows about, for every indicator', () => {
+    // The union in this file's own IndicatorDef is a third copy. This is what
+    // ties it to the runtime list rather than to my memory of it.
+    const unknown = entries
+      .filter(([, def]) => !es.FREQUENCIES.includes(def.freq))
+      .map(([id, def]) => `${id} (freq=${def.freq})`);
+
+    expect(unknown, 'these declare a frequency nothing knows how to age').toEqual([]);
+  });
+
   it('gives the one biennial series an allowance that does not depend on a default', () => {
     // `freq` is the cube's dimension code, not the publication cadence, and for
     // exactly one of the sixty-six they disagree: sdg_04_70 says A and
