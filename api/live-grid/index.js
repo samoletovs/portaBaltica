@@ -105,9 +105,17 @@ module.exports = async function (context, req) {
     '&end=' + encodeURIComponent(end.toISOString());
 
   try {
-    const result = await cache.memo('live-grid', TTL_MS, GRACE_MS, function () {
-      return es.httpJson(url, { deadlineMs: 8000, retries: 1 });
-    });
+    const result = await cache.memo(
+      // Keyed on the request, with the sliding window declared as the only
+      // thing deliberately left out: `start` and `end` move on every call, so
+      // keying on them would mean never reading the cache. Should this endpoint
+      // ever take a parameter that selects *what* is fetched — an area, say —
+      // it lands in the key automatically instead of quietly serving Estonia's
+      // numbers under another country's name.
+      cache.requestKey('live-grid', url, ['start', 'end']),
+      TTL_MS, GRACE_MS, function () {
+        return es.httpJson(url, { deadlineMs: 8000, retries: 1 });
+      });
 
     const payload = result.value;
     // `data` is an object with `real` and `plan`, not an array of one. A shell

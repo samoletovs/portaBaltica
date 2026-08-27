@@ -146,3 +146,116 @@ describe('the Open-Meteo probe bounds', () => {
     expect(Number(grace![1])).toBeGreaterThan(Number(ttl![1]));
   });
 });
+
+describe('requestKey', () => {
+  /**
+   * The newsroom's Python collector keyed its HTTP cache on the URL with the
+   * query string dropped. Eurostat's URL is built from the cube name and the
+   * parameters are passed separately, so every definition sharing a cube
+   * collided: the first was fetched, and every later one inside the TTL was
+   * served *its* payload under a different metric label. Five wrong articles
+   * were published, three carrying the identical figure under three different
+   * names.
+   *
+   * Nothing was malformed. Every value was a real value, correctly parsed,
+   * from the wrong slice — which is why nothing caught it.
+   */
+  it('separates two requests that differ only by a query parameter', () => {
+    const a = cache.requestKey('es', 'https://x.test/d?unit=THS_T&geo=LV');
+    const b = cache.requestKey('es', 'https://x.test/d?unit=MIO_TKM&geo=LV');
+    expect(a).not.toBe(b);
+  });
+
+  it('treats the same request written in a different order as one key', () => {
+    expect(cache.requestKey('es', 'https://x.test/d?a=1&b=2'))
+      .toBe(cache.requestKey('es', 'https://x.test/d?b=2&a=1'));
+  });
+
+  it('keeps namespaces apart even for an identical URL', () => {
+    expect(cache.requestKey('one', 'https://x.test/d'))
+      .not.toBe(cache.requestKey('two', 'https://x.test/d'));
+  });
+
+  it('excludes only the parameters named as volatile', () => {
+    // `/api/live-grid` asks for a sliding twelve-hour window, so `start` and
+    // `end` move on every call and keying on them would mean never reading the
+    // cache at all.
+    const one = cache.requestKey('g', 'https://x.test/s?start=1&end=2', ['start', 'end']);
+    const two = cache.requestKey('g', 'https://x.test/s?start=9&end=9', ['start', 'end']);
+    expect(one).toBe(two);
+  });
+
+  it('still separates a parameter that was not declared volatile', () => {
+    // The point of naming exclusions rather than inferring them: a parameter
+    // added later cannot be silently ignored.
+    const ee = cache.requestKey('g', 'https://x.test/s?start=1&end=2&area=EE', ['start', 'end']);
+    const lv = cache.requestKey('g', 'https://x.test/s?start=1&end=2&area=LV', ['start', 'end']);
+    expect(ee).not.toBe(lv);
+  });
+
+  it('keys an unparseable URL whole rather than loosely', () => {
+    // Too specific only costs a cache miss. Too loose serves the wrong answer
+    // under the right label.
+    expect(cache.requestKey('n', 'not a url')).toContain('not a url');
+  });
+});
+
+describe('the indicators that share a Eurostat cube', () => {
+  const INDICATORS = require('../api/shared/indicators.js');
+  const es = require('../api/shared/eurostat.js');
+
+  /** Every pair of indicators reading the same dataset. */
+  function sharedPairs(): [string, string, string][] {
+    const byDataset: Record<string, string[]> = {};
+    for (const [id, def] of Object.entries(INDICATORS) as [string, { dataset: string }][]) {
+      (byDataset[def.dataset] = byDataset[def.dataset] || []).push(id);
+    }
+    const pairs: [string, string, string][] = [];
+    for (const [dataset, ids] of Object.entries(byDataset)) {
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) pairs.push([dataset, ids[i], ids[j]]);
+      }
+    }
+    return pairs;
+  }
+
+  it('is a real and large population, not a hypothetical one', () => {
+    // Thirty-four of sixty-five indicators share a cube with another:
+    // `bop_c6_q` serves ten, `prc_hicp_minr` eight.
+    const pairs = sharedPairs();
+    expect(pairs.length).toBeGreaterThan(50);
+  });
+
+  it('gives every such pair a distinct cache key', () => {
+    // The assertion that would have caught the newsroom bug. `road_freight`
+    // and `road_freight_tkm` are the sharpest case: they differ by nothing but
+    // `unit`, and confusing them makes the freight modal split read tonnes
+    // lifted rather than tonne-kilometres — Latvia's rail share at about 4%
+    // instead of 18.9%, a chart that looks fine and says the opposite.
+    const collisions: string[] = [];
+
+    for (const [dataset, a, b] of sharedPairs()) {
+      const urlA = es.buildUrl(INDICATORS[a], 5, ['LV', 'EE', 'LT']);
+      const urlB = es.buildUrl(INDICATORS[b], 5, ['LV', 'EE', 'LT']);
+      if (cache.requestKey('eurostat', urlA) === cache.requestKey('eurostat', urlB)) {
+        collisions.push(`${dataset}: ${a} and ${b}`);
+      }
+    }
+
+    expect(collisions, 'these indicators would be served each other\u2019s data').toEqual([]);
+  });
+
+  it('would flag a key that ignored the query string, which is the actual bug', () => {
+    // Guarding the guard: if `requestKey` ever stopped covering parameters,
+    // the test above must fail rather than quietly pass. This proves the
+    // dataset-only key it replaces really does collide.
+    const naive = (url: string) => new URL(url).pathname;
+    const [, a, b] = sharedPairs()[0];
+    const urlA = es.buildUrl(INDICATORS[a], 5, ['LV']);
+    const urlB = es.buildUrl(INDICATORS[b], 5, ['LV']);
+
+    expect(naive(urlA), 'a path-only key collides, which is the newsroom bug')
+      .toBe(naive(urlB));
+    expect(cache.requestKey('eurostat', urlA)).not.toBe(cache.requestKey('eurostat', urlB));
+  });
+});
