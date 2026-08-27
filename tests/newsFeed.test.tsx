@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NewsFeed from '../src/components/news/NewsFeed';
+import { ArticleCard } from '../src/components/news/NewsCard';
 import { SECRET_PROSE, tierASummary, tierCSummary } from './fixtures/articles';
 
 function stubIndex(articles: unknown[]) {
@@ -78,5 +79,48 @@ describe('News feed', () => {
 
     await waitFor(() => expect(screen.getByText('The dashboard is the evidence')).toBeTruthy());
     expect(container.querySelector('a[href="/data"]')).not.toBeNull();
+  });
+});
+
+
+describe('FormatBadge — what kind of piece this is', () => {
+  // The first weekly wrap was filed under `maritime`, bylined to the maritime
+  // correspondent, and sat in the feed indistinguishable from the two genuine
+  // maritime stories beside it -- one of which it cited. `section` was the
+  // only field answering any identity question, and `section` answers the
+  // subject.
+  it('marks a wrap in the feed', () => {
+    render(
+      <MemoryRouter>
+        <ArticleCard summary={tierASummary({ format: 'weekly_wrap' })} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('The week')).toBeTruthy();
+  });
+
+  it('says nothing about an ordinary report', () => {
+    // Labelling the normal case teaches a reader to stop reading the label.
+    render(
+      <MemoryRouter>
+        <ArticleCard summary={tierASummary()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText('The week')).toBeNull();
+  });
+
+  it('keeps the section badge beside it, not instead of it', () => {
+    // Format sits alongside the subject. A `weekly` section would be a section
+    // with no dashboard tile behind it, and the article-to-/data round trip
+    // would point at nothing.
+    render(
+      <MemoryRouter>
+        <ArticleCard summary={tierASummary({ format: 'weekly_wrap', section: 'maritime' })} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('The week')).toBeTruthy();
+    expect(screen.getByText(/maritime/i)).toBeTruthy();
   });
 });

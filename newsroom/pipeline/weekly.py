@@ -85,6 +85,18 @@ MAX_FINDINGS = 8
 SECTION = "economy"
 DETECTOR = "weekly_wrap"
 
+#: The value of ``Article.format`` for a wrap. Declared in the schema enum, so
+#: a typo here fails validation rather than producing an unlabelled piece.
+WEEKLY_FORMAT = "weekly_wrap"
+
+#: The dashboard sections an article may be filed under. A wrap uses one of
+#: these like anything else: the newsroom borrows the dashboard's taxonomy, and
+#: a section with no tile behind it would break the article to /data round trip.
+SECTION_LABELS_ALLOWED = (
+    "economy", "trade", "government", "labour", "energy",
+    "property", "environment", "maritime", "business",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class WeeklyCorpus:
@@ -780,6 +792,10 @@ async def write_weekly(
             detail=f"the desk did not approve it: {outcome.reason}",
         )
 
+    # What kind of thing this is, carried explicitly. The first wrap was filed
+    # and bylined as a maritime report because `section` was the only field
+    # answering any identity question, and `section` answers the subject.
+    result.article.format = WEEKLY_FORMAT
     cites = cites_provenance(corpus, result.article)
     result.article.provenance.update(cites)
 
@@ -850,6 +866,8 @@ __all__ = [
     "dominant_section",
     "is_worth_writing",
     "week_bounds",
+    "SECTION_LABELS_ALLOWED",
+    "WEEKLY_FORMAT",
     "WeeklyOutcome",
     "WEEKLY_REPORT_BLOB",
     "write_weekly",
