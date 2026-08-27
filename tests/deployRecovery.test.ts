@@ -123,21 +123,63 @@ const deadChunk = {
   ),
 };
 
+/**
+ * A dead lazy chunk, as the browser really reports it: an `error` event on the
+ * `<link rel="modulepreload">` Vite inserts immediately before importing it.
+ * Shape taken from a real build, not invented.
+ */
+const deadChunkPreload = {
+  target: {
+    tagName: 'LINK',
+    rel: 'modulepreload',
+    href: 'https://portabaltica.naurolabs.com/assets/App-CkW7B7zC.js',
+  },
+};
+
 describe('the recovery is wired to both failures', () => {
+  /**
+   * These hand the handler an event and check what it does. That is a fair
+   * test of the handler and NOT a test that the event ever arrives — a
+   * distinction this file learned the hard way.
+   *
+   * "reloads when a lazy chunk is gone" used to live here, synthesising an
+   * `unhandledrejection`. It passed for a release in which the recovery never
+   * once ran, because `React.lazy` catches its own rejection and re-throws it
+   * during render, so the browser dispatches no `unhandledrejection` for a
+   * failed chunk at all. The handler was right, the test was green, and the
+   * trigger did not exist.
+   *
+   * **A test that constructs its own input cannot discover that the real input
+   * never comes.** The real input is measured in
+   * `tests/deployRecoveryReal.live.test.ts`, which builds the app, 404s a real
+   * chunk and watches a real browser. Nothing below may be read as evidence
+   * that a real failure reaches this code.
+   */
   it('listens for a resource error and an unhandled rejection', () => {
-    // The main-bundle case arrives as an `error` event on the element, which
-    // only the capture phase sees; the lazy-chunk case arrives as a rejected
-    // promise. Missing either leaves half the problem.
     expect(run().types().sort()).toEqual(['error', 'unhandledrejection']);
   });
 
   it('reloads when the main bundle is gone', () => {
+    // This one the browser really does dispatch: a failed <script> reports an
+    // `error` event on the element. Verified against a real build.
     const harness = run();
     harness.fire('error', deadBundle);
     expect(harness.reloads()).toBe(1);
   });
 
-  it('reloads when a lazy chunk is gone', () => {
+  it('reloads when a lazy chunk s modulepreload fails', () => {
+    // The signal that actually arrives for a dead lazy chunk. Vite inserts
+    // `<link rel="modulepreload" as="script">` before importing one, and a 404
+    // fires an `error` event on that link — measured on /, /about/ai and /data
+    // against a real build, one event each, always this shape.
+    const harness = run();
+    harness.fire('error', deadChunkPreload);
+    expect(harness.reloads()).toBe(1);
+  });
+
+  it('still reloads on a bare dynamic import rejection, where one occurs', () => {
+    // Kept because a direct `import()` outside React.lazy does reject here.
+    // No longer the only path relied upon, which is what made it dangerous.
     const harness = run();
     harness.fire('unhandledrejection', deadChunk);
     expect(harness.reloads()).toBe(1);
@@ -176,9 +218,22 @@ describe('what must never trigger a reload', () => {
 
   it('a stylesheet or an image that failed', () => {
     // These fail without stopping the app, and reloading would not fix them.
+    // The modulepreload branch makes this sharper than it was: a LINK now can
+    // trigger a reload, so the *other* kinds of LINK have to be proven inert.
     const harness = run();
-    harness.fire('error', { target: { tagName: 'LINK', href: '/assets/index-abc.css' } });
+    harness.fire('error', { target: { tagName: 'LINK', rel: 'stylesheet', href: '/assets/index-abc.css' } });
+    harness.fire('error', { target: { tagName: 'LINK', rel: 'icon', href: '/favicon.svg' } });
+    harness.fire('error', { target: { tagName: 'LINK', rel: 'apple-touch-icon', href: '/apple-touch-icon.png' } });
     harness.fire('error', { target: { tagName: 'IMG', src: '/assets/og.png' } });
+    expect(harness.reloads()).toBe(0);
+  });
+
+  it('a modulepreload for something that is not one of our assets', () => {
+    const harness = run();
+    harness.fire('error', {
+      target: { tagName: 'LINK', rel: 'modulepreload', href: 'https://cdn.example.com/thing.js' },
+    });
+    harness.fire('error', { target: { tagName: 'LINK', rel: 'modulepreload', href: '' } });
     expect(harness.reloads()).toBe(0);
   });
 
