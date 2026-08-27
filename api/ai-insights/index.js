@@ -2,6 +2,7 @@ const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const airQuality = require('../shared/airQuality.js');
+const countries = require('../shared/country.js');
 
 /**
  * WHO 2021 global air quality guideline for PM2.5, 24-hour mean, in µg/m³.
@@ -61,17 +62,31 @@ function httpGetText(url) {
 const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
+
+  // Normalised once, at the boundary, and a miss is a bad request rather than
+  // a request for Latvia. `zoneMap[country] || 'lv'` and
+  // `capitalCoords[country] || capitalCoords.lv` both key lower-case maps, so
+  // an upper-case `EE` matched neither and fell through to Latvia — serving
+  // Latvia's electricity market under an Estonian heading, and Riga's weather
+  // and air quality with it. Every figure real, every figure the wrong
+  // country's, and invisible to precisely the readers who would notice,
+  // because Latvia is what the default returns.
+  const requested = countries.normaliseCountry(req.query && req.query.country);
+  if (requested === null) {
+    context.res = countries.badCountry(req.query && req.query.country);
+    return;
+  }
+
   try {
     var insights = [];
-    var country = (req.query && req.query.country) || 'lv';
-    var zoneMap = { lv: 'lv', ee: 'ee', lt: 'lt' };
-    var zone = zoneMap[country] || 'lv';
+    var country = requested;
+    var zone = country;
     var capitalCoords = {
       lv: { lat: 56.95, lon: 24.11, name: 'Riga', tz: 'Europe/Riga' },
       ee: { lat: 59.44, lon: 24.75, name: 'Tallinn', tz: 'Europe/Tallinn' },
       lt: { lat: 54.69, lon: 25.28, name: 'Vilnius', tz: 'Europe/Vilnius' },
     };
-    var capital = capitalCoords[country] || capitalCoords.lv;
+    var capital = capitalCoords[country];
 
     // Start every upstream fetch before awaiting any of them.
     //

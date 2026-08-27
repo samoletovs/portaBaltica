@@ -1,6 +1,7 @@
 const rateLimit = require('../shared/rateLimit.js');
 const eurostat = require('../shared/eurostat.js');
 const ports = require('../shared/ports.js');
+const countries = require('../shared/country.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 
 /**
@@ -247,8 +248,18 @@ const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
 
-  const requested = String((req.query && req.query.country) || 'LV').toUpperCase();
-  const country = ports.COUNTRIES.indexOf(requested) >= 0 ? requested : 'LV';
+  // Case-insensitive, and an unrecognised country is a bad request rather than
+  // a silent request for Latvia. This endpoint already upper-cased while the
+  // other three did not normalise at all — that disagreement is what made the
+  // whole class of fault possible, so all four now read the parameter one way.
+  const requested = countries.normaliseCountry(req.query && req.query.country);
+  if (requested === null) {
+    context.res = countries.badCountry(req.query && req.query.country);
+    return;
+  }
+  // `ports.PORTS` and `ports.COUNTRIES` key upper case, which is the Eurostat
+  // convention for `geo`; the shared normaliser is canonically lower.
+  const country = requested.toUpperCase();
 
   try {
     const urls = ports.seriesUrls(country);
