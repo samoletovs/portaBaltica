@@ -1,6 +1,7 @@
 import { IndicatorCard } from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { RankedComparison } from './RankedComparison';
 import { TileHeader } from './TileHeader';
 
 export function GovernmentTile() {
@@ -18,12 +19,18 @@ export function GovernmentTile() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <BalticCompareChart indicator="gov_debt_gdp" title="Government debt / GDP" compact />
           <BalticCompareChart indicator="gov_deficit" title="Government deficit/surplus" compact />
           <BalticCompareChart indicator="consumer_confidence" title="Consumer confidence" compact />
           <BalticCompareChart indicator="current_account" title="Current account balance" compact />
-          <BalticCompareChart indicator="inequality" title="Income inequality (Gini)" compact />
-          <BalticCompareChart indicator="rd_spending" title="R&D expenditure" compact />
+          {/* Annual series of four or five points, grouped at the end so the two
+              shapes do not interleave. Which end is "best" is declared per
+              indicator, not inferred: the polarity registry keys on the card ids
+              (`gov_debt`, not `gov_debt_gdp`), so all three resolve to neutral
+              there and inference would rank the worst performer top. Debt and
+              Gini rank lowest first; R&D highest. */}
+          <RankedComparison indicator="gov_debt_gdp" title="Government debt / GDP" higherIsBetter={false} />
+          <RankedComparison indicator="inequality" title="Income inequality (Gini)" higherIsBetter={false} />
+          <RankedComparison indicator="rd_spending" title="R&D expenditure" higherIsBetter />
         </div>
       </div>
     </section>

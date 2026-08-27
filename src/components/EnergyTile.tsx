@@ -1,6 +1,7 @@
 import { IndicatorCard } from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
+import { RankedComparison } from './RankedComparison';
 import { PowerMarketCard } from './PowerMarketCard';
 import { GridStatePanel } from './GridStatePanel';
 import { TileHeader } from './TileHeader';
@@ -34,7 +35,9 @@ export function EnergyTile() {
           <BalticCompareChart indicator="elec_renewable_gen" title="Renewable electricity generated" compact />
           <BalticCompareChart indicator="elec_price_household" title="Electricity price (households)" compact />
           <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry)" compact />
-          <BalticCompareChart indicator="renewables" title="Renewable energy share" compact />
+          {/* Annual, five points. A share that moves a point or two a year is a
+              ranking question, not a shape-over-time one. */}
+          <RankedComparison indicator="renewables" title="Renewable energy share" higherIsBetter />
           <BalticCompareChart indicator="home_energy_inflation" title="Home energy inflation" compact />
           <BalticCompareChart indicator="admin_prices" title="Administered prices" compact />
           <BalticCompareChart indicator="ghg_emissions" title="Greenhouse gas emissions" compact />
