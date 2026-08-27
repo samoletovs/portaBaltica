@@ -51,6 +51,29 @@ async function fetchECBRates() {
   }
 }
 
+/**
+ * Today's day-ahead prices for one bidding zone, and the price now.
+ *
+ * **`current` is `null` when we do not have one, never `0`.** It used to be
+ * zero on both the missing-hour path and the whole catch, and zero is not an
+ * absurd price here — Nord Pool clears at zero and goes negative when the wind
+ * is up, and `EconomyTile` has a branch for exactly that. So a fabricated zero
+ * was indistinguishable from a real reading, and the dashboard rendered
+ * "€0.00/MWh" as a headline figure on the strength of a request that failed.
+ *
+ * That is worse than the `NaN%` bar widths: those at least looked broken. This
+ * one is the shape of a guard whose false branch is a *claim* — the ternary
+ * looks like it is handling absence and is in fact asserting a price.
+ *
+ * Elering demonstrably fails: measured five consecutive `HTTP 503 no available
+ * server` from its Cloudflare edge in one burst, then twelve clean calls at
+ * 75-217ms. So the catch is not a theoretical path.
+ *
+ * Every consumer already copes with `null` and always did — `EconomyTile` reads
+ * it through `fixed()`, which renders an em dash, and `DataTicker` through
+ * `finite()`, which drops the item. They were written defensively and this
+ * function was the only thing defeating them.
+ */
 async function fetchElectricityPrices(zone) {
   try {
     var country = zone || 'lv';
@@ -69,9 +92,21 @@ async function fetchElectricityPrices(zone) {
     const currentEntry = zonePrices.find(function (p) {
       return new Date(p.timestamp * 1000).getHours() === currentHour;
     });
-    return { prices: prices, current: currentEntry ? currentEntry.price : 0 };
+    // The entry existing does not mean it carries a price: a published interval
+    // with a null price is a normal thing for a day-ahead feed to contain.
+    //
+    // `Number.isFinite` alone is the whole guard — unlike the global `isFinite`
+    // it does not coerce, so it rejects `null`, `undefined`, `NaN`, `Infinity`
+    // and the string `'50'` on its own. A `typeof === 'number'` beside it was
+    // redundant, which mutation testing showed by removing it and watching
+    // nothing fail.
+    const price = currentEntry && Number.isFinite(currentEntry.price)
+      ? currentEntry.price
+      : null;
+    return { prices: prices, current: price };
   } catch (e) {
-    return { prices: [], current: 0 };
+    warnUnavailable('electricity prices', e);
+    return { prices: [], current: null };
   }
 }
 

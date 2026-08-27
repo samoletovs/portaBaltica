@@ -759,6 +759,40 @@ reading at all shows an em dash for both its share and its quantity, and is
 excluded from the total — "we do not know" and "none of it" are different claims
 about a port.
 
+**A guard whose false branch is a claim.** This is a distinct shape from absence
+rendered as a value by accident, and it is worse, because the guard makes the
+code *look* defended. `total > 0 ? share : '0.0'` reads as handling the empty
+case; what it actually does when `total` is NaN is route the poisoned value into
+a **confident zero** — `NaN > 0` is `false`, so a category we did measure printed
+"0.0%". The unguarded version would have printed `NaN%` and been visibly broken.
+
+`fetchElectricityPrices` had the same shape twice, and worse:
+
+```js
+current: currentEntry ? currentEntry.price : 0     // no interval for this hour
+catch (e) { return { prices: [], current: 0 }; }   // the fetch failed entirely
+```
+
+**Zero is not an absurd electricity price.** Nord Pool clears at zero and goes
+negative when the wind is up, and this very tile carries a "Negative price"
+badge for it — so the fabricated zero was indistinguishable from a reading, and
+the dashboard printed "€0.00/MWh" as a headline on the strength of a request
+that never completed. Every consumer already handled `null` correctly; this one
+function was the only thing defeating them.
+
+So: **every `x ? real : fallback` where the fallback is a number rather than a
+dash has this available to it.** The fallback for an unknown is `null` at the
+boundary and `—` on the page, never a value that could have been measured.
+
+**Filter before you aggregate, and check that each guard earns its place.**
+`Math.min(...prices.map(p => p.price))` coerces `null` to 0 and propagates NaN,
+so one unpriced interval printed "Low €0.00" for a day whose real floor was
+nowhere near it. And mutation testing is what shows a guard is load-bearing:
+`typeof x === 'number' && Number.isFinite(x)` looks careful and is redundant,
+because `Number.isFinite` does not coerce and already rejects `null`, `NaN`,
+`Infinity` and `'50'`. Removing the first half broke nothing, so it was removed.
+A check that cannot fail is not a check.
+
 ### 3.9 Two components can take down the whole site
 
 `Header` and `DataTicker` are rendered by `SiteLayout`, which wraps **every**
