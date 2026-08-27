@@ -4,6 +4,7 @@ import { useTheme } from '../ThemeContext';
 import { fetchPowerPrices, type PowerPriceData, type PowerPricePoint, type PowerPriceZone } from '../api';
 import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
 import { list } from '../utils/payload';
+import { SeriesSwatch } from './SeriesSwatch';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
  *  as the country is on every comparison chart. */
@@ -108,8 +109,15 @@ export function PowerMarketCard() {
       <div className="grid grid-cols-4 gap-2 mb-3">
         {list<PowerPriceZone>(data.zones).map((z) => (
           <div key={z.id} className="text-center">
-            <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{z.flag} {z.label}</p>
-            <p className="text-ui font-mono font-semibold" style={{ color: zoneColor(z.id) }}>
+            <p className="text-caption flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+              <SeriesSwatch color={zoneColor(z.id)} />
+              {z.flag} {z.label}
+            </p>
+            {/* The price is `--text-primary`, not the zone colour. As the zone
+                colour it was a 14px figure at 3.90:1 (Latvia, dark) and 3.24:1
+                (Lithuania, light) — a line hue asked to meet a text floor. The
+                swatch above carries the mapping to the chart instead. */}
+            <p className="text-ui font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
               {z.current !== null ? `€${z.current.toFixed(2)}` : '—'}
             </p>
             <p className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
