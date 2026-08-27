@@ -217,12 +217,32 @@ export interface Correction {
   previous_value?: string;
 }
 
+/**
+ * What KIND of piece this is, as against what it is about.
+ *
+ * `section` answers the subject and is a real `DashboardSection`, because the
+ * newsroom borrows the dashboard's taxonomy and that is load-bearing — it is
+ * what makes `ChartEmbed` and the article → `/data` round trip work.
+ *
+ * But a cross-beat digest filed under `maritime` with a maritime byline is a
+ * category error even when the prose is right, and that is what got the first
+ * weekly wrap retracted: headline, section and byline all said "a maritime
+ * report" and no reader could have told otherwise. Format is the field that
+ * was missing, carried the way `TierBadge` carries tier — beside the subject,
+ * never instead of it.
+ *
+ * Absent on an ordinary report, which is almost everything.
+ */
+export type ArticleFormat = 'weekly_wrap';
+
 export interface Article {
   id: string;
   slug: string;
   tier: ArticleTier;
   status: ArticleStatus;
   section: DashboardSection;
+  /** What kind of piece this is. Absent on an ordinary report. */
+  format?: ArticleFormat;
   headline: string;
   dek?: string;
   body?: ArticleBlock[];
@@ -244,6 +264,9 @@ export interface ArticleSummary {
   slug: string;
   tier: ArticleTier;
   section: DashboardSection;
+  /** What kind of piece this is. Carried on the summary because the feed shows
+   *  it and the feed cannot see provenance. */
+  format?: ArticleFormat;
   headline: string;
   dek?: string;
   persona?: Pick<Persona, 'id' | 'name' | 'byline'>;

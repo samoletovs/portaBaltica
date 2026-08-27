@@ -1099,3 +1099,101 @@ class TestTheWrapGoesPastTheDesk:
         )
 
         assert outcome.outcome == "draft_refused"
+
+
+class TestTheWrapSaysWhatKindOfThingItIs:
+    """The first wrap was filed under `maritime`, bylined to the maritime
+    correspondent, and headlined as a Lithuanian container story. It was
+    retracted for a different fault, but no reader could have told it apart
+    from the two genuine maritime pieces beside it -- one of which it cited.
+
+    `section` was the only field answering any identity question, and `section`
+    answers the SUBJECT. Format is the field that was missing.
+    """
+
+    async def _publish(self, tmp_path):
+        from newsroom.pipeline.vintage import VintageLedger, VintageStore
+        from newsroom.pipeline.write import StubWriter
+        from newsroom.pipeline.weekly import write_weekly
+
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        vintages = VintageStore(local_dir=tmp_path, account_url="")
+        figures = a_week(5)
+        await vintages.save(VintageLedger(figures))
+        await _seed(store, [_stored(f.slug) for f in figures])
+        payload = _wrap_payload(
+            [
+                {
+                    "text": "Latvian house prices stood at 1.0%, against the same quarter a year earlier.",
+                    "figures": [HOUSE],
+                },
+                {"text": "The data does not establish a common cause.", "figures": []},
+            ]
+        )
+        approve = {"decision": "approve", "reason": "runs as filed", "notes": []}
+        outcome = await write_weekly(
+            store, StubWriter([payload, approve, approve]), vintages=vintages, now=NOW
+        )
+        return store, outcome
+
+    @pytest.mark.anyio
+    async def test_the_stored_article_carries_the_format(self, tmp_path):
+        from newsroom.pipeline.weekly import WEEKLY_FORMAT
+
+        store, outcome = await self._publish(tmp_path)
+
+        assert (await store.read_published(outcome.slug))["format"] == WEEKLY_FORMAT
+
+    @pytest.mark.anyio
+    async def test_the_index_entry_carries_it_too(self, tmp_path):
+        """The feed shows the badge and the feed reads the INDEX. A format the
+        article knows and the summary does not is a label that never appears --
+        the same shape as the `status` field the retraction guards read and the
+        index did not carry."""
+        from newsroom.pipeline.weekly import WEEKLY_FORMAT
+
+        store, outcome = await self._publish(tmp_path)
+
+        index = await store.read_json(ArticleStore.INDEX_BLOB)
+        rows = index if isinstance(index, list) else index["articles"]
+        entry = next(r for r in rows if r["slug"] == outcome.slug)
+        assert entry["format"] == WEEKLY_FORMAT
+
+    @pytest.mark.anyio
+    async def test_the_section_is_still_a_real_dashboard_section(self, tmp_path):
+        """Format sits BESIDE the subject, never instead of it. A `weekly`
+        section would be a section with no tile behind it, and the article to
+        /data round trip would point at nothing."""
+        from newsroom.pipeline.weekly import SECTION_LABELS_ALLOWED
+
+        store, outcome = await self._publish(tmp_path)
+
+        section = (await store.read_published(outcome.slug))["section"]
+        assert section in SECTION_LABELS_ALLOWED
+
+    def test_the_format_value_is_one_the_schema_declares(self):
+        """A typo here would produce an unlabelled piece rather than an error,
+        so the schema enum is what makes it fail closed."""
+        import json
+        import pathlib
+
+        from newsroom.pipeline.weekly import WEEKLY_FORMAT
+
+        schema = json.loads(
+            (pathlib.Path(__file__).resolve().parents[2] / "schemas" / "article.schema.json")
+            .read_text(encoding="utf-8")
+        )
+
+        assert WEEKLY_FORMAT in schema["properties"]["format"]["enum"]
+
+    def test_an_ordinary_article_carries_no_format(self):
+        """Labelling the normal case teaches a reader to stop reading labels."""
+        from newsroom.pipeline.models import Article
+
+        ordinary = Article(
+            id="1", slug="s", tier="A", status="published", headline="h",
+            section="economy", created_at="2026-08-27T00:00:00Z", provenance={},
+        )
+
+        assert ordinary.format is None
+        assert "format" not in ordinary.to_json()

@@ -15,6 +15,11 @@
       "description": "A = original data journalism, B = verbatim official press release, C = link-out card. Decided by the source registry, never by the model."
     },
 
+    "format": {
+      "enum": ["weekly_wrap"],
+      "description": "What KIND of piece this is, as against what it is about. `section` is a dashboard section and answers the subject; a cross-beat digest filed under `maritime` is a category error even when its prose is right, which is what got the first weekly wrap retracted. Absent on an ordinary report. A real field rather than something derived from `signal_detector`, because a derived label is a second place the truth lives and the two drift."
+    },
+
     "status": {
       "enum": ["draft", "pending_approval", "published", "rejected", "corrected", "retracted"],
       "description": "Tier A goes draft -> published automatically once the validator passes. Tier B and C pass through pending_approval inside the pipeline, then the AI editor approves, rejects or escalates."

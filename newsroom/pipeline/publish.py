@@ -540,6 +540,10 @@ class ArticleStore:
                 ),
                 "published_at": a.published_at or a.created_at,
                 "countries": a.countries,
+                # What kind of piece this is. The feed shows it beside the tier
+                # badge, and the feed cannot see provenance — so this has to be
+                # on the summary, not derived from `signal_detector` behind it.
+                "format": a.format,
                 # The article's own state, so a consumer of the index can honour
                 # it without fetching the article.
                 #

@@ -278,6 +278,28 @@ class Article:
     tags: list[str] = field(default_factory=list)
     published_at: str | None = None
     corrections: list[dict[str, Any]] = field(default_factory=list)
+    #: What KIND of thing this is, as against what it is about.
+    #:
+    #: ``section`` answers "what is this about" and is a real dashboard
+    #: section, because the newsroom borrows the dashboard's taxonomy and that
+    #: is load-bearing — it is what makes ``ChartEmbed`` and the article → /data
+    #: round trip work. A section with no tile behind it would be a hole in the
+    #: site's central promise.
+    #:
+    #: But a weekly wrap filed under ``maritime`` with a maritime byline is a
+    #: category error even when its prose is right, and that is what got the
+    #: first one retracted: headline, section and byline all said "a maritime
+    #: report" about a cross-beat digest, and no reader could have told
+    #: otherwise. The two questions were conflated because only one of them had
+    #: a field.
+    #:
+    #: A REAL FIELD, not derived from ``signal_detector``. A derived label is a
+    #: second place the truth lives, and the two drift — which is how ``cites``
+    #: came to say 8 in one artefact and 3 in another. Written once, read
+    #: everywhere.
+    #:
+    #: ``None`` means an ordinary report, which is almost everything.
+    format: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -306,6 +328,8 @@ class Article:
             out["published_at"] = self.published_at
         if self.corrections:
             out["corrections"] = self.corrections
+        if self.format:
+            out["format"] = self.format
         return out
 
     @property

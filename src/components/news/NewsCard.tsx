@@ -4,6 +4,7 @@ import type { DashboardSection } from '../../types';
 import { Byline } from './Byline';
 import { LinkOutCardFromSummary } from './LinkOutCard';
 import { SECTION_LABELS } from '../../newsroom/sections';
+import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
 
 interface CardProps {
@@ -27,6 +28,7 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
     >
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <TierBadge tier={summary.tier} />
+        <FormatBadge format={summary.format} />
         <span className="news-subtle text-caption font-semibold uppercase tracking-widest">
           {section}
         </span>

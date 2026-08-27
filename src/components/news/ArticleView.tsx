@@ -11,6 +11,7 @@ import { SECTION_LABELS } from '../../newsroom/sections';
 import { formatFigures } from '../../newsroom/format-figures';
 import { resolveChartRef } from '../../newsroom/chart-ref';
 import { soleCountry } from '../../newsroom/article-country';
+import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
 
 /**
@@ -239,6 +240,7 @@ export function ArticleView({ article }: { article: Article }) {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TierBadge tier={article.tier} />
+        <FormatBadge format={article.format} />
         <Link
           to={`/data/${article.section}`}
           className="news-link text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
