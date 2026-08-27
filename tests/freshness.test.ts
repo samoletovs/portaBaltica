@@ -283,6 +283,48 @@ describe('the probe registry', () => {
     }
   });
 
+  /**
+   * And if one ever slipped through, the verdict must be "I cannot tell".
+   *
+   * `judge` documents that it answers `unknown` and never `fresh` when it
+   * cannot tell — "I cannot tell" must never render as fresh. Without a usable
+   * bound it did the opposite: `age > undefined` is false for every age, so a
+   * check whose `maxLag` went missing reported `fresh` for ever, and the older
+   * the observation the more confidently it did so.
+   *
+   * The registry test above is the first lock and no entry can reach this
+   * today. This is not defence against an unreachable state — it is the
+   * function no longer contradicting its own stated contract, which is the
+   * more expensive kind of wrong, because the next reader trusts the comment.
+   */
+  describe('a cadence with no usable bound', () => {
+    const ancient = { at: '2019-01-01T00:00:00Z' };
+    const now = Date.UTC(2026, 7, 27);
+
+    it('says it cannot tell, rather than fresh', () => {
+      for (const bound of [undefined, null, 0, -1, NaN, '3']) {
+        const verdict = freshness.judge({ cadence: 'D', maxLag: bound }, ancient, now);
+        expect(verdict.state, `maxLag ${String(bound)}`).toBe('unknown');
+        expect(verdict.reason, `maxLag ${String(bound)}`).toMatch(/no bound/i);
+      }
+    });
+
+    it('still judges normally when the bound is there', () => {
+      // The comparison is worthless if every answer is 'unknown'. Same
+      // observation, same clock: only the bound differs.
+      expect(freshness.judge({ cadence: 'D', maxLag: 3 }, ancient, now).state).toBe('stale');
+      const recent = { at: new Date(now - 1 * 24 * 3600 * 1000).toISOString() };
+      expect(freshness.judge({ cadence: 'D', maxLag: 3 }, recent, now).state).toBe('fresh');
+    });
+
+    it('prefers a bound the source itself declared', () => {
+      // An observation carrying its own maxLag is usable even when the check
+      // does not, so this must not become 'unknown' by mistake.
+      const withOwnBound = { at: '2019-01-01T00:00:00Z', maxLag: 5 };
+      expect(freshness.judge({ cadence: 'D' }, withOwnBound, now).state).toBe('stale');
+    });
+  });
+
   it('keeps every probe cheap, and asks no cube for a single column', () => {
     for (const check of registry.CHECKS) {
       if (!check.url) continue;
