@@ -464,6 +464,50 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
                 "s_adj": "SCA", "unit": "I21"},
         periods=40,
     ),
+    # --- Environment --------------------------------------------------------
+    # The last silent section, and the only one whose silence was a collection
+    # gap rather than a ranking one.
+    #
+    # NOT Open-Meteo, which is what the dashboard uses. It serves history on
+    # demand and the app stores nothing, so a detector cannot say "the warmest
+    # August since" without refetching years of hourly readings on every check.
+    # Doing it properly needs a timer-triggered aggregation into durable
+    # storage, which is real new infrastructure. The caching layer added for
+    # the dashboard in #86 does not help: it is a per-process `Map` inside the
+    # Static Web App's managed functions, holding one hourly reading, in a
+    # different app from this one.
+    #
+    # Quarterly air emissions accounts need none of that. Verified live: 40
+    # quarters for all three countries, 120 values with no gaps, through
+    # 2026-Q1 — deep enough for a record, a run or a seasonal departure to mean
+    # something.
+    #
+    # `TOTAL_HH` and nothing finer, because there is nothing finer to have: the
+    # cube lists ten NACE breakdowns and every one of them returns 40 periods
+    # and ZERO values for the Baltics, on both the adjusted and unadjusted
+    # slice. A sector series would look like a working configuration and fetch
+    # nothing, which is the same trap as Estonian cargo.
+    #
+    # Params copied from the dashboard's `ghg_emissions` exactly, so the drift
+    # check can compare them and the article's chart resolves.
+    EurostatDataset(
+        dataset="env_ac_aigg_q",
+        metric="ghg_emissions",
+        metric_label="greenhouse gas emissions",
+        # Spelled out, not "CO2 equivalent". The unit is interpolated into the
+        # comparison basis, which the writer is required to restate, so the 2
+        # in CO2 would arrive in the prose as a bare numeral with no field able
+        # to declare it — and the article would die for it. Caught by
+        # TestNoUnitCarriesANumeral, which exists because
+        # "index (long-run average = 100)" did exactly this.
+        unit="thousand tonnes of carbon dioxide equivalent",
+        section="environment",
+        frequency="quarterly",
+        chart_ref="ghg_emissions",
+        params={"freq": "Q", "s_adj": "SA", "nace_r2": "TOTAL_HH",
+                "airpol": "GHG", "unit": "THS_T"},
+        periods=40,
+    ),
 )
 
 
