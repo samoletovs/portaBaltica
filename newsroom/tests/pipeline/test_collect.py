@@ -931,6 +931,40 @@ class TestTheQueryIsPartOfTheResource:
                 f"{spec.metric} had a geography added on top of its own pin"
             )
 
+    def test_a_new_definition_cannot_collide_with_one_already_collected(self):
+        """Session A's pair, which is worse than the one below.
+
+        ``age=TOTAL`` against ``age=Y_LT25`` is two definitions arriving
+        together. ``exports`` against ``goods_balance`` is a **live crossing**:
+        both read ``bop_c6_q`` with ``bop_item=G`` and differ only in
+        ``stk_flow`` -- ``CRE`` against ``BAL`` -- and ``goods_balance`` was
+        already in the collector before ``exports`` was mirrored.
+
+        That is the exact configuration that produced the retraction: several
+        definitions on one cube, differing only in query parameters, and a
+        cache that could not tell them apart. A collision here does not print
+        an implausible number -- it prints a real export figure under the word
+        "balance", which means something else entirely.
+        """
+        from newsroom.pipeline.collect.httpclient import _cache_key
+        from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS, request_params
+        from newsroom.pipeline.safety import registry
+
+        endpoint = registry().get("eurostat").endpoint
+        pairs = {
+            spec.metric: _cache_key(
+                endpoint.format(dataset=spec.dataset), request_params(spec)
+            )
+            for spec in EUROSTAT_DATASETS
+            if spec.metric in {"exports", "goods_balance", "imports", "trade_balance"}
+        }
+
+        assert len(pairs) == 4, f"a bop_c6_q definition has gone: {sorted(pairs)}"
+        assert len(set(pairs.values())) == 4, (
+            "two balance-of-payments series are the same request to the cache; "
+            "one would be published under the other's name"
+        )
+
     def test_one_cube_two_slices_are_two_keys(self):
         """The hazard when mirroring, stated as an invariant.
 
