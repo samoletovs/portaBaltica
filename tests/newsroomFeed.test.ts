@@ -90,3 +90,77 @@ describe('escapeXml', () => {
     expect(newsroom.escapeXml(undefined)).toBe('');
   });
 });
+
+describe('a withdrawn article never reaches the feed', () => {
+  /**
+   * Five articles were retracted the morning this was written, and the feeds
+   * cleaned themselves because `drop_from_index` removes a retracted entry
+   * from `index.json` and both RSS and the sitemap read that pruned index.
+   *
+   * That is one lock on the door. If `write_published` succeeds and
+   * `drop_from_index` does not — a partial write, a transient blob error — the
+   * article stays retracted in storage and keeps appearing in RSS. A feed
+   * reader does not come back to see the correction, so it is the single
+   * surface where a withdrawn claim goes on circulating after we have publicly
+   * taken it back.
+   *
+   * The guard is deliberately not `status !== 'retracted'`. Index entries
+   * carry no `status` at all — verified against the live index, nought of
+   * seventy — so that comparison is true for every article that has ever
+   * existed, and it could never fire. It would read as protection and be
+   * inert.
+   */
+  it('drops a retracted article even when the index still lists it', () => {
+    const kept = newsroom.ourArticles([
+      { tier: 'A', slug: 'live-one', status: 'published' },
+      { tier: 'A', slug: 'withdrawn', status: 'retracted' },
+    ]);
+
+    expect(kept.map((a: { slug: string }) => a.slug)).toEqual(['live-one']);
+  });
+
+  it('drops every state that is not a live page, not only retraction', () => {
+    // The schema's statuses are draft, pending_approval, published, rejected,
+    // corrected and retracted. A guard written only against retraction would
+    // syndicate a rejected or half-finished article just as happily.
+    const kept = newsroom.ourArticles([
+      { tier: 'A', slug: 'draft', status: 'draft' },
+      { tier: 'A', slug: 'awaiting', status: 'pending_approval' },
+      { tier: 'A', slug: 'refused', status: 'rejected' },
+      { tier: 'A', slug: 'withdrawn', status: 'retracted' },
+    ]);
+
+    expect(kept).toEqual([]);
+  });
+
+  it('keeps a corrected article, which is the version a reader should see', () => {
+    // `corrected` is reader-facing in the pipeline. Withholding it would
+    // suppress the amended article and leave only the record of the error.
+    const kept = newsroom.ourArticles([{ tier: 'A', slug: 'amended', status: 'corrected' }]);
+    expect(kept.map((a: { slug: string }) => a.slug)).toEqual(['amended']);
+  });
+
+  it('still serves the live index, which carries no status field at all', () => {
+    // The real shape today: tier and slug, no status. A fail-closed rule on
+    // `status === "published"` would drop all twenty tier A and B articles and
+    // serve an empty feed, so absence cannot be treated as disqualifying.
+    const asPublished = [
+      { tier: 'A', slug: 'one', headline: 'One' },
+      { tier: 'B', slug: 'two', headline: 'Two' },
+      { tier: 'C', slug: 'three', headline: 'Link out' },
+    ];
+
+    expect(newsroom.ourArticles(asPublished).map((a: { slug: string }) => a.slug)).toEqual(['one', 'two']);
+  });
+
+  it('is a guard that can actually fire, unlike a bare retracted check', () => {
+    // Guarding the guard. A `status !== 'retracted'` rule passes every entry
+    // in the live index, so this asserts the rule discriminates on a real
+    // status rather than being satisfied by its absence.
+    const naive = (a: { status?: string }) => a.status !== 'retracted';
+    const rejected = { tier: 'A', slug: 'refused', status: 'rejected' };
+
+    expect(naive(rejected), 'the bare check would syndicate a rejected article').toBe(true);
+    expect(newsroom.ourArticles([rejected])).toEqual([]);
+  });
+});
