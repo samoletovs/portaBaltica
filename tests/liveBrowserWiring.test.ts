@@ -32,38 +32,130 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 
 const TESTS_DIR = resolve(__dirname);
 
 /** The module that owns the launcher, and so the only one that may import it. */
 const HELPER = 'liveBrowser.ts';
 
-/** Every `.ts`/`.tsx` file in `tests/`, with block and line comments removed. */
-function testSources(): { name: string; code: string }[] {
-  return readdirSync(TESTS_DIR)
-    .filter((f) => /\.(ts|tsx)$/.test(f))
-    .map((name) => {
-      const raw = readFileSync(resolve(TESTS_DIR, name), 'utf-8');
-      const code = raw
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/.*$/gm, '$1');
-      return { name, code };
-    });
+/**
+ * Every `.ts`/`.tsx` file under `tests/`, **recursively**, with block and line
+ * comments removed.
+ *
+ * The recursion is the whole point rather than tidiness. `vitest.live.config.ts`
+ * globs `tests` recursively for `*.live.test.{ts,tsx}`, so the runner descends
+ * and a live check in a subdirectory runs exactly like one at the top level. A
+ * flat `readdirSync` here would give the guard a *narrower reach than the thing
+ * it guards* — and measured, that is not theoretical: a file planted at
+ * `tests/live/planted.live.test.ts` importing `playwright-core` and calling
+ * `launchPersistentContext` was listed by the live runner and reported `4
+ * passed` by this suite.
+ *
+ * Names are returned relative to `tests/`, so a top-level file is still
+ * `liveBrowser.ts` and a nested one is `live/foo.live.test.ts`.
+ */
+function testSources(dir = TESTS_DIR, prefix = ''): { name: string; code: string }[] {
+  const out: { name: string; code: string }[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      out.push(...testSources(join(dir, entry.name), name));
+    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+      const raw = readFileSync(join(dir, entry.name), 'utf-8');
+      out.push({
+        name,
+        code: raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'),
+      });
+    }
+  }
+  return out;
 }
 
-/** A direct import of playwright, in code rather than prose. */
-const DIRECT_IMPORT = /(?:from|import\s*\()\s*['"]playwright['"]/;
+/**
+ * A direct import of a playwright package, in code rather than prose.
+ *
+ * `playwright-core` is the one that matters and it is easy to miss: it is a
+ * transitive dependency, so it is **already in `node_modules`**, and it exports
+ * a `chromium` with a working `launch()`. Verified rather than assumed —
+ * `import('playwright-core')` resolves in this repo today and
+ * `typeof chromium.launch === 'function'`. So a bare `'playwright'` pattern
+ * leaves a working, installed bypass one hyphen away.
+ *
+ * `@playwright/test` is not installed today, and is included because it is the
+ * import path Playwright's own documentation shows — the likeliest thing for
+ * whoever writes the fourth live check to reach for.
+ */
+const DIRECT_IMPORT = /(?:from|import\s*\()\s*['"](?:playwright(?:-core)?|@playwright\/test)['"]/;
 
-/** A call that starts a browser. */
-const LAUNCHES = /\.launch\s*\(/;
+/**
+ * A call that starts a *local* browser process.
+ *
+ * `launchPersistentContext` is included because it launches one and hands back
+ * a context directly, and `.launch\s*\(` does not match it — the character
+ * after `launch` is `P`, not `(`.
+ *
+ * `connect` and `connectOverCDP` are deliberately **not** here. They attach to a
+ * browser someone else started, so the missing-binary branch this helper exists
+ * to remove cannot arise. Naming the property rather than collecting verbs that
+ * look browser-ish is what keeps this from becoming a word list.
+ *
+ * Written as an alternation rather than `launch(?:PersistentContext)?` so that
+ * the pattern does not contain the literal `.launch(` and therefore match its
+ * own definition. Master's narrower `\.launch\s*\(` avoided that by luck — `\s`
+ * sat where the `(` needed to be. Worth stating, because the obvious repair for
+ * a self-match is to exempt this file, and that would blind both sweeps to a
+ * real launcher added here later.
+ */
+const LAUNCHES = /\.(?:launch|launchPersistentContext)\s*\(/;
 
 describe('live browser checks are wired through the helper', () => {
   it('finds the suite to check, so an empty sweep cannot pass', () => {
     const sources = testSources();
     expect(sources.length).toBeGreaterThan(20);
     expect(sources.map((s) => s.name)).toContain(HELPER);
+  });
+
+  it('can see a file it is meant to catch, including one in a subdirectory', () => {
+    // The control above proves the sweep found *a* suite. It does not prove the
+    // sweep can reach *the file that matters*, and those are different claims:
+    // `tests/` holds enough top-level files that `> 20` passes whether or not
+    // the walk descends at all.
+    //
+    // So this plants the exact thing the two sweeps forbid, one directory down,
+    // and requires both of them to flag it. It depends on no file already in
+    // the repo, so it cannot quietly stop proving anything when one is moved.
+    //
+    // The sample is assembled from fragments rather than written out, because
+    // the sweeps read source text and would otherwise flag *this* file for
+    // describing a violation. The alternative — exempting this file from its
+    // own checks — is the one thing the header rules out, and it would be worse
+    // than a cosmetic workaround: it would hide a real launcher added here
+    // later, in the file whose entire subject is checks that do not check.
+    const pkg = 'play' + 'wright-core';
+    const launcher = 'launch' + 'PersistentContext';
+
+    // Named so no runner will ever collect it. The sweep filters on extension,
+    // so the name proves nothing either way — but a `*.live.test.ts` left
+    // behind by an interrupted run *would* be collected by the live runner and
+    // fail there, turning a killed test into a mysterious live-suite failure.
+    const dir = join(TESTS_DIR, '.wiring-control');
+    const file = join(dir, 'planted.sample.ts');
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        file,
+        `import { chromium } from '${pkg}';\nconst b = await chromium.${launcher}('/tmp/x');\n`,
+      );
+
+      const planted = testSources().find((s) => s.name.endsWith('.wiring-control/planted.sample.ts'));
+      expect(planted, 'the sweep does not descend into subdirectories, so a live check in one is unguarded').toBeDefined();
+      expect(DIRECT_IMPORT.test(planted!.code), `the import pattern misses ${pkg}`).toBe(true);
+      expect(LAUNCHES.test(planted!.code), `the launch pattern misses ${launcher}`).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('is the helper alone that imports playwright', () => {
