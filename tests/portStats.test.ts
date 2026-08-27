@@ -251,3 +251,84 @@ describe('measureNoun', () => {
     expect(measureNoun('NR')).toBe('vessel arrivals');
   });
 });
+
+/**
+ * A hole in the series must not become a comparison against the wrong quarter.
+ *
+ * The indicator registry is guarded against gaps by a live contiguity
+ * assertion. The maritime registry deliberately is not, because it has
+ * legitimate whole-year national reporting breaks: Kunda, Pärnu, Sillamäe and
+ * Tallinn are missing all four quarters of 2024 in `mar_tf_qm`, and Estonia
+ * filed nothing that year — checked against all 25 x 14 x 2 tonnage, vessel
+ * and unit combinations the cube offers, Tallinn has 486 non-null cells in
+ * 2023, 494 in 2025, and zero in 2024.
+ *
+ * What protects the reader there is structural rather than a test: every
+ * reading is addressed by period *label*, never by position. So a hole
+ * degrades to "no year-on-year comparison shown", which is what the Estonian
+ * vessel panel does today.
+ *
+ * That protection is invisible and one refactor from gone. Rewriting
+ * `yearOnYear` to walk back four positions instead of four quarters would look
+ * tidier, pass every existing test, and silently compare 2025-Q4 against
+ * 2023-Q4 while labelling it a year. These pin the behaviour, not the idiom.
+ */
+describe('a gap in the quarters does not misalign the comparison', () => {
+  it('offers no comparison when the year-earlier quarter is missing', () => {
+    // Estonia's shape: 2023 present, all of 2024 absent, 2025 present.
+    const m = measure('NR', [{
+      name: 'Tallinn',
+      points: [
+        ['2023-Q3', 1800], ['2023-Q4', 1680],
+        ['2024-Q1', null], ['2024-Q2', null], ['2024-Q3', null], ['2024-Q4', null],
+        ['2025-Q3', 1888], ['2025-Q4', 1690],
+      ],
+    }], '2025-Q4');
+
+    // 2024-Q4 is the honest comparator and it does not exist. The wrong answer
+    // is 2023-Q4 = 1680, which would read as a plausible +0.6% year.
+    expect(yearOnYear(m), 'no year-earlier quarter means no comparison').toBeNull();
+  });
+
+  it('still reports the figure itself, which is known', () => {
+    const m = measure('NR', [{
+      name: 'Tallinn',
+      points: [['2023-Q4', 1680], ['2024-Q4', null], ['2025-Q4', 1690]],
+    }], '2025-Q4');
+
+    // A missing comparison must not collapse the panel: the quarter's total is
+    // a separate question and it has an answer.
+    expect(totalAt(m, '2025-Q4')).toBe(1690);
+  });
+
+  it('counts back four quarters by label, never four rows', () => {
+    // The regression that would survive every other test here. If the lookup
+    // walked positions, this array's fourth-from-last entry is 2023-Q4.
+    expect(sameQuarterLastYear('2025-Q4')).toBe('2024-Q4');
+    expect(valueAt(
+      { code: 'X', name: 'Tallinn', latest: '2025-Q4', series: [
+        { period: '2023-Q4', value: 1680 },
+        { period: '2024-Q4', value: null },
+        { period: '2025-Q4', value: 1690 },
+      ] },
+      sameQuarterLastYear('2025-Q4'),
+    ), 'the 2024 slot is null, and null is the truthful answer').toBeNull();
+  });
+
+  it('compares across the gap when the year-earlier quarter does exist', () => {
+    // Guarding the guard: a fix that returned null whenever any hole existed
+    // anywhere would suppress comparisons that are perfectly well supported.
+    const m = measure('NR', [{
+      name: 'Tallinn',
+      points: [
+        ['2023-Q4', 1680], ['2024-Q1', null], ['2024-Q2', null],
+        ['2024-Q4', 1700], ['2025-Q4', 1870],
+      ],
+    }], '2025-Q4');
+
+    const yoy = yearOnYear(m);
+    expect(yoy).not.toBeNull();
+    expect(yoy!.previous).toBe(1700);
+    expect(Math.round(yoy!.pct * 10) / 10).toBe(10);
+  });
+});
