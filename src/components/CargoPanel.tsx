@@ -50,11 +50,11 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
   const showing = !hasMix ? 'port' : !hasPorts ? 'type' : view;
 
   return (
-    <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
+    <section className="dash-card border dash-edge rounded-xl p-6">
       <div className="flex items-center justify-between mb-2 gap-2">
         <h3 className="text-callout font-semibold dash-fg">{title}</h3>
         {hasPorts && hasMix && (
-          <div className="flex gap-1 bg-slate-800/50 rounded-lg p-0.5">
+          <div className="flex gap-1 dash-raised rounded-lg p-0.5">
             <ViewButton label="By port" active={showing === 'port'} onClick={() => setView('port')} />
             <ViewButton label="By type" active={showing === 'type'} onClick={() => setView('type')} />
           </div>
@@ -93,7 +93,7 @@ function ViewButton({ label, active, onClick }: { label: string; active: boolean
     <button
       onClick={onClick}
       className={`px-2 py-1 text-caption rounded-lg transition-colors ${
-        active ? 'bg-slate-600 dash-fg' : 'dash-muted dash-hover-fg'
+        active ? 'dash-input dash-fg' : 'dash-muted dash-hover-fg'
       }`}
     >
       {label}
@@ -143,7 +143,7 @@ function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix
                   </span>
                 </div>
               </div>
-              <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
+              <div className="h-2.5 dash-raised rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-[width] duration-500"
                   style={{

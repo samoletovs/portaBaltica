@@ -54,7 +54,7 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
       </div>
 
       {freshness?.stale && (
-        // `text-amber-300` is not remapped by the theme layer in `index.css` —
+        // `dash-warning` is not remapped by the theme layer in `index.css` —
         // that layer covers the 400 step and not the 300 — so in light mode
         // this shipped at 1.44:1 against white. A staleness warning nobody can
         // read is worse than none, because the page then looks confident.
@@ -96,7 +96,7 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
           <CargoPanel measure={stats.goods} mix={stats.cargoMix} />
         </div>
       ) : (
-        <div className="px-3 py-2 rounded-lg text-caption dash-muted bg-slate-900/50 border border-slate-800/40">
+        <div className="px-3 py-2 rounded-lg text-caption dash-muted dash-card border dash-edge">
           Port statistics are unavailable right now.
         </div>
       )}
@@ -115,14 +115,14 @@ function TileSkeleton() {
       <h2 className="balance-text text-title font-semibold dash-fg mb-6">Maritime</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
-            <div className="h-5 bg-slate-700/30 rounded w-1/3 mb-4" />
+          <div key={i} className="dash-card border dash-edge rounded-xl p-6 animate-pulse">
+            <div className="h-5 dash-skeleton rounded w-1/3 mb-4" />
             <div className="grid grid-cols-2 gap-3 mb-4">
               {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="h-12 bg-slate-700/30 rounded-lg" />
+                <div key={j} className="h-12 dash-skeleton rounded-lg" />
               ))}
             </div>
-            <div className="h-12 bg-slate-700/30 rounded" />
+            <div className="h-12 dash-skeleton rounded" />
           </div>
         ))}
       </div>

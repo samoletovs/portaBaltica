@@ -187,10 +187,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
   if (loading || externalLoading) {
     return (
-      <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse">
-        <div className="h-3 bg-slate-800/60 rounded w-1/3 mb-3" />
-        <div className="h-6 bg-slate-800/60 rounded w-1/2 mb-2" />
-        <div className="h-20 bg-slate-800/40 rounded" />
+      <div className="dash-card border dash-edge rounded-xl p-4 animate-pulse">
+        <div className="h-3 dash-raised rounded w-1/3 mb-3" />
+        <div className="h-6 dash-raised rounded w-1/2 mb-2" />
+        <div className="h-20 dash-raised rounded" />
       </div>
     );
   }
@@ -434,7 +434,7 @@ export function IndicatorChart({
   }, [id, years, country]);
 
   if (loading) {
-    return <div className="h-64 bg-slate-900/50 rounded-xl animate-pulse" />;
+    return <div className="h-64 dash-card rounded-xl animate-pulse" />;
   }
   if (!data || list(data.series).length === 0) {
     // Callers that have something better to show than an apology pass a

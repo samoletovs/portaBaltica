@@ -35,7 +35,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Construction permits */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
+        <div className="dash-card border dash-edge rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-caption dash-muted">Construction Permits</p>
             <p className="text-lead font-semibold dash-fg font-mono">{totalPermits === null ? '—' : totalPermits.toLocaleString()}</p>
@@ -47,9 +47,9 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
                   <span className="dash-body truncate max-w-[60%]">{p.municipality}</span>
                   <span className="dash-fg font-mono">{p.count}</span>
                 </div>
-                <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+                <div className="h-1.5 dash-raised rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-cyan-500 rounded-full"
+                    className="h-full dash-fill-cat1 rounded-full"
                     style={{ width: `${(p.count / maxPermits) * 100}%` }}
                   />
                 </div>
@@ -60,7 +60,7 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         </div>
 
         {/* Energy profile by carrier */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
+        <div className="dash-card border dash-edge rounded-xl p-6">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-caption dash-muted">Building Energy Profile</p>
             <p className="text-lead font-semibold dash-fg font-mono">{totalCerts === null ? '—' : totalCerts.toLocaleString()}</p>
@@ -73,9 +73,9 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
                     <span className="dash-body truncate max-w-[65%]">{cert.rating}</span>
                     <span className="dash-fg font-mono">{cert.count}</span>
                   </div>
-                  <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
+                  <div className="h-1.5 dash-raised rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-teal-500"
+                      className="h-full rounded-full dash-fill-cat2"
                       style={{ width: `${(cert.count / maxCerts) * 100}%` }}
                     />
                   </div>
@@ -111,12 +111,12 @@ function TileSkeleton() {
       <TileHeader title="Property & energy" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[1, 2].map((i) => (
-          <div key={i} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
-            <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-3" />
-            <div className="h-6 bg-slate-700/30 rounded w-1/4 mb-4" />
+          <div key={i} className="dash-card border dash-edge rounded-xl p-6 animate-pulse">
+            <div className="h-3 dash-skeleton rounded w-1/3 mb-3" />
+            <div className="h-6 dash-skeleton rounded w-1/4 mb-4" />
             <div className="space-y-2">
               {[1, 2, 3, 4].map((j) => (
-                <div key={j} className="h-2 bg-slate-700/30 rounded" />
+                <div key={j} className="h-2 dash-skeleton rounded" />
               ))}
             </div>
           </div>

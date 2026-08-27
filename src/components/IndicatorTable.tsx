@@ -79,24 +79,24 @@ export function IndicatorTable() {
 
   if (loading) {
     return (
-      <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 animate-pulse">
-        <div className="h-4 bg-slate-700/30 rounded w-1/4 mb-4" />
+      <div className="dash-card border dash-edge rounded-xl p-4 animate-pulse">
+        <div className="h-4 dash-skeleton rounded w-1/4 mb-4" />
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="h-8 bg-slate-800/20 rounded mb-2" />
+          <div key={i} className="h-8 dash-raised rounded mb-2" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-800/40">
+    <div className="dash-card border dash-edge rounded-xl overflow-hidden">
+      <div className="px-4 py-3 border-b dash-edge">
         <h3 className="text-callout font-semibold dash-fg">{countryLabel} key indicators</h3>
         <p className="text-caption dash-subtle">Click any row for analysis</p>
       </div>
 
       {/* Header row */}
-      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-caption dash-muted border-b border-slate-800/30">
+      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-caption dash-muted border-b dash-edge">
         <span>Indicator</span>
         <span className="text-right">Latest</span>
         <span className="hidden sm:block text-right">Previous</span>
@@ -124,7 +124,7 @@ export function IndicatorTable() {
           <button
             key={row.id}
             onClick={() => navigate(`/indicator/${row.id}`)}
-            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left hover:bg-slate-800/30 transition-colors border-b border-slate-800/20 last:border-0 group"
+            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left dash-hover-raised transition-colors border-b dash-edge last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
             <div className="min-w-0 flex items-baseline gap-2 overflow-hidden">

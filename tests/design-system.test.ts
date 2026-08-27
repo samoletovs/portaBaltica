@@ -319,22 +319,26 @@ function overriddenColour(className: string, tokens: Record<string, string>, the
   return resolved;
 }
 
-describe('the Tailwind compatibility layer', () => {
-  // Every hardcoded colour class in the components that carries *status*
-  // meaning. These are text, so SC 1.4.3 governs them at 4.5:1 — not the 3:1
-  // that governs a chart line, which is the confusion the old literals encoded.
-  const STATUS_TEXT = [
-    'text-emerald-400',
-    'text-green-400',
-    'text-red-400',
-    'text-orange-400',
-    'text-yellow-400',
-    'text-amber-400',
-    'text-amber-300',
-  ];
+describe('the named colour utilities', () => {
+  // The three classes that carry *status* meaning as text. These are text, so
+  // SC 1.4.3 governs them at 4.5:1 — not the 3:1 that governs a chart line,
+  // which is exactly the confusion the old literals encoded when
+  // `.text-emerald-400` was pinned to #059669 at 3.77:1.
+  //
+  // They used to be Tailwind classes rescued by an `!important` override, and
+  // this suite could only reach them by resolving the cascade. They are
+  // declared now, which is the point of naming them: a declared rule is
+  // measurable, an absent one is not.
+  const STATUS_TEXT = ['dash-positive', 'dash-negative', 'dash-warning'];
+  const TEXT_RAMP: Record<string, number> = {
+    'dash-fg': 12,
+    'dash-body': 10,
+    'dash-muted': 7,
+    'dash-subtle': 4.5,
+  };
 
   for (const { name, tokens } of THEMES) {
-    it(`states status legibly in ${name} once the override layer has run`, () => {
+    it(`states status legibly in ${name}`, () => {
       for (const className of STATUS_TEXT) {
         const resolved = overriddenColour(className, tokens, name);
         expect(resolved, `.${className} resolves to nothing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
@@ -346,14 +350,54 @@ describe('the Tailwind compatibility layer', () => {
         ).toBeGreaterThanOrEqual(4.5);
       }
     });
+
+    it(`states status legibly on its own tint in ${name}`, () => {
+      // A badge and a stale-data notice put `--data-warning` text on a
+      // warning-coloured background, so the floor has to be measured against
+      // *that* background rather than against the card.
+      //
+      // This exists because deriving the tint with
+      // `color-mix(--data-warning, --bg-card)` passes in dark and fails in
+      // light: there `--data-warning` is a dark amber, so mixing it into a
+      // white card darkens the ground and drags the text down with it —
+      // 4.21:1 at 12%, 4.32:1 at 10%, and 6% is the most that clears the floor
+      // while being too faint to see. The tint is a value per theme, not a
+      // formula, and this measures the value.
+      const tint = tokens['--tint-warning'];
+      expect(tint, `--tint-warning missing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
+
+      const ratio = contrast(tokens['--data-warning'], tint);
+      expect(
+        Number(ratio.toFixed(2)),
+        `${name} --data-warning on --tint-warning is ${ratio.toFixed(2)}:1, needs 4.5:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it(`clears every text floor through the class a component writes in ${name}`, () => {
+      // The same floors §1.5 gives the tokens, asserted through the class the
+      // components actually use. A utility wired to the wrong token would pass
+      // every token test and fail here.
+      for (const [className, floor] of Object.entries(TEXT_RAMP)) {
+        const resolved = overriddenColour(className, tokens, name);
+        expect(resolved, `.${className} resolves to nothing in ${name}`).toMatch(/^#[0-9a-f]{6}$/i);
+
+        const ratio = contrast(resolved!, tokens['--bg-card']);
+        expect(
+          Number(ratio.toFixed(2)),
+          `${name} .${className} is ${ratio.toFixed(2)}:1 on a card, needs ${floor}:1`,
+        ).toBeGreaterThanOrEqual(floor);
+      }
+    });
   }
 
   it('leaves no status colour class uncovered', () => {
-    // A literal has to be restated once per theme per class, so a class nobody
-    // remembered kept its raw Tailwind value and rendered a dark-theme colour
-    // on white. Four did: `text-amber-300`, `text-amber-400/80`,
-    // `text-green-400` and `text-orange-400` had no light rule at all. This
-    // fails on the next one rather than waiting for a reader to find it.
+    // The historical failure: a literal had to be restated once per theme per
+    // class, so a class nobody remembered kept its raw Tailwind value and
+    // rendered a dark-theme colour on white. Four did — `text-amber-300`,
+    // `text-amber-400/80`, `text-green-400` and `text-orange-400`.
+    //
+    // Named classes remove the category rather than patch it, so this asserts
+    // the absence: no component writes a raw status colour at all.
     const used = new Set<string>();
     for (const { text } of components()) {
       for (const match of text.matchAll(
@@ -363,27 +407,107 @@ describe('the Tailwind compatibility layer', () => {
       }
     }
 
-    const uncovered = [...used].filter(
-      (className) => !THEMES.some(({ name, tokens }) => overriddenColour(className, tokens, name)),
-    );
-
-    expect(uncovered, 'these classes reach the browser as raw Tailwind colours').toEqual([]);
+    expect([...used], 'use dash-positive / dash-negative / dash-warning').toEqual([]);
   });
 
   it('routes status colour through the tokens rather than a second set of hexes', () => {
-    // One source of truth. A literal here is a value that can drift from the
-    // token it was copied from, and silently did.
-    const layer = css.slice(css.indexOf('/* Status text.'));
-    const rules = layer.slice(0, layer.indexOf('/* Border colors'));
+    // One source of truth. A literal is a value that can drift from the token
+    // it was copied from, and silently did: `.text-emerald-400` was pinned to
+    // #059669 while `--data-positive` sat correct and unused two hundred lines
+    // above it.
+    for (const [utility, token] of [
+      ['dash-positive', '--data-positive'],
+      ['dash-negative', '--data-negative'],
+      ['dash-warning', '--data-warning'],
+    ]) {
+      expect(css, `.${utility} must reference ${token}`).toMatch(
+        new RegExp(String.raw`\.${utility}\s*\{\s*color:\s*var\(${token}\)\s*;?\s*\}`),
+      );
+    }
+  });
 
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-positive\)/);
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-negative\)/);
-    expect(rules, 'the status text block must reference tokens').toMatch(/var\(--data-warning\)/);
-    expect(rules, 'no literal hexes in the status text block').not.toMatch(/color:\s*#[0-9a-f]{3,6}/i);
+  it('never asks Tailwind for a variant of a class Tailwind does not own', () => {
+    // Tailwind generates `disabled:bg-slate-800` because it owns
+    // `bg-slate-800`. It cannot generate `disabled:dash-raised`, because
+    // `dash-raised` is hand-written in index.css and Tailwind has never heard
+    // of it -- so the rule is simply never emitted. Nothing warns. The class
+    // sits in the markup looking load-bearing and does nothing.
+    //
+    // That is how the beneficial-owner search button came to render
+    // identically enabled and disabled: `disabled:dash-raised` was silently
+    // inert, so the only background left was the resting one.
+    //
+    // A control's states belong in CSS beside the control -- `.dash-btn:disabled`
+    // -- where they are a rule that either exists or does not.
+    const declared = new Set(
+      [...css.matchAll(/^\s*\.([a-z][a-z0-9-]*)(?=[\s,:{])/gm)].map((m) => m[1]),
+    );
+    // Only project-owned names can be wrong this way; a Tailwind utility of the
+    // same shape is fine.
+    const owned = [...declared].filter((c) => /^(dash|news|ticker)-/.test(c));
+    expect(owned.length, 'expected project-owned utilities to exist').toBeGreaterThan(10);
+
+    const offenders: string[] = [];
+    for (const { file, text } of components()) {
+      for (const m of text.matchAll(/\b([a-z-]+(?::[a-z-]+)*):([a-z][a-z0-9-]*)\b/g)) {
+        if (owned.includes(m[2])) offenders.push(`${file}: ${m[0]}`);
+      }
+    }
+
+    expect(offenders, 'these classes are never emitted — declare the state in CSS').toEqual([]);
+  });
+
+  it('never paints text with a token meant for a border or a gridline', () => {
+    // The ticker separated its items with a `·` coloured `--border-card`, which
+    // measured 1.54:1 in dark and 1.23:1 in light -- invisible in both. It was
+    // also redundant: the track already puts 32px between items, so the mark
+    // sat 8px from its own item and read as a trailing artefact rather than a
+    // separator. It is gone.
+    //
+    // The general fault is using a token at a job whose contrast floor it was
+    // never tuned for -- a border token has no text floor to meet, so borrowing
+    // it for text cannot pass. This is the same shape as a chart-line colour
+    // used for a 12px figure.
+    //
+    // A background token as text is the one legitimate case: knockout type on
+    // an accent fill, as the error boundary's Reload button does at 8.94:1 dark
+    // and 5.58:1 light. What makes it legitimate is that the element paints its
+    // own ground, so the check asks for that rather than banning the token.
+    const offenders: string[] = [];
+    for (const { file, text } of components()) {
+      // Inline styles are objects, so read one property bag at a time: knockout
+      // text is legitimate, and the thing that makes it legitimate — the element
+      // painting its own fill — is a sibling property, not a separate concern.
+      for (const bag of text.matchAll(/style=\{\{([^}]*)\}\}/g)) {
+        const decl = bag[1];
+        const colour = decl.match(/(?:^|[\s,{])color:\s*['"`]var\((--[a-z0-9-]+)\)/);
+        if (!colour) continue;
+        const token = colour[1];
+        if (/^--(border|chart-grid|scrollbar)/.test(token)) {
+          offenders.push(`${file}: color uses ${token}`);
+        } else if (/^--bg-/.test(token) && !/background(?:Color)?:/.test(decl)) {
+          // A page or card colour as text is knockout type, which only reads
+          // if the element paints its own ground. Without one it is text in
+          // the colour of what is behind it.
+          offenders.push(`${file}: color uses ${token} with no background of its own`);
+        }
+      }
+    }
+    expect(offenders, 'these tokens have no text contrast floor at this job').toEqual([]);
+  });
+
+  it('gives a control a state it can actually move to', () => {
+    // `--bg-raised`, `--bg-card-hover` and `--bg-input` all hold the same
+    // value, so a control resting on it has nowhere to go and its hover reads
+    // as no change. DESIGN.md §2.2 requires the surface to move one step up.
+    for (const { name, tokens } of THEMES) {
+      const rest = tokens['--bg-input'];
+      const hover = tokens['--bg-control-hover'];
+      expect(hover, `${name}: --bg-control-hover must exist`).toBeTruthy();
+      expect(hover, `${name}: hover must differ from rest`).not.toBe(rest);
+    }
   });
 });
-
-// ─── focus and motion ──────────────────────────────────────────────────────
 
 describe('focus', () => {
   it('is applied once, globally, rather than per component', () => {

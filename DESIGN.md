@@ -297,6 +297,43 @@ Windows native reverses this; on the web, lighter-on-hover is the convention.
 A hover state must never be the *only* way to discover something. The indicator
 cards reveal a `→` on hover; that is decoration, and the card is a link
 regardless.
+
+**A state has to have somewhere to go.** `--bg-raised`, `--bg-card-hover` and
+`--bg-input` all held the same value, so "surface moves one step up" was
+describing something that could not happen: a control resting on `--bg-input`
+hovered to the identical colour. The table above was true of cards, which rest
+on `--bg-card`, and quietly false of every control. `--bg-control-hover` is the
+step that makes the row true, and `design-system.test.ts` asserts rest and hover
+differ in both themes rather than trusting the prose.
+
+**Write control states as CSS, not as Tailwind variants.** `disabled:dash-raised`
+looks like it works and is never emitted at all — Tailwind only generates a
+variant of a utility it owns, and `dash-raised` is hand-written here. Nothing
+warns; the class sits in the markup looking load-bearing. That is how the
+beneficial-owner search button came to render identically enabled and disabled.
+States belong beside the control, as `.dash-btn:hover:not(:disabled)` and
+`.dash-btn:disabled` — rules that either exist or do not. A test scans every
+component for a Tailwind variant applied to a project-owned class.
+
+**A state rendered when it is not true is the same defect as a value rendered
+when there is no data** (§3.8), with the sign flipped. The compatibility layer's
+`[class*="bg-slate-800"]` matched the substring inside `hover:bg-slate-800/30`,
+so every indicator row on `/data` was painted in its own hover colour *at rest*,
+with `!important` — the affordance was dead, and hovering changed nothing. The
+same selector caught `disabled:bg-slate-800`, so an **enabled** button wore its
+disabled colour, which does not merely fail to inform but actively misinforms.
+Measure states in the browser by driving them: rest, hover, disabled, and assert
+they differ.
+
+**A token is tuned for one job and has no floor for another.** The ticker
+separated its items with a `·` coloured `--border-card` — 1.54:1 in dark, 1.23:1
+in light. A border token has no text contrast floor because nothing intended it
+to be read, so borrowing it for text cannot pass. It was also redundant: the
+track already puts 32px between items and the mark sat 8px from its own, reading
+as a trailing artefact rather than a separator, so it was deleted rather than
+recoloured. `--border-*`, `--chart-grid` and `--scrollbar-*` are now rejected as
+`color:` by test. The same fault one category out is a chart-line colour used
+for a 12px figure — see §3.6.
 ### 2.3 Measure it in the browser, not in the source
 
 A standing caution, learned the expensive way on this project.

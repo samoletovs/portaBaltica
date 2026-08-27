@@ -82,32 +82,16 @@ function hasRule(className: string): boolean {
 /**
  * What is left to migrate, by file.
  *
- * This is a debt register, and it only goes down. It is committed *passing*
- * rather than failing, deliberately: a red suite on master cannot tell a
- * half-finished migration from a real regression, and this repo's rules say a
- * change that is not finished does not ship. A ratchet gives the same
- * guarantee — no new instances — while keeping the signal honest.
+ * It is empty. The dashboard is fully migrated: no component writes a
+ * hardcoded Tailwind colour, and the ~150-line compatibility layer that used
+ * to remap them with `!important` is deleted rather than left dormant.
  *
- * When you migrate a file, lower its number. When it reaches zero, delete the
- * line. When the map is empty, delete the compatibility layer.
+ * The map stays, rather than this file being deleted with the debt, because
+ * its job has changed from *shrinking* the count to *holding* it at zero.
+ * Adding a file back would be a deliberate act with a number attached, which
+ * is the point: the next `text-slate-400` has to be argued for.
  */
-const REMAINING: Record<string, number> = {
-  'src/components/BusinessTile.tsx': 20,
-  'src/components/EnvironmentTile.tsx': 19,
-  'src/components/PropertyTile.tsx': 13,
-  'src/components/EconomyTile.tsx': 12,
-  'src/components/SystemStatusFooter.tsx': 9,
-  'src/components/InsightsBanner.tsx': 10,
-  'src/components/IndicatorTable.tsx': 9,
-  'src/types.ts': 8,
-  'src/components/MaritimeTile.tsx': 7,
-  'src/components/IndicatorCard.tsx': 6,
-  'src/components/CargoPanel.tsx': 5,
-  'src/components/PortCard.tsx': 5,
-  'src/components/IndicatorPage.tsx': 4,
-  'src/components/PortPanelParts.tsx': 3,
-  'src/App.tsx': 1,
-};
+const REMAINING: Record<string, number> = {};
 
 describe('the hardcoded-colour ratchet', () => {
   it('never grows', () => {
@@ -142,6 +126,81 @@ describe('the hardcoded-colour ratchet', () => {
 });
 
 describe('the compatibility layer', () => {
+  const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+
+  it('is gone, and nothing writes the classes it used to rescue', () => {
+    // Both halves, because either alone rots: a dormant rule invites the class
+    // back, and a class with no rule is the invisible state that started all
+    // of this.
+    expect(instances(), 'a hardcoded Tailwind colour is back in a component').toEqual([]);
+
+    const survivors = [...cssCode.matchAll(/^\s*(?:\[[^\]]*\]\s*)?\.((?:[a-z0-9-]|\\.)+?)\s*[,{]/gm)]
+      .map((m) => m[1].replace(/\\(.)/g, '$1'))
+      .filter(
+        (selector) =>
+          /^(?:text|bg|border|ring|fill|stroke|placeholder|divide|outline)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}/.test(
+            selector,
+          ) || /^(?:text|bg|border)-(?:white|black)$/.test(selector),
+      );
+
+    expect(survivors, 'these compatibility rules outlived the classes they rescued').toEqual([]);
+  });
+
+  it('no longer governs a colour namespace by substring', () => {
+    // `[class*="bg-slate-900"]` matched a substring of the class attribute.
+    // That is what made most opacity variants theme-aware — and also what made
+    // the rule indiscriminate, since any future class merely containing that
+    // text would have been silently repainted.
+    const attributeSelectors = [...cssCode.matchAll(/\[class\*="([^"]+)"\]/g)].map((m) => m[1]);
+    expect(
+      attributeSelectors.filter((s) =>
+        /(?:slate|gray|red|emerald|amber|yellow|cyan|teal)-?\d*$/.test(s),
+      ),
+      'a colour namespace is still governed by a substring match',
+    ).toEqual([]);
+  });
+
+  it('needs !important for motion and for nothing else', () => {
+    // `prefers-reduced-motion` has to beat inline and utility animation, so it
+    // earns the escape hatch. Colour no longer does: every colour rule now
+    // declares a class of its own rather than fighting a generated one.
+    const important = [...cssCode.matchAll(/^[^\n]*!important[^\n]*$/gm)].map((m) => m[0].trim());
+    expect(
+      important.filter((line) => !/animation|transition|scroll-behavior/.test(line)),
+      'colour should no longer need !important anywhere',
+    ).toEqual([]);
+  });
+
+  it('declares a named class for every step it replaced', () => {
+    for (const [utility, property, token] of [
+      ['dash-fg', 'color', '--text-primary'],
+      ['dash-body', 'color', '--text-body'],
+      ['dash-muted', 'color', '--text-secondary'],
+      ['dash-subtle', 'color', '--text-tertiary'],
+      ['dash-card', 'background', '--bg-card'],
+      ['dash-raised', 'background', '--bg-card-hover'],
+      ['dash-input', 'background', '--bg-raised'],
+      ['dash-edge', 'border-color', '--border-card'],
+      ['dash-positive', 'color', '--data-positive'],
+      ['dash-negative', 'color', '--data-negative'],
+      ['dash-warning', 'color', '--data-warning'],
+    ]) {
+      expect(css, `.${utility} is missing or does not use ${token}`).toMatch(
+        new RegExp(String.raw`\.${utility}\s*\{\s*${property}:\s*var\(${token}\)`),
+      );
+    }
+  });
+
+  it('keeps the light-theme card shadow that was keyed on the old class', () => {
+    // A white card on a near-white page is a 1.06:1 step, so the shadow is the
+    // only thing giving it an edge. It was attached to `.bg-slate-900\/50`, so
+    // deleting that rule without noticing would have flattened every card in
+    // the light theme — a silent regression produced by a cleanup.
+    expect(css, 'the light-theme card shadow was lost with the layer').toMatch(
+      /\[data-theme="light"\]\s*\.dash-card\s*\{\s*box-shadow:/,
+    );
+  });
+
   it('no longer rescues the text ramp, because nothing writes it', () => {
     // The neutral text ramp is migrated: `text-white` and every `text-slate-*`
     // are gone from src/, and the four `!important` rules that used to remap
@@ -160,7 +219,7 @@ describe('the compatibility layer', () => {
         `${className} is back in a component; use dash-fg/body/muted/subtle`,
       ).toEqual([]);
       expect(
-        css,
+        cssCode,
         `the override for ${className} should be gone, not dormant`,
       ).not.toMatch(new RegExp(String.raw`^\.${className}\s*[,{]`, 'm'));
     }

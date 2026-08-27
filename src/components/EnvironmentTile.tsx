@@ -76,7 +76,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Weather */}
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2">
+        <div className="dash-card border dash-edge rounded-xl p-6 md:col-span-2">
           <p className="text-caption dash-muted mb-3">Current Weather</p>
           {weather.length === 0 ? (
             <p className="text-ui dash-muted">No city reported a reading just now.</p>
@@ -171,7 +171,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
               </div>
             </div>
           ) : (
-            <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
+            <div className="dash-card border dash-edge rounded-xl p-6">
               <p className="text-caption dash-muted mb-2">Air Quality · {capital}</p>
               <p className="text-ui" style={{ color: 'var(--data-warning)' }}>
                 No reading available right now.
@@ -183,7 +183,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
           )}
 
           {/* Population */}
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
+          <div className="dash-card border dash-edge rounded-xl p-6">
             <p className="text-caption dash-muted mb-1">{capital} area population</p>
             <p className="text-title font-semibold dash-fg font-mono">
               {(data.capitalPopulation ?? data.rigaPopulation) != null
@@ -207,25 +207,25 @@ function TileSkeleton() {
     <section>
       <TileHeader title="Environment" />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2 animate-pulse">
-          <div className="h-3 bg-slate-700/30 rounded w-1/4 mb-4" />
+        <div className="dash-card border dash-edge rounded-xl p-6 md:col-span-2 animate-pulse">
+          <div className="h-3 dash-skeleton rounded w-1/4 mb-4" />
           <div className="grid grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="text-center">
-                <div className="h-10 w-10 bg-slate-700/30 rounded-full mx-auto mb-2" />
-                <div className="h-4 bg-slate-700/30 rounded w-3/4 mx-auto" />
+                <div className="h-10 w-10 dash-skeleton rounded-full mx-auto mb-2" />
+                <div className="h-4 dash-skeleton rounded w-3/4 mx-auto" />
               </div>
             ))}
           </div>
         </div>
         <div className="space-y-4">
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
-            <div className="h-12 w-12 bg-slate-700/30 rounded-full mb-2" />
-            <div className="h-4 bg-slate-700/30 rounded w-1/2" />
+          <div className="dash-card border dash-edge rounded-xl p-6 animate-pulse">
+            <div className="h-12 w-12 dash-skeleton rounded-full mb-2" />
+            <div className="h-4 dash-skeleton rounded w-1/2" />
           </div>
-          <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 animate-pulse">
-            <div className="h-3 bg-slate-700/30 rounded w-1/3 mb-2" />
-            <div className="h-6 bg-slate-700/30 rounded w-1/2" />
+          <div className="dash-card border dash-edge rounded-xl p-6 animate-pulse">
+            <div className="h-3 dash-skeleton rounded w-1/3 mb-2" />
+            <div className="h-6 dash-skeleton rounded w-1/2" />
           </div>
         </div>
       </div>

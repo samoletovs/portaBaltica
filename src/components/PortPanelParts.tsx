@@ -17,7 +17,7 @@ import { dormantPorts, formatMeasure, formatPct, isDiscontinued, measureNoun, to
 
 export function PanelShell({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
+    <section className="dash-card border dash-edge rounded-xl p-6">
       <h3 className="text-callout font-semibold dash-fg mb-2">{title}</h3>
       {children}
     </section>
@@ -60,7 +60,7 @@ export function MeasureHeadline({ measure }: { measure: PortMeasure }) {
 
   // Routed through the polarity module rather than coloured off the sign.
   // Two things were wrong with `pct >= 0 ? emerald : orange`. The orange
-  // (`text-orange-400`) is one of the few palette classes the theme
+  // (`dash-negative`) is one of the few palette classes the theme
   // compatibility layer in `index.css` does not remap, so in light mode it
   // shipped at 2.26:1 against white — below the 4.5:1 floor, on the number
   // that carries the news. And `>= 0` painted an unchanged quarter green: a
@@ -131,7 +131,7 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
                 </span>
               </div>
             </div>
-            <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
+            <div className="h-2.5 dash-raised rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-[width] duration-500"
                 style={{
@@ -155,8 +155,8 @@ export function PanelNote({ measure, table }: { measure: PortMeasure; table: str
   return (
     <p className="text-caption dash-subtle mt-3">
       {measure.countryOnly && (
-        // `text-amber-400/80` looks covered by the theme layer in `index.css`
-        // and is not: that layer remaps `.text-amber-400`, and the slashed
+        // `dash-warning` looks covered by the theme layer in `index.css`
+        // and is not: that layer remaps `.dash-warning`, and the slashed
         // opacity variant is a different class it never matches. So this shipped
         // at amber-on-white in light mode. The token resolves per theme.
         <span style={{ color: 'var(--data-warning)' }}>
