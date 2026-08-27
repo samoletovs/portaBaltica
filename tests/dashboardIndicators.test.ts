@@ -68,6 +68,107 @@ describe('the freight and productivity indicators are on the page', () => {
   });
 });
 
+/**
+ * Rail passengers — the one metric on the manager's candidate list that was
+ * genuinely absent, and the contract that keeps it honest.
+ *
+ * Fourteen of the fifteen suggested indicators already existed here. This is
+ * the exception, and it is worth having for a reason a coverage count does not
+ * show: it *inverts* the freight ranking. Latvia carries roughly twice
+ * Estonia's rail passengers and nearly four times Lithuania's, while Lithuania
+ * leads rail freight and Latvia's freight has fallen by nearly 90% since 2022.
+ * A reader shown only the freight series would conclude the Latvian railway is
+ * emptying; the passenger series says the opposite.
+ *
+ * Measured live against `rail_pa_quartal`, 2019-Q1..2026-Q2:
+ *
+ *   LV  n=29  latest 4653  min 1924  max 6074
+ *   EE  n=30  latest 2058  min  978  max 2163
+ *   LT  n=29  latest 1198  min  519  max 1514
+ *
+ * It deliberately has no chart. The dashboard already draws the same
+ * three-line comparison fifty times over, and a metric earns its place in the
+ * registry by being citable and collectable, not by adding a fifty-first.
+ */
+describe('rail passengers', () => {
+  const def = INDICATORS.rail_passengers;
+
+  it('exists, because it was the one real gap in the transport coverage', () => {
+    expect(INDICATORS).toHaveProperty('rail_passengers');
+    expect(def.dataset).toBe('rail_pa_quartal');
+  });
+
+  it('counts people rather than passenger-kilometres', () => {
+    // The cube offers exactly two units and they differ by a factor of ~25:
+    // MIO_PKM puts Latvia at 162-212, THS_PAS at 4653-6074. Either pins
+    // cleanly and either produces a plausible-looking line; only one is the
+    // statistic the title claims.
+    expect(def.params).toContain('unit=THS_PAS');
+    expect(def.params).not.toContain('MIO_PKM');
+    expect(def.unit).toMatch(/passenger/i);
+  });
+
+  it('pins every dimension the cube carries', () => {
+    // freq, unit, geo and time are the whole cube; geo and time are supplied
+    // by buildUrl. An unpinned dimension makes the parser choose a slice and
+    // report it in `assumptions`.
+    for (const dim of ['freq=Q', 'unit=']) {
+      expect(def.params, `${dim} must be pinned`).toContain(dim);
+    }
+    expect(def.freq).toBe('Q');
+  });
+
+  it('bands the statistic so the reachable mis-pin fails', () => {
+    const [low, high] = def.sanity;
+
+    // Above Latvia's entire MIO_PKM range (162-212), so pinning the wrong unit
+    // trips the live contract rather than drawing a quieter chart.
+    expect(low, 'the floor must reject a passenger-kilometre series').toBeGreaterThan(212);
+
+    // ...and still below the lowest quarter ever recorded, including the 2020
+    // collapse, so a real trough is not mistaken for a fault.
+    expect(low, 'the floor must accept the pandemic trough').toBeLessThan(519);
+    expect(high, 'the ceiling must accept the busiest quarter').toBeGreaterThan(6074);
+  });
+
+  it('is citable, so an article naming it is not silently stripped of its chart', () => {
+    expect(DASHBOARD_INDICATORS.has('rail_passengers')).toBe(true);
+  });
+
+  it('does not share a request with rail freight', () => {
+    // The two rail cubes are one character apart — rail_pa_quartal and
+    // rail_go_quartal — and confusing them would put tonne-kilometres under a
+    // passenger headline.
+    expect(INDICATORS.rail_freight.dataset).not.toBe(def.dataset);
+    expect(def.title).toMatch(/passenger/i);
+  });
+});
+
+/**
+ * The industrial electricity price names the band it actually prices.
+ *
+ * The registry title is not what a reader sees — the tile passes its own
+ * `title` to the chart. So the qualifier has to be true in both places or the
+ * fix is invisible on the page it was made for.
+ */
+describe('the industrial electricity price on the energy tile', () => {
+  it('tells the reader it is a band rather than every consumer', () => {
+    const shown = chartsIn('EnergyTile.tsx').elec_price_industry;
+
+    expect(shown, 'EnergyTile must still draw the industry price').toBeDefined();
+    expect(shown, 'the visible title must name the band, not just the registry one')
+      .toMatch(/\d+\s*[\u2013-]\s*\d+/);
+    expect(shown).toContain('500');
+  });
+
+  it('leaves the household price alone, because its total is complete', () => {
+    // TOT_KWH carries 9 of 9 periods for all three countries in nrg_pc_204.
+    // The band problem is a property of nrg_pc_205, not of the code.
+    expect(INDICATORS.elec_price_household.params).toContain('nrg_cons=TOT_KWH');
+    expect(chartsIn('EnergyTile.tsx').elec_price_household).not.toMatch(/\d+\s*[\u2013-]\s*\d+/);
+  });
+});
+
 describe('the captions claim nothing the data does not support', () => {
   it('does not name a leader or a laggard in any freight or productivity title', () => {
     // Latvia leads productivity and Estonia trails; Latvia is also the most
