@@ -235,7 +235,7 @@ async function probe(check) {
     // deadline, a quarter hang twice, and asking an hourly source for fresh
     // data several times a minute is a large part of the reason.
     const result = await cache.memo(
-      'open-meteo:' + check.url,
+      cache.requestKey('open-meteo', check.url),
       OPEN_METEO_TTL_MS,
       OPEN_METEO_GRACE_MS,
       async function () {

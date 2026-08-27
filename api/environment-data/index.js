@@ -62,7 +62,7 @@ const WEATHER_TTL_MS = 10 * 60 * 1000;
 const WEATHER_GRACE_MS = 60 * 60 * 1000;
 
 function cachedJson(url) {
-  return cache.memo('open-meteo:' + url, WEATHER_TTL_MS, WEATHER_GRACE_MS, function () {
+  return cache.memo(cache.requestKey('open-meteo', url), WEATHER_TTL_MS, WEATHER_GRACE_MS, function () {
     return es.httpJson(url, HTTP);
   }).then(function (result) { return result.value; });
 }

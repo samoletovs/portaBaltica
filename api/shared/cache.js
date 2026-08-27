@@ -37,6 +37,60 @@
 /** Entries are tiny and few; the cap is a guard against an unbounded key space. */
 const MAX_ENTRIES = 64;
 
+/**
+ * A cache key covering the request as it is actually made.
+ *
+ * Use this rather than hand-writing a key. The newsroom's Python collector
+ * keyed its HTTP cache on the URL with the query string dropped, and because
+ * Eurostat's URL is built from the cube name while the parameters are passed
+ * separately, every definition sharing a cube collided: the first was fetched
+ * and every later one inside the TTL was served *its* payload under a different
+ * metric label. It published five wrong articles, three of them carrying the
+ * identical figure under three different names. Nothing looked wrong, because
+ * nothing was malformed — every value was a real value, correctly parsed, from
+ * the wrong slice.
+ *
+ * That is not a hypothetical risk here. Thirty-four of the dashboard's
+ * sixty-five indicators share a cube with at least one other: `bop_c6_q` alone
+ * serves ten, `prc_hicp_minr` eight, and `road_freight` and `road_freight_tkm`
+ * differ by nothing but `unit`. A params-blind key would make the freight modal
+ * split read tonnes lifted instead of tonne-kilometres, which puts Latvia's
+ * rail share at about 4% instead of 18.9% — a chart that looks entirely fine
+ * and says the opposite.
+ *
+ * So the default is to include everything. `volatile` names the parameters
+ * deliberately left out, which makes an omission a decision someone wrote down
+ * rather than an oversight: `/api/live-grid` asks for a sliding twelve-hour
+ * window, so its `start` and `end` change on every call and keying on them
+ * would mean never reading the cache at all. Anything not named here lands in
+ * the key automatically, so a parameter added later cannot be silently ignored.
+ *
+ * Parameters are sorted, so the same request written in a different order is
+ * the same key rather than a second entry.
+ */
+function requestKey(namespace, url, volatile) {
+  const skip = volatile || [];
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (e) {
+    // An unparseable URL is keyed whole. Better a key too specific — which
+    // only costs a cache miss — than one too loose, which serves the wrong
+    // answer under the right label.
+    return namespace + '|' + String(url);
+  }
+
+  const params = [];
+  parsed.searchParams.forEach(function (value, name) {
+    if (skip.indexOf(name) >= 0) return;
+    params.push(name + '=' + value);
+  });
+  params.sort();
+
+  return namespace + '|' + parsed.origin + parsed.pathname +
+    (params.length > 0 ? '?' + params.join('&') : '');
+}
+
 const store = new Map();
 
 function evictOldest() {
@@ -92,4 +146,4 @@ function clear() {
   store.clear();
 }
 
-module.exports = { memo: memo, clear: clear, MAX_ENTRIES: MAX_ENTRIES };
+module.exports = { memo: memo, clear: clear, requestKey: requestKey, MAX_ENTRIES: MAX_ENTRIES };

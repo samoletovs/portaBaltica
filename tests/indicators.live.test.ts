@@ -152,3 +152,54 @@ describe('non-Eurostat sources (live)', () => {
     expect(Date.now() - started).toBeLessThan(10_000);
   }, 30_000);
 });
+
+describe('indicators that share a cube return different data (live)', () => {
+  /**
+   * The strongest available check that a cache or a query is not confusing two
+   * definitions of the same cube, because it is arithmetic rather than a
+   * comparison against a remembered number.
+   *
+   * `trade_balance`, `goods_balance` and `services_balance` all read
+   * `bop_c6_q`, differing only in their `bop_item` parameter, and goods plus
+   * services must equal the total by construction. If any two were served each
+   * other's payload — the newsroom collector's failure, where a params-blind
+   * cache key made three articles carry one figure under three names — this
+   * identity breaks immediately, while every individual value still looks
+   * entirely plausible.
+   */
+  async function latestFor(indicator: string, geo: string): Promise<number> {
+    const def = (INDICATORS as Record<string, IndicatorDef>)[indicator];
+    const url = es.buildUrl(def, 3, [geo]);
+    const raw = await es.httpJson(url, { deadlineMs: 20_000, retries: 1 });
+    const parsed = es.parseJsonStat(raw, [geo]);
+    const series = (parsed.countries[geo]?.series ?? [])
+      .filter((p: { value: number | null }) => p.value !== null);
+    expect(series.length, `${indicator} returned no values for ${geo}`).toBeGreaterThan(0);
+    return series[series.length - 1].value as number;
+  }
+
+  it('reconciles goods and services against the trade balance', async () => {
+    for (const geo of ['LV', 'EE', 'LT']) {
+      const [total, goods, services] = await Promise.all([
+        latestFor('trade_balance', geo),
+        latestFor('goods_balance', geo),
+        latestFor('services_balance', geo),
+      ]);
+
+      // Rounding in million-euro units, not a tolerance for being wrong: a
+      // collision would put these hundreds or thousands apart.
+      expect(Math.abs(goods + services - total),
+        `${geo}: goods ${goods} + services ${services} should equal trade balance ${total}`)
+        .toBeLessThan(Math.max(5, Math.abs(total) * 0.02));
+    }
+  }, 60_000);
+
+  it('does not serve two same-cube indicators one identical series', async () => {
+    // `road_freight` and `road_freight_tkm` differ by nothing but `unit`, and
+    // confusing them puts Latvia's rail share of freight at about 4% rather
+    // than 18.9% — a chart that looks fine and says the opposite.
+    const tonnes = await latestFor('road_freight', 'LV');
+    const tonneKm = await latestFor('road_freight_tkm', 'LV');
+    expect(tonnes).not.toBe(tonneKm);
+  }, 60_000);
+});
