@@ -224,6 +224,40 @@ which is the exact case the setting exists for.
 
 Never animate `all`. Name the properties.
 
+**Layout must never depend on the animation running.** Honouring the setting is
+half the rule; the other half is that the still version has to be a correct
+page.
+
+The ticker is ~3300px of `max-content` inside a 1226px box with
+`overflow: hidden`. That clips it, and every ancestor measures
+`scrollWidth === clientWidth`, so the containment looks right all the way up.
+It was not right: `document.scrollWidth` was 3056 against a 1274px viewport, so
+**every route — including every article — scrolled 1782px sideways into blank
+space.** A visible scrollbar, on production, for months.
+
+The cause is that a running marquee puts a `transform` on the track at all
+times, and a transform creates a containing block that holds the overflow in.
+So containment was a *side effect of the animation*. Turn the animation off and
+it goes with it. The fix is `contain: paint` on the viewport, which states the
+containment directly instead of arranging for it to be true by accident.
+
+`transform: translateZ(0)` also fixes the measurement, and is the wrong answer:
+it re-creates the coupling that caused the bug. A rule that restores the bug's
+own precondition is a rescheduling, not a fix.
+
+**The general rule, which is the part worth remembering: the reduced-motion
+path is the one nothing exercises.** The only people who could see this were
+the people who asked the page to stop moving — so the failing branch was the
+accessible one, and the reporters were the readers least likely to be
+generating bug reports about a layout they cannot see working. Nothing on this
+site had ever been rendered with the preference on until it was checked
+deliberately, and the first check found a bug on every route within minutes.
+
+Verify motion-dependent layout **with the preference on**, in a real browser.
+jsdom does not lay out, so a unit test cannot see this class at all; the check
+lives in the live suite, and it asserts that the preference actually took —
+otherwise a run where the emulation silently failed reports a pass.
+
 ---
 
 ## 2. Interaction
