@@ -64,6 +64,16 @@ venv/
 # sweeps somebody else's debris into a commit.
 .impeccable/
 
+# One-off analysis scripts. Sessions here routinely write a small script to
+# compute a contrast ratio, sweep an inventory or probe an upstream, and those
+# are working notes rather than repository content. This rule exists because
+# they were not covered: commit e95c839 swept a reviewer's critique file into
+# master, and by the time #77 added ignore rules the paths were already tracked,
+# so the rules did nothing until they were untracked by hand. Cheaper to name
+# the convention up front than to clean it up twice.
+scratch-*
+*.scratch.*
+
 # Ad-hoc local preview config. The committed vite.config.ts is the real one;
 # this variant proxies /api and /articles at the live site so a built frontend
 # can be eyeballed against production data, which is a desk convenience rather

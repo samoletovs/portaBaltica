@@ -405,3 +405,45 @@ Give every outbound call an explicit deadline via `api/shared/eurostat.js`'s
 *cheap* — a catalogue root, not a table query — and at the endpoint the app
 actually uses, so a removed action shows up as an outage rather than passing
 because some other path on the same host still answers.
+
+**Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
+`api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
+observation against them. A registry test fails if a probe omits them, because
+liveness and freshness are different questions: `prc_hicp_manr` answered HTTP 200
+with valid JSON-stat and plausible values while frozen at 2025-12 for eight
+months, and data.gov.lv served eighteen consecutive header-only CSVs behind
+`datastore_active: true`. `stale` is a distinct state from `unhealthy` — a source
+that is reachable but frozen is a different message to a reader than one that is
+down.
+
+**Never let two definitions share a cache key.** Several indicators legitimately
+read the same cube — `bop_c6_q` backs seven balance-of-payments series,
+`sts_rb_q` backs registrations and bankruptcies, `mar_go_qm_{cc}` backs total
+throughput and each cargo category — and they differ *only in query params*. A
+cache keyed on the URL alone therefore collides: the first request is fetched and
+archived, and every later one inside the TTL is served that payload under a
+different metric's label.
+
+That shipped. Five articles published real Eurostat figures attached to metrics
+they did not measure — three separate trade series printed the identical
+`1088.6`, and a piece headlined "business bankruptcy declarations" carried the
+*registrations* value, which means the opposite thing about an economy.
+
+It is worth understanding why nothing caught it. Every editorial gate passed:
+the figures were genuine, traceable to their signal fields, and correctly
+compared against their own basis. The validator confirmed the number came from
+the signal — and it had; the signal was built from the wrong cube. **The
+contract protects figures, not subjects.** It surfaced only because two articles
+published byte-identical figures under different names on consecutive days,
+which no per-article check can see.
+
+So the key must cover the request as actually made, and a registry test must
+assert that no two dataset definitions can collide. The same rule applies on both
+sides of the repo: `api/` is currently correct, and its own caching (added for
+Open-Meteo, extended to the live grid) is keyed per source rather than per
+request — fine today, and exactly how the newsroom acquired this.
+
+A cheap invariant catches it either way: `goods_balance + services_balance`
+equals `trade_balance`, so if the three ever agree exactly, they are the same
+series wearing three names.
+
