@@ -60,6 +60,15 @@ const GEOS = ['LV', 'EE', 'LT'];
  */
 const RECENT_RUN = 8;
 
+/**
+ * Months between consecutive periods at each declared frequency.
+ *
+ * The whole point of the last assertion in this file is that `freq` is a
+ * dimension code and this table is an *assumption* about it — true for
+ * sixty-five of sixty-six, and worth checking rather than trusting.
+ */
+const EXPECTED_STEP: Record<string, number> = { M: 1, Q: 3, S: 6, A: 12 };
+
 const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 
 describe('Eurostat indicator contracts (live)', () => {
@@ -162,6 +171,49 @@ describe('Eurostat indicator contracts (live)', () => {
         'which is exactly what a dataset that has been frozen in place looks like: check whether Eurostat ' +
         'has migrated it to a successor table, as it did moving HICP to ECOICOP ver.2.'
     ).toBeLessThanOrEqual(allowed);
+
+    // Does it publish at the cadence it declares?
+    //
+    // `freq` is the cube's *dimension code*, and everything downstream — the
+    // allowance just above, the since-bound in `buildUrl` — reads it as a
+    // publication cadence. For sixty-five of sixty-six those are the same
+    // thing. `sdg_04_70` says A and publishes every twenty-four months, with
+    // no 2022 or 2024 coordinate in the cube at all.
+    //
+    // **The contiguity assertion above cannot see this**, and is right not to:
+    // there is no null to find, because the missing period is not represented.
+    // The two checks catch different shapes and neither subsumes the other —
+    // that one catches a pin selecting a code a country barely populates, this
+    // one catches a cadence the definition does not actually have. The
+    // newsroom reached the same conclusion from the prose side on the same day.
+    //
+    // The rule is not an exception list. An off-cadence series must carry an
+    // explicit `maxAgeMonths`, so **the override is the declaration**: a
+    // definition that publishes off its stated frequency has to say so in the
+    // one field that makes the freshness check correct anyway.
+    const labels = (parsed.countries.LV?.series ?? []).map((p: Point) => p.period);
+    const months = labels.map((p: string) => es.periodToMonthIndex(p)).filter(Number.isFinite);
+
+    if (months.length >= 3) {
+      const steps: number[] = [];
+      for (let i = 1; i < months.length; i += 1) steps.push(months[i] - months[i - 1]);
+
+      const tally = new Map<number, number>();
+      for (const step of steps) tally.set(step, (tally.get(step) ?? 0) + 1);
+      const modal = [...tally.entries()].sort((a, b) => b[1] - a[1])[0][0];
+
+      if (modal !== EXPECTED_STEP[def.freq]) {
+        expect(
+          typeof (def as { maxAgeMonths?: number }).maxAgeMonths,
+          `${id} (${def.dataset}) declares freq=${def.freq}, which everything downstream reads as ` +
+            `${EXPECTED_STEP[def.freq]} months, but Eurostat publishes it every ${modal}. That is not ` +
+            'necessarily wrong — freq is the cube\u2019s dimension code and the query may well need it — ' +
+            'but the freshness allowance is then computed from a cadence the series does not have, and ' +
+            'it will read a healthy gap as a freeze. Declare an explicit maxAgeMonths covering the real ' +
+            'publication interval, with the measurement in a comment.'
+        ).toBe('number');
+      }
+    }
   }, 45_000);
 });
 
