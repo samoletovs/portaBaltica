@@ -25,11 +25,18 @@ export default function ArticlePage() {
   }, [slug]);
 
   const article = load?.state === 'ok' ? load.article : null;
+  const withdrawn = load?.state === 'retracted' ? load.article : null;
 
   usePageMeta({
-    title: article ? `${article.headline} | portaBaltica` : 'portaBaltica',
+    title: article
+      ? `${article.headline} | portaBaltica`
+      : withdrawn
+        ? `Retracted: ${withdrawn.headline} | portaBaltica`
+        : 'portaBaltica',
     description: article?.dek,
     canonicalPath: slug ? `/article/${slug}` : undefined,
+    // Never indexed. The page stays up for a reader following the corrections
+    // log, not for a search engine to keep circulating a story we withdrew.
     index: Boolean(article),
   });
 
@@ -58,6 +65,10 @@ export default function ArticlePage() {
         </p>
       </div>
     );
+  }
+
+  if (load.state === 'retracted') {
+    return <ArticleView article={load.article} />;
   }
 
   if (load.state === 'not-servable') {

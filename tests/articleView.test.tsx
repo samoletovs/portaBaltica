@@ -52,13 +52,19 @@ describe('ArticleView — the render-time gate', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
   });
 
-  it('renders nothing of a retracted article', () => {
+  it('keeps a retracted article readable, marked', () => {
+    // The policy makes three promises about a retracted page: it stays up, it
+    // shows why, and we do not delete the evidence. An earlier version of this
+    // test asserted the body was hidden, which kept one of the three -- and
+    // failed on the one page a sceptical reader visits to find out whether we
+    // admit our mistakes.
     const article = tierAArticle({ status: 'retracted' });
 
     renderArticle(article);
 
-    expect(screen.queryByText(article.headline)).toBeNull();
     expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText(/We have withdrawn this article/)).toBeTruthy();
+    expect(screen.getByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeTruthy();
   });
 });
 
@@ -265,17 +271,28 @@ describe('ArticleView — a retracted article', () => {
     expect(screen.getByText(/caching fault served this article/)).toBeTruthy();
     expect(screen.getByRole('link', { name: /corrections policy/i })).toBeTruthy();
 
-    // Never the headline. In the fault this was built for, the headline was
-    // the false claim, so re-rendering it would republish the error under a
-    // banner announcing we had withdrawn it.
-    expect(screen.queryByText(article.headline)).toBeNull();
+    // The notice must come FIRST. The ordering is what stops a reader meeting
+    // a withdrawn headline before the withdrawal of it -- which was the real
+    // concern behind hiding the body, and is answered by sequence rather than
+    // by suppression.
+    const alert = screen.getByRole('alert');
+    const body = screen.getByText(/Hourly labour cost in Latvia rose 8.4%/);
+    expect(alert.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // And the headline is not the page's h1 -- "We have withdrawn this
+    // article" is.
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(
+      /We have withdrawn this article/,
+    );
   });
 
-  // The point of the whole exercise. The page stays up; the claims do not.
-  it('renders no figure, no body and no byline from it', () => {
+  // The evidence is kept; the authority is not. A withdrawn piece keeps no
+  // byline and no chart -- it is a record of what we published, not a story we
+  // stand behind.
+  it('keeps the text but not the byline or the chart', () => {
     renderArticle(retracted());
 
-    expect(screen.queryByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeNull();
+    expect(screen.getByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeTruthy();
     expect(screen.queryByText(/AI correspondent/)).toBeNull();
     expect(screen.queryByTestId('chart-embed')).toBeNull();
   });
