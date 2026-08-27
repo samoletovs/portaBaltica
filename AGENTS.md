@@ -406,6 +406,26 @@ Give every outbound call an explicit deadline via `api/shared/eurostat.js`'s
 actually uses, so a removed action shows up as an outage rather than passing
 because some other path on the same host still answers.
 
+**Ask the application for that URL; do not restate it.** Both Eurostat probes
+used to be hand-built strings that said the same thing as `buildUrl` and
+`ports.seriesUrls`. The unemployment one was byte-identical, which sounds
+harmless and is the whole problem — the identity was maintained by hand and
+nothing checked it. The maritime one had already drifted: it pinned
+`rep_mar=LV_0LVRIX`, Riga alone, over three years, while `/api/port-data` asks
+for all four Latvian ports over eight. So the probe was blind to Ventspils,
+Liepāja and Skulte, and went red whenever Riga alone was quiet — the false red
+that check has already produced once. Measured, the honest query is also the
+cheaper one, 37–60ms against 53–110ms, so there was never a cost argument for
+the narrower slice.
+
+The newsroom's collision guard failed the same way on the same day, rebuilding
+the collector's query parameters with a hardcoded geography list while the
+collector's default moved underneath it — and changing no outcome, which is
+exactly why nobody noticed. **A guard that reproduces the logic it guards is
+not a guard, it is a second implementation that can disagree.** Same family as
+an instrument that cannot fail: it stops measuring the thing and says nothing
+about having stopped.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because

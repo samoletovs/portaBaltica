@@ -22,6 +22,8 @@
  */
 
 const es = require('./eurostat.js');
+const ports = require('./ports.js');
+const INDICATORS = require('./indicators.js');
 
 function buildNordPoolProbeUrl() {
   const start = new Date();
@@ -77,8 +79,15 @@ const NEWSROOM_RUN_REPORT = ARTICLES_BASE + '/runs/latest.json';
 const CHECKS = [
   {
     name: 'Eurostat',
-    url: es.EUROSTAT_BASE + '/une_rt_m?geo=LV&unit=PC_ACT&s_adj=SA&age=TOTAL&sex=T&freq=M' +
-      '&sinceTimePeriod=' + es.sincePeriod('M', 2),
+    // Built from the indicator the charts read, not restated here.
+    //
+    // The string this replaces was byte-identical to `buildUrl` output, which
+    // sounds harmless and is the whole problem: the identity was maintained by
+    // hand and nothing checked it. A probe that reproduces the query it is
+    // probing is not a probe, it is a second implementation that can disagree
+    // — and when it does, it says the source is fine while the app fails, or
+    // the reverse.
+    url: es.buildUrl(INDICATORS.unemployment, 2, ['LV']),
     type: 'eurostat-cube',
     cubeKey: 'geo',
     required: true,
@@ -90,11 +99,23 @@ const CHECKS = [
   },
   {
     name: 'Eurostat maritime',
+    // The same call `/api/port-data` makes, from the same builder.
+    //
     // A window of quarters, never `lastTimePeriod=1`. That parameter asks the
     // Europe-wide cube for the newest quarter *any* port filed, which Riga is
     // routinely behind — it reported a healthy feed as dead for weeks.
-    url: es.EUROSTAT_BASE + '/mar_tf_qm?format=JSON&lang=EN&freq=Q&tonnage=TOTAL' +
-      '&vessel=TOTAL&unit=NR&rep_mar=LV_0LVRIX&sinceTimePeriod=' + es.sincePeriod('Q', 3),
+    //
+    // The hand-built string this replaces had drifted further than that
+    // comment admits. It pinned `rep_mar=LV_0LVRIX` — **Riga alone** — while
+    // the app asks for all four Latvian ports, and it asked for three years
+    // where the app asks for eight. So the probe could not see a failure at
+    // Ventspils, Liepāja or Skulte at all, and went red whenever Riga alone
+    // was quiet: the exact false red this check has already produced once.
+    //
+    // Measured, the honest query is also the cheaper one — 37-60ms against
+    // 53-110ms, for 104 cells instead of 12 — so there was never a cost
+    // argument for the narrower slice either.
+    url: ports.seriesUrls('LV').vessels,
     type: 'eurostat-cube',
     cubeKey: 'rep_mar',
     required: true,
