@@ -29,6 +29,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any, Iterable
 from xml.etree import ElementTree as _stdlib_et
 
+from newsroom.pipeline.ids import slugify
 from newsroom.pipeline.models import FeedItem, isoformat
 
 log = logging.getLogger(__name__)
@@ -186,6 +187,9 @@ def extract_raw_description(raw_body: bytes, guid: str) -> str | None:
 
 
 def item_slug(item: FeedItem) -> str:
+    # One slugifier for the whole newsroom. This used to keep any character
+    # `str.isalnum()` accepted, which is Unicode-aware, so a Latvian headline
+    # kept its diacritics and produced a slug the schema forbids and the
+    # frontend refuses to route.
     digest = hashlib.sha256(item.guid.encode("utf-8")).hexdigest()[:8]
-    words = [w for w in "".join(c.lower() if c.isalnum() else " " for c in item.title).split()][:8]
-    return "-".join([*words, digest]) if words else digest
+    return slugify(item.title, max_words=8, suffix=digest)

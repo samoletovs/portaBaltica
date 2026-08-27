@@ -383,6 +383,39 @@ resolved theme, and throws rather than measures when either is wrong.
 Measurements are what we use to check the tests. So they need the rule more
 than the tests do, not less.
 
+The most recent instance is a different animal again, and it is worth keeping
+separate because the rule above would not have caught it. `renderByline`
+rebuilds a byline from the correspondent registry so that an article filed
+under an older surname still shows the current one. It is correct. It has a
+unit test. It was written to reconcile a rename, and the rename it reconciles
+is real: `personas.yaml` kept the pre-#43 surnames for months after the
+frontend moved to lighthouse ones.
+
+`Byline` — the only component that renders a byline anywhere on the site —
+built that function's argument a field at a time and left out `id`. Without an
+id the registry lookup returns nothing, so every byline fell through to the
+stored string. The repair never ran on a single page.
+
+> **Exercise the path the user takes, not the unit you suspect.**
+
+Two things make this its own entry. First, nothing was green-but-empty: the
+function worked, the test was honest, and both were exactly what they claimed.
+The defect lived in the gap between them, which no assertion on either end can
+see. Second — and this is the part worth remembering — the symptom was never
+hidden. It was the largest text on the front page, wrong for months, while
+three people who had each read the function believed the page was fine.
+
+It was first reported here as *a repair that removes the symptom the guard
+would have fired on*, which was a better story and was not true. That version
+came from verifying `renderByline` directly, with an id supplied by the test
+author. The honest form is stranger and less flattering:
+
+> **A repair that would have hidden the symptom, in a path that never called
+> it.**
+
+A shim can be sound, tested, and unreachable. Reading it tells you what it
+would do, not whether it runs.
+
 ### What the validator cannot see: the article's subject
 
 Every check above is about a *figure*. None is about what the article is
