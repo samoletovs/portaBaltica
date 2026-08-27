@@ -3,6 +3,7 @@ const rateLimit = require('../shared/rateLimit.js');
 const businessRegistry = require('../shared/businessRegistry.js');
 const http = require('http');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const country = require('../shared/country.js');
 
 function httpGet(url) {
   const lib = url.startsWith('https') ? https : http;
@@ -76,7 +77,9 @@ async function fetchECBRates() {
  */
 async function fetchElectricityPrices(zone) {
   try {
-    var country = zone || 'lv';
+    // Already normalised by the handler, so no `|| 'lv'` here — a fallback at
+    // this depth could only mask a programming error by answering with Latvia.
+    var country = zone;
     const now = new Date();
     const start = new Date(now);
     start.setUTCHours(0, 0, 0, 0);
@@ -262,10 +265,21 @@ async function fetchPxWebIndicators() {
 const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
-  try {
-    var zone = (req.query && req.query.country) || 'lv';
-    var isLatvia = zone === 'lv';
 
+  // Normalised once, at the boundary. `data.data[zone]` below keys Elering's
+  // payload, whose zone keys are lower case — so an upper-case `LV` found
+  // nothing, the `|| []` swallowed it, and the endpoint returned an empty price
+  // series. `isLatvia` was measured against the same unnormalised value, so
+  // `?country=LV` also skipped every Latvia-only block on a request *for*
+  // Latvia.
+  const zone = country.normaliseCountry(req.query && req.query.country);
+  if (zone === null) {
+    context.res = country.badCountry(req.query && req.query.country);
+    return;
+  }
+  const isLatvia = zone === country.DEFAULT_COUNTRY;
+
+  try {
     // ECB rates and electricity are country-aware; PxWeb/CKAN are Latvia-only
     const [exchangeRates, electricity, vatCount, suspendedCount, indicators] = await Promise.all([
       fetchECBRates(),

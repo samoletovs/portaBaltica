@@ -3,6 +3,7 @@ const es = require('../shared/eurostat.js');
 const cache = require('../shared/cache.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const airQuality = require('../shared/airQuality.js');
+const countries = require('../shared/country.js');
 
 /**
  * GET /api/environment-data
@@ -140,7 +141,7 @@ function describeWeather(code) {
  * one city short is indistinguishable from a country that has three cities.
  */
 async function fetchWeather(country) {
-  var cities = CITIES_BY_COUNTRY[country] || CITIES_BY_COUNTRY.lv;
+  var cities = CITIES_BY_COUNTRY[country];
   var settled = await Promise.allSettled(cities.map(function (city) {
     var url = OPEN_METEO +
       '?latitude=' + city.lat +
@@ -182,7 +183,7 @@ function numberOrNull(value) {
 
 async function fetchAirQuality(country) {
   try {
-    var coords = AQ_COORDS[country] || AQ_COORDS.lv;
+    var coords = AQ_COORDS[country];
     var tz = country === 'ee' ? 'Europe/Tallinn' : country === 'lt' ? 'Europe/Vilnius' : 'Europe/Riga';
     var url = AIR_QUALITY +
       '?latitude=' + coords.lat + '&longitude=' + coords.lon +
@@ -224,7 +225,7 @@ async function fetchAirQuality(country) {
 }
 
 async function fetchCapitalPopulation(country) {
-  var region = CAPITAL_REGIONS[country] || CAPITAL_REGIONS.lv;
+  var region = CAPITAL_REGIONS[country];
   try {
     var url = es.EUROSTAT_BASE + '/demo_r_pjanaggr3?geo=' + region.geo +
       '&sex=T&age=TOTAL&freq=A&unit=NR&sinceTimePeriod=' + (new Date().getFullYear() - 6);
@@ -248,8 +249,19 @@ async function fetchCapitalPopulation(country) {
 const handler = async function (context, req) {
   const rl = rateLimit.check(req);
   if (rl) { context.res = rl; return; }
+
+  // Normalised once, at the boundary. All three lookups below —
+  // `CITIES_BY_COUNTRY`, `AQ_COORDS`, `CAPITAL_REGIONS` — key lower-case maps
+  // and end `|| …lv`, so an upper-case `EE` returned Riga's weather, Riga's air
+  // quality and Riga's population under an Estonian heading.
+  const requested = countries.normaliseCountry(req.query && req.query.country);
+  if (requested === null) {
+    context.res = countries.badCountry(req.query && req.query.country);
+    return;
+  }
+
   try {
-    var country = (req.query && req.query.country) || 'lv';
+    var country = requested;
     const [weather, airQuality, population] = await Promise.all([
       fetchWeather(country),
       fetchAirQuality(country),
