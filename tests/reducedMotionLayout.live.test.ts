@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
+import { navigableRoutes } from './routes';
 
 /**
  * Does the deployed site scroll sideways?
@@ -53,15 +54,36 @@ const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
  * would double the runtime of a post-deploy smoke test to re-measure what it
  * already knows. `seriesContrast.live.test.ts` covers both themes, because
  * contrast is the thing that does vary with them.
+ *
+ * **The list is derived now, not written.** Widening it from four to seventeen
+ * fixed the instance and left the mechanism: a list of examples cannot notice
+ * that the thing it samples has changed shape, and the reason the original four
+ * were wrong is that they were chosen correctly for the *ticker* — their own
+ * comment said so — and then left answering a question about every route. A
+ * fresh list has exactly the same future.
+ *
+ * `navigableRoutes()` reads the router and the navigation, so a section added
+ * to the nav tomorrow is swept tomorrow with nobody remembering anything.
+ * Measured against the seventeen it replaces, it agreed in one direction —
+ * nothing reachable was unlisted, so the widening had been complete — and
+ * disagreed in the other: `/data/overview` is not a section. `App.tsx` falls
+ * back to `'all'` for a name `DashboardSection` does not carry, so that entry
+ * rendered `/data` a second time under a different label, and a green line
+ * reported a page that was never drawn.
  */
-const ROUTES = [
-  // The dashboard, all of it.
-  '/data', '/data/overview', '/data/economy', '/data/labour', '/data/trade',
-  '/data/government', '/data/energy', '/data/property', '/data/environment',
-  '/data/business', '/data/maritime', '/indicator/gdp', '/api-docs',
-  // The newsroom, whose pages share the masthead and the ticker.
-  '/', '/newsroom', '/about/ai', '/corrections',
-];
+
+/**
+ * Routes that need a real parameter, which no derivation can invent.
+ *
+ * An id has to be chosen by a human because it has to exist: `/indicator/gdp`
+ * renders a chart, `/indicator/whatever` renders a not-found page, and a
+ * not-found page cannot overflow — so an invented one is a pass for the wrong
+ * reason rather than coverage. Kept deliberately short; each entry is a claim
+ * that this specific page is worth measuring.
+ */
+const CONCRETE_PARAM_ROUTES = ['/indicator/gdp'];
+
+const ROUTES = [...navigableRoutes(), ...CONCRETE_PARAM_ROUTES];
 
 /**
  * Widths either side of every breakpoint, and inside every band a defect has
