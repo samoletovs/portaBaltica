@@ -908,6 +908,57 @@ human reading the output, never by the suite — a lexical check's tests are
 written from the same imagination as the check, so they agree with it. **Read
 the artefact.**
 
+## An example in guidance is a claim about behaviour — execute it
+
+Guidance that teaches by example makes a testable assertion every time it says
+*this is rejected* or *this passes*. Nothing checked those assertions, and one
+of them was false.
+
+The writer's system prompt taught the bare-numeral rule like this:
+
+> `"fell from 2025 levels"` contains the numeral 2025 and **is rejected**. So is
+> `"9 of the 10 categories"`.
+
+Run both through the scanner the sentence is describing:
+
+```
+  "9 of the 10 categories"    -> 2 tokens   ['9', '10']     rejected, as claimed
+  "fell from 2025 levels"     -> 0 tokens                   NOT rejected
+```
+
+`numeric_scan` ignores a bare four-digit year by design — a period label says
+*when* and claims nothing about magnitude. The prompt's own next sentence said
+so, three lines below. **One example true, the next false, adjacent, in
+permanent contradiction with the paragraph containing it.**
+
+**A false example is worse than an unenforced rule**, and the asymmetry is
+what makes it worth a section. An unenforced rule fails loudly the first time
+someone relies on it. A false example fails *silently and in the safe
+direction*: it steers a writer away from correct work. Here it discouraged the
+single most informative construction available — naming when a series last did
+this — which is the phrasing `detect_record_extreme` itself models. Nothing
+would ever have reported that loss, because **a draft that avoids a good
+phrasing is indistinguishable from one that never thought of it.**
+
+The fix is not to check the wording. It is to **resolve every example the
+guidance presents through the thing it describes, and assert it behaves as
+claimed** — `newsroom/tests/pipeline/test_prompt_numeral_examples.py`. A
+rephrasing cannot beat that, because it is running the scanner rather than
+reading prose. Each example is *also* asserted to appear verbatim, which is
+what stops the table drifting into a second, disagreeing copy of the
+guidance — the `#142` failure, where a guard rebuilt the thing it was meant to
+check and reported success while checking nothing.
+
+Two things generalise. **Prophylactic guidance is allowed to be stricter than
+the contract, but it must not be wrong about the contract**: the standfirst
+digit ban is deliberately tighter than the validator and that is fine, because
+it forbids something permitted rather than claiming something permitted is
+forbidden. And this arrived as a *correction to a brief* — the ruling was to
+enforce the dek rule deterministically in house style; measuring first found
+the rule already obeyed 17/18 with zero untraceable digits, so the cut would
+have fired once and destroyed correct work. **That is the #172 trap exactly:
+an instrument aimed at a fault that was not there.**
+
 ## The correct sibling that conceals the broken one
 
 A departure from a pattern **already present in the file** is harder to spot
