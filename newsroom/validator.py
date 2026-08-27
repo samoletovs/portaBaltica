@@ -697,6 +697,12 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"\b(?:year|month|quarter|week|day)[-\s]on[-\s](?:year|month|quarter|week|day)\b",
         r"\b(?:y/y|m/m|q/q|yoy|mom)\b",
         r"\ba\s+(?:year|month|week|quarter|decade)\s+(?:earlier|ago|before)\b",
+        # "one year earlier" is the same construction with the numeral written
+        # out, and the writer produces both. The article-only version rejected
+        # `grown from 52.8% one year earlier in 2025-Q2` -- a paragraph whose
+        # declared figure was literally named `value_one_year_earlier`.
+        r"\b(?:one|two|three|four|five|\d+)\s+(?:year|month|week|quarter|decade)s?\s+"
+        r"(?:earlier|ago|before)\b",
         r"\blast\s+(?:year|month|week|quarter)\b",
         r"\bthe\s+same\s+(?:month|period|week|quarter|day|year|hour)\b",
         r"\bthe\s+(?:previous|preceding|prior)\s+\w+",
@@ -712,6 +718,19 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"\bpre-\s?\d{4}\b",
         r"\bbetween\b[^.]{1,60}?\band\b",
         r"\brecord\s+(?:high|low)\b",
+        # A threshold names the value a movement is measured against, so
+        # "fell below 2%" states its basis as plainly as "fell compared with
+        # January". Only `above` and `below`, which cannot be read as anything
+        # but comparative: `over 3 months` and `under 2 years` are durations,
+        # and admitting them would let a time span pass as a reference point.
+        #
+        # This is what the writer reaches for in the closing paragraph house
+        # style asks for -- what the next release would have to show -- and
+        # seven of the nine rejections sampled on 2026-08-27 were that
+        # sentence: "The next release would need to show a decrease below
+        # 141.6%". Nothing about it is unclear, and nothing in it can mislead
+        # a reader about a comparison.
+        r"\b(?:above|below)\s+(?:the\s+)?[€$£]?\d",
     )
 )
 
