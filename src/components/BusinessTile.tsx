@@ -145,28 +145,43 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               </p>
 
               <div className="space-y-2 mb-3">
-                {list<{ status: string; count: number }>(euFunds.statusSummary).map((s) => {
+                {list<{ status: unknown; count: unknown }>(euFunds.statusSummary).map((raw, i) => {
+                  // Two things `list<T>()` promised and cannot deliver: it
+                  // validates the container and casts the contents, so both
+                  // fields here are claims about a runtime payload.
+                  //
+                  // `status` was read straight into `.toLowerCase()`, which
+                  // throws in the render path and takes the section with it.
+                  //
+                  // `count` divides `total`. The `total > 0` guard fixed the
+                  // EU-funds `Infinity` bars by protecting the *denominator*;
+                  // a missing `count` is a missing *numerator*, `undefined / 12`
+                  // is `NaN`, CSS drops `width: NaN%`, and the bar disappears —
+                  // leaving an empty track that is pixel-identical to a zero.
+                  // So a status we cannot measure keeps its name, shows a dash,
+                  // and draws no track at all.
+                  const status = typeof raw.status === 'string' ? raw.status : null;
+                  const count = finite(raw.count);
                   const total = finite(euFunds.total) ?? 0;
-                  // A zero total made this Infinity, which CSS drops silently,
-                  // so every bar rendered at its default width and the chart
-                  // read as "all statuses equal".
-                  const pct = total > 0 ? (s.count / total) * 100 : 0;
-                  const isApproved = s.status.toLowerCase().includes('apstiprin');
+                  const pct = count !== null && total > 0 ? (count / total) * 100 : null;
+                  const isApproved = status?.toLowerCase().includes('apstiprin') ?? false;
                   return (
-                    <div key={s.status}>
+                    <div key={status ?? `row-${i}`}>
                       <div className="flex items-center justify-between text-caption mb-0.5">
-                        <span className="dash-body truncate max-w-[70%]">{s.status}</span>
-                        <span className="dash-fg font-mono">{s.count}</span>
+                        <span className="dash-body truncate max-w-[70%]">{status ?? 'Unlabelled'}</span>
+                        <span className="dash-fg font-mono">{count === null ? '—' : count}</span>
                       </div>
-                      <div className="h-1.5 dash-raised rounded-full overflow-hidden">
-                        <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: isApproved ? 'var(--data-positive)' : 'var(--cat-3)',
-                        }}
-                        />
-                      </div>
+                      {pct !== null && (
+                        <div className="h-1.5 dash-raised rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${pct}%`,
+                              background: isApproved ? 'var(--data-positive)' : 'var(--cat-3)',
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   );
                 })}

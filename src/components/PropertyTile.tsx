@@ -17,10 +17,30 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
   // `!data` above checks that something arrived, not that it has these two
   // arrays. A 404-shaped response from data.gov.lv resolves fine and has
   // neither, and `.map` on `undefined` threw in the render path.
-  const permits = list<{ municipality: string; count: number }>(data.constructionPermits);
-  const certs = list<{ rating: string; count: number }>(data.energyCerts);
-  const maxPermits = Math.max(...permits.map((p) => p.count), 1);
-  const maxCerts = Math.max(...certs.map((c) => c.count), 1);
+  //
+  // `list()` closes that hole but cannot close the next one: it validates the
+  // *container* and casts the *contents*, so `{ count: number }` is a
+  // compile-time claim about a runtime payload and an item with no `count`
+  // passes straight through. That reached the arithmetic —
+  //
+  //     Math.max(undefined, 1) === NaN     Math.max(NaN, 1) === NaN
+  //
+  // — so one bad row made every width `NaN%`, CSS dropped all of them, and
+  // every bar rendered at the container's default. Not a broken chart but a
+  // **wrong** one, saying every municipality is equal. The `, 1` floor guards
+  // division by zero and nothing else.
+  //
+  // So each count is resolved through `finite()` and a row that has none keeps
+  // its name and renders a dash. It is not dropped, because we did hear about
+  // that municipality, and it draws no track at all, because an empty track is
+  // indistinguishable from a zero — which would be inventing the reading this
+  // whole module exists to refuse. See DESIGN.md §3.8.
+  const permits = list<{ municipality: string; count: unknown }>(data.constructionPermits)
+    .map((p) => ({ municipality: p.municipality, count: finite(p.count) }));
+  const certs = list<{ rating: string; count: unknown }>(data.energyCerts)
+    .map((c) => ({ rating: c.rating, count: finite(c.count) }));
+  const maxPermits = Math.max(...permits.flatMap((p) => (p.count === null ? [] : [p.count])), 1);
+  const maxCerts = Math.max(...certs.flatMap((c) => (c.count === null ? [] : [c.count])), 1);
   const totalPermits = finite(data.totalPermits);
   const totalCerts = finite(data.totalCerts);
 
@@ -45,14 +65,16 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
               <div key={p.municipality}>
                 <div className="flex items-center justify-between text-caption mb-0.5">
                   <span className="dash-body truncate max-w-[60%]">{p.municipality}</span>
-                  <span className="dash-fg font-mono">{p.count}</span>
+                  <span className="dash-fg font-mono">{p.count === null ? '—' : p.count}</span>
                 </div>
-                <div className="h-1.5 dash-raised rounded-full overflow-hidden">
-                  <div
-                    className="h-full dash-fill-cat1 rounded-full"
-                    style={{ width: `${(p.count / maxPermits) * 100}%` }}
-                  />
-                </div>
+                {p.count !== null && (
+                  <div className="h-1.5 dash-raised rounded-full overflow-hidden">
+                    <div
+                      className="h-full dash-fill-cat1 rounded-full"
+                      style={{ width: `${(p.count / maxPermits) * 100}%` }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -71,14 +93,16 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
                 <div key={cert.rating}>
                   <div className="flex items-center justify-between text-caption mb-0.5">
                     <span className="dash-body truncate max-w-[65%]">{cert.rating}</span>
-                    <span className="dash-fg font-mono">{cert.count}</span>
+                    <span className="dash-fg font-mono">{cert.count === null ? '—' : cert.count}</span>
                   </div>
-                  <div className="h-1.5 dash-raised rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full dash-fill-cat2"
-                      style={{ width: `${(cert.count / maxCerts) * 100}%` }}
-                    />
-                  </div>
+                  {cert.count !== null && (
+                    <div className="h-1.5 dash-raised rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full dash-fill-cat2"
+                        style={{ width: `${(cert.count / maxCerts) * 100}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
