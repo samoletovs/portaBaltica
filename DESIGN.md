@@ -325,6 +325,26 @@ disabled colour, which does not merely fail to inform but actively misinforms.
 Measure states in the browser by driving them: rest, hover, disabled, and assert
 they differ.
 
+**When a band names an external scale, check the names against the scale and not
+only the numbers.** `classifySeaState` split on 0.1, 0.5, 1.25 and 2.5 metres —
+the WMO sea state code boundaries, exactly right, clearly copied from the scale —
+and then labelled every band one degree too high, so 0.1 m read "Slight" when the
+scale says Smooth and 2.5 m read "Very Rough" when the scale says Rough. Measured
+against 8928 hourly readings from the four Latvian ports, 92% of observations
+carried a label one degree more alarming than the standard, and "Very Rough" —
+degree 6, which opens at 4 m — fired a metre and a half early on a sea that has
+never reached it. The thresholds being right is what made it invisible: the
+numbers audit cleanly, and only the words are wrong. Cite the scale in the test,
+as a table, so the specification is the thing under assertion.
+
+**Two encodings of one value must claim the same granularity.** The same
+component drew five bands in three colours while its emoji showed five steps, so
+colour and emoji contradicted each other on the page. Either grouping is
+defensible on its own; disagreeing is not. `seaState.test.ts` asserts the two
+encodings group the *same* bands rather than merely the same number of them, and
+that the ramp never doubles back — a severity scale that reverses says a rougher
+sea is calmer.
+
 **A token is tuned for one job and has no floor for another.** The ticker
 separated its items with a `·` coloured `--border-card` — 1.54:1 in dark, 1.23:1
 in light. A border token has no text contrast floor because nothing intended it
@@ -617,11 +637,19 @@ assumed:
 | `classifySeaState` | **"Very Rough"** — a storm, in red | every `<` is false for `NaN`, so a missing wave height fell past the whole chain to the final `return` |
 | air quality | **"Good"** — clean air | `AQI_STYLES.good` was the fallback for an unrecognised status |
 | EU funds bars | **"all statuses equal"** | a zero total made every width `Infinity`, which CSS drops silently |
+| port wave forecast | **a full-height bar** | `(null / peak) * 100` is `NaN`, and CSS drops `height: NaN%` and leaves the container's height |
 
 Three components, three different plausible answers, one cause. A default that
 looks like data is worse than a crash, because a crash is at least visible —
 and each of these was found by accident rather than reported, precisely because
 it looked like a considered result.
+
+The fourth row was found *after* this rule was written down, in the same
+component as the first, by the same mechanism as the third — so writing the rule
+did not find the instances that already existed. The port card also guarded its
+wave height through `classifySeaState` and then called `.toFixed(1)` on that same
+value one line later, which would have printed "Sea state unavailable" and
+thrown while rendering it. Grep for the mechanism, not the component.
 
 `src/utils/payload.ts` is the general answer: `list()` yields nothing to draw
 and `finite()` yields `null` to render as a dash, and neither invents a number.
