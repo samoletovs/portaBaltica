@@ -722,9 +722,14 @@ class TestTheQueryIsPartOfTheResource:
             state=ConditionalState(tmp_path / "state.json"),
             sleep=_no_sleep,
         )
-        business = [s for s in EUROSTAT_DATASETS if s.section == "business"]
+        # Selected by the cube under test, not by section. `section ==
+        # "business"` used to hold exactly these two and stopped doing so the
+        # moment the beat gained tourism -- an incidental selector that reads
+        # like a deliberate one.
+        shared_cube = [s for s in EUROSTAT_DATASETS if s.dataset == "sts_rb_q"]
+        assert len(shared_cube) == 2, "sts_rb_q no longer backs exactly two series"
         async with http:
-            series = await collect_eurostat(http, business, geographies=("LT",))
+            series = await collect_eurostat(http, shared_cube, geographies=("LT",))
 
         assert sorted(asked) == ["BKRT", "REG"], (
             "one of the two series was served the other's cached body and was "
@@ -1133,6 +1138,9 @@ class TestTheBusinessBeatHasASource:
         assert {s.metric for s in business} == {
             "business_registrations",
             "business_bankruptcies",
+            "tourism",
+            "tourism_foreign",
+            "hotel_occupancy",
         }
 
     def test_should_join_both_to_a_chart_the_dashboard_serves(self):
@@ -1143,6 +1151,9 @@ class TestTheBusinessBeatHasASource:
             # The dashboard's id is 'bankruptcies'; naming it
             # 'business_bankruptcies' to match our own metric would 404.
             "business_bankruptcies": "bankruptcies",
+            "tourism": "tourism",
+            "tourism_foreign": "tourism_foreign",
+            "hotel_occupancy": "hotel_occupancy",
         }
 
 
@@ -1161,8 +1172,18 @@ class TestTheEnvironmentBeatHasASource:
         env = [s for s in EUROSTAT_DATASETS if s.section == "environment"]
 
         assert env, "the environment beat still has no data source"
-        assert [s.metric for s in env] == ["ghg_emissions"]
-        assert env[0].frequency == "quarterly"
+        assert {s.metric for s in env} == {
+            "ghg_emissions",
+            # Mirrored from the dashboard. Demography is the environment
+            # beat's other half, and annual: emissions is still the only
+            # series here that moves within a year.
+            "population",
+            "birth_rate",
+            "net_migration",
+            "life_expectancy",
+        }
+        emissions = next(s for s in env if s.metric == "ghg_emissions")
+        assert emissions.frequency == "quarterly"
 
     def test_should_read_the_only_breakdown_that_carries_values(self):
         """``TOTAL_HH`` and nothing finer, because nothing finer exists.
