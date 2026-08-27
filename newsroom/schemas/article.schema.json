@@ -145,6 +145,8 @@
         },
         "model": { "type": "string", "description": "e.g. gpt-4o-mini@2024-07-18. Null for tier B and C, which involve no generation." },
         "prompt_version": { "type": "string" },
+        "revision": { "type": "string", "description": "The git revision of the deployed code that produced this article, supplied by the deploy rather than committed to the tree. Present only when genuinely known; see revision_unavailable." },
+        "revision_unavailable": { "type": "string", "description": "Why the producing revision could not be identified. Mutually exclusive with revision, so a reader can never mistake a placeholder for an answer." },
         "research": {
           "type": "object",
           "description": "Registered web sources consulted between signal detection and writing. Research supplies context, never verified figures.",
@@ -224,6 +226,8 @@
           "additionalProperties": false,
           "properties": {
             "prompt_version": { "type": "string" },
+        "revision": { "type": "string", "description": "The git revision of the deployed code that produced this article, supplied by the deploy rather than committed to the tree. Present only when genuinely known; see revision_unavailable." },
+        "revision_unavailable": { "type": "string", "description": "Why the producing revision could not be identified. Mutually exclusive with revision, so a reader can never mistake a placeholder for an answer." },
             "expert": { "type": "string" },
             "discipline": { "type": "string" },
             "angle": { "type": "string" },
@@ -261,6 +265,8 @@
           "additionalProperties": false,
           "properties": {
             "prompt_version": { "type": "string" },
+        "revision": { "type": "string", "description": "The git revision of the deployed code that produced this article, supplied by the deploy rather than committed to the tree. Present only when genuinely known; see revision_unavailable." },
+        "revision_unavailable": { "type": "string", "description": "Why the producing revision could not be identified. Mutually exclusive with revision, so a reader can never mistake a placeholder for an answer." },
             "decision": { "enum": ["approve", "revise", "reject", "escalate"] },
             "reason": { "type": "string" },
             "editor": { "type": "string" },

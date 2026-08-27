@@ -266,14 +266,21 @@ _INFORMATION_VERB = (
     r"(?:crucial|essential|key|important|critical|vital|instrumental|necessary|"
     r"useful|telling|informative|insightful|provide|offer|give|shed|clarify|"
     r"reveal|determine|confirm|indicate|show|tell|prove|establish|demonstrate|"
-    r"assess|understand|illuminate|elucidate|verify|validate|ascertain|test)"
+    r"assess|understand|illuminate|elucidate|verify|validate|ascertain|test|"
+    r"settle)"
 )
 
 _INFORMATIONAL_PROMISE = re.compile(
     rf"\b(?:will|would|should|could|may|might|shall)\s+(?:be\s+)?(?:\w+\s+)?"
     rf"(?:to\s+)?{_INFORMATION_VERB}\b"
     rf"|\b(?:is|are)\s+what\s+(?:will|would)\s+{_INFORMATION_VERB}\b"
-    rf"|\bprovide[sd]?\s+(?:further\s+)?(?:insight|insights|clarity)\b",
+    rf"|\bprovide[sd]?\s+(?:further\s+)?(?:insight|insights|clarity)\b"
+    # "…for 2026-Q2 TO SEE IF this trend continues" — no modal at all, so the
+    # verb patterns miss it, and it is the exact shape the analyst desk was
+    # instructed to produce and then handed to the writer. Bare because the
+    # construction has no other use: naming a future release "to see whether"
+    # something happens is a promise about information however it is inflected.
+    rf"|\bto\s+(?:see|find\s+out|learn|know)\s+(?:if|whether)\b",
     re.IGNORECASE,
 )
 
