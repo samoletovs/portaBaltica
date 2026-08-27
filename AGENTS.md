@@ -701,6 +701,41 @@ filters the other — as `publishable` does before the desk ever runs — is emp
 by construction and will report a confident zero. Before measuring, ask what
 result would look identical whether the hypothesis is true or false.
 
+## A merged pull request is not proof that the branch head merged
+
+`gh pr merge` merges the SHA **the pull request record holds**, which is not
+always the SHA the branch actually points at. After a force-push, or when
+GitHub's ref sync lags, the PR can stay pinned to an older commit while
+`git ls-remote` and the git-ref API both report a newer one.
+
+This happened here, and it cost two commits. `#146` was merged while its record
+held `010634b`; the branch was at `462cc17`. The mirror landed and a truth fault
+in `detect_streak` — counting *readings* while claiming *consecutive periods* —
+did not, along with a collision test for a live crossing. Both had to be
+rebuilt as a second pull request.
+
+The failure is silent in both directions. The pull request shows as merged, CI
+was green on the stale tree, and nothing anywhere says a commit was skipped.
+
+It also defeats the obvious way of reviewing a change before merging it: fetch
+the branch, merge it locally onto master, run everything, then merge the pull
+request. **That verifies one tree and lands another** — the same shape as a
+guard reading a different object from the behaviour it guards, one level out
+in the tooling.
+
+So before merging anything, compare the two:
+
+```powershell
+git ls-remote origin <branch>                  # what the branch really is
+gh pr view <n> --json headRefOid -q .headRefOid # what the merge will use
+```
+
+If they differ, push an empty commit or re-target the pull request until they
+agree. And after merging something whose content you care about, assert the
+content is on master rather than trusting the merge — `git show
+origin/master:path | Select-String <the thing>` takes seconds and answers the
+question the pull request's own status cannot.
+
 ## Measuring the newsroom after a change
 
 **A green deploy job means the package was uploaded, not that the app is
