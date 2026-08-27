@@ -3,7 +3,7 @@
 //
 // Resources owned by this template (resource group: portabaltica-rg):
 //   - Log Analytics + Application Insights (0.1 GB/day cap)
-//   - Storage account + blob containers: articles, raw-feeds, approvals
+//   - Storage account + blob containers: articles, raw-feeds, approvals, stats
 //   - Azure Functions on Flex Consumption (Python) — the newsroom pipeline
 //   - System-assigned managed identity on the Function App
 //   - RBAC: Blob/Queue/Table Data Contributor on its own storage
@@ -105,6 +105,20 @@ var newsroomContainers = ['articles', 'raw-feeds', 'approvals']
 // Flex Consumption deploys the function package from a blob container using the
 // app's own identity, so it needs a container of its own.
 var deploymentContainerName = 'deployment'
+
+// Traffic counts for the status panel, written hourly by the visit-stats
+// workflow and read by /api/system-status.
+//
+// This is the one container that is deliberately public, and it is declared
+// that way here rather than being switched on by hand in the portal. The
+// `articles` container above is currently public in the live account while this
+// template says 'None' — undeclared drift that a redeploy would silently
+// revert. Rather than build on that, the stats file gets a container whose
+// access level is stated in the IaC, so the template and the account agree.
+//
+// Nothing sensitive can land here: the payload is four integers describing
+// aggregate request volume, already visible to anyone who can load the site.
+var statsContainerName = 'stats'
 
 var azureOpenAiEndpoint = 'https://${foundryAccountName}.openai.azure.com/'
 
@@ -220,6 +234,18 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   name: deploymentContainerName
   properties: {
     publicAccess: 'None'
+  }
+}
+
+// Blob-level public read, so the browser and the SWA's Functions can fetch the
+// counts with no credential at all — the same arrangement the finished article
+// JSON already relies on. 'Blob' grants read on individual blobs only; it does
+// not permit listing the container.
+resource statsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: statsContainerName
+  properties: {
+    publicAccess: 'Blob'
   }
 }
 

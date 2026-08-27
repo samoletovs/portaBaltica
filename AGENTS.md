@@ -90,9 +90,11 @@ portaBaltica/
 │   ├── economy-data/       # ECB, NordPool, CSP, business registries
 │   ├── property-data/      # Construction, energy certs, cadastral
 │   ├── environment-data/   # Weather, air quality, population
-│   ├── system-status/      # Health probes for every upstream
+│   ├── system-status/      # Health probes for every upstream + published traffic counts
 │   ├── news-rss/           # /rss.xml — our own articles only
 │   └── news-sitemap/       # /sitemap.xml
+├── scripts/
+│   └── visit-stats.mjs     # Azure Monitor hourly series → Riga-day request counts
 └── infrastructure/
     ├── main.bicep          # SWA + monitoring + newsroom Functions/Storage/RBAC
     ├── modules/
@@ -240,6 +242,51 @@ while the `era-rg` copy exists would create a *second* Static Web App.
 
 Fix it as scheduled maintenance with the domain rebind planned, not as a side
 effect of a feature PR.
+
+### Counting traffic, and why there is no counter
+
+The status panel reports **request volume, not visitors**, and the distinction is
+load-bearing. `SiteHits` counts every HTTP request the SWA serves; a single-page
+app serves one document plus a dozen assets per arrival, so the figure overstates
+the audience by whatever that ratio happens to be. It is labelled `requests` in
+the published JSON, in the API response, in the UI, and in a test that fails if
+the word "visits" appears in the rendered panel. Relabelling it without changing
+where the data comes from would be the same class of error as the cache collision
+above: a real number under a name that means something else.
+
+**The site cannot count its own traffic, and the reason is structural.** The SWA
+is Free tier, so it has no managed identity (`identity: null`, verified against
+the live resource), and its storage account sets `allowSharedKeyAccess: false`,
+so there is no connection string it could hold instead. A Function therefore has
+no durable store, and anything it counted would live in process memory and reset
+on every cold start — several times a day on an app that idles out in minutes.
+A total that silently returns to zero is worse than no total, because a reader
+cannot tell a quiet morning from a restart.
+
+So nothing is instrumented. Azure Monitor already records this traffic durably
+for 93 days at no cost. `.github/workflows/visit-stats.yml` reads it hourly with
+the repository's existing **OIDC federated identity** — no stored secret —
+reduces it with `scripts/visit-stats.mjs`, and writes `visits.json` to the public
+`stats` container. `/api/system-status` fetches that with no credential, exactly
+as `api/shared/newsroom.js` already fetches finished articles, and omits the
+block entirely when the read fails. **Absent must stay absent all the way to the
+UI**: substituting zeros would render as "nobody came today" on the strength of
+a missing file.
+
+Two things that look like details and are not. The day boundary is Europe/Riga,
+not UTC, because bucketing UTC timestamps into UTC days misfiles every request
+between local midnight and 02:00 or 03:00 — a plausible figure, one day out, for
+three hours out of twenty-four, which no eyeball would ever catch. And
+`az monitor metrics list` **requires `--end-time`**: given only `--start-time` it
+clamps the window to one hour and returns an empty bucket, which aggregates to a
+confident zero rather than an error. Measured while building this, the same
+command without an end time reported no traffic on a day with 2,407 requests.
+The workflow refuses to publish a reading with no observations for that reason.
+
+The `stats` container is the one container deliberately declared `publicAccess:
+'Blob'` in `main.bicep`. Note that `articles` is public in the live account while
+the template says `'None'` — undeclared drift a redeploy would revert. The stats
+file does not build on that; its access level is stated in the IaC.
 
 ### Cost
 

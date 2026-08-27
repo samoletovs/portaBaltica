@@ -104,11 +104,6 @@ export default function App() {
   const [euFunds, setEuFunds] = useState<EUFundsData | null>(null);
   const [euLoading, setEuLoading] = useState(true);
 
-  // Track login
-  useEffect(() => {
-    fetch('/api/track-login', { method: 'POST' }).catch(() => {});
-  }, []);
-
   // Load all data in parallel
   useEffect(() => {
     let cancelled = false;

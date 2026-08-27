@@ -254,6 +254,27 @@ export interface SystemStatus {
     revenue: string;
     status: string;
   };
+  /**
+   * Request volume from Azure Monitor, published hourly by the visit-stats
+   * workflow. Optional because the status endpoint omits it rather than
+   * inventing zeros when the published counts cannot be read.
+   *
+   * `unit` is `'requests'` and not `'visits'`: the underlying metric counts
+   * every HTTP request the site serves, including the JavaScript, CSS and
+   * images that accompany each page. Relabelling it would overstate the
+   * audience by roughly the number of assets per page.
+   */
+  traffic?: {
+    unit: string;
+    metric: string;
+    today: number;
+    last7Days: number;
+    last30Days: number;
+    dailyAverage30d: number;
+    timezone: string;
+    generatedAt: string | null;
+    ageMs: number;
+  } | null;
   respondedIn: string;
   fetchedAt: string;
 }
