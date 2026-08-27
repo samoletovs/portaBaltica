@@ -687,6 +687,123 @@ def test_should_accept_two_paragraphs_that_share_only_some_fields(
     )
 
 
+# ── no_unsupported_mechanism ────────────────────────────────────────────
+#
+# A weekly wrap published, and was retracted within the hour, for a paragraph
+# that explained a rise it had no evidence for. All nine checks then in force
+# passed it, and passed it VACUOUSLY: the paragraph carries no figures, so
+# every numeric gate had nothing to look at.
+
+
+def test_should_reject_an_explanation_in_a_paragraph_with_no_figures(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    # The retracted sentence, near enough verbatim.
+    tier_a_article["body"].append(
+        {
+            "type": "paragraph",
+            "text": (
+                "This increase is significant for the maritime sector, "
+                "reflecting the growing capacity and efficiency of its ports."
+            ),
+            "figures": [],
+        }
+    )
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "no_unsupported_mechanism")
+
+
+def test_should_reject_an_invented_consequence(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """`house_style` catches this too, but house style has no rejection path --
+    a validated article publishes once its attempts run out, style faults and
+    all. An invented consequence is a truth fault, so it needs a gate that
+    fails closed."""
+    tier_a_article["body"].append(
+        {
+            "type": "paragraph",
+            "text": "The rise could boost the regional economy.",
+            "figures": [],
+        }
+    )
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "no_unsupported_mechanism")
+
+
+def test_should_accept_saying_the_data_does_not_establish_a_cause(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The sentence the prompt asks for BY NAME, and the reason the check tests
+    for a positive attribution rather than for the verb.
+
+    "The data does not show what drove the change" is figure-free and is one of
+    the better sentences this wire publishes. A check that rejected it would
+    have taught the writer to stop saying the honest thing.
+    """
+    tier_a_article["body"].append(
+        {
+            "type": "paragraph",
+            "text": "The data does not show what drove the change.",
+            "figures": [],
+        }
+    )
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert verdict.passed, [c.name for c in verdict.failures()]
+
+
+def test_should_accept_an_explanation_a_named_source_is_on_the_record_for(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The prompt permits this in terms: "use official research context to
+    explain plausible causes ... attribute it by name". An attributed cause is
+    reporting, not invention."""
+    tier_a_article["body"].append(
+        {
+            "type": "paragraph",
+            "text": "According to Eurostat, the change reflects a revision to the method.",
+            "figures": [],
+        }
+    )
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert verdict.passed, [c.name for c in verdict.failures()]
+
+
+def test_should_accept_an_explanation_of_the_figures_the_paragraph_carries(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The boundary, and the reason the rule is about evidence rather than
+    vocabulary.
+
+    The prompt's own example of bad prose contains "the rise reflects a streak
+    of eight consecutive annual increases since 2008" -- same verb as the
+    retracted sentence, and grounded, because the streak is in the data. A
+    paragraph that declares its evidence may explain what it declares.
+    """
+    tier_a_article["body"].append(
+        {
+            "type": "paragraph",
+            "text": (
+                "The rise reflects a spread of 303.5 euros between the cheapest "
+                "and dearest hour."
+            ),
+            "figures": [{"value": 303.5, "unit": "EUR/MWh", "signal_field": "spread"}],
+        }
+    )
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert verdict.passed, [c.name for c in verdict.failures()]
+
+
 # ── the meta test ───────────────────────────────────────────────────────
 
 
@@ -719,4 +836,26 @@ def test_every_check_in_the_contract_has_a_negative_fixture() -> None:
     assert not missing, (
         "these checks have no fixture proving they can reject anything, so "
         f"nothing here would notice if they stopped working: {missing}"
+    )
+
+
+def test_every_registered_check_actually_runs() -> None:
+    """Two lists, and a check in one and not the other never executes.
+
+    `CHECK_NAMES` is what `validate_article` iterates; `_CHECKS` is the
+    registry it looks names up in. `no_unsupported_mechanism` was added to the
+    registry, given a negative fixture, and silently never run -- and the
+    fixture test above passed throughout, because it reads `_CHECKS`.
+
+    So the guard on the guard had the defect it exists to catch: it asserted a
+    property of the registry while the behaviour depends on the other list.
+    Seventh instance of one shape in a day.
+    """
+    from newsroom.validator import CHECK_NAMES, _CHECKS
+
+    assert set(CHECK_NAMES) == set(_CHECKS), (
+        "registered but never run: "
+        f"{sorted(set(_CHECKS) - set(CHECK_NAMES))}; "
+        "run but not registered: "
+        f"{sorted(set(CHECK_NAMES) - set(_CHECKS))}"
     )

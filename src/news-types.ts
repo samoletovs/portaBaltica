@@ -31,7 +31,18 @@ export type ValidatorCheckName =
   | 'no_lived_experience_claims'
   | 'attribution_present'
   | 'comparison_basis_stated'
-  | 'no_repeated_findings';
+  | 'no_repeated_findings'
+  /**
+   * A paragraph with no figures may not explain why something happened.
+   *
+   * Added after a weekly wrap published — and was retracted within the hour —
+   * for a paragraph asserting that rising throughput reflected "the growing
+   * capacity and efficiency" of a country's ports. Throughput rising shows
+   * neither. All nine checks then in force passed it, and passed it
+   * vacuously: the paragraph carried no figures, so every numeric gate had
+   * nothing to look at.
+   */
+  | 'no_unsupported_mechanism';
 
 export interface ValidatorCheck {
   name: ValidatorCheckName;

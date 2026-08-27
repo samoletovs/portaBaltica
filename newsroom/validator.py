@@ -43,6 +43,7 @@ CHECK_NAMES: Final[tuple[str, ...]] = (
     "attribution_present",
     "comparison_basis_stated",
     "no_repeated_findings",
+    "no_unsupported_mechanism",
 )
 
 #: How far a declared figure may sit from the signal value it claims to come
@@ -857,6 +858,141 @@ def check_no_repeated_findings(context: ValidationContext) -> CheckResult:
     )
 
 
+# ── check: no_unsupported_mechanism ─────────────────────────────────────
+
+#: The grammar of attribution. A CLOSED class, and that is the point.
+#:
+#: ``SPECULATIVE_IMPACT`` in ``house_style`` pairs a verb with a noun --
+#: ``impact`` + *sector*, ``could boost`` + *economy* -- so a phrasing outside
+#: that grammar is invisible to it. Probed against five sentences that each
+#: assert something unsupported, four escaped::
+#:
+#:     pass  reflecting the growing capacity and efficiency of its ports
+#:     pass  This is significant for the maritime sector
+#:     FLAG  which could boost the regional economy
+#:     pass  signalling stronger demand across the region
+#:     pass  underlining the resilience of the sector
+#:
+#: The set of things a sentence can attribute is infinite; the set of ways to
+#: attribute them is small. So this matches the attribution and never the
+#: object, which is what stops it being walked around one synonym at a time.
+_ATTRIBUTION = re.compile(
+    r"\b(?:reflect(?:s|ing|ed)?|indicat(?:e|es|ing|ed)|highlight(?:s|ing|ed)?"
+    r"|underscor(?:e|es|ing|ed)|underlin(?:e|es|ing|ed)|signal(?:s|led|ling|ing)?"
+    r"|suggest(?:s|ing|ed)?|demonstrat(?:e|es|ing|ed)"
+    r"|point(?:s|ing)\s+to|testament\s+to|attributable\s+to"
+    r"|driven\s+by|due\s+to|owing\s+to|thanks\s+to|because\s+of"
+    r"|as\s+a\s+result\s+of|stem(?:s|ming)?\s+from|result(?:s|ing)?\s+from)\b"
+    r"|\bis\s+(?:a\s+)?(?:sign|evidence|proof)\s+of\b"
+    r"|\b(?:is|are|remains)\s+(?:significant|important|crucial|critical|vital|"
+    r"notable|encouraging|worrying|concerning)\s+for\b"
+    # The consequence forms. `house_style.SPECULATIVE_IMPACT` catches these
+    # too, but house style has no rejection path -- a validated article
+    # publishes once its attempts run out, style faults and all -- and an
+    # invented consequence is a truth fault rather than a matter of taste, so
+    # it belongs behind a gate that fails closed.
+    r"|\b(?:could|may|might|will|would|should)\s+(?:help\s+)?(?:to\s+)?"
+    r"(?:boost|lift|drive|spur|hurt|dampen|strengthen|weaken|support|benefit|"
+    r"damage|improve|worsen|ease|accelerate|slow)\b",
+    re.IGNORECASE,
+)
+
+#: Saying we do NOT know is the sentence the prompt asks for by name, and it
+#: has to survive a check aimed at the opposite claim.
+_DENIES_A_MECHANISM = re.compile(
+    r"\b(?:does|do|did|could|can|will|would)\s+not\b"
+    r"|\bcannot\b|\bno\s+(?:evidence|indication|sign)\b"
+    r"|\bnothing\s+(?:in|about|here)\b"
+    r"|\bnot\s+(?:established|shown|clear|possible)\b"
+    r"|\bis\s+unclear\b|\bremains\s+unexplained\b",
+    re.IGNORECASE,
+)
+
+#: An explanation somebody else is on the record for. The prompt permits this
+#: in terms -- "use official research context to explain plausible causes ...
+#: attribute it by name" -- so an attributed cause is reporting, not invention.
+_ATTRIBUTED_TO_A_SOURCE = re.compile(
+    r"\baccording\s+to\b|\bsaid\b|\bsays\b|\bstated\b|\btold\b"
+    r"|\bthe\s+(?:bank|ministry|commission|government|office|agency|operator)\b"
+    r"|\bEurostat\b|\bthe\s+statistics\s+office\b",
+    re.IGNORECASE,
+)
+
+
+def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
+    """A paragraph with no figures may not explain why something happened.
+
+    THE FAILURE THIS CATCHES
+    ------------------------
+    A weekly wrap published, and was retracted within the hour, for this::
+
+        "This increase in container throughput is significant for Lithuania's
+         maritime sector, reflecting the growing capacity and efficiency of its
+         ports."
+
+    Throughput rising does not show capacity rising -- it is equally consistent
+    with heavier use of unchanged capacity -- and it says nothing whatever
+    about efficiency. Two claims about the world, neither in the data, on a
+    site whose whole proposition is that every figure traces to its dataset.
+
+    All nine checks passed it, and they passed it VACUOUSLY: the paragraph
+    carries no figures, so every numeric gate had nothing to look at.
+
+    WHY GROUNDEDNESS, AND WHY FIGURES ARE HOW IT IS MEASURED
+    --------------------------------------------------------
+    The verb is not the signal. The prompt's own worked example of bad prose
+    contains "the rise reflects a streak of eight consecutive annual increases
+    since 2008", which uses the same verb as the retracted sentence and is
+    *grounded* -- the streak is in the data. What separates them is whether the
+    thing attributed to is present in the piece's own figures.
+
+    A paragraph's declared figures are exactly that presence, made machine
+    readable. So the rule is: a paragraph that carries evidence may explain
+    what it carries; a paragraph that carries none may not explain anything on
+    its own authority. It may still deny a mechanism -- "the data does not show
+    what drove the change" is figure-free and is one of the better sentences
+    this wire publishes -- or report one somebody is named as the source of.
+
+    WHY IT IS A CHECK RATHER THAN AN INSTRUCTION
+    --------------------------------------------
+    The prompt has forbidden this in terms, by name, including the exact verb
+    the retracted article used::
+
+        Never write that a movement "reflects", "indicates", "highlights",
+        "underscores" or "points to" something the figures do not establish.
+
+    It did it anyway. Fourth component where the guidance was right and nothing
+    enforced it, after the persona closing moves, the analyst's
+    ``what_to_watch``, and the prompt's own "same period" requirement.
+    """
+    name = "no_unsupported_mechanism"
+    problems: list[str] = []
+
+    for index, block in enumerate(context.blocks):
+        if block.get("type") != "paragraph":
+            continue
+        text = block.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        if block.get("figures"):
+            continue
+        found = _ATTRIBUTION.search(text)
+        if not found:
+            continue
+        if _DENIES_A_MECHANISM.search(text) or _ATTRIBUTED_TO_A_SOURCE.search(text):
+            continue
+        problems.append(
+            f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+            "in a paragraph carrying no figure. Say what the data shows, "
+            "attribute the explanation to a named source, or say plainly that "
+            "the data does not establish a cause"
+        )
+
+    if problems:
+        return CheckResult(name, False, "; ".join(problems))
+    return CheckResult(name, True, "no unevidenced explanation")
+
+
 # ── runner ──────────────────────────────────────────────────────────────
 
 _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
@@ -869,6 +1005,7 @@ _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
     "attribution_present": check_attribution_present,
     "comparison_basis_stated": check_comparison_basis_stated,
     "no_repeated_findings": check_no_repeated_findings,
+    "no_unsupported_mechanism": check_no_unsupported_mechanism,
 }
 
 
