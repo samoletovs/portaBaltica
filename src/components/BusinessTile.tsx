@@ -73,7 +73,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Company reg# or surname..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
+              className="flex-1 min-w-0 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search beneficial owners by company registration number or surname"
             />
             <button
@@ -193,7 +193,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setAddrQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
               placeholder="Street, city, or postal code..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
+              className="flex-1 min-w-0 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search Latvian addresses"
             />
             <button

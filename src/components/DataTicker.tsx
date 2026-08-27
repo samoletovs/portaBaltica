@@ -101,7 +101,7 @@ export function DataTicker() {
        its source, in the tiles below. So it is hidden from assistive
        technology entirely rather than announced once. */
     <div
-      className="overflow-hidden edge-fade-x"
+      className="ticker-viewport edge-fade-x"
       style={{ borderBottom: '1px solid var(--border-card)' }}
       aria-hidden="true"
     >
