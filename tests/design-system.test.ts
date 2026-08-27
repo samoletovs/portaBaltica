@@ -984,6 +984,35 @@ describe('direction is not sentiment', () => {
     }
   });
 
+  it('claims a direction and never a period, because the comparison is positional', async () => {
+    // Both cards compute `previous` as `values[values.length - 2]` **after**
+    // filtering nulls out, so it is the second-newest *reading*, not the
+    // previous *period*. By the rule the maritime side follows — a hole is
+    // dangerous where the consumer indexes by position and self-limiting where
+    // it addresses by label — that is the dangerous side.
+    //
+    // It is correct today for two independent reasons, and only one is in
+    // these files: no time word is attached anywhere, and the live contiguity
+    // assertion makes a hole inside the newest eight observations impossible.
+    // The second lives in tests/indicators.live.test.ts and nothing links it to
+    // the arrow on a card, so this pins the first — the half a well-meaning
+    // copy edit can break without touching a guard.
+    const { changeDescription } = await import('../src/utils/polarity');
+
+    for (const id of ['gdp', 'unemployment', 'population', 'house_prices']) {
+      for (const change of [1.5, -1.5, 0, null]) {
+        const said = changeDescription(id, change);
+        expect(
+          said,
+          `changeDescription('${id}', ${change}) said "${said}" — a positional comparison ` +
+            'may not name a period, because the reading it compares against is the previous ' +
+            'non-null value rather than the previous period. If a period claim is wanted, ' +
+            'compute it from the two periods rather than assuming they are adjacent.'
+        ).not.toMatch(/month|quarter|year|week|since|last|ago|previous/i);
+      }
+    }
+  });
+
   it('signs a delta with a real minus sign', async () => {
     const { signed } = await import('../src/utils/polarity');
 

@@ -621,6 +621,51 @@ actually have — a gap with no null to find, because the period is not
 represented. Each is blind to the other's shape, and running only one of them
 looks like coverage.
 
+**Neither belongs on `api/shared/ports.js`, and the reason generalises.** The
+obvious next move after writing a guard is to point it at every registry, and
+here that is wrong. Measured across the twelve maritime series: cadence passes,
+and contiguity **fails on four of them** — Kunda, Pärnu, Sillamäe and Tallinn
+are missing all four quarters of 2024 in `mar_tf_qm`, with data on both sides.
+That is not a pin. Checked against every one of the 25 × 14 × 2 tonnage,
+vessel and unit combinations the cube offers, Tallinn has 486 non-null cells in
+2023 and 494 in 2025 and **zero** in 2024: Estonia did not file that year.
+
+So the guard would red-light correct work, and it does not need to run there
+anyway — because **the consuming code decides whether a hole is dangerous**.
+`portStats.ts` addresses every reading by period *label*: `sameQuarterLastYear`
+turns `2025-Q4` into `2024-Q4` and `valueAt` matches on `p.period ===`, with no
+index arithmetic anywhere. A missing quarter therefore degrades to "no
+year-on-year comparison shown", which is what a reader sees for Estonian
+vessels today, rather than to a comparison against the wrong quarter.
+
+The rule is: **a hole needs a guard where the consumer indexes by position, and
+is self-limiting where the consumer addresses by label.** Structure beats a
+test wherever you can have it — and that is the same choice as counting periods
+rather than observations, one layer down.
+
+Applied across this repo's consumers, the split is:
+
+| Consumer | How it addresses a reading | |
+|---|---|---|
+| `portStats.ts` — `valueAt`, `sameQuarterLastYear` | period label | safe by construction |
+| `PortBars`, `MeasureHeadline` | via `valueAt` | safe by construction |
+| `IndicatorCard`, `IndicatorTable` — `values[length - 2]` | **position** | safe only by a guard elsewhere |
+
+That last row is the one to know about. `previous` is the second-newest
+*non-null value*, not the previous *period*, because the array is filtered
+before it is indexed. It is correct today for two independent reasons: no time
+word is attached to it anywhere — the label is "Previous" and
+`changeDescription` says "up" or "down", never "since last quarter" — and the
+contiguity assertion in `tests/indicators.live.test.ts` makes a hole inside the
+newest eight observations impossible, so the second-newest reading *is* the
+preceding period.
+
+**The second reason lives in a different file and nothing connects them.**
+Weaken the contiguity assertion, or exempt one indicator from it, and `previous`
+silently becomes "some earlier reading" with an arrow and a sentiment colour
+attached to a change that spans more than one period. If a time word is ever
+added to that label, it must be computed from the period rather than assumed.
+
 The newsroom hit the same mismatch from the prose side on the same day: its
 streak detector walked the deltas between *readings* and stated the result as a
 claim about *periods*, so five readings across ten months would have read as
