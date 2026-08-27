@@ -140,6 +140,30 @@ function judge(check, observation, now) {
   const declared = observation && observation.maxLag;
   const limit = typeof declared === 'number' && declared > 0 ? declared : check.maxLag;
 
+  // No usable bound, no verdict.
+  //
+  // This function's contract is that it answers `unknown` and never `fresh`
+  // when it cannot tell — the comment above says "I cannot tell" must never
+  // render as fresh, and the registry test requires every declared cadence to
+  // carry a positive `maxLag`. Without this branch the code contradicted both:
+  // `age > undefined` is false for every age, so a check whose `maxLag` went
+  // missing would report `fresh` for ever. Measured rather than reasoned — a
+  // seven-year-old observation returns `fresh` with `maxLag` deleted and
+  // `stale` with it present.
+  //
+  // No registry entry can reach this today, and it is not being closed as
+  // defence against an unreachable state. It is closed because the alternative
+  // is a function that documents one behaviour and performs another, which is
+  // the more expensive kind of wrong: the next reader trusts the comment.
+  if (typeof limit !== 'number' || !(limit > 0)) {
+    return {
+      state: 'unknown',
+      age: Math.round(age * 10) / 10,
+      cadence: cadence,
+      reason: 'this source declares a cadence but no bound to judge it against',
+    };
+  }
+
   const rounded = Math.round(age * 10) / 10;
   const shared = { age: rounded, limit: limit, cadence: cadence };
 
