@@ -416,6 +416,32 @@ months, and data.gov.lv served eighteen consecutive header-only CSVs behind
 that is reachable but frozen is a different message to a reader than one that is
 down.
 
+**Read the observation the app reads, not the newest row.** A feed that carries a
+forecast alongside its actuals will always look fresh if the probe takes the
+newest timestamp in the payload, because the forecast runs into the future and a
+reading ahead of the wall clock has a negative age. Elering's
+`system/with-plan` is the live example: sampled together, `data.real` ended 77
+minutes in the past while `data.plan` ran 178 minutes ahead. A probe reading the
+whole payload could never go stale — and a probe that cannot fail is not a probe.
+`freshness.extract.eleringMetered` reads `data.real` only, and matches what
+`/api/live-grid` itself treats as a reading.
+
+**An optional probe must never make a reader wait.** `overallStatus` reads only
+the required checks, so an optional result cannot change the verdict by
+construction. Riga Open Data — `required: false`, powering nothing — was measured
+hanging for 6202ms on eight consecutive live requests inside a 6206ms page:
+99.9% of the response spent on the one answer that is discarded. Optional checks
+now get `OPTIONAL_RESPONSE_BUDGET_MS` and no more; the probe is not cancelled, so
+it still files its result in the cache and a recovery still surfaces on the next
+request. Measured under the same conditions the page went 6209ms → 765ms cold and
+→ 359ms once the abandoned probe landed.
+
+That source is also less dead than this file used to imply. Its *entity sets*
+return HTTP 500, which is why nothing reads it — but the service document the
+probe actually calls answers HTTP 200 in 145–350ms from an ordinary connection,
+four times out of four. Its 6.2s is our egress failing to reach it, the same
+signature as Open-Meteo, not the source being down.
+
 **Never let two definitions share a cache key.** Several indicators legitimately
 read the same cube — `bop_c6_q` backs seven balance-of-payments series,
 `sts_rb_q` backs registrations and bankruptcies, `mar_go_qm_{cc}` backs total
