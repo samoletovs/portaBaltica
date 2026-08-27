@@ -19,6 +19,30 @@ from typing import Iterator, Sequence
 
 from newsroom.pipeline.models import SourceRef
 
+#: The geographies this wire reports *on*. A detector may fire for these, and
+#: an article may be about one of them.
+SUBJECT_GEOGRAPHIES: tuple[str, ...] = ("LV", "EE", "LT")
+
+#: Geographies collected to measure the subjects *against*, never reported on
+#: for their own sake. The EU aggregate is a denominator, not a competitor:
+#: "Latvian unemployment is a point above the EU" is a story about Latvia,
+#: while "EU unemployment hit a record" is somebody else's beat and this
+#: newsroom has no business filing it.
+#:
+#: The distinction has to be enforced rather than intended, because every
+#: single-series detector runs over whatever it is handed. Collect EU27 without
+#: excluding it here and `detect_record_extreme` starts producing EU records on
+#: the first run.
+REFERENCE_GEOGRAPHIES: tuple[str, ...] = ("EU27_2020",)
+
+#: What the collector asks Eurostat for.
+COLLECTED_GEOGRAPHIES: tuple[str, ...] = SUBJECT_GEOGRAPHIES + REFERENCE_GEOGRAPHIES
+
+
+def is_reference(geography: str) -> bool:
+    """True for a geography collected only as a basis for comparison."""
+    return geography in REFERENCE_GEOGRAPHIES
+
 _MONTH_NAMES = (
     "January",
     "February",

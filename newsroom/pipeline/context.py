@@ -82,7 +82,11 @@ from datetime import date
 from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from newsroom import numeric_scan
-from newsroom.pipeline.detect.series import Observation, TimeSeries
+from newsroom.pipeline.detect.series import (
+    SUBJECT_GEOGRAPHIES,
+    Observation,
+    TimeSeries,
+)
 from newsroom.pipeline.models import Signal
 
 log = logging.getLogger(__name__)
@@ -90,7 +94,10 @@ log = logging.getLogger(__name__)
 FactKind = Literal["peer", "companion", "placement", "trajectory"]
 
 #: The three states this wire covers. Order is the ranking order in prose.
-BALTIC_STATES: tuple[str, ...] = ("LV", "EE", "LT")
+#: Re-exported rather than restated: a fourth copy of this tuple is a fourth
+#: chance for the collector, the detectors and the prose to disagree about
+#: whether the EU aggregate is a subject or a denominator.
+BALTIC_STATES: tuple[str, ...] = SUBJECT_GEOGRAPHIES
 
 COUNTRY_NAMES: Mapping[str, str] = {
     "LV": "Latvia",
