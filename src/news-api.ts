@@ -27,6 +27,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * States that may appear on the front page.
+ *
+ * An allow list rather than a deny list, so a state this build has never heard
+ * of is withheld rather than shown. `retracted`, `rejected`, `draft` and
+ * `pending_approval` are all absent by construction.
+ *
+ * `corrected` is here for the same reason `api/shared/newsroom.js` allows it:
+ * an amended article is reader-facing, and hiding it would suppress the
+ * correction while leaving the record of the error. The pipeline does not
+ * currently write that status — `revisions.py` deliberately keeps a corrected
+ * article `published`, because both this gate and `is_servable` require it —
+ * so the entry is forward-looking rather than load-bearing today.
+ */
+const SHOWABLE_STATUSES: readonly string[] = ['published', 'corrected'];
+
+/**
  * Feed-level fail-closed check.
  *
  * The index carries summaries, which have no validator verdict of their own —
@@ -43,6 +59,23 @@ export function isRenderableSummary(value: unknown): value is ArticleSummary {
   if (typeof headline !== 'string' || headline.length === 0) return false;
   if (typeof section !== 'string') return false;
   if (tier !== 'A' && tier !== 'B' && tier !== 'C') return false;
+
+  // An allow list, so an unrecognised state is withheld rather than shown.
+  //
+  // `drop_from_index` removes a retracted article, so in the ordinary case no
+  // entry here is anything but `published`. This is the second lock: if that
+  // removal ever half-fails — a transient blob error between writing the
+  // article and rebuilding the index — the stale entry is what remains, and
+  // the front page would carry a headline we have publicly withdrawn.
+  //
+  // The check is skipped when the field is absent, because entries written
+  // before it existed are servable and must not vanish. It is deliberately the
+  // same shape as `ourArticles` in `api/shared/newsroom.js`, which guards the
+  // feeds: two surfaces read this index, and a rule that holds on one of them
+  // is not a rule.
+  if (typeof value.status === 'string' && !SHOWABLE_STATUSES.includes(value.status)) {
+    return false;
+  }
 
   if (tier === 'A') {
     const persona = value.persona;
