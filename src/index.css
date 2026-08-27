@@ -577,6 +577,39 @@ button,
   100% { transform: translateX(-50%); }
 }
 
+/* The window the track moves behind.
+   `contain: paint` is the whole point of this rule, and it is here because
+   `overflow: hidden` alone did not hold.
+
+   The track is ~3300px of `max-content` inside a 1226px box. `overflow: hidden`
+   clips it visually and the box reports itself as contained — every ancestor
+   measured `scrollWidth === clientWidth` — and yet `document.scrollWidth` was
+   3338 against a 1274px viewport, so the *page* scrolled 2064px sideways into
+   blank space, on every route including every article.
+
+   It only did that under `prefers-reduced-motion: reduce`. With the marquee
+   running there is a `transform` on the track at all times, and a transform
+   creates a containing block that keeps the overflow in. So containment was a
+   side effect of the animation: the layout was accidentally correct for
+   readers who let the page move, and broken for the ones who asked it not to.
+   The failing case was the accessible one, which is why nobody hit it.
+
+   `contain: paint` says the thing directly — descendants of this box do not
+   paint outside it — rather than arranging for it to be true by accident.
+   Measured, under reduced motion, `document.scrollWidth` 3338 → 1274:
+
+     contain: paint          1274  ✓   marquee intact
+     contain: layout paint   1274  ✓   claims more than is needed
+     transform: translateZ(0) 1274 ✓   re-couples containment to transforms,
+                                       which is the coupling that caused this
+     overflow: clip          3338  ✗
+     removing the mask       3338  ✗   the mask was never involved
+     max-width: 100%         1274  ✗   collapses the track; nothing to scroll */
+.ticker-viewport {
+  overflow: hidden;
+  contain: paint;
+}
+
 /* The text ramp's compatibility rules are gone: nothing in src/ writes
    `text-white` or a `text-slate-*` any more, so there is nothing left to
    rescue. The four named steps are defined once, further down, as
