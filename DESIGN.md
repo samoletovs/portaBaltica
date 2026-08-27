@@ -714,6 +714,7 @@ assumed:
 | air quality | **"Good"** — clean air | `AQI_STYLES.good` was the fallback for an unrecognised status |
 | EU funds bars | **"all statuses equal"** | a zero total made every width `Infinity`, which CSS drops silently |
 | port wave forecast | **a full-height bar** | `(null / peak) * 100` is `NaN`, and CSS drops `height: NaN%` and leaves the container's height |
+| cargo mix bars | **"all cargo types equal"** | `Math.max` and `reduce` both propagate `NaN`, so one absent weight set *every* width to `NaN%` and every share to "0.0%" |
 
 Three components, three different plausible answers, one cause. A default that
 looks like data is worse than a crash, because a crash is at least visible —
@@ -727,10 +728,36 @@ wave height through `classifySeaState` and then called `.toFixed(1)` on that sam
 value one line later, which would have printed "Sea state unavailable" and
 thrown while rendering it. Grep for the mechanism, not the component.
 
+The fifth was found by doing exactly that, and it is the worst of them: **one bad
+item destroyed every good one**. `Math.max(...)` and `reduce` are both poisoned
+by a single `NaN`, so a cargo category arriving without a weight made `total` and
+`max` NaN, and then every row — including the well-formed ones — printed "0.0%"
+(because `NaN > 0` is false) and got `width: NaN%`. A trailing `, 1` on the
+`Math.max` looks like it guards this and does not: it stops a division by zero
+when every weight is zero, and `Math.max(NaN, 1)` is NaN. **Filter before you
+aggregate**; a floor after the fact cannot rescue an aggregate that is already
+NaN.
+
+The same sweep found `valueAt` filtering on `value !== null`, which `NaN`
+passes — so `PortBars` had the identical flaw one call away. That one is fixed at
+the single function every port panel reads through rather than at each bar,
+because the aggregate is the thing that has to be clean.
+
 `src/utils/payload.ts` is the general answer: `list()` yields nothing to draw
 and `finite()` yields `null` to render as a dash, and neither invents a number.
 `finite()` also refuses `'42'` rather than coercing it, because a field that
-silently became a string is something to notice, not to absorb.
+silently became a string is something to notice, not to absorb. Note what `list()`
+does **not** do: `Array.isArray(value) ? (value as T[]) : []` validates the
+container and *casts* the contents, so an element type is a compile-time claim
+about a payload we did not write. Every one of the last three rows in that table
+was inside a boundary `list()` had already passed.
+
+**Zero is a reading; absent is not.** A bar for a genuine zero draws nothing,
+because the minimum-visible-width floor exists to keep a small *real* quantity on
+screen and lending it to zero draws cargo that does not exist. A row with no
+reading at all shows an em dash for both its share and its quantity, and is
+excluded from the total — "we do not know" and "none of it" are different claims
+about a port.
 
 ### 3.9 Two components can take down the whole site
 

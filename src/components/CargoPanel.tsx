@@ -3,7 +3,7 @@ import type { PortMeasure, CargoMix } from '../types';
 import { formatPeriod } from '../dataFreshness';
 import { formatMeasure } from '../portStats';
 import { PanelEmpty, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
-import { list } from '../utils/payload';
+import { list, finite } from '../utils/payload';
 
 /**
  * Gross weight of goods handled, by port and by cargo type.
@@ -114,8 +114,31 @@ const MIX_TOKENS = ['--cat-1', '--cat-2', '--cat-3', '--cat-4', '--cat-5'];
  * Passing it in makes the safety local.
  */
 function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix['categories'] }) {
-  const total = categories.reduce((s, c) => s + c.weight, 0);
-  const max = Math.max(...categories.map(c => c.weight), 1);
+  // A category with no usable weight is not a category weighing nothing, and it
+  // must be taken out of the arithmetic before it reaches it. `reduce` and
+  // `Math.max` both propagate NaN, so a single absent weight made `total` and
+  // `max` NaN — and then *every* row, including the well-formed ones, printed
+  // "0.0%" (because `NaN > 0` is false) and got `width: NaN%`, which CSS drops,
+  // leaving every bar at the container's full width. One missing value rendered
+  // the whole panel as "all cargo types equal": a wrong chart rather than a
+  // broken one, which is the harder kind to notice.
+  //
+  // The `, 1` floor on `Math.max` looks like it guards this and does not. It
+  // exists to stop a division by zero when every weight is zero, and
+  // `Math.max(NaN, 1)` is NaN.
+  //
+  // `CargoMix['categories']` types `weight` as `number`, but `list<T>()` only
+  // checks that the container is an array and casts the contents — so that
+  // claim is compile-time only, which is precisely the payload class the helper
+  // was built for. See DESIGN.md §3.8.
+  const rows = categories.map((c) => ({
+    code: c.code,
+    name: c.name,
+    weight: finite(c.weight),
+  }));
+  const weights = rows.map((r) => r.weight).filter((w): w is number => w !== null);
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  const max = Math.max(...weights, 1);
 
   return (
     <>
@@ -130,16 +153,25 @@ function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix
       </p>
 
       <div className="space-y-2">
-        {categories.map((c, idx) => {
-          const share = total > 0 ? ((c.weight / total) * 100).toFixed(1) : '0.0';
+        {rows.map((c, idx) => {
+          // An unmeasured category shows a dash, not a zero: "we do not know"
+          // and "none of it" are different claims about a port.
+          const share = c.weight === null ? null
+            : total > 0 ? ((c.weight / total) * 100).toFixed(1) : '0.0';
+          // A genuine zero draws no bar. The 1% floor is there to keep a small
+          // but real quantity visible, and lending it to zero would draw a
+          // sliver of cargo that does not exist.
+          const width = c.weight !== null && c.weight > 0
+            ? Math.max((c.weight / max) * 100, 1)
+            : 0;
           return (
             <div key={c.code}>
               <div className="flex items-center justify-between text-caption mb-0.5">
                 <span className="dash-body truncate max-w-[55%]" title={c.name}>{c.name}</span>
                 <div className="flex items-center gap-2">
-                  <span className="dash-muted">{share}%</span>
+                  <span className="dash-muted">{share === null ? '—' : `${share}%`}</span>
                   <span className="dash-fg font-mono w-16 text-right">
-                    {formatMeasure(c.weight, 'THS_T')}
+                    {c.weight === null ? '—' : formatMeasure(c.weight, 'THS_T')}
                   </span>
                 </div>
               </div>
@@ -147,7 +179,7 @@ function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix
                 <div
                   className="h-full rounded-full transition-[width] duration-500"
                   style={{
-                    width: `${Math.max((c.weight / max) * 100, 1)}%`,
+                    width: `${width}%`,
                     background: `var(${MIX_TOKENS[Math.min(idx, MIX_TOKENS.length - 1)]})`,
                   }}
                 />

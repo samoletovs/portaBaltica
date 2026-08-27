@@ -17,11 +17,24 @@ import type { PortMeasure, PortSeries } from './types';
 
 export type PortUnit = PortMeasure['unit'];
 
-/** Value a port reported in a given quarter, or null if it did not. */
+/**
+ * Value a port reported in a given quarter, or null if it did not.
+ *
+ * `null` for anything that is not a finite number, not merely for `null` and
+ * `undefined`. A `NaN` passes an `!== null` check, and `PortBars` filters on
+ * exactly that before computing `Math.max` and a `reduce` — both of which
+ * propagate NaN, so one bad cell would set every bar's width to `NaN%`, which
+ * CSS drops, leaving every bar at the container's full width. The valid ports
+ * are destroyed along with the bad one, and the panel reads "all ports equal".
+ *
+ * The series type says `number | null`, but it describes a payload we did not
+ * write, so it is a claim rather than a guarantee (DESIGN.md §3.8).
+ */
 export function valueAt(entry: PortSeries, period: string | null): number | null {
   if (!period) return null;
   const hit = entry.series.find(p => p.period === period);
-  return hit && hit.value !== null && hit.value !== undefined ? hit.value : null;
+  if (!hit) return null;
+  return typeof hit.value === 'number' && Number.isFinite(hit.value) ? hit.value : null;
 }
 
 /** `2025-Q4` → `2024-Q4`. Year-on-year is the only honest comparison here,
