@@ -1093,10 +1093,35 @@ no suspicion — it is triggered by the guessing, which you can always observe.
 Had that session stopped at its first guess it would have reported *"the
 maritime probe is missing from production"*: a confident false regression
 against its own merged work.
+All six of those were an *absent* result rather than a wrong value, and an
+earlier draft of this section generalised that into a rule. **Two cases the
+same evening falsified it**, so here is the actual taxonomy — three kinds of
+bad reading, three different responses:
 
-Note what none of the six had in common with a bug: every one was an *absent*
-result, never a wrong value. The instrument fails silently in exactly the
-direction that reads as a finding.
+| The reading is | Likely cause | What to do |
+|---|---|---|
+| **absent** — nothing, empty, null | wrong field, wrong selector | print the shape before the conclusion |
+| **plausible** — a value you'd believe | right probe, wrong subject | confirm which tree you measured |
+| **absurd** — obviously impossible | broken instrument | suspect the probe, not the code |
+
+The third is the session that built the modulepreload recovery, counting
+reloads three ways before getting one that meant anything. `framenavigated`
+made a healthy page look reloaded, because it fires for SPA history
+navigation. Counting document *responses* then reported **84** reloads, because
+the SPA fallback answers `index.html` for the app's own `/api/*` calls.
+`Sec-Fetch-Dest: document` was the question actually being asked.
+
+Their rule, and it is a good one:
+
+> When a measurement disagrees with a mechanism you have just reasoned through,
+> suspect the measurement first if the disagreement is large. A subtle wrong
+> answer is usually the code; an absurd one is usually the probe.
+
+They came one assertion from filing *"the fix causes a reload loop"* against a
+working fix, **and what stopped them was that 84 was too absurd to believe.**
+That is the row's saving grace: an absurd reading defends itself. A plausible
+one does not, which is why the middle row is the dangerous one and needs a
+mechanical check rather than an instinct.
 
 ## Before reporting a regression, confirm which tree you measured
 
