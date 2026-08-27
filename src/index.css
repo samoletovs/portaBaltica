@@ -577,30 +577,11 @@ button,
   100% { transform: translateX(-50%); }
 }
 
-/* Text colors.
-   `text-slate-500` and `text-slate-600` both land on `--text-tertiary`. They
-   used to be two different greys, at 4.03:1 and 2.53:1, and the quieter of
-   the two was the colour of every chart's source line. There is one quiet
-   text colour now and it is legible; if something genuinely needs to be
-   quieter than that, it is not text and it should not be saying anything. */
-.text-white {
-  color: var(--text-primary) !important;
-}
-.text-slate-300 {
-  color: var(--text-body) !important;
-}
-.text-slate-400 {
-  color: var(--text-secondary) !important;
-}
-.text-slate-500,
-.text-slate-600 {
-  color: var(--text-tertiary) !important;
-}
-
-/* Hover text */
-.hover\:text-slate-200:hover, .hover\:text-slate-300:hover {
-  color: var(--text-primary) !important;
-}
+/* The text ramp's compatibility rules are gone: nothing in src/ writes
+   `text-white` or a `text-slate-*` any more, so there is nothing left to
+   rescue. The four named steps are defined once, further down, as
+   `.dash-fg` / `.dash-body` / `.dash-muted` / `.dash-subtle` — declared rather
+   than overridden, and therefore visible to the tests that measure them. */
 
 /* Inputs and selected controls.
    `bg-slate-600` was mapped to `--text-secondary` — a *text* token used as a
@@ -627,10 +608,6 @@ button,
 
 /* ─── Light-theme-specific overrides ─── */
 /* These fix remaining dark-only patterns that CSS variables alone don't catch */
-
-[data-theme="light"] .text-slate-200 {
-  color: #1e293b !important;
-}
 
 /* Colored status backgrounds — swap dark tints for light tints */
 [data-theme="light"] .bg-emerald-900\/30 {
@@ -702,12 +679,6 @@ button,
   background: #0d9488 !important;
 }
 
-/* Font mono in white context */
-[data-theme="light"] .font-mono.text-white,
-[data-theme="light"] .font-mono.text-slate-300 {
-  color: #0f172a !important;
-}
-
 /* Status dots and bars. Same tokens as the text above, so a dot and the label
    beside it cannot drift apart. */
 .bg-emerald-400 {
@@ -719,6 +690,38 @@ button,
 .bg-yellow-400 {
   background: var(--data-warning) !important;
 }
+
+/* ─── Dashboard text ─────────────────────────────────────────────────────────
+   The neutral text ramp, as four named classes rather than as Tailwind slate
+   numbers rescued by `!important` further down this file.
+
+   These are the same four steps DESIGN.md §1.5 gives contrast floors to, which
+   is the reason the dashboard uses `--text-*` and not the near-identical
+   `--news-*` set: the floors are documented and tested against these.
+
+   The names say the job rather than the shade, which is what makes them
+   survive a theme. `text-slate-400` means "the fourth grey" and stops being
+   true the moment the background inverts; `dash-muted` means "quieter than the
+   body text", which stays true in both.
+
+     dash-fg      headings, indicator values     12:1 floor
+     dash-body    running text                   10:1
+     dash-muted   labels, deks, panel titles      7:1
+     dash-subtle  meta, captions, source lines  4.5:1
+
+   `text-slate-500` and `text-slate-600` both land on `dash-subtle`. They used
+   to be two different greys, at 4.03:1 and 2.53:1, and the quieter of the two
+   was the colour of every chart's source line — the most important trust
+   signal on a data-journalism site, rendered below the legibility threshold.
+   There is one quiet text colour and it is legible; anything that needs to be
+   quieter than it is not text. */
+.dash-fg { color: var(--text-primary); }
+.dash-body { color: var(--text-body); }
+.dash-muted { color: var(--text-secondary); }
+.dash-subtle { color: var(--text-tertiary); }
+
+.dash-hover-fg:hover { color: var(--text-primary); }
+.dash-hover-body:hover { color: var(--text-body); }
 
 /* ─── Dashboard utilities ────────────────────────────────────────────────────
    Named classes for the handful of patterns that had no rule in the

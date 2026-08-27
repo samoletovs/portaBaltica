@@ -63,8 +63,8 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* UBO Search */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-          <p className="text-caption text-slate-400 mb-2">Who Owns This Company?</p>
-          <p className="text-caption text-slate-500 mb-3">Search Latvia's Beneficial Owners Registry (195K+ records)</p>
+          <p className="text-caption dash-muted mb-2">Who Owns This Company?</p>
+          <p className="text-caption dash-subtle mb-3">Search Latvia's Beneficial Owners Registry (195K+ records)</p>
 
           <div className="flex gap-2 mb-3">
             <input
@@ -73,13 +73,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Company reg# or surname..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white dash-placeholder"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search beneficial owners by company registration number or surname"
             />
             <button
               onClick={handleSearch}
               disabled={searching || query.length < 3}
-              className="bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-ui px-4 py-2 rounded-lg transition-colors"
+              className="bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:dash-subtle dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
               aria-label="Search"
             >
               {searching ? '...' : '🔍'}
@@ -92,20 +92,20 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
           {searchResult && (
             <div>
-              <p className="text-caption text-slate-400 mb-2">
+              <p className="text-caption dash-muted mb-2">
                 {searchResult.totalMatches} matches for &quot;{searchResult.query}&quot;
               </p>
               <div className="space-y-3 max-h-60 overflow-y-auto">
                 {list<{ registrationNumber: string; owners: { forename: string; surname: string; nationality?: string }[] }>(searchResult.companies).slice(0, 10).map((company) => (
                   <div key={company.registrationNumber} className="bg-slate-800/40 rounded-lg p-3">
-                    <p className="text-ui font-mono text-slate-300 mb-1">
+                    <p className="text-ui font-mono dash-body mb-1">
                       Reg# {company.registrationNumber}
                     </p>
                     <div className="space-y-1">
                       {list<{ forename: string; surname: string; nationality?: string }>(company.owners).map((owner, i) => (
                         <div key={i} className="flex items-center gap-2 text-caption">
-                          <span className="text-white">{owner.forename} {owner.surname}</span>
-                          <span className="text-slate-500">
+                          <span className="dash-fg">{owner.forename} {owner.surname}</span>
+                          <span className="dash-subtle">
                             {owner.nationality && `🏳️ ${owner.nationality}`}
                           </span>
                         </div>
@@ -114,20 +114,20 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                   </div>
                 ))}
               </div>
-              <p className="text-caption text-slate-600 mt-2">{searchResult.source}</p>
+              <p className="text-caption dash-subtle mt-2">{searchResult.source}</p>
             </div>
           )}
 
           {!searchResult && !searching && (
-            <div className="text-caption text-slate-500">
-              <p>Try: <button onClick={() => { setQuery('40003229495'); }} className="text-slate-400 underline">40003229495</button> (company) or <button onClick={() => { setQuery('Bērziņš'); }} className="text-slate-400 underline">Bērziņš</button> (surname)</p>
+            <div className="text-caption dash-subtle">
+              <p>Try: <button onClick={() => { setQuery('40003229495'); }} className="dash-muted underline">40003229495</button> (company) or <button onClick={() => { setQuery('Bērziņš'); }} className="dash-muted underline">Bērziņš</button> (surname)</p>
             </div>
           )}
         </div>
 
         {/* EU Recovery Fund */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-          <p className="text-caption text-slate-400 mb-2">EU Recovery & Resilience Fund</p>
+          <p className="text-caption dash-muted mb-2">EU Recovery & Resilience Fund</p>
 
           {euLoading && (
             <div className="animate-pulse space-y-2">
@@ -139,9 +139,9 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
           {euFunds && !euLoading && (
             <>
-              <p className="text-title font-semibold text-white font-mono mb-1">
+              <p className="text-title font-semibold dash-fg font-mono mb-1">
                 {finite(euFunds.total) ?? '—'}
-                <span className="text-ui font-normal text-slate-400 ml-2">projects</span>
+                <span className="text-ui font-normal dash-muted ml-2">projects</span>
               </p>
 
               <div className="space-y-2 mb-3">
@@ -155,8 +155,8 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                   return (
                     <div key={s.status}>
                       <div className="flex items-center justify-between text-caption mb-0.5">
-                        <span className="text-slate-200 truncate max-w-[70%]">{s.status}</span>
-                        <span className="text-white font-mono">{s.count}</span>
+                        <span className="dash-body truncate max-w-[70%]">{s.status}</span>
+                        <span className="dash-fg font-mono">{s.count}</span>
                       </div>
                       <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
                         <div
@@ -172,19 +172,19 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                 })}
               </div>
 
-              <p className="text-caption text-slate-500">{euFunds.source}</p>
+              <p className="text-caption dash-subtle">{euFunds.source}</p>
             </>
           )}
 
           {!euFunds && !euLoading && (
-            <p className="text-slate-400 text-ui">No EU fund data available.</p>
+            <p className="dash-muted text-ui">No EU fund data available.</p>
           )}
         </div>
 
         {/* Address Search */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-          <p className="text-caption text-slate-400 mb-2">Address Lookup</p>
-          <p className="text-caption text-slate-500 mb-3">Search 608K+ Latvian addresses with GPS coordinates</p>
+          <p className="text-caption dash-muted mb-2">Address Lookup</p>
+          <p className="text-caption dash-subtle mb-3">Search 608K+ Latvian addresses with GPS coordinates</p>
 
           <div className="flex gap-2 mb-3">
             <input
@@ -193,13 +193,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setAddrQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
               placeholder="Street, city, or postal code..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white dash-placeholder"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search Latvian addresses"
             />
             <button
               onClick={handleAddrSearch}
               disabled={addrSearching || addrQuery.length < 3}
-              className="bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:text-slate-600 text-white text-ui px-4 py-2 rounded-lg transition-colors"
+              className="bg-slate-600 hover:bg-slate-500 disabled:bg-slate-800 disabled:dash-subtle dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
               aria-label="Search addresses"
             >
               {addrSearching ? '...' : '📍'}
@@ -210,17 +210,17 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
             <div className="space-y-2 max-h-52 overflow-y-auto">
               {list<{ code: string; fullAddress: string; postalCode?: string; lat?: number; lon?: number }>(addrResult.addresses).slice(0, 8).map((addr) => (
                 <div key={addr.code} className="bg-slate-800/40 rounded-lg p-2">
-                  <p className="text-caption text-white leading-snug">{addr.fullAddress}</p>
+                  <p className="text-caption dash-fg leading-snug">{addr.fullAddress}</p>
                   <div className="flex items-center gap-2 mt-1">
                     {addr.postalCode && (
-                      <span className="text-caption text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded">{addr.postalCode}</span>
+                      <span className="text-caption dash-muted bg-slate-800/50 px-2 py-0.5 rounded">{addr.postalCode}</span>
                     )}
                     {addr.lat && addr.lon && (
                       <a
                         href={`https://www.google.com/maps?q=${addr.lat},${addr.lon}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-caption text-slate-400 hover:text-slate-200 underline"
+                        className="text-caption dash-muted dash-hover-fg underline"
                       >
                         📍 Map
                       </a>
@@ -228,13 +228,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                   </div>
                 </div>
               ))}
-              <p className="text-caption text-slate-600">{finite(addrResult.total)?.toLocaleString() ?? '—'} total matches</p>
+              <p className="text-caption dash-subtle">{finite(addrResult.total)?.toLocaleString() ?? '—'} total matches</p>
             </div>
           )}
 
           {!addrResult && !addrSearching && (
-            <p className="text-caption text-slate-500">
-              Try: <button onClick={() => { setAddrQuery('Brīvības iela'); }} className="text-slate-400 underline">Brīvības iela</button> or <button onClick={() => { setAddrQuery('LV-1010'); }} className="text-slate-400 underline">LV-1010</button>
+            <p className="text-caption dash-subtle">
+              Try: <button onClick={() => { setAddrQuery('Brīvības iela'); }} className="dash-muted underline">Brīvības iela</button> or <button onClick={() => { setAddrQuery('LV-1010'); }} className="dash-muted underline">LV-1010</button>
             </p>
           )}
         </div>

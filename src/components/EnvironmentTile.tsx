@@ -77,20 +77,20 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {/* Weather */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2">
-          <p className="text-caption text-slate-400 mb-3">Current Weather</p>
+          <p className="text-caption dash-muted mb-3">Current Weather</p>
           {weather.length === 0 ? (
-            <p className="text-ui text-slate-400">No city reported a reading just now.</p>
+            <p className="text-ui dash-muted">No city reported a reading just now.</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {weather.map((w) => (
                 <div key={w.city} className="text-center">
                   <p className="text-title mb-1">{WEATHER_ICONS[w.description ?? ''] ?? '🌡️'}</p>
-                  <p className="text-lead font-semibold text-white">
+                  <p className="text-lead font-semibold dash-fg">
                     {w.temperature !== null ? `${fixed(w.temperature, 0)}°` : '—'}
                   </p>
-                  <p className="text-ui text-slate-200">{w.city}</p>
-                  <p className="text-caption text-slate-400">{w.description ?? 'no reading'}</p>
-                  <p className="text-caption text-slate-500">
+                  <p className="text-ui dash-body">{w.city}</p>
+                  <p className="text-caption dash-muted">{w.description ?? 'no reading'}</p>
+                  <p className="text-caption dash-subtle">
                     💨 {w.windSpeed !== null ? `${fixed(w.windSpeed, 0)} km/h` : '—'}
                     {' · '}💧 {w.humidity !== null ? `${w.humidity}%` : '—'}
                   </p>
@@ -105,7 +105,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
               {coverage.missing} of {coverage.requested} cities did not report just now.
             </p>
           )}
-          <p className="text-caption text-slate-500 mt-3">Open-Meteo API · {timezone}</p>
+          <p className="text-caption dash-subtle mt-3">Open-Meteo API · {timezone}</p>
         </div>
 
         {/* Air quality + Population */}
@@ -119,7 +119,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
                 border: `1px solid color-mix(in srgb, var(${band.token}) 35%, var(--border-card))`,
               }}
             >
-              <p className="text-caption text-slate-400 mb-2">Air Quality · {capital}</p>
+              <p className="text-caption dash-muted mb-2">Air Quality · {capital}</p>
               <div className="flex items-center gap-3 mb-2">
                 <div
                   className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
@@ -131,7 +131,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
                 </div>
                 <div>
                   <p className="text-prose font-semibold" style={{ color: `var(${band.token})` }}>{aq.label}</p>
-                  <p className="text-caption text-slate-400">European AQI</p>
+                  <p className="text-caption dash-muted">European AQI</p>
                 </div>
               </div>
               {/* The ordinal encoding. Good and unhealthy are green and red,
@@ -157,26 +157,26 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
-                  <p className="text-ui font-mono text-white">
+                  <p className="text-ui font-mono dash-fg">
                     {fixed(aq.pm25, 1)}
                   </p>
-                  <p className="text-caption text-slate-400">PM2.5 µg/m³</p>
+                  <p className="text-caption dash-muted">PM2.5 µg/m³</p>
                 </div>
                 <div>
-                  <p className="text-ui font-mono text-white">
+                  <p className="text-ui font-mono dash-fg">
                     {fixed(aq.no2, 1)}
                   </p>
-                  <p className="text-caption text-slate-400">NO₂ µg/m³</p>
+                  <p className="text-caption dash-muted">NO₂ µg/m³</p>
                 </div>
               </div>
             </div>
           ) : (
             <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-              <p className="text-caption text-slate-400 mb-2">Air Quality · {capital}</p>
+              <p className="text-caption dash-muted mb-2">Air Quality · {capital}</p>
               <p className="text-ui" style={{ color: 'var(--data-warning)' }}>
                 No reading available right now.
               </p>
-              <p className="text-caption text-slate-500 mt-1">
+              <p className="text-caption dash-subtle mt-1">
                 This is not a clean-air reading. The measurement could not be taken.
               </p>
             </div>
@@ -184,17 +184,17 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
 
           {/* Population */}
           <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
-            <p className="text-caption text-slate-400 mb-1">{capital} area population</p>
-            <p className="text-title font-semibold text-white font-mono">
+            <p className="text-caption dash-muted mb-1">{capital} area population</p>
+            <p className="text-title font-semibold dash-fg font-mono">
               {(data.capitalPopulation ?? data.rigaPopulation) != null
                 ? (data.capitalPopulation ?? data.rigaPopulation ?? 0).toLocaleString()
                 : '—'}
             </p>
-            <p className="text-caption text-slate-500 mt-1">
+            <p className="text-caption dash-subtle mt-1">
               {data.capitalPopulationLabel ?? `${capital} region`}
               {data.capitalPopulationYear ? ` · ${data.capitalPopulationYear}` : ''}
             </p>
-            <p className="text-caption text-slate-600 mt-0.5">{data.capitalPopulationSource ?? 'Eurostat'}</p>
+            <p className="text-caption dash-subtle mt-0.5">{data.capitalPopulationSource ?? 'Eurostat'}</p>
           </div>
         </div>
       </div>
