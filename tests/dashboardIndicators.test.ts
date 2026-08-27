@@ -129,14 +129,13 @@ describe('a card and a chart never carry the same title', () => {
     );
   })();
 
-  // `EconomyTile` is deliberately absent and must be added by the follow-up
-  // that cuts its GDP and unemployment charts and retitles house prices. It
-  // is in the colour migration's inventory (27 hardcoded instances), so its
-  // three remaining clashes are being fixed in a separate PR that can be
-  // sequenced against that work rather than racing it. Running this test
-  // against `EconomyTile` today reports exactly those three, which is the
-  // to-do list for that PR.
-  const TILES = ['EnergyTile.tsx', 'GovernmentTile.tsx', 'LabourTile.tsx', 'TradeTile.tsx'];
+  // Every tile, including `EconomyTile`. It was excluded while its three
+  // clashes were pending, because that file carries twenty-seven hardcoded
+  // colour instances and was being rewritten by the colour migration at the
+  // same time, so its fix was sequenced rather than raced. The exclusion is
+  // closed now and the assertion covers the whole dashboard.
+  const TILES = ['EconomyTile.tsx', 'EnergyTile.tsx', 'GovernmentTile.tsx',
+    'LabourTile.tsx', 'TradeTile.tsx'];
 
   it.each(TILES)('%s gives its card and chart distinct titles', (name) => {
     const text = tile(name);
