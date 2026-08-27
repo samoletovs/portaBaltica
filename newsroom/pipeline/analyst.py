@@ -392,6 +392,22 @@ class AnalystBrief:
                 lines.append(f"  - {mechanism.claim}")
                 lines.append(f"    grounded in: {fields}")
                 lines.append(f"    how to write it: {how}")
+                # The grounding is what makes the mechanism admissible here, and
+                # it is checked again downstream against the paragraph the
+                # writer puts it in: `no_unsupported_mechanism` asks whether the
+                # thing attributed to is present in THAT paragraph's declared
+                # figures. A brief that names the fields without saying they
+                # must be declared sends the writer to write the sentence
+                # correctly and lose it anyway -- and the rejection reads as a
+                # complaint about the wording, so the writer rewords and fails
+                # again. The "established" branch above already says "naming
+                # both figures"; this says it for both.
+                lines.append(
+                    f"    you MUST declare {fields} in the same paragraph, with "
+                    f"their signal_field names. A paragraph that explains "
+                    f"anything while carrying no figures is rejected, however "
+                    f"carefully it is worded."
+                )
         if self.affected:
             lines.append("")
             lines.append("WHO THIS LANDS ON: " + "; ".join(self.affected))
