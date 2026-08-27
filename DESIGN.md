@@ -603,6 +603,55 @@ Lines are drawn at **2–2.5px**, not 1.5px. At hairline weight on a dark ground
 chroma perception collapses and two warm hues read as one colour — which is
 what "the red and the orange are hard to tell apart" actually meant.
 
+**A series colour never touches text.** The palette is tuned to clear SC
+1.4.11's 3:1 as a *line*, and a hue sitting just above that floor cannot also
+clear SC 1.4.3's 4.5:1 as text under 24px — the two are not satisfiable in one
+value at these hues. Measured against the real card surface across both themes
+and eleven routes, **328 of 496 series-coloured text nodes failed the floor
+that governed them**:
+
+| token | hex | on card | as text (4.5) | as a line (3.0) |
+|---|---|---|---|---|
+| `--series-lt` light | `#c28206` | 3.24 | **fail** | pass |
+| `--series-lv` dark | `#dc3b4a` | 3.90 | **fail** | pass |
+| `--series-lv` light | `#e6414e` | 4.01 | **fail** | pass |
+| `--series-ee` light | `#1a7ae0` | 4.28 | **fail** | pass |
+
+Brightening them is the wrong repair twice over: it would undo constraint 4
+above, and moving Latvia up walks it toward `--data-negative`, collapsing the
+ΔE 13.9 that keeps "Latvia" distinguishable from "this got worse".
+
+So the colour **moves rather than changes**. It was carrying something real —
+which line in the chart belongs to this reading — so the value goes to
+`--text-primary` and a `SeriesSwatch` beside it takes the hue, at the 3:1 floor
+the palette actually meets. The recharts legend already worked this way.
+
+**The flag emoji cannot do the swatch's job.** Segoe UI Emoji ships no
+regional-indicator glyphs, so on Windows `🇱🇻` renders as the letters "LV" in
+the *text* colour: an identifier that carries none of the country's hue.
+Deleting the colour outright would have left a Windows reader with no way to
+match a label to a line at all. Verified by screenshot, not assumed.
+
+**Known and unfixed: gold on a raised surface.** The light 3:1 was verified
+against the white card, and the ranked-comparison and modal-split bars are not
+on the card — they sit in a `--bg-raised` track:
+
+```
+--series-lt #c28206   on --bg-card   #ffffff   3.24:1  pass
+                      on --bg-page   #f6f8fb   3.04:1  pass
+                      on --bg-raised #f1f5f9   2.95:1  FAIL
+                      on --bg-sunken #eef2f7   2.88:1  FAIL
+```
+
+Only gold, only light, only those two surfaces — LV, EE and FI clear raised at
+3.66, 3.91 and 7.03, and every dark value clears it. It is the same fault as
+the one above, one level out: **a floor verified against one background and
+then used against another.** It is recorded rather than fixed because the fix
+is a decision: darkening gold until it clears 3:1 on `--bg-raised` walks it
+into `--data-warning` (`#a16207`), trading a marginal contrast failure for a
+semantic collision. `tests/seriesContrast.live.test.ts` names it explicitly, so
+it stays visible and a *new* offender still fails.
+
 ### 3.7 Numbers
 
 - **Tabular figures everywhere a number can change or align.**

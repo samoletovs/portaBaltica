@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { useFilter } from '../FilterContext';
+import { SeriesSwatch } from './SeriesSwatch';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
@@ -136,14 +137,22 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title ?? data.title}</p>
           <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>LV vs EE vs LT · {data.unit}</p>
         </div>
-        {/* Direct labelling: the latest reading for each country, in its own
-            colour, so the chart can be read without consulting a legend. */}
+        {/* Direct labelling: the latest reading for each country, beside a
+            swatch in that country's line colour, so the chart can be read
+            without consulting a legend.
+
+            The reading itself is `--text-primary`. It used to be the series
+            colour, which put a 12px figure on a hue tuned to clear 3:1 as a
+            line — 3.90:1 for Latvia in dark, 3.24:1 for Lithuania in light,
+            both under the 4.5:1 that SC 1.4.3 asks of text this size. The
+            swatch carries the same mapping at the floor it was built for. */}
         <div className="flex items-center gap-3">
           {COUNTRY_ORDER.map((geo) => (
             <div key={geo} className="flex items-center gap-1 text-caption font-mono">
+              <SeriesSwatch color={chartColors.series[geo]} />
               <span aria-hidden="true">{COUNTRY_META[geo].flag}</span>
               <span className="sr-only">{COUNTRY_META[geo].label}: </span>
-              <span style={{ color: chartColors.series[geo] }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {latestValues[geo] !== null && latestValues[geo] !== undefined ? formatValue(latestValues[geo], data.unit) : '—'}
               </span>
             </div>
@@ -191,7 +200,17 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
                 return [val !== null ? formatValue(val, data.unit) : '—', COUNTRY_META[name as string]?.label ?? name];
               }}
             />
-            {!compact && <Legend formatter={(v: string) => COUNTRY_META[v]?.label ?? v} />}
+            {/* The legend text is neutral; its swatch, which recharts draws
+                beside each entry, carries the colour. Left to itself recharts
+                paints the label in the series colour, which is how "Latvia"
+                came to be a 16px word at 3.90:1. */}
+            {!compact && (
+              <Legend
+                formatter={(v: string) => (
+                  <span style={{ color: 'var(--text-body)' }}>{COUNTRY_META[v]?.label ?? v}</span>
+                )}
+              />
+            )}
             {/* Gaps stay gaps. Carbon: "never interpolate between periods when
                 data is unavailable" — a straight line across a hole invents
                 readings that were never published, which on a site whose whole
