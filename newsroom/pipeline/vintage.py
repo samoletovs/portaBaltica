@@ -177,6 +177,29 @@ class VintageLedger:
         for figure in figures:
             self._entries[figure.key] = figure
 
+    def forget(self, slugs: Iterable[str]) -> int:
+        """Drop every figure belonging to these articles. Returns how many went.
+
+        Retraction needs this, and needs it more than it needs anything done to
+        the article itself. The ledger is what drives the revision watch: it
+        holds ``(metric, geography, period) -> value`` for everything we have
+        published, and each run compares those against the freshly collected
+        series. A figure the newsroom has publicly disowned must leave, because
+        otherwise the comparison keeps finding a difference and keeps reporting
+        it as a restatement by the source.
+
+        That is not hypothetical. Fixing the collector's cache collision made
+        the collector read the correct series for the first time, so the ledger's
+        collided ``business_bankruptcies|LT|2026-Q2 = 130.9`` no longer matched
+        the true 120.3 — and the revision watch filed a public note saying
+        Eurostat had revised a figure it never published. Withdrawing the
+        article does not stop that; only forgetting the figure does.
+        """
+        doomed = {key for key, figure in self._entries.items() if figure.slug in set(slugs)}
+        for key in doomed:
+            del self._entries[key]
+        return len(doomed)
+
     def for_series(self, metric: str, geography: str) -> list[PublishedFigure]:
         return [e for e in self if e.series_key == (metric, geography)]
 

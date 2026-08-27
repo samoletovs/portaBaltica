@@ -300,3 +300,64 @@ class TestTodaysClaimsAreRecorded:
         await _watch_revisions(articles, report, vintages=vintages)
 
         assert len(await vintages.load()) == 0
+
+
+class TestAWithdrawnArticleIsNotCorrected:
+    """The defect that would have turned a retraction into an absurdity.
+
+    ``_watch_revisions`` reads the ledger, not the article, so it had no idea
+    whether the story behind a figure was still standing. Withdrawing a piece
+    and then publicly "correcting" it is incoherent — we retracted it precisely
+    because its premise was wrong, so there is no claim left to restate — and it
+    would recur on every run for as long as the figure sat in the ledger.
+
+    It is not hypothetical. Fixing the collector's cache collision made the
+    ledger's remembered value disagree with the newly-correct series, and the
+    watch filed a public note saying Eurostat had revised a figure it never
+    published.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_retracted_article_gets_no_correction(self, tmp_path) -> None:
+        articles, vintages = _stores(tmp_path)
+        withdrawn = _stored_article()
+        withdrawn["status"] = "retracted"
+        await articles.write_published("estonia-unemployment", withdrawn)
+        await vintages.save(VintageLedger([_figure(6.6)]))
+
+        report = RunReport(series=[_series(7.4)])
+        await _watch_revisions(articles, report, vintages=vintages)
+
+        on_disk = json.loads((tmp_path / "estonia-unemployment.json").read_text(encoding="utf-8"))
+        assert not on_disk.get("corrections"), (
+            "a retracted article was annotated with a source revision, which "
+            "says the statistical office restated a claim we have withdrawn"
+        )
+        assert report.corrections == []
+
+    @pytest.mark.asyncio
+    async def test_and_nothing_reaches_the_public_log(self, tmp_path) -> None:
+        """The corrections log is append-only by policy, so a false entry
+        cannot be taken back later — only superseded. Not writing it is the
+        only cheap remedy."""
+        articles, vintages = _stores(tmp_path)
+        withdrawn = _stored_article()
+        withdrawn["status"] = "retracted"
+        await articles.write_published("estonia-unemployment", withdrawn)
+        await vintages.save(VintageLedger([_figure(6.6)]))
+
+        await _watch_revisions(articles, RunReport(series=[_series(7.4)]), vintages=vintages)
+
+        assert not (tmp_path / ArticleStore.CORRECTIONS_BLOB).exists()
+
+    @pytest.mark.asyncio
+    async def test_a_published_article_is_still_corrected(self, tmp_path) -> None:
+        """The filter must not silence the watch for the case it exists for."""
+        articles, vintages = _stores(tmp_path)
+        await articles.write_published("estonia-unemployment", _stored_article())
+        await vintages.save(VintageLedger([_figure(6.6)]))
+
+        report = RunReport(series=[_series(7.4)])
+        await _watch_revisions(articles, report, vintages=vintages)
+
+        assert len(report.corrections) == 1

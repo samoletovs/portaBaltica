@@ -17,6 +17,7 @@ import json
 import pytest
 
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.vintage import PublishedFigure, VintageLedger, VintageStore
 from newsroom.pipeline.retract import (
     retract,
     retract_all,
@@ -220,3 +221,117 @@ class TestTheIndexLetsGoOfIt:
         document["provenance"].pop("signal_finding")
 
         assert suppression_keys([document]) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The second-order failure, which is nastier than the first.
+#
+# Fixing the cache collision made the collector read the correct series for the
+# first time. The vintage ledger still held the COLLIDED value, so the revision
+# watch compared 130.9 against the true 120.3, found a difference, and filed a
+# public note saying Eurostat had revised a figure it never published.
+#
+# Any system that remembers what it previously believed and compares that to
+# what it now sees will do this after any correctness fix. It is not specific to
+# caching, so the guard is not either.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _figure(slug: str, metric: str, value: float, period: str = "2026-Q1") -> PublishedFigure:
+    return PublishedFigure(
+        metric=metric,
+        metric_label=metric.replace("_", " "),
+        geography="Baltic",
+        period=period,
+        value=value,
+        unit="million EUR",
+        slug=slug,
+        article_id="01J0",
+        headline="h",
+        observed_at="2026-08-26T14:00:00Z",
+        published_at="2026-08-26T14:00:00Z",
+    )
+
+
+class TestTheLedgerLetsGoOfIt:
+    def test_forget_drops_every_figure_belonging_to_the_article(self):
+        ledger = VintageLedger(
+            [
+                _figure("wrong", "goods_balance", 1088.6),
+                _figure("wrong", "goods_balance", 1088.6, period="2025-Q4"),
+                _figure("kept", "house_prices", 10.9),
+            ]
+        )
+
+        assert ledger.forget(["wrong"]) == 2
+        assert [f.slug for f in ledger] == ["kept"]
+
+    def test_forgetting_an_unknown_slug_changes_nothing(self):
+        ledger = VintageLedger([_figure("kept", "house_prices", 10.9)])
+
+        assert ledger.forget(["never-published"]) == 0
+        assert len(ledger) == 1
+
+    @pytest.mark.anyio
+    async def test_retract_all_makes_the_ledger_forget(self, tmp_path):
+        """The load-bearing one.
+
+        Without this, the newsroom withdraws an article and the ledger keeps
+        generating claims from its remembered value — so tomorrow's run files a
+        correction against a story we already retracted, asserting that the
+        statistical office restated a number it never published.
+        """
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        await store.write_published("wrong", _published("wrong", "Baltic goods balance widens"))
+
+        vintages = VintageStore(local_dir=tmp_path, account_url="")
+        await vintages.save(VintageLedger([_figure("wrong", "goods_balance", 1088.6)]))
+
+        await retract_all(store, ["wrong"], reason=REASON, vintages=vintages)
+
+        assert len(await vintages.load()) == 0, (
+            "the retracted article's figure is still in the ledger, so the "
+            "revision watch will keep reporting it as a source restatement"
+        )
+
+
+class TestWithdrawingOurOwnBadCorrection:
+    def test_the_note_can_supersede_an_earlier_one(self):
+        note = retraction_note(
+            REASON,
+            withdraws="this figure had been revised down to 120.3 by the source",
+        )
+
+        assert "withdraws an earlier note" in note["description"]
+        assert "That note was wrong" in note["description"]
+
+    def test_it_says_the_office_published_no_such_revision(self):
+        """The false note accused a third party of restating data. Naming that
+        plainly is the whole point: "an error occurred" asks for trust, and
+        saying which claim was wrong and about whom earns it."""
+        note = retraction_note(REASON, withdraws="the source revised it")
+
+        assert "published no such revision" in note["description"]
+
+    def test_without_withdraws_the_note_is_unchanged(self):
+        """A retraction that supersedes nothing must not mention one."""
+        note = retraction_note(REASON)
+
+        assert "earlier note" not in note["description"]
+
+    @pytest.mark.anyio
+    async def test_the_superseding_note_reaches_the_public_log(self, tmp_path):
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        await store.write_published("wrong", _published("wrong", "Bankruptcies spike"))
+
+        await retract_all(
+            store,
+            ["wrong"],
+            reason=REASON,
+            vintages=VintageStore(local_dir=tmp_path, account_url=""),
+            withdraws={"wrong": "the source revised it down to 120.3"},
+        )
+
+        log = json.loads((tmp_path / ArticleStore.CORRECTIONS_BLOB).read_text(encoding="utf-8"))
+        assert len(log) == 1
+        assert "published no such revision" in log[0]["description"]

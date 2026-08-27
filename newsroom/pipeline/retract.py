@@ -44,6 +44,30 @@ WHAT RETRACTION DOES, AND DOES NOT
   written.
 
 Nothing here rewrites the article's prose. The record is append-only.
+
+WHAT THE FIX ITSELF BROKE, AND WHY IT WILL HAPPEN AGAIN
+-------------------------------------------------------
+Correcting the collector had a second-order consequence that is worth stating
+in general terms, because it is not specific to caching:
+
+    Any system that remembers what it previously believed and compares that to
+    what it now sees will report a correctness fix as a change in the world.
+
+The vintage ledger remembers every figure we have published. Each run compares
+those against freshly collected series and reports differences as restatements
+by the source. So the moment the collector started reading the right cube, the
+ledger's collided ``business_bankruptcies|LT|2026-Q2 = 130.9`` disagreed with
+the true 120.3, and the revision watch published a note saying Eurostat had
+revised a figure it never published — our fault, attributed to a third party,
+in the one artefact whose purpose is being trustworthy.
+
+Two guards follow, and neither is about caching:
+
+* retraction makes the ledger ``forget`` the article's figures, because an
+  article we have disowned must not keep generating claims from remembered
+  state;
+* the revision watch skips any article that is not ``published``, because a
+  withdrawn story has no claim left to restate.
 """
 
 from __future__ import annotations
@@ -53,20 +77,41 @@ from typing import Any, Mapping, Sequence
 
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.vintage import VintageStore
 
 log = logging.getLogger(__name__)
 
 
-def retraction_note(reason: str, *, corrected_at: str | None = None) -> dict[str, str]:
-    """The public notice. Written for a reader, not a maintainer."""
+def retraction_note(
+    reason: str,
+    *,
+    corrected_at: str | None = None,
+    withdraws: str | None = None,
+) -> dict[str, str]:
+    """The public notice. Written for a reader, not a maintainer.
+
+    ``withdraws`` names an earlier correction on the same article that this
+    retraction supersedes, for the case where the newsroom's *correction* was
+    also wrong. It is appended rather than replacing anything, because the
+    corrections log is append-only by policy — a log we can rewrite is not
+    evidence of anything — so the remedy for a bad note is another note.
+    """
+    description = (
+        f"RETRACTED. {reason.strip().rstrip('.')}. This article should not "
+        "have been published and has been withdrawn from the front page and "
+        "the feeds. The page remains here, unchanged, so the record of what "
+        "we published is public. No figure in it should be relied on."
+    )
+    if withdraws:
+        description += (
+            f" This also withdraws an earlier note on this article, which said "
+            f"{withdraws.strip().rstrip('.')}. That note was wrong and we are "
+            "sorry for it: it attributed our own fault to the statistical "
+            "office, which had published no such revision."
+        )
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
-        "description": (
-            f"RETRACTED. {reason.strip().rstrip('.')}. This article should not "
-            "have been published and has been withdrawn from the front page and "
-            "the feeds. The page remains here, unchanged, so the record of what "
-            "we published is public. No figure in it should be relied on."
-        ),
+        "description": description,
     }
 
 
@@ -76,6 +121,7 @@ async def retract(
     *,
     reason: str,
     corrected_at: str | None = None,
+    withdraws: str | None = None,
 ) -> dict[str, Any] | None:
     """Withdraw one published article. Returns the stored document, or ``None``.
 
@@ -91,7 +137,7 @@ async def retract(
         log.info("%s is already retracted", slug)
         return document
 
-    note = retraction_note(reason, corrected_at=corrected_at)
+    note = retraction_note(reason, corrected_at=corrected_at, withdraws=withdraws)
     corrections = list(document.get("corrections") or [])
     corrections.append(note)
     document["corrections"] = corrections
@@ -117,24 +163,48 @@ async def retract_all(
     slugs: Sequence[str],
     *,
     reason: str,
+    vintages: VintageStore | None = None,
+    withdraws: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Retract several articles that share one cause, then rebuild the index.
+    """Retract several articles that share one cause, then clean up after them.
 
-    The index rebuild is not optional and is the step that is easy to forget.
+    Three steps, and the last two are the ones that are easy to forget.
+
     ``write_index`` merges the existing entries with the current run's, keyed on
     slug, so a retracted article's OLD entry survives unless it is removed —
     which would leave it on the front page, in the feed, and still suppressing
     the corrected article through ``signal_finding``.
+
+    The vintage ledger must also forget the article's figures. The ledger is
+    what drives the revision watch, and it compares its stored values against
+    each run's freshly collected series. A figure we have publicly disowned that
+    stays in the ledger keeps producing a difference, and the watch keeps
+    reporting that difference as a restatement by the source — publishing, on
+    our own corrections page, a false claim that a statistical office revised
+    something. That is not a hypothetical: it happened once already, which is
+    why ``forget`` exists.
     """
     retracted: list[str] = []
     corrected_at = isoformat(utcnow())
     for slug in slugs:
-        document = await retract(store, slug, reason=reason, corrected_at=corrected_at)
+        document = await retract(
+            store,
+            slug,
+            reason=reason,
+            corrected_at=corrected_at,
+            withdraws=(withdraws or {}).get(slug),
+        )
         if document is not None and document.get("status") == "retracted":
             retracted.append(slug)
 
     if retracted:
         await store.drop_from_index(retracted)
+        ledger_store = vintages or VintageStore()
+        ledger = await ledger_store.load()
+        forgotten = ledger.forget(retracted)
+        if forgotten:
+            await ledger_store.save(ledger)
+            log.warning("vintage ledger forgot %d figure(s) from retracted articles", forgotten)
     return retracted
 
 
