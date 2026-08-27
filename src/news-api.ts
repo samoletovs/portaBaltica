@@ -151,6 +151,24 @@ export async function fetchCorrections(signal?: AbortSignal): Promise<Correction
 export type ArticleLoad =
   | { state: 'ok'; article: Article }
   | { state: 'not-found' }
+  /**
+   * Withdrawn by us, after publication, and still readable at its own URL.
+   *
+   * A distinct state because a retracted article is not an unservable one and
+   * the difference is the whole of the corrections policy. It passed every
+   * check and was published; we withdrew it later for an editorial fault. The
+   * `not-servable` copy — "it has not passed the checks we run before
+   * publishing" — is therefore false about it, and false in the direction that
+   * flatters us, on the one page a sceptical reader goes to in order to check
+   * whether we admit mistakes.
+   *
+   * `isServable` stays exactly as strict. It answers "may this be presented as
+   * journalism", which is still no. This answers a different question: "may
+   * this be shown at its own URL, marked as withdrawn", which the published
+   * policy answers yes — "the page stays up, showing why. We do not delete the
+   * evidence."
+   */
+  | { state: 'retracted'; article: Article }
   /** Reached the client but has no passing validator verdict. Never rendered. */
   | { state: 'not-servable' };
 
@@ -169,6 +187,14 @@ export async function loadArticle(slug: string, signal?: AbortSignal): Promise<A
   if (!isRecord(raw)) return { state: 'not-servable' };
 
   const article = raw as unknown as Article;
+  // A retracted article is withdrawn, not unservable. It still needs a passing
+  // verdict to be shown at all — a draft that was never published does not
+  // become readable by being marked retracted — but given one it goes to the
+  // reader carrying its notice, because that is what the corrections policy
+  // promises and it is the only page that promise is ever tested on.
+  if (article.status === 'retracted' && article.provenance?.validator?.passed === true) {
+    return { state: 'retracted', article };
+  }
   if (!isServable(article)) return { state: 'not-servable' };
   return { state: 'ok', article };
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fetchArticleIndex, isValidSlug, loadArticle } from '../src/news-api';
+import { isServable } from '../src/news-types';
 import { FAILING_VERDICT, tierAArticle, tierASummary, tierCSummary } from './fixtures/articles';
 
 function mockJson(payload: unknown, status = 200) {
@@ -198,5 +199,62 @@ describe('the index withholds what the pipeline withdrew', () => {
     );
 
     expect((await fetchArticleIndex()).articles).toHaveLength(1);
+  });
+});
+
+
+describe('loadArticle — a retracted article reaches the reader', () => {
+  // THE BUG THIS EXISTS FOR.
+  //
+  // `loadArticle` returned `not-servable` for a retracted article, so
+  // `ArticlePage` rendered its own refusal panel and `ArticleView` -- with the
+  // `Retracted` branch built for exactly this -- was never reached. That
+  // component was dead code from the day it shipped, and the live page told
+  // readers the piece "has not passed the checks we run before publishing",
+  // which is false: it passed all nine and we withdrew it afterwards.
+  //
+  // The corrections log links to these slugs, so the path a sceptical reader
+  // takes to check whether we admit mistakes led to a page that misstated the
+  // mistake and hid the evidence.
+  it('loads it in its own state rather than refusing it', async () => {
+    const article = tierAArticle({
+      status: 'retracted',
+      corrections: [
+        { corrected_at: '2026-08-27T10:00:00Z', description: 'RETRACTED. A caching fault…' },
+      ],
+    });
+    vi.stubGlobal('fetch', mockJson(article));
+
+    const result = await loadArticle(article.slug);
+
+    expect(result.state).toBe('retracted');
+    expect(result).toHaveProperty('article');
+  });
+
+  it('still refuses one that never passed the validator', async () => {
+    // Marking a draft "retracted" must not make it readable. The status says
+    // what happened to it; the verdict says whether it was ever fit to show.
+    const article = tierAArticle({ status: 'retracted' });
+    article.provenance.validator = FAILING_VERDICT;
+    vi.stubGlobal('fetch', mockJson(article));
+
+    expect((await loadArticle(article.slug)).state).toBe('not-servable');
+  });
+
+  it('leaves isServable exactly as strict', async () => {
+    // The fix must not loosen the feed gate. `isServable` answers "may this be
+    // presented as journalism", which for a retracted piece is still no --
+    // loosening it would put withdrawn stories back on the front page and in
+    // RSS, which is the failure #98 and #102 closed.
+    const article = tierAArticle({ status: 'retracted' });
+
+    expect(isServable(article)).toBe(false);
+  });
+
+  it('a published article is unaffected', async () => {
+    const article = tierAArticle();
+    vi.stubGlobal('fetch', mockJson(article));
+
+    expect((await loadArticle(article.slug)).state).toBe('ok');
   });
 });

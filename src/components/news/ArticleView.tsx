@@ -48,20 +48,21 @@ function NotServable() {
  * The retraction.
  *
  * A retracted article did not fail validation — it passed every check and was
- * wrong anyway, because the figures were real and attached to the wrong series.
- * Showing it the generic refusal would therefore say something false about it.
+ * wrong anyway. Showing it the generic refusal, "it has not passed the checks
+ * we run before publishing", says something false about it, and false in the
+ * direction that flatters us.
  *
- * The published corrections policy promises that a retracted page "stays up,
- * showing why. We do not delete the evidence." This is that page: the notice,
- * and nothing else.
+ * The published corrections policy makes three promises: the page stays up, it
+ * shows why, and we do not delete the evidence. An earlier version of this
+ * rendered the notice and nothing else, on the reasoning that a false headline
+ * should not be set as the largest text on the page. That reasoning was sound
+ * about the headline and wrong about the article: withholding the body keeps
+ * one promise of three, and it fails on the exact page a sceptical reader
+ * visits to find out whether we admit our mistakes.
  *
- * It deliberately does NOT render the headline. In the fault that first
- * required this, the headline *was* the error — "Lithuania's business
- * bankruptcy declarations spike to 130.9 index points" described a metric the
- * article never measured — so setting it as the largest text on the page would
- * republish the false claim under a banner saying we had withdrawn it. The
- * evidence we promise not to delete is the stored document, not a re-render of
- * the sentence that was wrong.
+ * So the notice comes first and unmissably, and the piece follows it, marked.
+ * That is what a newspaper does with a withdrawn story, and the ordering is
+ * what stops the headline being read before the retraction of it.
  */
 function Retracted({ article }: { article: Article }) {
   const notices = article.corrections ?? [];
@@ -91,12 +92,32 @@ function Retracted({ article }: { article: Article }) {
             It should not have been published. No figure in it should be relied on.
           </p>
         )}
+        <p className="mt-4 text-ui">
+          <Link to="/corrections" className="news-link underline underline-offset-4">
+            Read our corrections policy and log
+          </Link>
+        </p>
       </div>
-      <p className="mt-4 text-ui">
-        <Link to="/corrections" className="news-link underline underline-offset-4">
-          Read our corrections policy and log
-        </Link>
-      </p>
+
+      {/* The evidence, kept. Below the notice, never above it. */}
+      <section aria-label="The withdrawn article, as published" className="mt-8">
+        <p className="news-muted text-caption font-semibold tracking-widest uppercase">
+          As published, and withdrawn
+        </p>
+        <h2 className="news-muted mt-2 text-lead font-semibold">{article.headline}</h2>
+        {article.dek && <Prose text={article.dek} className="news-muted mt-2 text-callout" />}
+        <div className="mt-4 space-y-4">
+          {(article.body ?? [])
+            .filter((block) => block.type === 'paragraph' && block.text)
+            .map((block, index) => (
+              <Prose
+                key={index}
+                text={block.text}
+                className="news-muted text-prose"
+              />
+            ))}
+        </div>
+      </section>
     </div>
   );
 }
