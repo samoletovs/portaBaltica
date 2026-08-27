@@ -34,6 +34,18 @@ describe('API contracts (live)', () => {
     expect(r.status).toBe(400);
   });
 
+  // No per-test timeout. `vitest.live.config.ts` sets 45s deliberately, and says
+  // why: a slow answer from a warm-up request is worth waiting for, and a
+  // genuinely dead endpoint fails long before that. This test used to override
+  // it to 15s and was the only one that did, so it failed on a cold Free-tier
+  // Function while every endpoint around it passed.
+  //
+  // That is worse than a slow suite. A check that fails for an identifiable
+  // reason unrelated to the thing it tests teaches everyone to discount the
+  // whole job -- and this suite runs post-deploy, where discounting it is
+  // exactly how a real horizontal-overflow failure went unread from #84 until
+  // somebody opened the site by hand. An intermittent red is not a small cost;
+  // it is the cost of every other red in the same job.
   it('GET /api/ai-insights?country=ee returns Tallinn data', async () => {
     const r = await fetch(`${BASE}/api/ai-insights?country=ee`);
     expect(r.ok).toBe(true);
@@ -43,7 +55,7 @@ describe('API contracts (live)', () => {
       i.headline.includes('Tallinn')
     );
     expect(hasEstonia).toBe(true);
-  }, 15_000);
+  });
 
   it('GET /api/environment-data?country=lt returns capitalPopulation', async () => {
     const r = await fetch(`${BASE}/api/environment-data?country=lt`);
