@@ -35,19 +35,28 @@ export function ApiDocsPage() {
         <h1 className="balance-text text-headline sm:text-display font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>API documentation</h1>
         <p className="text-ui mb-8" style={{ color: 'var(--text-secondary)' }}>
           All endpoints are free and public. No authentication required. Data sourced from government open data (CC0/CC-BY).
-          Base URL: <code className="font-mono text-caption px-1 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)' }}>https://portabaltica.naurolabs.com</code>
+          Base URL: <code className="font-mono text-caption break-all px-1 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)' }}>https://portabaltica.naurolabs.com</code>
         </p>
 
         {/* Endpoints */}
         <div className="space-y-3 mb-12">
           {API_ENDPOINTS.map((ep) => (
             <div key={ep.path} className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-              <div className="flex items-center gap-2 mb-1">
+              {/* A query string has no space to break at, so `?indicator=gdp&years=5`
+                  is one unbreakable token whose min-content is its full width.
+                  Three of those in a rigid `flex` row overflowed the card at
+                  320px and scrolled the page by 45px -- the same shape as the
+                  chart legend in #151, with a URL in place of a legend entry.
+
+                  The row wraps, and the parameters may break mid-token, which
+                  is what a reader expects of a URL and is the only way a
+                  340-character-per-line device can show one at all. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                 <span className="text-caption font-mono px-2 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)', color: 'var(--text-secondary)' }}>
                   {ep.method}
                 </span>
-                <code className="text-ui font-mono" style={{ color: 'var(--text-primary)' }}>{ep.path}</code>
-                {ep.params && <code className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>{ep.params}</code>}
+                <code className="text-ui font-mono break-all min-w-0" style={{ color: 'var(--text-primary)' }}>{ep.path}</code>
+                {ep.params && <code className="text-caption font-mono break-all min-w-0" style={{ color: 'var(--text-tertiary)' }}>{ep.params}</code>}
               </div>
               <p className="text-caption mb-1" style={{ color: 'var(--text-body)' }}>{ep.description}</p>
               <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Cache: {ep.cache}</span>
@@ -58,7 +67,7 @@ export function ApiDocsPage() {
         {/* Available indicators */}
         <h2 className="balance-text text-title font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Available indicators</h2>
         <p className="text-ui mb-4" style={{ color: 'var(--text-secondary)' }}>
-          Use with <code className="font-mono text-caption">/api/historical-data?indicator=NAME&years=5</code>
+          Use with <code className="font-mono text-caption break-all">/api/historical-data?indicator=NAME&years=5</code>
         </p>
         <div className="flex flex-wrap gap-2 mb-12">
           {INDICATORS.map((ind) => (
