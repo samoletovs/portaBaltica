@@ -6,7 +6,7 @@ import { useCountry, type Country } from '../CountryContext';
 import { useFilter } from '../FilterContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
-import { chartTick, chartTooltip } from '../utils/chartType';
+import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
 import { changeDescription, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
 
@@ -222,6 +222,16 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const values = chartData.map((p) => p.value as number);
   const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
+  // Some series barely move, and a zero-based fill renders them as a dead flat
+  // line pinned to the top of the card. Population is the clearest case — it
+  // shifts well under 1% across a five-year window — and it read as a
+  // rendering failure rather than as a slow decline.
+  //
+  // The rule is general rather than a special case for population, and it
+  // lives in `isNearlyFlat` so it is testable and cannot be re-decided
+  // differently on the next chart. See DESIGN.md §3.3.
+  const nearlyFlat = isNearlyFlat(values);
+
   return (
     <button
       onClick={() => navigate(`/indicator/${id}`)}
@@ -257,6 +267,11 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               </linearGradient>
             </defs>
             <XAxis dataKey="period" hide />
+            {/* Recharts' implicit y-axis is [0, 'auto'], which is the right
+                default for a fill and the reason a near-constant series draws
+                flat. A cropped domain is only applied where the fill is
+                dropped too. */}
+            <YAxis hide domain={nearlyFlat ? ['dataMin', 'dataMax'] : [0, 'auto']} />
             {crossesZero && (
               <ReferenceLine y={0} stroke={chartColors.axis} strokeWidth={1} strokeDasharray="2 2" />
             )}
@@ -264,8 +279,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
               type="monotone"
               dataKey="value"
               stroke={areaColor}
-              strokeWidth={1.5}
-              fill={`url(#${gradientId})`}
+              strokeWidth={nearlyFlat ? 2 : 1.5}
+              fill={nearlyFlat ? 'none' : `url(#${gradientId})`}
               dot={false}
               isAnimationActive={false}
             />
@@ -287,6 +302,12 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
           {formatPeriod(chartData[chartData.length - 1]?.period ?? '')}
         </span>
       </div>
+
+      {nearlyFlat && (
+        <p className="text-caption mt-1" style={{ color: 'var(--text-tertiary)' }}>
+          Axis cropped to {fmt(Math.min(...values))}–{fmt(Math.max(...values))}
+        </p>
+      )}
     </button>
   );
 }

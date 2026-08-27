@@ -116,6 +116,172 @@ EMPTY_HEDGES = (
     "several factors",
 )
 
+#: The closing that says the next release will tell us more, which every
+#: release always does. The system prompt has banned these since the depth
+#: rewrite and the model writes them anyway — the live wire closed a piece with
+#: "The upcoming inflation figures for August 2026 will provide further
+#: insights into whether this trend continues", which carries no figure and no
+#: information.
+#:
+#: A prompt rule is advisory. Listed here it is a fact: the generation loop
+#: treats a style violation like a validator failure and hands it back while
+#: the writer still has an attempt left, at the cost of no model call at all.
+#:
+#: Matched as substrings against lowered text, so each entry is the shortest
+#: fragment that is damning on its own. "will provide further insight" catches
+#: both the singular and the plural, and "figures for August will provide
+#: further insights" as well as "future data releases will".
+EMPTY_CLOSINGS = (
+    "will provide further insight",
+    "will provide further clarity",
+    "will provide more clarity",
+    "provide further insights into whether",
+    "further insights into the",
+    "time will tell",
+    "further analysis is needed",
+    "further research is needed",
+    "bears watching",
+    "bears close watching",
+    "will be crucial to assess",
+    "will be crucial in determining",
+    "will be crucial for",
+    "will be important to monitor",
+    "will be key to monitor",
+    "remains to be seen whether",
+    "may have significant implications for",
+    "could have significant implications for",
+    "it will be interesting to see",
+    "only time will reveal",
+    "warrants further attention",
+    "warrants close attention",
+)
+
+#: The paragraph that kills more articles than anything else.
+#:
+#: A forensic pass over 200 rejected drafts found "unsupported assertions about
+#: causation or impact" in **24 of 36 desk rejections — 30% of every tier A
+#: rejection**, the single largest cause. The shape never varies:
+#:
+#:     "This increase in construction output directly impacts the construction
+#:      sector and real estate developers."
+#:     "This decline impacts manufacturers directly, as tighter margins may
+#:      lead to reduced investment in production capabilities."
+#:
+#: The writer is asked to say why a finding matters and reads that as licence
+#: to speculate about consequences. It has no source for any of it, the desk
+#: correctly refuses it, the rewrite produces the same shape again, and the
+#: article dies — one draft that died this way carried cross-country
+#: comparison and historical context and was better journalism than several
+#: pieces that published.
+#:
+#: The prompt has forbidden this in prose since the depth rewrite. Matched here
+#: it becomes a fact instead: the generation loop treats a style violation like
+#: a validator failure and hands it back while the writer still has an attempt
+#: left, at the cost of no model call at all. Catching it at the desk costs a
+#: full revision cycle and usually the article.
+#:
+#: Regexes rather than substrings, because the offence is a CONSTRUCTION —
+#: "impacts <a group of people>" — not a word. "The impact of the storm on
+#: generation" is fine and must stay fine; the bare verb would catch it.
+_AFFECTED = (
+    r"sector|industry|market|economy|consumers?|businesses|companies|firms|"
+    r"manufacturers|producers|employers|employees|workers|households|"
+    r"developers|exporters|importers|investors|borrowers|taxpayers|"
+    r"passengers|shippers|carriers|farmers|retailers"
+)
+
+SPECULATIVE_IMPACT = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        # "impacts manufacturers", "will affect the construction sector"
+        rf"\b(?:impacts?|impacted|affects?|affected)\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        rf"\b(?:impact|effect)\s+on\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        # "may lead to reduced investment", "could result in higher prices"
+        r"\b(?:may|might|could|would|will|is likely to|are likely to)\s+"
+        r"(?:lead to|result in|translate into|feed through|put pressure on|"
+        r"weigh on|boost|dampen|squeeze|erode|drive up|drive down)\b",
+        # "poses challenges for", "presents difficulties for"
+        rf"\b(?:poses?|presents?|creates?)\s+(?:a\s+|significant\s+|new\s+)*"
+        rf"(?:challenges?|difficulties|pressures?|risks?|headwinds?)\s+"
+        rf"(?:for|to)\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+        # "has implications for households"
+        rf"\bimplications?\s+for\s+(?:\w+\s+){{0,3}}(?:{_AFFECTED})\b",
+    )
+)
+
+
+# --- the closing, structurally ----------------------------------------------
+#
+# A blacklist of empty closings does not hold, and there is evidence rather than
+# an opinion behind that. The banned list contained "X will be crucial to
+# assess"; across ten consecutive published articles the model wrote "crucial to
+# confirm", "crucial to determine", "crucial to understanding", "essential to
+# determine", "essential to assess" and "will clarify whether". Ten of ten
+# closed with the same skeleton. It walks around a list one synonym at a time,
+# and twenty more entries buy another day.
+#
+# So the test is what the closing IS, not what it is not.
+#
+# An empty closing makes a claim about the future of INFORMATION — the next
+# release will tell us more, which is true of every release ever published and
+# therefore says nothing. A real closing makes a claim about the WORLD or states
+# a decision rule: what a specific reading would mean, or where the evidence
+# stops. That distinction is structural and it survives paraphrase, because the
+# paraphrases are all of the empty half.
+
+#: Pointing at a future release, however it is phrased.
+_FORWARD_LOOKING = re.compile(
+    r"\b(?:next|upcoming|future|forthcoming|coming|subsequent|later)\b"
+    r"[^.]{0,60}?\b(?:release|releases|report|reports|reading|readings|data|"
+    r"figures|print|prints|statistic|statistics|numbers|settlement|auction|"
+    r"update|quarter|month|year)\b"
+    r"|\bwill\s+(?:be\s+)?(?:crucial|essential|key|important|critical|vital|"
+    r"instrumental|necessary|useful|telling)\b"
+    r"|\bwill\s+(?:provide|offer|give|shed|clarify|reveal|determine|confirm|"
+    r"indicate|show|tell)\b",
+    re.IGNORECASE,
+)
+
+#: What makes a forward-looking closing worth reading: it names the reading and
+#: what that reading would MEAN. A conditional carries a consequence; the empty
+#: formula never does, which is exactly why none of the ten contained one.
+_NAMES_A_CONSEQUENCE = re.compile(
+    r"\bwould\b"
+    r"|\bif\b[^.]{0,80}\b(?:then|that would|it would)\b"
+    r"|\bany\s+\w+\s+(?:above|below|under|over)\b",
+    re.IGNORECASE,
+)
+
+#: Or it says plainly where the evidence stops, which is the third legitimate
+#: shape and a complete closing on its own.
+_STATES_A_LIMIT = re.compile(
+    r"\b(?:does not|do not|cannot|could not|will not)\s+"
+    r"(?:show|establish|say|settle|explain|reveal|identify)\b"
+    r"|\bnothing\s+in\s+(?:the|this|these)\b"
+    r"|\bno\s+(?:evidence|indication|source)\b"
+    r"|\bis not established\b|\bremains unexplained\b",
+    re.IGNORECASE,
+)
+
+
+def closing_problems(text: str, *, where: str = "the closing") -> list[str]:
+    """Violations in the paragraph a piece ends on.
+
+    Only ever applied to the last paragraph, because the rule is about how an
+    article STOPS. A forward reference mid-article — "the figure is released
+    quarterly" — is ordinary reporting and must stay legal.
+    """
+    if not text or not _FORWARD_LOOKING.search(text):
+        return []
+    if _NAMES_A_CONSEQUENCE.search(text) or _STATES_A_LIMIT.search(text):
+        return []
+    return [
+        f"{where}: points at a future release without saying what it would "
+        "mean. Name the reading that would change the conclusion ('a second "
+        "month below the seasonal mean WOULD make this a contraction'), or "
+        "say where the evidence stops, or end the article a paragraph earlier"
+    ]
+
 
 # --- sentence case ---------------------------------------------------------
 
@@ -242,6 +408,24 @@ def check_prose(text: str, *, where: str = "body") -> list[str]:
         if phrase in lowered:
             problems.append(f"{where}: says nothing, '{phrase}'")
 
+    for phrase in EMPTY_CLOSINGS:
+        if phrase in lowered:
+            problems.append(
+                f"{where}: empty closing, '{phrase}' — name the release and the "
+                "reading that would change the conclusion, or end a paragraph earlier"
+            )
+
+    for pattern in SPECULATIVE_IMPACT:
+        found = pattern.search(text)
+        if found:
+            problems.append(
+                f"{where}: speculates about consequences, "
+                f"'{found.group(0).strip()}' — the data does not establish who "
+                "this lands on or what they will do. Say what the number IS "
+                "ABOUT, or cut the sentence"
+            )
+            break
+
     return problems
 
 
@@ -261,3 +445,49 @@ def review_headline(headline: str) -> tuple[str, list[str], list[str]]:
         fixed = fixed.rstrip(".")
 
     return fixed, violations, corrections
+
+
+def apply_house_style(article) -> StyleReport:
+    """Copy-edit an article in place and report what is left.
+
+    Corrections are applied; violations are recorded and returned separately,
+    because the two are not the same kind of thing. A correction is done and
+    needs nobody's attention. A violation is prose only the writer can fix, and
+    knowing which is which is what lets the generation loop feed the second kind
+    back while the writer still has an attempt left to act on it.
+
+    Nothing here rewrites a figure — ``sentence_case`` refuses to touch any
+    token containing a digit, so the validator's traceability guarantee is
+    unaffected.
+
+    Duck-typed rather than importing ``Article``: this module is imported by
+    the generator, and the generator is imported by everything else.
+    """
+    report = StyleReport()
+
+    fixed, violations, corrections = review_headline(article.headline or "")
+    if fixed != article.headline:
+        article.headline = fixed
+    report.corrections.extend(corrections)
+    report.violations.extend(violations)
+
+    if article.dek:
+        report.violations.extend(check_prose(article.dek, where="dek"))
+
+    for index, block in enumerate(article.body or []):
+        if block.text:
+            report.violations.extend(check_prose(block.text, where=f"body[{index}]"))
+
+    # And how it ends, which is a different question from how it reads. Applied
+    # to the last prose paragraph only: a forward reference in the middle of a
+    # piece — "the figure is released quarterly" — is ordinary reporting.
+    prose = [
+        (index, block.text)
+        for index, block in enumerate(article.body or [])
+        if getattr(block, "type", None) == "paragraph" and block.text
+    ]
+    if prose:
+        last_index, last_text = prose[-1]
+        report.violations.extend(closing_problems(last_text, where=f"body[{last_index}]"))
+
+    return report

@@ -306,6 +306,12 @@ describe('every page', () => {
     // The dashboard used to head each section with a 14px uppercase label,
     // which is smaller than the cards beneath it. News and data are one
     // product; their section headings are the same object.
+    //
+    // Eight of the nine tiles now delegate the heading to `TileHeader`, which
+    // is what stopped the same flex-row wrap defect existing eight times. A
+    // tile satisfies this by rendering a conforming `h2` itself *or* by using
+    // that component — and the component is then held to the same rule, so the
+    // indirection cannot be used to escape it.
     const tiles = [
       'EconomyTile',
       'EnergyTile',
@@ -318,8 +324,20 @@ describe('every page', () => {
       'MaritimeTile',
     ];
 
+    const shared = readFileSync(resolve('src/components/TileHeader.tsx'), 'utf8');
+    const sharedHeading = shared.match(/<h2[^>]*className="([^"]+)"/);
+    expect(sharedHeading, 'TileHeader has no h2').not.toBeNull();
+    expect(sharedHeading![1], 'TileHeader section heading').toContain('text-title');
+
     for (const tile of tiles) {
       const text = readFileSync(resolve(`src/components/${tile}.tsx`), 'utf8');
+      if (text.includes('<TileHeader')) {
+        // Delegating is only allowed if it delegates *everything* — a tile that
+        // uses the shared header and also hand-rolls an h2 has two section
+        // headings, which is the drift this rule exists to stop.
+        expect(text.match(/<h2[^>]*className="([^"]+)"/), `${tile} has both a TileHeader and its own h2`).toBeNull();
+        continue;
+      }
       const heading = text.match(/<h2[^>]*className="([^"]+)"/);
       expect(heading, `${tile} has no h2`).not.toBeNull();
       expect(heading![1], `${tile} section heading`).toContain('text-title');

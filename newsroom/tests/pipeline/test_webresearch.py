@@ -210,10 +210,16 @@ def test_document_text_only_reaches_the_prompt_for_an_official_source():
     assert "official_document_text" not in record
     assert "official_summary" not in record
     assert "somebody else" not in str(record)
-    # The three things tier C IS allowed to contribute survive.
+    # What tier C IS allowed to contribute survives.
     assert record["title"] == "t"
-    assert record["url"] == "https://eng.lsm.lv/a"
     assert record["source"] == "LSM.lv English"
+    # The URL is not among it. A model has no legitimate use for the link — it
+    # is told to treat prior coverage as an orientation lead and not to quote
+    # it — and a slug is a run of third-party text and digits that did reach
+    # prose. The reader still gets it: it is in ``provenance_record``, which is
+    # what the article's provenance block is built from.
+    assert "url" not in record
+    assert smuggled.provenance_record()["url"] == "https://eng.lsm.lv/a"
 
 
 def test_an_official_source_still_contributes_its_text():

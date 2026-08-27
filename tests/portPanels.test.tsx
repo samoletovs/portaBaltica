@@ -429,17 +429,30 @@ describe('the maritime tile in light mode', () => {
     expect(offenders, `${file} sets an unremapped text colour`).toEqual([]);
   });
 
-  it('confirms the compatibility layer really does miss these classes', () => {
-    // If a later change extends the layer to cover them, the test above
-    // becomes unnecessary rather than wrong — but it should be removed
-    // deliberately, not silently. This documents the state it was written in.
+  it('confirms the compatibility layer now covers these classes', () => {
+    // This assertion is the inverse of the one it replaces, and the reversal
+    // is the point.
+    //
+    // As written in #78 it asserted the layer *missed* `text-orange-400`,
+    // `text-amber-300` and the slashed `text-amber-400/80` — documenting a
+    // real gap, with a comment saying that if a later change closed it the
+    // test should be "removed deliberately, not silently". #81 closed it, in
+    // a parallel branch, by moving those rules out of `[data-theme="light"]`
+    // so they bind in both themes. Master went red the moment the two met.
+    //
+    // So this is that deliberate removal. Asserting the gap is closed is the
+    // more useful invariant anyway: the earlier form would have gone green
+    // again if someone deleted the override, which is the failure it existed
+    // to catch.
     const css = readFileSync(resolve('src/index.css'), 'utf8');
 
-    expect(css, 'text-orange-400 remains unremapped').not.toMatch(/\.text-orange-400\s*[,{]/);
-    expect(css, 'text-amber-300 remains unremapped').not.toMatch(/\.text-amber-300\s*[,{]/);
-    // The slashed variant is a distinct class and the layer only names the
-    // bare one, which is precisely why the footnote escaped it.
-    expect(css, 'the layer names only the bare amber-400 class').not.toMatch(/\.text-amber-400\\\//);
+    expect(css, 'text-orange-400 is remapped').toMatch(/\.text-orange-400\s*[,{]/);
+    expect(css, 'text-amber-300 is remapped').toMatch(/\.text-amber-300\s*[,{]/);
+    // The slashed variant is a distinct class from the bare one — Tailwind
+    // emits `.text-amber-400\/80` separately, which is precisely how the
+    // footnote escaped the layer in the first place. Naming the bare class is
+    // not enough and never was.
+    expect(css, 'the slashed amber-400 variant is remapped too').toMatch(/\.text-amber-400\\\//);
   });
 
   it('colours the delta through the polarity module, not the sign', () => {

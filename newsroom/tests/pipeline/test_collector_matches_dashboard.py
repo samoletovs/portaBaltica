@@ -54,6 +54,22 @@ INDICATORS_JS = NEWSROOM_DIR.parent / "api" / "shared" / "indicators.js"
 #: Comparing it would fail on a difference that is not a disagreement.
 NOT_COMPARED = {"freq"}
 
+#: Metrics whose chart lives outside ``indicators.js``, exempt from the chart
+#: join and checked against their own dashboard module instead.
+#:
+#: Maritime is genuinely chartless from ``/api/baltic-compare``'s point of view.
+#: The dashboard publishes the same Eurostat cubes, but through
+#: ``api/shared/ports.js``, which keys on ``rep_mar`` and has no indicator id.
+#: Giving the newsroom a ``chart_ref`` of ``port_goods`` would name something
+#: that answers 400.
+CHARTLESS_METRICS = {
+    "port_goods_throughput",
+    "port_goods_liquid_bulk",
+    "port_goods_dry_bulk",
+    "port_goods_containers",
+    "port_goods_roro",
+}
+
 
 def _dashboard_indicators() -> dict[str, dict[str, str]]:
     """Parse ``indicators.js`` for dataset and params, keyed by indicator id.
@@ -94,27 +110,119 @@ def dashboard() -> dict[str, dict[str, str]]:
 
 class TestEveryNewsroomSeriesIsJoinedToTheDashboard:
     def test_each_dataset_declares_a_chart_ref(self) -> None:
-        missing = [d.metric for d in EUROSTAT_DATASETS if not d.chart_ref]
+        missing = [
+            d.metric for d in EUROSTAT_DATASETS
+            if not d.chart_ref and d.metric not in CHARTLESS_METRICS
+        ]
         assert not missing, (
             f"{missing} have no chart_ref, so nothing joins them to the dashboard "
-            f"config and they are exempt from the drift check by accident"
+            f"config and they are exempt from the drift check by accident. If the "
+            f"dashboard genuinely cannot chart the series, add it to "
+            f"CHARTLESS_METRICS with the reason — exempt on the record is fine, "
+            f"exempt by accident is what this test exists to stop."
         )
 
     def test_each_chart_ref_names_a_real_indicator(self, dashboard) -> None:
         unknown = [
             (d.metric, d.chart_ref)
             for d in EUROSTAT_DATASETS
-            if d.chart_ref not in dashboard
+            if d.chart_ref and d.chart_ref not in dashboard
         ]
         assert not unknown, (
             f"{unknown} point at dashboard indicators that do not exist; the "
             f"article's chart link would 404 and the drift check cannot compare them"
         )
 
+    def test_a_chartless_series_is_still_guarded_against_drift(self) -> None:
+        """Exempt from the chart join is not exempt from the cube check.
+
+        The maritime series have no ``/api/baltic-compare`` indicator, so the
+        join this file normally uses does not exist for them. That must not
+        mean they are unchecked: the failure this whole file was written for —
+        the newsroom quietly reading a superseded Eurostat table while the
+        dashboard read the current one — applies to them exactly as much.
+
+        So they are compared against the dashboard's own maritime module
+        instead. Only the table name is compared: ``ports.js`` deliberately
+        leaves ``rep_mar`` unpinned because it wants the per-port breakdown,
+        while the newsroom pins it to the country because it wants the national
+        total, and that is a documented difference rather than drift.
+        """
+        ports_js = NEWSROOM_DIR.parent / "api" / "shared" / "ports.js"
+        source = ports_js.read_text(encoding="utf-8")
+
+        chartless = [d for d in EUROSTAT_DATASETS if d.metric in CHARTLESS_METRICS]
+        assert chartless, "CHARTLESS_METRICS names nothing that exists"
+
+        for spec in chartless:
+            # ports.js builds the table name as 'mar_go_qm_' + cc, so the
+            # newsroom's literal cannot be found as one string. Compare the
+            # prefix, which is the part that goes stale when Eurostat
+            # supersedes a cube.
+            prefix = spec.dataset.rsplit("_", 1)[0]
+            assert f"'{prefix}_'" in source, (
+                f"{spec.metric} reads Eurostat table {spec.dataset!r}, which the "
+                f"dashboard's ports.js does not mention. Either the newsroom is "
+                f"on a different cube from the dashboard, or the dashboard moved "
+                f"and this was not updated with it."
+            )
+            for name, value in spec.params.items():
+                if name in NOT_COMPARED or name == "rep_mar":
+                    continue
+                if name == "cargo":
+                    # ports.js leaves `cargo` unpinned on purpose -- it IS the
+                    # axis that module reads -- and lists the codes that
+                    # partition the total in CARGO_MIX. So the invariant is
+                    # membership of that list, not equality with a query
+                    # string, and it is the one that matters: Eurostat's cargo
+                    # dimension mixes levels (`LBK_ROIL` sits inside `LBK`), so
+                    # a code outside CARGO_MIX would double-count tonnes the
+                    # dashboard counts once.
+                    if value == "TOTAL":
+                        continue
+                    assert f"'{value}'" in source, (
+                        f"{spec.metric} reads cargo={value}, which is not one of "
+                        f"the codes ports.js lists as partitioning the total. "
+                        f"Eurostat nests cargo codes, so this may be counting "
+                        f"the same tonnes twice."
+                    )
+                    continue
+                assert f"{name}={value}" in source, (
+                    f"{spec.metric} pins {name}={value} and ports.js does not; "
+                    f"the two are reading different slices of the same cube"
+                )
+
+    def test_estonia_is_left_out_of_the_cargo_breakdown_deliberately(self):
+        """Estonia publishes ``cargo=TOTAL`` and nothing else.
+
+        The cube answers HTTP 200 for ``cargo=DBK``, returns all 48 quarters in
+        its time dimension and carries zero values in them -- checked live for
+        DBK, LBK and LCNT. Nothing errors, so a country list that included it
+        would spend three requests a run to discover that again, and would look
+        like a working configuration.
+        """
+        breakdown = [
+            spec for spec in EUROSTAT_DATASETS
+            if spec.section == "maritime" and spec.params.get("cargo") != "TOTAL"
+        ]
+
+        assert breakdown, "the cargo composition series have gone"
+        assert {spec.params["rep_mar"] for spec in breakdown} == {"LV", "LT"}, (
+            "Estonia publishes no cargo breakdown; asking for one returns an "
+            "empty series rather than an error"
+        )
+
+
+#: Only the series joined to an /api/baltic-compare indicator can be compared
+#: against it. The chartless ones are covered by
+#: ``test_a_chartless_series_is_still_guarded_against_drift`` instead, so
+#: nothing here is unchecked -- it is checked somewhere the join exists.
+CHARTED_DATASETS = [d for d in EUROSTAT_DATASETS if d.chart_ref]
+
 
 class TestTheConfigsAgree:
     @pytest.mark.parametrize(
-        "spec", EUROSTAT_DATASETS, ids=lambda s: s.metric
+        "spec", CHARTED_DATASETS, ids=lambda s: s.metric
     )
     def test_the_dataset_matches(self, spec, dashboard) -> None:
         expected = dashboard[spec.chart_ref]["dataset"]
@@ -128,7 +236,7 @@ class TestTheConfigsAgree:
         )
 
     @pytest.mark.parametrize(
-        "spec", EUROSTAT_DATASETS, ids=lambda s: s.metric
+        "spec", CHARTED_DATASETS, ids=lambda s: s.metric
     )
     def test_the_pinned_dimensions_match(self, spec, dashboard) -> None:
         expected = {

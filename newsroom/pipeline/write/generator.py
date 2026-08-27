@@ -24,7 +24,9 @@ from typing import Any
 from newsroom.pipeline.ids import new_ulid, slugify
 from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline.context import ContextPack
+from newsroom.pipeline.house_style import StyleReport, apply_house_style
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
+from newsroom.pipeline.rank import finding_key
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.units import unit_for_field
 from newsroom.pipeline.write.reconcile import drop_unusable_figures, reconcile_figures
@@ -200,6 +202,7 @@ def generate_article(
         user = build_editor_revision_prompt(user, editor_notes)
 
     result: GenerationResult | None = None
+    best: GenerationResult | None = None
     prompt = user
     # One bound, deliberately. An earlier draft of this loop had both a bounded
     # range and an explicit break on the same ceiling; each silently masked the
@@ -221,21 +224,67 @@ def generate_article(
             brief=brief,
             attempts=attempt,
         )
-        if result.publishable:
+
+        # Copy-edit here rather than after the loop. See ``_style_faults``.
+        style = apply_house_style(result.article)
+        if result.publishable and best is None:
+            best = result
+
+        if result.publishable and style.clean:
             break
 
-        summary = result.verdict.failure_summary() or "failed shape checks"
+        faults = _style_faults(result, style)
         if attempt == attempts:
-            log.warning("article rejected for signal %s: %s", signal.id, summary)
+            if result.publishable:
+                # Out of attempts, with publishable copy and prose the desk
+                # will grumble about. Publish it: house style is an editor, not
+                # a gate, and spiking a validated article over a hedge phrase
+                # would be this loop lowering the yield it exists to raise.
+                log.info(
+                    "signal %s: %d style note(s) survive to the desk: %s",
+                    signal.id,
+                    len(style.violations),
+                    "; ".join(style.violations),
+                )
+                break
+            log.warning("article rejected for signal %s: %s", signal.id, faults)
             _log_rejection_forensics(result, signal)
         else:
             log.info(
-                "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, summary
+                "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, faults
             )
-            prompt = build_revision_prompt(user, summary, result.article)
+            prompt = build_revision_prompt(user, faults, result.article)
 
     assert result is not None  # the loop runs at least once
+    # A later attempt can be worse than an earlier one — the loop is asking a
+    # sampling model to try again. Never hand back a rejected draft when a
+    # publishable one was already in hand.
+    if best is not None and not result.publishable:
+        log.info("signal %s: keeping the earlier publishable draft", signal.id)
+        return best
     return result
+
+
+def _style_faults(result: GenerationResult, style: StyleReport) -> str:
+    """The revision brief: what the gate refused, plus what the desk will refuse.
+
+    House style is deterministic, costs no model call, and was being evaluated
+    at step 9 of the run — after this loop had spent its whole budget. So a
+    phrase on a fixed list of banned phrases could not be fixed by the writer
+    that produced it. It went to the desk instead, which read it, sent the
+    piece back, and paid for a fresh generation plus two more editor reads to
+    remove a substring the loop could have named for free.
+
+    Folding it in here does not make style a publication gate: an attempt that
+    passes the validator is still published once the attempts run out, exactly
+    as before. It only spends attempts the loop was going to spend anyway on
+    faults it can actually describe.
+    """
+    parts: list[str] = []
+    if not result.publishable:
+        parts.append(result.verdict.failure_summary() or "failed the article shape checks")
+    parts.extend(style.violations)
+    return "; ".join(p for p in parts if p) or "failed the article shape checks"
 
 
 def _log_rejection_forensics(result: GenerationResult, signal: Signal) -> None:
@@ -322,6 +371,11 @@ def _article_from_payload(
             "sources": [ref.to_json() for ref in signal.sources],
             "signal_id": signal.id,
             "signal_detector": signal.detector,
+            # What makes two articles the same story across runs: the reading, not
+            # the telling. `signal_id` hashes the detector and the value in as well,
+            # so a revision or a second detector on the same reading mints a new one
+            # and the wire republishes. See `rank.finding_key`.
+            "signal_finding": finding_key(signal.metric, signal.geography, signal.period),
             "comparison_basis": signal.comparison_basis,
             "model": writer.model_name,
             "prompt_version": PROMPT_VERSION,
@@ -351,7 +405,47 @@ def _article_from_payload(
         article.published_at = created_at
     else:
         article.status = "rejected"
+        # Why, on the artifact itself. Establishing what was killing the wire
+        # took downloading and parsing 200 blobs, because a rejected draft
+        # recorded that it had failed and nothing about what failed: the
+        # verdict is in `provenance.validator`, but the reason has to be
+        # reconstructed by diffing eight checks against each other, and a
+        # shape failure leaves no trace there at all. Three days of the wire
+        # publishing almost nothing went unnoticed for exactly that reason.
+        #
+        # Written as flat, queryable fields rather than prose, so the next
+        # investigation is a filter over the rejected/ prefix instead of an
+        # archaeology project.
+        article.provenance["rejection"] = _rejection_record(article, verdict)
     return GenerationResult(signal=signal, article=article, verdict=verdict)
+
+
+def _rejection_record(article: Article, verdict: Verdict) -> dict[str, Any]:
+    """The gate, the checks it failed, and what it said — on the stored draft."""
+    failures = [check.name for check in verdict.failures()]
+    if failures:
+        return {
+            "gate": "validator",
+            "checks": failures,
+            "detail": verdict.failure_summary(),
+        }
+    # The verdict passed, so the shape checks are what refused it. They log,
+    # and until now that was the only record anywhere.
+    return {
+        "gate": "article_shape",
+        "checks": ["shape"],
+        "detail": _shape_failure(article),
+    }
+
+
+def _shape_failure(article: Article) -> str:
+    if not 12 <= len(article.headline) <= 140:
+        return f"headline is {len(article.headline)} characters, outside 12-140"
+    if article.dek and len(article.dek) > 300:
+        return f"dek is {len(article.dek)} characters, over 300"
+    if not any(b.type == "paragraph" and b.text for b in article.body):
+        return "article has no prose"
+    return "failed the article shape checks"
 
 
 def _verdict_for(article: Article, signal: Signal) -> Verdict:

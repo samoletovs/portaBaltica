@@ -1,89 +1,74 @@
 /**
- * Is a Eurostat cube alive, and is it still moving?
+ * The newest observation in a Eurostat cube.
  *
- * Split out of `/api/system-status` because a health probe is worth exactly as
- * much as its verdict function, and that function has to be assertable without
- * the network. The maritime probe had failed in *both* directions at once while
- * looking perfectly reasonable in review:
+ * This began as a maritime-specific health check that answered "is this cube
+ * alive and moving" in one call. Extraction and policy have since been split:
+ * this module finds the newest observation, and `freshness.js` decides whether
+ * that is old enough to matter, against the cadence each source declares. One
+ * function deciding both meant maritime's two-quarter publication lag and
+ * Elering's six hours were being judged by the same constant, which is only
+ * possible if the constant is wrong for at least one of them.
  *
- *   - **False red.** It asked `mar_tf_qm` for `lastTimePeriod=1`. That cube is
- *     Europe-wide, so its newest period is the newest quarter *any* European
- *     port has filed — 2026-Q2 when this was written. Riga was on 2025-Q4, as
- *     it normally is, so the probe received a single all-null cell, reported
- *     "Cube answered but carries no observation", and held the whole status
- *     page at `degraded` while `/api/port-data` served complete statistics for
- *     Latvia, Estonia and Lithuania. That half is fixed by asking for a window
- *     of quarters instead of one column.
+ * What it guards against is unchanged, and worth restating because it is subtle
+ * in both directions:
  *
- *   - **False green.** Had Eurostat stopped publishing, the cube's newest
- *     period would have been whatever it last managed, and that period *does*
- *     carry a value — so the same probe would have gone green and stayed green.
- *     That is not hypothetical: it is how data.gov.lv served eighteen
- *     consecutive header-only CSVs without tripping a single check. That half
- *     is fixed here, by judging age rather than mere presence.
+ *   - **A cube is padded to its newest column for every key it contains.** The
+ *     Europe-wide `mar_tf_qm` runs to whatever quarter any European port has
+ *     filed; Riga is routinely a quarter or two behind that. Asking whether one
+ *     specific key filled the last column reports a healthy source as dead, and
+ *     did — production sat at `degraded` for weeks while `/api/port-data`
+ *     served complete statistics for all three countries.
  *
- * Both come from asking "does the last column have a number in it", which
- * cannot separate a normal publication lag from a dead feed. The question that
- * can is how old the newest observation *anywhere* in the cube is, measured
- * against the cadence it is published at.
+ *   - **A frozen cube's last column still carries a value.** So the same
+ *     question, asked of a table that stopped being updated, answers yes for
+ *     ever. That is how the ECOICOP ver.1 HICP tables stayed green through
+ *     eight months of serving 2025-12.
  *
- * Thresholds come from `MAX_AGE_MONTHS` in `eurostat.js`, so the server judges
- * staleness the same way `src/dataFreshness.ts` does on the client. A probe
- * that disagreed with the banner shown to readers would just be a third opinion
- * to reconcile.
+ * Both come from asking whether the last column has a number in it. The
+ * question that separates them is *when* the newest observation is from, which
+ * is what this returns.
  */
 
 const es = require('./eurostat.js');
 
 /**
- * Newest observation in the cube, and whether it is old enough to call the
- * source stopped rather than merely in arrears.
+ * Newest period anywhere in the cube that carries a value, or null.
  *
- * Every key's series is folded into one before judging, because the question is
- * "has this table been updated recently", not "has this particular port filed".
- * A cube is padded to its newest column for every key it contains, so requiring
- * one specific key to have filed the newest quarter is what produced the false
- * red.
- *
- * Returns `{ ok, period, age, reason }`. `reason` is a sentence a human can act
- * on; `period` and `age` are reported even on success, so the status page can
- * show which quarter the verdict rests on and a wrong threshold is visible
- * rather than inferred.
+ * Every key's series is folded together on purpose: the question is whether the
+ * table has been updated, not whether one particular port or country has filed.
+ * Null means the cube parsed but holds no observation at all — an emptied cube,
+ * which is a fault rather than a lag, and callers must not read it as fresh.
  */
-function judgeCube(body, keyDim, options) {
-  const opts = options || {};
-  const parsed = es.parseJsonStatDim(body, keyDim, opts.wanted || null);
+function newestPeriod(body, keyDim, wanted) {
+  const parsed = es.parseJsonStatDim(body, keyDim, wanted || null);
   const keys = Object.keys(parsed.series);
+  if (keys.length === 0) return null;
 
-  if (keys.length === 0) {
-    return { ok: false, period: null, age: null, reason: 'Cube carries no ' + keyDim + ' series' };
-  }
+  let newest = null;
+  let newestIdx = -Infinity;
 
-  const points = [];
   keys.forEach(function (key) {
-    const series = parsed.series[key].series || [];
-    for (let i = 0; i < series.length; i++) points.push(series[i]);
+    const points = parsed.series[key].series || [];
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      if (!p || p.value === null || p.value === undefined) continue;
+      const idx = es.periodToMonthIndex(p.period);
+      if (idx === null || idx <= newestIdx) continue;
+      newestIdx = idx;
+      newest = p.period;
+    }
   });
 
-  const verdict = es.isSeriesStale(points, opts.now);
-
-  // `isSeriesStale` returns null when it cannot tell — an empty series, or
-  // period labels it does not recognise. "Cannot tell" must not read as fresh.
-  if (verdict === null) {
-    return { ok: false, period: null, age: null, reason: 'Cube answered but carries no observation' };
-  }
-
-  if (verdict.stale) {
-    return {
-      ok: false,
-      period: verdict.period,
-      age: verdict.age,
-      reason: 'Newest observation is ' + verdict.period + ', ' + verdict.age +
-        ' months old; a ' + verdict.cadence + ' series may trail ' + verdict.allowed,
-    };
-  }
-
-  return { ok: true, period: verdict.period, age: verdict.age, reason: null };
+  return newest;
 }
 
-module.exports = { judgeCube: judgeCube };
+/** `newestPeriod` in the shape `freshness.judge` consumes, or null. */
+function newestObservation(body, keyDim, wanted) {
+  const period = newestPeriod(body, keyDim, wanted);
+  return period === null ? null : { period: period };
+}
+
+module.exports = {
+  newestPeriod: newestPeriod,
+  newestObservation: newestObservation,
+};

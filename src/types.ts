@@ -89,21 +89,42 @@ export interface PropertyData {
 
 export interface WeatherCondition {
   city: string;
-  temperature: number;
-  windSpeed: number;
-  humidity: number;
-  description: string;
+  /** Null when the reading was missing. Never a zero standing in for one:
+   *  an absent temperature rendered as 0°C reads as an ordinary winter day. */
+  temperature: number | null;
+  windSpeed: number | null;
+  humidity: number | null;
+  description: string | null;
 }
 
+/**
+ * Air quality for the capital.
+ *
+ * `available` is false when the reading could not be taken. The endpoint used
+ * to answer a failed fetch with `status: 'good', label: 'Good'` and three
+ * zeroes, which told a reader the air was clean on the strength of a request
+ * that never completed. Every field is nullable now, and nothing is invented.
+ */
 export interface AirQualityData {
-  pm25: number;
-  no2: number;
-  status: 'good' | 'moderate' | 'unhealthy';
-  label: string;
+  pm25: number | null;
+  no2: number | null;
+  aqi?: number | null;
+  status: 'good' | 'moderate' | 'unhealthy' | null;
+  label: string | null;
+  available?: boolean;
+  unavailableReason?: string;
+}
+
+/** How many of the requested cities actually reported. */
+export interface WeatherCoverage {
+  reporting: number;
+  requested: number;
+  missing: number;
 }
 
 export interface EnvironmentData {
   weather: WeatherCondition[];
+  weatherCoverage?: WeatherCoverage;
   airQuality: AirQualityData;
   capitalPopulation: number | null;
   /** What the population figure actually counts — a NUTS 3 region, which is

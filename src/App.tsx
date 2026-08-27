@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { PORTS } from './types';
 import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
+import { SectionRail, type SectionLink } from './components/SectionRail';
 import { EconomyTile } from './components/EconomyTile';
 import { TradeTile } from './components/TradeTile';
 import { GovernmentTile } from './components/GovernmentTile';
@@ -14,6 +15,7 @@ import { EnvironmentTile } from './components/EnvironmentTile';
 import { MaritimeTile } from './components/MaritimeTile';
 import { BusinessTile } from './components/BusinessTile';
 import { SystemStatusFooter } from './components/SystemStatusFooter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useCountry } from './CountryContext';
@@ -25,6 +27,54 @@ interface PortWeatherData {
 }
 
 const VALID_SECTIONS = new Set(['economy', 'trade', 'government', 'labour', 'energy', 'property', 'environment', 'business', 'maritime']);
+
+/** The overview's sections, in the order they are rendered, for the rail. */
+const SECTION_LINKS: SectionLink[] = [
+  { id: 'economy', label: 'Economy' },
+  { id: 'trade', label: 'Trade' },
+  { id: 'government', label: 'Government' },
+  { id: 'labour', label: 'Labour' },
+  { id: 'energy', label: 'Energy' },
+  { id: 'property', label: 'Property' },
+  { id: 'environment', label: 'Environment' },
+  { id: 'business', label: 'Business' },
+  { id: 'maritime', label: 'Maritime' },
+];
+
+/**
+ * The anchor a section is scrolled to.
+ *
+ * A wrapper rather than an id on the tile itself, because the tiles render
+ * their own `<section>` and three of them belong to another workstream. The
+ * `dash-section` class carries the `scroll-margin-top` that stops a jump
+ * landing underneath the sticky rail (WCAG 2.2 SC 2.4.11).
+ *
+ * It is also a blast radius. The only error boundary on this site is at the
+ * root, so one tile that threw replaced the whole dashboard with "Something
+ * went wrong" — nine sections lost to one bad payload from one upstream, on a
+ * site whose data comes from eleven of them and which is otherwise built
+ * throughout to keep working when one is down. Twice while writing this change
+ * a malformed response did exactly that. A section that fails now says so in
+ * its own place, and the other eight keep their data.
+ */
+function Section({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <div id={id} className="dash-section">
+      <ErrorBoundary
+        fallback={() => (
+          <div
+            className="rounded-xl p-4 text-ui"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-secondary)' }}
+          >
+            This section could not be displayed. The rest of the dashboard is unaffected.
+          </div>
+        )}
+      >
+        {children}
+      </ErrorBoundary>
+    </div>
+  );
+}
 
 export default function App() {
   const { section } = useParams<{ section?: string }>();
@@ -148,12 +198,17 @@ export default function App() {
     <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <main id="main" className="pt-6 pb-16">
 
-        <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
-
         <header className="mb-8">
-          <h1 className="balance-text text-headline sm:text-display font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Baltic data
-          </h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="balance-text text-headline sm:text-display font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Baltic data
+            </h1>
+            {/* The tour trigger rides in the heading row rather than in a strip
+                of its own above the page, so it costs no vertical space at all
+                — the version it replaces spent a full row on a button most
+                readers never press. */}
+            <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
+          </div>
           <p className="pretty-text mt-3 text-callout" style={{ color: 'var(--text-secondary)' }}>
             Live open data for Latvia, Estonia and Lithuania — the same series our reporting is
             written from, updated independently of it.
@@ -163,46 +218,75 @@ export default function App() {
         {/* AI Insights */}
         <InsightsBanner />
 
-        {/* Dashboard sections */}
-        <div className="space-y-8">
+        {/* The rail only earns its place on the overview. On a single-section
+            route there is one thing to scroll through and nothing to jump to,
+            and a navigation control that offers a choice of one is noise. */}
+        {activeSection === 'all' && <SectionRail sections={SECTION_LINKS} />}
+
+        {/* Dashboard sections.
+            48px apart, `--space-2xl`, which DESIGN.md §1.2 names as the gap
+            between dashboard sections. They were 32px apart while the blocks
+            *inside* each section were 24px apart, so the boundary between
+            "Economy & markets" and "Trade & tourism" was 8px more emphatic
+            than the boundary between two cards — which is why the page read as
+            one continuous block rather than as distinct subjects. */}
+        <div className="space-y-12">
           {show('economy') && (
-            <EconomyTile data={economyData} loading={economyLoading} />
+            <Section id="economy">
+              <EconomyTile data={economyData} loading={economyLoading} />
+            </Section>
           )}
 
           {show('trade') && (
-            <TradeTile />
+            <Section id="trade">
+              <TradeTile />
+            </Section>
           )}
 
           {show('government') && (
-            <GovernmentTile />
+            <Section id="government">
+              <GovernmentTile />
+            </Section>
           )}
 
           {show('labour') && (
-            <LabourTile />
+            <Section id="labour">
+              <LabourTile />
+            </Section>
           )}
 
           {show('energy') && (
-            <EnergyTile />
+            <Section id="energy">
+              <EnergyTile />
+            </Section>
           )}
 
           {show('property') && (
-            <PropertyTile data={propertyData} loading={propertyLoading} />
+            <Section id="property">
+              <PropertyTile data={propertyData} loading={propertyLoading} />
+            </Section>
           )}
 
           {show('environment') && (
-            <EnvironmentTile data={environmentData} loading={environmentLoading} />
+            <Section id="environment">
+              <EnvironmentTile data={environmentData} loading={environmentLoading} />
+            </Section>
           )}
 
           {show('business') && (
-            <BusinessTile euFunds={euFunds} euLoading={euLoading} />
+            <Section id="business">
+              <BusinessTile euFunds={euFunds} euLoading={euLoading} />
+            </Section>
           )}
 
           {show('maritime') && (
-            <MaritimeTile
-              portData={portData}
-              stats={portStats}
-              loading={maritimeLoading}
-            />
+            <Section id="maritime">
+              <MaritimeTile
+                portData={portData}
+                stats={portStats}
+                loading={maritimeLoading}
+              />
+            </Section>
           )}
         </div>
 

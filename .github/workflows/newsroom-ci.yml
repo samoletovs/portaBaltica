@@ -1,17 +1,27 @@
-name: Newsroom safety gate
-
-# Kept separate from CI/CD deliberately. That workflow is scoped to
-# `branches: [main, master]` because it deploys, so it would not run on a PR
-# targeting a feature branch — and this suite is exactly the one that must run
-# on every newsroom change, wherever it is headed. The repo is public, so the
-# Actions minutes are free.
+# name: Newsroom safety gate
 #
-# What this gate protects:
+# Two jobs, and the split matters.
+#
+# `validator` runs on every newsroom change wherever it is headed. It is kept
+# out of the `CI/CD` workflow deliberately: that one is scoped to
+# `branches: [main, master]` because it deploys, so it would not run on a PR
+# targeting a feature branch — and this suite is exactly the one that must.
+# The repo is public, so the Actions minutes are free.
+#
+# `deploy` publishes the Function App, and only from master. Until it existed
+# the newsroom had no continuous deployment at all: the frontend shipped on
+# every merge while the pipeline kept running whatever was last published by
+# hand, so merged newsroom fixes simply never reached readers.
+#
+# What the gate protects:
 #   * no article can be published with a number that traces to nothing
 #   * no third-party journalism can be rewritten
 #   * every correspondent byline discloses that it is an AI
 # It must stay a required check. If it is failing, the correct response is to
-# fix the article pipeline, never to loosen the invariant.
+# fix the article pipeline, never to loosen the invariant. Because `deploy`
+# declares `needs: validator`, these invariants now gate shipping and not
+# merely merging.
+name: Newsroom safety gate
 
 on:
   push:
@@ -68,3 +78,93 @@ jobs:
 
       - name: Run the content-safety suite
         run: python -m pytest newsroom/tests -q
+
+  deploy:
+    name: Publish the pipeline to Azure
+    # Nothing reached production before this job existed. The frontend has had
+    # continuous deployment since the beginning (`CI/CD` → Azure Static Web
+    # Apps), but the newsroom Function App had none: merging `newsroom/**` to
+    # master changed the repository and nothing else, and the pipeline kept
+    # running whatever was last published by hand.
+    #
+    # Deploying from CI also closes a documented production incident. From
+    # `newsroom/README.md`:
+    #
+    #   > On 2026-08-24 a `func publish` from the main checkout deployed a
+    #   > background agent's uncommitted, half-finished editor stage into
+    #   > production.
+    #
+    # A publish from a working tree ships whatever happens to be on disk, which
+    # in this repository is frequently somebody else's in-progress branch. This
+    # job publishes a clean checkout of master, so what runs in production is
+    # what was reviewed and merged.
+    needs: validator
+    # Never from a pull request, and never from a branch: a deploy is the one
+    # thing that must not run on unmerged code. `needs: validator` makes the
+    # safety suite a gate on shipping and not merely on merging.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for OIDC. There is deliberately no publish profile and no
+      # deployment key: the identity is federated to this repository's master
+      # ref, so a token cannot be replayed from anywhere else. It holds
+      # `Website Contributor` on the Function App and `Storage Blob Data
+      # Contributor` on its deployment storage — the two narrowest roles that
+      # permit a Flex Consumption publish — scoped to those resources rather
+      # than to the resource group or the subscription.
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # Must match the Function App's runtime. Flex Consumption is pinned to
+          # Python 3.12 here.
+          python-version: '3.12'
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Publish
+        # `Azure/functions-action` rather than installing Azure Functions Core
+        # Tools from npm: this runner's package proxy serves lockfile-resolved
+        # installs but rejects an arbitrary `npm install -g` with E401, and the
+        # official action needs no toolchain of its own. It also understands
+        # Flex Consumption's deployment endpoint, which a zip-deploy does not.
+        uses: Azure/functions-action@v1
+        with:
+          app-name: portabaltica-func
+          package: newsroom
+          # Build the wheels on the platform that will run them. The runner is
+          # x64 Linux and so is the host, but the Python patch level differs,
+          # and a locally-built wheel pinned to the wrong one fails to import at
+          # start-up rather than at deploy time.
+          remote-build: true
+
+      - name: Confirm the host came back with the timer registered
+        # A publish that exits zero and leaves the app unable to load its
+        # functions is the failure this catches. The timer is the one that
+        # matters: if `newsroom_edition` is missing the wire silently stops
+        # publishing, and that is precisely the class of failure that went
+        # unnoticed here before.
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            names="$(az functionapp function list \
+              --name portabaltica-func --resource-group portabaltica-rg \
+              --query '[].name' -o tsv 2>/dev/null || true)"
+            echo "attempt ${attempt}: ${names}"
+            if printf '%s' "${names}" | grep -q 'newsroom_edition'; then
+              echo "newsroom_edition is registered."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::newsroom_edition did not register after publish."
+          exit 1

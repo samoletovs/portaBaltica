@@ -326,6 +326,21 @@ crosses zero — anything measured as a percentage change — gets an explicit z
 reference line, because on those series zero is the most important value on the
 chart and it was previously unmarked.
 
+That has a corollary the site had to learn from a reader. Some series barely
+move: population shifts well under 1% across a five-year window, and drawn as a
+zero-based fill it is a dead flat line pinned to the top of the card, which
+reads as a rendering failure rather than as a slow decline. The rule is
+therefore general rather than a special case for population — **a series whose
+whole range is under 2% of its own level drops the fill, becomes a plain line,
+and is allowed to crop**, which is the one form in which cropping is
+legitimate. The crop is then *disclosed* on the card ("Axis cropped to
+1.86m–1.88m"), which is what Our World in Data does and the difference between
+a cropped axis and a misleading one.
+
+Watch the library defaults here. Recharts' implicit y-axis is `[0, 'auto']`, so
+a chart with no explicit `<YAxis>` is already zero-based whether or not anyone
+decided it should be.
+
 ### 3.4 Gridlines recede, data dominates
 
 Gridlines are structure, not data, and are deliberately below the 3:1 non-text
@@ -376,6 +391,22 @@ statement rather than a green number above a red line. What it must never do
 again is take its colour from the raw sign of the last data point, which is how
 a decade of falling unemployment came to be drawn in red.
 
+**So does the ticker.** It used to render every delta in flat grey, on the
+stated grounds that it "cannot know whether a rise in an arbitrary indicator is
+good news". That was true when it was written and stopped being true the moment
+`polarity.ts` existed — the indicator cards had been reading direction by
+meaning for some time and the ticker was simply never given the same treatment.
+It is not a licence to go back to the older behaviour of colouring every `+`
+green; it is the same honest rule applied in one more place.
+
+**A number with no comparison has no direction, and therefore gets no colour.**
+"Suspended activities: 3,693" was drawn in amber. Amber is a *status* colour —
+Fluent's rule is "use them for important messages, don't use them for
+decoration" — and a steady-state registry total that has been the same order of
+magnitude for years is not a warning. Colouring it told the reader "this is
+bad" on no evidence, which is this section's defect applied to a single number
+instead of to a chart.
+
 ### 3.6 The country palette is the flags
 
 Latvia carmine, Estonia blue, Lithuania yellow. A reader who knows the flags
@@ -384,12 +415,12 @@ on a three-country chart.
 
 | | Dark | Light |
 |---|---|---|
-| Latvia | `#dc3b4a` | `#a4262c` |
-| Estonia | `#4da6ff` | `#0057a8` |
-| Lithuania | `#fdb913` | `#b4700a` |
-| Finland *(bidding zone only)* | `#d8b4fe` | `#6d28d9` |
+| Latvia | `#dc3b4a` | `#e6414e` |
+| Estonia | `#4da6ff` | `#1a7ae0` |
+| Lithuania | `#fdb913` | `#c28206` |
+| Finland *(bidding zone only)* | `#f0abfc` | `#8b1a9c` |
 
-Three measured constraints produced those exact values.
+Four measured constraints produced those exact values.
 
 1. **Raw flag colours fail.** Latvian carmine `#9E3039` is 2.40:1 on a card and
    Lithuanian green `#006A44` is 2.87:1, both under the 3:1 SC 1.4.11 asks of a
@@ -400,20 +431,52 @@ Three measured constraints produced those exact values.
 3. **Latvia must not be the same red as "declining".** At `#e4707a` it sat
    **ΔE 8.6** from `--data-negative` — the same colour — and red would have meant
    both *Latvia* and *falling* on one screen, which is the three-meanings defect
-   this book exists to remove. `#dc3b4a` is ΔE 23 away, and closer to the real
-   flag besides.
+   this book exists to remove.
+4. **3:1 is the floor, not the target.** The first light palette answered
+   constraint 1 by pushing all three to about **7:1** — `#a4262c`, `#0057a8`,
+   `#b4700a` — which is AAA *text* contrast applied to a line. Readers reported
+   the light charts as dark and muddy and they were right: `#b4700a` reads
+   brown, not gold. The values above are the brightest that still clear 3:1 on
+   a white card, and they are **14–16 L\* lighter** than the ones they replace:
+
+   | | Contrast on white | ΔE under deuteranopia |
+   |---|---|---|
+   | Latvia `#e6414e` | 4.01:1 | LV–EE 109 |
+   | Estonia `#1a7ae0` | 4.28:1 | EE–LT 135 |
+   | Lithuania `#c28206` | 3.24:1 | LV–LT 26 |
+
+   Gold is the binding constraint in the light theme, not red or blue. Yellow
+   is intrinsically light, so on white it cannot be both vivid and 3:1 — about
+   `L* 60` is the ceiling, and Latvia then has to stay far enough below it to
+   survive deuteranopia, where red and gold both collapse toward yellow and
+   only lightness separates them.
+
+Contrast cannot express "too dark" on its own, because in a dark theme brighter
+means *more* contrast and in a light theme it means less. So the test asserts
+**L\* ≥ 45** for the three Baltic series in both themes. The old light palette
+sat at 37.
 
 Finland is deliberately **not** a flag colour: its flag is blue, which is
-Estonia's, and the two collide at ΔE 3 under deuteranopia. It appears only as a
-Nord Pool bidding zone, never as one of the three Baltic states.
+Estonia's. It appears only as a Nord Pool bidding zone, never as one of the
+three Baltic states. It used to be violet and is now fuchsia in both themes,
+because a brighter Estonia crowded the violet down to ΔE 23 — under the
+threshold. That is the second-order cost of constraint 4, and the reason the
+whole palette is chosen together rather than one series at a time.
 
-**Stroke patterns stay** — Latvia solid, Estonia `7 4`, Lithuania `2 4` — even
+**Stroke patterns stay** — Latvia solid, Estonia `8 5`, Lithuania `18 6` — even
 though the hues are now well separated. That is measured, not cautious:
 between-series *luminance* contrast is only 1.19–1.76:1, well under the 3:1 at
 which WCAG's note on SC 1.4.1 lets lightness count as a second distinction. Hue
 is therefore the only other channel, and hue alone is precisely what the
 criterion forbids. The dash is the second channel, and it survives greyscale
 printing too.
+
+They are quieter than they were. Lithuania used to be `2 4` — two on, four off
+— which at a 2px stroke is not a dashed line but a dot every six pixels, and
+over a dense multi-year series it read as texture rather than as a series. The
+power chart had the same `2 3`, plus an `8 2 2 2` that read as morse code. A
+mark **at least 6px long and never shorter than the gap after it** is the
+difference between a dashed line and a row of dots, and the test enforces it.
 
 Lines are drawn at **2–2.5px**, not 1.5px. At hairline weight on a dark ground
 chroma perception collapses and two warm hues read as one colour — which is
@@ -495,10 +558,23 @@ Where a series is stale, say so and date it. Where it is unavailable, render
 - spacing, gap and radius classes are on the allowlists in §1.2 and §1.3;
 - every text token clears its contrast floor in **both** themes;
 - semantic and series colours clear 4.5:1 and 3:1 respectively, in both themes;
+- **the Tailwind compatibility layer is resolved and measured, not just the
+  tokens.** The layer remaps ~224 hardcoded colour classes with `!important`,
+  and the token tests could not see any of it — so `.text-emerald-400` was
+  pinned to `#059669` at **3.77:1** and both amber classes to `#d97706` at
+  **3.19:1**, failing SC 1.4.3 on text, while the correct tokens sat unused two
+  hundred lines above. The test now resolves each class through the cascade,
+  follows the `var()`, and fails on the ratio it actually computes. It also
+  fails on a status class the layer does not cover at all — four had none —
+  and on a literal hex where a token belongs;
+- the three Baltic series stay at **L\* ≥ 45** in both themes, because contrast
+  alone cannot express "too dark";
+- a chart line is never the link accent;
 - **the country palette survives a deuteranopia simulation** — every pair of
   Latvia, Estonia and Lithuania stays above ΔE 25, Latvia stays clear of
   `--data-negative`, and Finland stays clear of Estonia's blue;
-- every series carries a stroke pattern as well as a hue;
+- every series carries a stroke pattern as well as a hue, and every dash reads
+  as a line rather than as a row of dots;
 - polarity flips on all twelve `lower-better` series, and the ▲/▼ glyph, the
   sign and a spoken description are all present so colour is never alone;
 - a global `:focus-visible` rule exists, is at least 2px, and no component
@@ -576,7 +652,11 @@ design-system audit does not surface because they are not token defects.
    `GovernmentTile`, `LabourTile`, `TradeTile`.
 8. **Light theme is a set of overrides, not a designed theme.** It passes
    contrast, but it is built from `!important` rules reaching into Tailwind's
-   generated slate classes.
+   generated slate classes. The layer is now *measured* rather than merely
+   present — see §5 — so a wrong value fails a test instead of reaching a
+   reader, but ~224 hardcoded colour classes across 14 dashboard components are
+   still the thing being rescued. Migrating them to semantic classes, as
+   `src/components/news/**` already does, is the real fix.
 9. **The chart palette exists twice** — `--series-*` in CSS and literals in
    `ThemeContext`, because recharts writes into SVG attributes where jsdom will
    not resolve `var()`. A test compares them so they cannot drift, but one

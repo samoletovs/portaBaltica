@@ -583,6 +583,75 @@ const INDICATORS = {
     unit: 'index (2021=100)',
     sanity: [10, 500],
   },
+
+  // Freight, which is what a port statistic looks like once it leaves the port.
+  //
+  // The maritime tile counts tonnes across a quay; these two count tonnes
+  // moving inland, and the split between them is a different question about the
+  // same economy. Rail is also the clearest single measure of what the 2022
+  // sanctions did to Baltic transit: Latvia carried 4,806 million tonne-km in a
+  // quarter early in this window and 594 in 2026-Q1, a fall of nearly 90%.
+  rail_freight: {
+    dataset: 'rail_go_quartal',
+    params: 'freq=Q&unit=MIO_TKM',
+    freq: 'Q',
+    title: 'Rail freight',
+    unit: 'M tonne-km',
+    // Observed 71 (Estonia, 2025-Q4) to 4,806 (Latvia, pre-sanctions) across
+    // eight years. The upper bound leaves room for a revision without being so
+    // wide it would accept a percentage or a headcount by mistake.
+    sanity: [10, 8000],
+  },
+  road_freight: {
+    dataset: 'road_go_tq_tott',
+    // `tra_type` carries four categories — HIRE, NSP, OWN and TOTAL — and an
+    // unpinned dimension makes the parser choose a slice on our behalf and
+    // report it in `assumptions`. Hire-and-reward alone is roughly two thirds
+    // of the total, which is a plausible-looking number for the wrong thing.
+    params: 'freq=Q&tra_oper=TOTAL&tra_type=TOTAL&unit=THS_T',
+    freq: 'Q',
+    title: 'Road freight',
+    unit: 'k tonnes',
+    // Observed 4,413 (Estonia) to 36,034 (Lithuania).
+    sanity: [500, 50000],
+  },
+
+  /**
+   * The same road haulage measured in tonne-kilometres rather than tonnes.
+   *
+   * Both are real and they answer different questions: `road_freight` is how
+   * much was lifted, this is how much was moved and how far. Only the second is
+   * comparable with rail, because a tonne on a train travels much further than
+   * a tonne on a lorry — so a modal split computed from tonnes lifted would
+   * flatter road enormously and mean nothing.
+   */
+  road_freight_tkm: {
+    dataset: 'road_go_tq_tott',
+    params: 'freq=Q&tra_oper=TOTAL&tra_type=TOTAL&unit=MIO_TKM',
+    freq: 'Q',
+    title: 'Road freight (tonne-km)',
+    unit: 'M tonne-km',
+    // Observed 897 (Estonia, 2025-Q4) to 17,547 (Lithuania).
+    sanity: [100, 40000],
+  },
+
+  // Real labour productivity per person, indexed to 2020.
+  //
+  // This is the series that explains a wage chart rather than restating it: pay
+  // can only diverge for long if output per worker does. It is worth reading
+  // carefully, because the obvious guess about who leads is wrong — Latvia is
+  // at 111.7 against its 2020 base while Estonia is at 99.6, still below where
+  // it started after peaking at 108.1 in 2021.
+  labour_productivity: {
+    dataset: 'nama_10_lp_ulc',
+    params: 'freq=A&na_item=RLPR_PER&unit=I20',
+    freq: 'A',
+    title: 'Labour productivity per person',
+    unit: 'index (2020=100)',
+    // An index rebased to 100, so a decade of real movement stays well inside
+    // this while a raw euro or headcount series would not.
+    sanity: [60, 200],
+  },
 };
 
 module.exports = INDICATORS;

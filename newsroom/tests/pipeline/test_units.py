@@ -44,6 +44,29 @@ class TestRatiosAndCountsAreNotMeasurements:
     def test_a_count_carries_no_unit(self, field):
         assert unit_for_field(field, "EUR/MWh") is None
 
+    @pytest.mark.parametrize(
+        "field,detector",
+        [
+            ("observation_count", "record_extreme"),
+            ("streak_length", "streak"),
+        ],
+    )
+    def test_a_count_named_by_its_suffix_carries_no_unit(self, field, detector):
+        """The two counts the explicit list forgot, on the two loudest detectors.
+
+        Both are quoted in their detector's own comparison basis, so both are
+        put in front of the writer on every article those detectors produce —
+        and both were labelled with the series unit, offering the figure table
+        "observation_count = 40 EUR/MWh". That is the exact false claim this
+        module exists to prevent, and it was live on ``record_extreme`` and
+        ``streak`` the whole time it was fixed for ``spread_vs_typical``.
+        """
+        assert unit_for_field(field, "EUR/MWh") is None, (
+            f"{detector} publishes {field} labelled as a measurement"
+        )
+        assert "count" in label_for_field(field, "EUR/MWh")
+        assert display_value(field, 40.0) == "40"
+
     @pytest.mark.parametrize("field", ["deviation_pct", "spread_pct", "change_percent"])
     def test_a_percentage_is_a_percentage(self, field):
         assert unit_for_field(field, "EUR/MWh") == "%"

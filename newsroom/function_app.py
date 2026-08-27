@@ -40,40 +40,80 @@ import logging  # noqa: E402
 
 import azure.functions as func  # noqa: E402
 
+from newsroom.pipeline import config  # noqa: E402
 from newsroom.pipeline.run import run_once  # noqa: E402
+from newsroom.pipeline.runreport import write_run_report  # noqa: E402
 
 log = logging.getLogger(__name__)
 
 app = func.FunctionApp()
 
 
+async def _run_and_report(trigger: str):
+    """Run one edition and leave a record that it happened.
+
+    Application Insights is receiving nothing from this app — no requests, no
+    traces, no exceptions — so the only evidence a run existed was the articles
+    it happened to publish. On a day when it published none, which is what
+    2026-08-25 was, that is indistinguishable from the timer never firing. The
+    report is written whatever the outcome, so silence becomes readable.
+    """
+    report = await run_once()
+    log.info("edition: %s", report.summary())
+    for error in report.errors:
+        log.error("edition error: %s", error)
+    try:
+        await write_run_report(report, trigger=trigger)
+    except Exception:  # noqa: BLE001 — observability must not break the run
+        log.exception("failed to write the run report")
+    return report
+
+
 @app.function_name(name="newsroom_edition")
 @app.timer_trigger(
-    schedule="0 0 14 * * *",
+    # The app setting, honoured. ``NEWSROOM_SCHEDULE`` is set in Azure to
+    # "0 0 5,11,17 * * *" — three runs a day — and this decorator used to
+    # hardcode "0 0 14 * * *", so the intent sat in configuration doing nothing
+    # while the app ran once daily. A knob that is silently disconnected is
+    # worse than no knob: it makes a deployment look configured when it is not.
+    #
+    # Resolved in Python, NOT with the host's ``%NEWSROOM_SCHEDULE%``
+    # interpolation. The two look equivalent and are not. ``%NAME%`` is
+    # resolved by the *host* against application settings, and the host has no
+    # default syntax — so on an app where the setting is missing the trigger
+    # binding fails and the function never registers. That is the silent
+    # deployment failure the CI deploy job polls for, and it would be caused by
+    # the very line meant to make the schedule configurable.
+    #
+    # App settings reach the Python worker as environment variables before this
+    # module is imported, so reading it here sees exactly the same value the
+    # host would have interpolated, and ``config.SCHEDULE`` supplies a working
+    # default when it is absent. It is also the value the run report states, so
+    # the report cannot disagree with the trigger about what schedule is in
+    # force.
+    schedule=config.SCHEDULE,
     arg_name="timer",
     run_on_startup=False,
     use_monitor=True,
 )
 async def newsroom_edition(timer: func.TimerRequest) -> None:
-    """Daily edition.
+    """Scheduled edition.
 
-    14:00 UTC sits after Nord Pool publishes day-ahead prices (~13:00 CET) and
-    after Eurostat's usual 11:00 CET release window, so a run has the freshest
-    data both sources will offer that day.
+    The default, 14:00 UTC, sits after Nord Pool publishes day-ahead prices
+    (~13:00 CET) and after Eurostat's usual 11:00 CET release window, so a run
+    has the freshest data both sources will offer that day. The deployed
+    setting asks for 05:00, 11:00 and 17:00 instead.
     """
     if timer.past_due:
         log.warning("timer is past due; running anyway")
-    report = await run_once()
-    log.info("edition: %s", report.summary())
-    for error in report.errors:
-        log.error("edition error: %s", error)
+    await _run_and_report("timer")
 
 
 @app.function_name(name="newsroom_run_now")
 @app.route(route="newsroom/run", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 async def newsroom_run_now(req: func.HttpRequest) -> func.HttpResponse:
     """Manual trigger for operators. Same code path as the timer."""
-    report = await run_once()
+    report = await _run_and_report("manual")
     return func.HttpResponse(
         json.dumps(
             {

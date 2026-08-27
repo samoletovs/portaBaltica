@@ -97,10 +97,38 @@ def test_collection_is_wide_enough_to_produce_a_wire() -> None:
 
 
 def test_metric_names_are_unique() -> None:
-    """``max_per_metric`` dedupes by metric, so a collision silently halves output."""
-    metrics = [s.metric for s in EUROSTAT_DATASETS]
+    """``max_per_metric`` dedupes by metric, so a collision silently halves output.
 
-    assert len(metrics) == len(set(metrics)), f"duplicate metric names: {metrics}"
+    Two dataset entries may share a metric in exactly one case: when Eurostat
+    splits one measure into per-country cubes and the entries differ only in
+    which country they pin. The maritime tables are like that —
+    ``mar_go_qm_lv``, ``_ee`` and ``_lt`` are one measure in three files — and
+    they *must* share a metric, because ``detect_divergence`` groups by
+    ``(metric, geography)`` and three differently-named metrics could never be
+    compared with each other.
+
+    So the rule is not "every metric name appears once" but "one metric name
+    means one measure". Entries sharing a name must agree on everything that
+    describes the measure; if they disagree, two different things are being
+    called the same thing and the dedupe will drop one of them at random.
+    """
+    by_metric: dict[str, list] = {}
+    for spec in EUROSTAT_DATASETS:
+        by_metric.setdefault(spec.metric, []).append(spec)
+
+    def describes(spec) -> tuple:
+        return (spec.metric_label, spec.unit, spec.section, spec.frequency, spec.chart_ref)
+
+    conflicting = {
+        metric: sorted({s.dataset for s in specs})
+        for metric, specs in by_metric.items()
+        if len(specs) > 1 and len({describes(s) for s in specs}) > 1
+    }
+
+    assert not conflicting, (
+        f"these metric names cover more than one measure, so ranking will drop "
+        f"one of them at random: {conflicting}"
+    )
 
 
 # ---------------------------------------------------------------------------

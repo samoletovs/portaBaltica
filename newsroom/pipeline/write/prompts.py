@@ -24,7 +24,7 @@ from newsroom.pipeline import units
 from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline.context import ContextPack
 from newsroom.pipeline.research import ResearchContext
-from newsroom.pipeline.safety import fence, instruction_for, voice_card
+from newsroom.pipeline.safety import fence, instruction_for, voice_card, voice_reminder
 
 PROMPT_VERSION = "tierA-depth-v7"
 
@@ -46,8 +46,9 @@ THE NUMBER RULES — these override every stylistic instruction above:
    paragraphs, all three of those blocks must declare it. A figure declared in
    an earlier block does NOT cover a later one — the check is run block by
    block and the article is rejected for the block that omitted it.
-3b. The headline and the standfirst are checked too. A number in either must be
-   declared in some block's "figures".
+3b. The headline and the standfirst are checked too. A number in the headline
+   must be declared in some block's "figures". The standfirst is stricter and
+   is covered below: it takes no digits at all.
 4. You may round a figure when you render it in the sentence — write "4.2%" for
    4.23 — but "value" must stay the number you were given.
 5. Whenever you quantify a change, name what it is measured against in the same
@@ -75,15 +76,54 @@ reading sits in its whole history, and a brief from a specialist who read all of
 it before you did. Use them. A paragraph that could be deleted without the
 reader losing anything should be deleted by you.
 
-BANNED CLOSINGS. Never end with a sentence of this shape: "future data releases
-will provide further insights", "it remains to be seen", "time will tell",
-"further analysis is needed", "this trend bears watching", "X will be crucial
-to assess", "will be important to monitor", "may have significant implications
-for". They are the sound of having nothing to say. If the next release is what
-settles the question, NAME the release and say what reading would change the
-conclusion — "a third quarter below the seasonal average would make this a
-downturn rather than a blip" is a closing; "the next release will be crucial"
-is not.
+BANNED CLOSINGS. Never end with any variant of: "future data releases will
+provide further insights", "it remains to be seen", "time will tell", "further
+analysis is needed", "this trend bears watching", "X will be crucial to
+assess", "will be important to monitor", "may have significant implications
+for", "will provide further clarity". These sentences say nothing. They are the
+sound of running out of material and padding the word count, and they are now
+matched by a deterministic check — a draft carrying one is handed straight back
+to you.
+
+HOW TO CLOSE. Every legitimate closing says what a SPECIFIC READING WOULD
+MEAN, or says where the evidence stops. "The next release will tell us more"
+is true of every release ever published and is therefore not a sentence. This
+is checked structurally, not against a list of banned phrases: a closing that
+points at a future release and does not contain a conditional — the word
+"would", or "if ... then" — is handed back to you. Rephrasing "crucial to
+assess" as "essential to determine" changes nothing, because the check is not
+looking at those words.
+
+  1. NAME THE READING AND WHAT IT WOULD MEAN. This is the strongest close and
+     it is nearly always available:
+       "A second month below the seasonal mean WOULD make this a contraction
+        rather than a blip."
+       "Any August reading above the four-year average WOULD extend the run to
+        nine."
+  2. NAME A DIFFERENT INDICATOR AND WHAT IT WOULD SETTLE:
+       "Third-quarter employment WOULD show whether the labour market tightened
+        alongside wages, or whether something else is driving cost."
+  3. STATE THE LIMIT OF THE EVIDENCE AND STOP:
+       "The data shows what happened but not why, and nothing in the current
+        release settles it."
+
+If none of these produces a sentence worth reading, END THE ARTICLE ONE
+PARAGRAPH EARLIER. Stopping when you run out of things to say is not a
+failure, and it is always better than a sentence that says the future will be
+informative.
+
+NO PARAGRAPH MAY RESTATE A FACT ALREADY ESTABLISHED. If the same value and the
+same comparison appeared in an earlier paragraph, the new paragraph adds nothing
+and must be replaced with one that advances the story: a new comparison, a
+mechanism from the brief, a consequence for a named group, or a specific next
+event. Read your own draft back: if you can delete a paragraph and the reader
+loses nothing, you must delete it.
+
+This one is checked, not requested. Two paragraphs that declare the identical
+set of "signal_field" names in their figures arrays are the same paragraph
+written twice, and the article is rejected for it. Citing the same field
+alongside a DIFFERENT one is fine — that is a new comparison. Citing exactly
+the same set is not.
 
 WRITE ABOUT THE WORLD, NOT ABOUT THE DATA. "The reading is established against
 the backdrop of a low unemployment rate" describes a spreadsheet. "Employers
@@ -278,11 +318,40 @@ keeps it legal — put that exact phrase in that paragraph:
      for exactly that, and it is the most common reason a piece with good
      figures is held. Carry no digits here and the phrase rule does not apply.
 
+     NEVER WRITE THAT A STATISTIC IMPACTS OR AFFECTS ANYONE. This is the
+     single largest cause of an article being killed — nearly a third of every
+     rejection — and it always takes the same form:
+
+        "This increase in construction output directly impacts the
+         construction sector and real estate developers."
+        "This decline impacts manufacturers, as tighter margins may lead to
+         reduced investment."
+
+     You have no source for either claim. You were given a number and its
+     history; nothing in that establishes who bears it or what they will do
+     next, and asserting it anyway is the fabrication rule 3 exists to
+     prevent. It is now matched by a deterministic check, so a draft carrying
+     one of these constructions is handed straight back to you:
+
+        "impacts / affects <any group of people>"
+        "may / could / will lead to / result in / put pressure on ..."
+        "poses challenges for ..."   "has implications for ..."
+
+     WRITE THIS INSTEAD. The honest version of "who it lands on" is a
+     description, not a prediction: "this is the price a Latvian household
+     pays for a kilowatt-hour" describes; "this will squeeze household
+     budgets" predicts. If you cannot describe whose number it is without
+     guessing what happens next, THIS PARAGRAPH SHOULD NOT EXIST — write the
+     piece without it. A shorter article that stops when the evidence stops is
+     what this wire is for.
+
   6. WHAT WOULD SETTLE IT. Name the next release and the reading that would
      change the conclusion. Carry no digits here either.
 
 Plain, active, specific. This is a wire story with something to say, not an
-essay and not a table read aloud."""
+essay and not a table read aloud.
+
+{voice_reminder}"""
 
 
 _USER_TEMPLATE = """WHAT THE DATA SHOWS (verified by the pipeline, not by you)
@@ -650,7 +719,12 @@ def build_system_prompt(signal: Signal, persona, *, paragraphs: int = 4) -> str:
     return _SYSTEM_TEMPLATE.format(
         voice=voice_card(persona),
         paragraphs=paragraphs,
-    )
+        # Deliberately last. See ``safety.voice_reminder`` for why repeating it
+        # is the whole fix: the card at the top is followed by 150 lines of
+        # rules that each name a consequence, and against that a description of
+        # a writing style reads as decoration.
+        voice_reminder=voice_reminder(persona),
+    ).rstrip()
 
 
 def build_user_prompt(
@@ -683,9 +757,12 @@ def build_user_prompt(
             (
                 instruction_for(fenced_research),
                 "Use official_statement summaries and official_document_text only with "
-                "attribution by name, and never as a verified figure — a number that "
-                "appears there and not in VERIFIED FIGURES may not be written. "
-                "For prior_coverage, use only the source and URL as a lead; never "
+                "attribution by name, and never as a verified figure. Quantities and "
+                "directional wording have been removed from every field below and "
+                "replaced with a bracketed marker: where you see one, the newsroom did "
+                "not verify what was there, so do not guess it, describe it or write "
+                "around it. Say what the figures you were given show instead. "
+                "For prior_coverage, use only the source and title as a lead; never "
                 "repeat or paraphrase the outlet's text.",
                 fenced_research.render(),
             )

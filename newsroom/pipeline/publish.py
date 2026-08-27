@@ -138,6 +138,60 @@ class ArticleStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(body)
 
+    def _read_json(self, name: str) -> dict[str, Any] | None:
+        container = self._container_client()
+        if container is not None:
+            try:
+                downloaded = container.download_blob(name).readall()
+                return json.loads(downloaded)
+            except Exception:  # noqa: BLE001 — absent or unreadable is not an error
+                pass
+        local = self._local_dir / name
+        if local.exists():
+            try:
+                return json.loads(local.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
+
+    async def read_json(self, name: str) -> dict[str, Any] | None:
+        """A JSON document written by :meth:`put_json`, or ``None``.
+
+        Never raises for an absent or corrupt document. The only caller is the
+        run report reading its own predecessor to carry a rolling count
+        forward, and a missing history must degrade to "no history" rather than
+        failing the run that was trying to record itself.
+        """
+        return await asyncio.to_thread(self._read_json, name)
+
+    def _put_json(self, name: str, payload: dict[str, Any], cache_control: str) -> str:
+        body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+        self._write_local(name, body)
+        container = self._container_client()
+        if container is not None:
+            try:
+                container.upload_blob(
+                    name=name,
+                    data=body,
+                    overwrite=True,
+                    content_settings=_content_settings(cache_control),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("blob write failed for %s (%s)", name, exc)
+        return name
+
+    async def put_json(
+        self, name: str, payload: dict[str, Any], *, cache_control: str = _INDEX_CACHE_CONTROL
+    ) -> str:
+        """Write an arbitrary JSON document to the articles container.
+
+        Used for operational documents that are not articles — the run report —
+        so they get the same dual local/blob write, the same managed-identity
+        credential and the same failure handling as everything else, rather than
+        a second copy of all three.
+        """
+        return await asyncio.to_thread(self._put_json, name, payload, cache_control)
+
     def _read_published(self, slug: str) -> dict[str, Any] | None:
         """The stored JSON for a published article, or ``None``.
 
@@ -358,6 +412,40 @@ class ArticleStore:
             kept.append(entry)
         return kept
 
+    async def published_slugs(self) -> set[str]:
+        """Slugs already on the front page.
+
+        Used to skip re-deciding a syndicated card the wire has already run. A
+        tier B/C slug is derived from the feed item's own guid, so it is the
+        same on every run the item appears in the feed — which is every run for
+        as long as the outlet keeps it there.
+        """
+        entries = await asyncio.to_thread(self._read_existing_index)
+        return {
+            entry["slug"]
+            for entry in entries
+            if isinstance(entry.get("slug"), str) and entry["slug"]
+        }
+
+    async def published_findings(self) -> set[str]:
+        """Findings already on the front page, for ranking to suppress.
+
+        Read from the index rather than kept in a separate ledger, because the
+        index is already the durable, blob-authoritative record of what this
+        wire has published and a second store would be a second thing to drift.
+
+        Entries written before ``signal_finding`` existed carry none, and are
+        simply absent from the result: an unknown history means nothing is
+        suppressed, which fails towards publishing a duplicate rather than
+        towards silently withholding a story.
+        """
+        entries = await asyncio.to_thread(self._read_existing_index)
+        return {
+            entry["signal_finding"]
+            for entry in entries
+            if isinstance(entry.get("signal_finding"), str) and entry["signal_finding"]
+        }
+
     async def write_index(self, articles: Sequence[Article]) -> str:
         """A compact index of servable articles, for the frontend to fetch.
 
@@ -406,6 +494,13 @@ class ArticleStore:
                 # sharing one signal are two tellings of the same finding, not
                 # two stories, and the index dedupes on it below.
                 "signal_id": (a.provenance or {}).get("signal_id"),
+                # The reading itself — metric, geography, period — which is what
+                # ranking suppresses on next run. Broader than `signal_id` on
+                # purpose: see `rank.finding_key`. Absent on entries written
+                # before this field existed, and those are simply not
+                # suppressed, which fails towards publishing rather than
+                # towards silence.
+                "signal_finding": (a.provenance or {}).get("signal_finding"),
             }
             for a in articles
             if is_servable(a)

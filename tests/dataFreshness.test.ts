@@ -128,3 +128,36 @@ describe('periodCoverage', () => {
     expect(periodCoverage(null, null)).toBeNull();
   });
 });
+
+describe('which bound decides staleness', () => {
+  /**
+   * The banner used to read `dataAsOf`, the *newest* measure. The three
+   * maritime tables are published independently, so one current table could
+   * hold the warning off while another panel sat years behind: the reader
+   * would be looking at frozen figures under a tile that had decided
+   * everything was fine. The oldest bound is the one capable of misleading, so
+   * it is the one that decides whether to warn.
+   */
+  const NOW = Date.parse('2026-08-26T12:00:00Z');
+
+  it('warns when the oldest measure is frozen even though the newest is current', () => {
+    const newest = freshnessOf('2026-Q1', PORT_DATA_STALE_AFTER_MONTHS, NOW);
+    const oldest = freshnessOf('2022-Q4', PORT_DATA_STALE_AFTER_MONTHS, NOW);
+
+    expect(newest?.stale, 'the newest measure alone looks fine').toBe(false);
+    expect(oldest?.stale, 'the oldest is what the reader is being misled by').toBe(true);
+  });
+
+  it('stays quiet when every measure is merely in arrears', () => {
+    // Two quarters behind is normal operation for Eurostat maritime and must
+    // not fire, or the warning becomes wallpaper.
+    expect(freshnessOf('2025-Q4', PORT_DATA_STALE_AFTER_MONTHS, NOW)?.stale).toBe(false);
+  });
+
+  it('pairs with a span so the banner can name both bounds', () => {
+    // Naming only the oldest would be false about the measures that are
+    // current; naming only the newest is what hid the problem.
+    const coverage = periodCoverage('2022-Q4', '2026-Q1');
+    expect(coverage).toEqual({ label: 'Q4 2022 to Q1 2026', spans: true });
+  });
+});

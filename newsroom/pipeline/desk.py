@@ -192,7 +192,29 @@ Judge only these things:
    ("may be attributed to various factors") are worse than saying nothing.
 4. Does it read like a newspaper? Plain, active, specific. No essay scaffolding,
    no journalese, no hedging that survives being deleted.
-5. Did it use the wider context it was given? You are shown the other verified
+5. Is the "why it matters" paragraph a tautology, or a guess? An impact
+   statement that restates the metric's own definition explains nothing:
+     BAD:  "This increase in hourly labour cost affects employers, as it
+            represents the cost of employing labour in the economy."
+     BAD:  "The decline impacts manufacturers, as lower prices mean lower
+            revenue."
+   The test is whether the sentence could have been written WITHOUT KNOWING
+   THE NUMBER: if it could, it is a definition wearing a consequence's
+   clothes.
+
+   BUT DO NOT SPIKE A PIECE FOR IT, AND USUALLY DO NOT SEND IT BACK. This is
+   the most common fault you see and you have been rejecting it at a rate
+   that costs the wire more than the fault does: 24 of your 36 rejections in
+   one three-day window, on articles whose figures were sound. One of them
+   carried cross-country comparison and history and was better than several
+   pieces that ran.
+   A speculative impact paragraph is a CUT, not a rewrite. If it is the only
+   thing wrong with the piece, APPROVE it with the note: "cut the impact
+   paragraph -- it asserts a consequence the data does not establish." The
+   copy desk removes it and what remains is publishable. Reserve "revise" for
+   a fault that changes what the article SAYS, not one that is fixed by
+   deleting a paragraph.
+6. Did it use the wider context it was given? You are shown the other verified
    figures the correspondent had: the same measure in the neighbouring states,
    related measures in the same economy, where the reading sits in its own
    history. Send a piece back when it used NONE of that and simply recited one

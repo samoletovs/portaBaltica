@@ -154,6 +154,61 @@ def voice_card(persona: Persona) -> str:
     return "\n".join(lines)
 
 
+def voice_reminder(persona: Persona) -> str:
+    """The voice card again, as instructions, at the end of the system prompt.
+
+    The voice was never missing. ``voice_card`` renders every field
+    ``personas.yaml`` defines and has done since the personas landed — and five
+    correspondents still wrote indistinguishable prose.
+
+    The reason is placement. The card is a dozen lines at the very top of a
+    system prompt that then spends 150 lines on rules which each name a
+    consequence: this is checked, that is rejected, the article dies for the
+    block that omitted it. Against that, "Patient and long-horizon" reads as
+    decoration. The model is not ignoring the voice; it is correctly inferring
+    which instructions carry weight.
+
+    So the voice is repeated where the weighted instructions are, in their
+    register, at the end where recency works for it rather than against it.
+    Nothing new is asserted — every line here is already in the card above —
+    which is deliberate: this is an emphasis change, not a second source of
+    truth that could drift from ``personas.yaml``.
+
+    Missing fields are skipped rather than rendered empty. A persona with no
+    ``closing_move`` is a thin persona, not a broken pipeline, and a test that
+    builds a prompt from a partial persona must not crash.
+    """
+    voice: Mapping[str, Any] = persona.voice or {}
+
+    directions: list[str] = []
+    for key, label in (
+        ("sentence_rhythm", "RHYTHM"),
+        ("characteristic_move", "CHARACTERISTIC MOVE (use it in the body)"),
+        ("closing_move", "HOW YOU CLOSE (use it in the final paragraph)"),
+    ):
+        value = voice.get(key)
+        if value:
+            directions.append(f"- {label}: {str(value).strip()}")
+
+    avoid = voice.get("avoid") or []
+    if avoid:
+        directions.append("- AVOID: " + "; ".join(str(a) for a in avoid))
+
+    if not directions:
+        return ""
+
+    return "\n".join(
+        [
+            "VOICE REMINDER — re-read the voice description at the top of this prompt.",
+            f"You are {persona.name}, not a generic reporter. Your specific instructions",
+            "are:",
+            *directions,
+            "These are not suggestions. An article that could have been written by any",
+            "other correspondent on the roster has failed its voice brief.",
+        ]
+    )
+
+
 def validate(
     article: Mapping[str, Any],
     *,
@@ -190,4 +245,5 @@ __all__ = [
     "render_byline",
     "validate",
     "voice_card",
+    "voice_reminder",
 ]

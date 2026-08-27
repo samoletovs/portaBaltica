@@ -60,6 +60,15 @@ APPROVALS_CONTAINER = _setting(
     "NEWSROOM_CONTAINER_APPROVALS", "NEWSROOM_APPROVALS_CONTAINER", default="approvals"
 )
 
+# --- Schedule ---------------------------------------------------------------
+# The cron the timer trigger actually binds to. It lived only in a decorator
+# argument in ``function_app.py`` while an app setting of the same name sat in
+# Azure being ignored, so the deployment looked configured for three runs a day
+# and ran once. Read here as well so the run report can state the schedule it
+# believes it is on, and a reader comparing that against the timestamps can see
+# a disagreement rather than having to guess at one.
+SCHEDULE = _setting("NEWSROOM_SCHEDULE", default="0 0 14 * * *")
+
 # Local mirror of the raw archive. Always written; blob is written too when a
 # storage account is configured. Keeping the local copy unconditional means the
 # reproducibility guarantee does not depend on Azure being reachable.

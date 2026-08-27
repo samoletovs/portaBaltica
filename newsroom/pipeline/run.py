@@ -35,8 +35,9 @@ from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
 from newsroom.pipeline.analyst import AnalystBrief, analyse
 from newsroom.pipeline.context import ContextPack, build_context, enrich_signal
 from newsroom.pipeline.detect import Threshold, detect_all
+from newsroom.pipeline.decisions import DecisionLedger
 from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
-from newsroom.pipeline.house_style import check_prose, review_headline
+from newsroom.pipeline import house_style
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
@@ -98,6 +99,8 @@ class RunReport:
     errors: list[str] = field(default_factory=list)
     #: Copy-edits the desk applied, and style problems it could only flag.
     style_notes: list[str] = field(default_factory=list)
+    #: Syndicated cards this run did not re-decide, because they already ran.
+    syndication_skipped: int = 0
     #: One editorial decision per original article. The audit trail for what
     #: the desk approved, sent back, or held.
     desk: list[DeskOutcome] = field(default_factory=list)
@@ -221,26 +224,14 @@ async def collect_feeds(
 def apply_house_style(article: Article) -> list[str]:
     """Copy-edits an article in place. Returns what the desk changed or flagged.
 
-    Corrections are applied; violations are recorded. Nothing here rewrites a
-    figure — `house_style.sentence_case` refuses to touch any token containing
-    a digit, so the validator's traceability guarantee is unaffected.
+    The work itself lives in ``house_style`` so that the generation loop can run
+    the identical check while the writer still has an attempt left. By the time
+    an article reaches here it has usually already been through it once and the
+    corrections are applied; what comes back is what survived, which is exactly
+    what the desk needs to see.
     """
-    notes: list[str] = []
-
-    fixed, violations, corrections = review_headline(article.headline)
-    if fixed != article.headline:
-        article.headline = fixed
-    notes.extend(corrections)
-    notes.extend(violations)
-
-    if article.dek:
-        notes.extend(check_prose(article.dek, where="dek"))
-
-    for index, block in enumerate(article.body or []):
-        if block.text:
-            notes.extend(check_prose(block.text, where=f"body[{index}]"))
-
-    return notes
+    report = house_style.apply_house_style(article)
+    return [*report.corrections, *report.violations]
 
 
 def _revision_for(
@@ -354,7 +345,17 @@ async def run_once(
                 min_score=DEFAULT_RANKING.min_score,
                 max_per_metric=DEFAULT_RANKING.max_per_metric,
             )
-        report.ranking = rank(report.signals, policy)
+        # What this wire has already run. Read before ranking so a repeat is
+        # suppressed before it costs a research pass, an analyst brief, up to
+        # three writer drafts and up to three desk reads. The index has deduped
+        # itself for a while, which fixed the front page and not the bill.
+        try:
+            already_published = await store.published_findings()
+        except Exception as exc:  # noqa: BLE001 — a missing history is not fatal
+            log.warning("could not read published findings (%s); nothing suppressed", exc)
+            already_published = set()
+
+        report.ranking = rank(report.signals, policy, published=already_published)
 
         # --- 4. context -------------------------------------------------
         # Everything else the newsroom retrieved this run that bears on each
@@ -489,12 +490,67 @@ async def run_once(
 
         # --- tier B/C ----------------------------------------------------
         if include_syndication and feed_items:
-            report.syndicated = syndicate(feed_items, raw_descriptions=raw_descriptions)
+            cards = syndicate(feed_items, raw_descriptions=raw_descriptions)
+            # Every card the editor reads costs a model call, and a tier B/C
+            # slug is derived from the feed item's own guid — so it is the same
+            # card, on every run, for as long as the outlet keeps the item in
+            # its feed. A live run built 133 cards of which 113 were already
+            # published: the editor re-decided them all, and at three runs a day
+            # that is by some distance the largest single line in the bill.
+            #
+            # Re-deciding is not merely wasteful, it is unsound. The editor is a
+            # model, so a second read of an identical card can return a
+            # different verdict, and a loop that keeps asking until the answer
+            # changes is exactly the shape this pipeline refuses everywhere
+            # else. A card that already ran has been decided.
+            try:
+                live = await store.published_slugs()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("could not read published slugs (%s); editing all cards", exc)
+                live = set()
+            # And the refusals. A card the editor rejected never reaches the
+            # index, so `live` cannot see it and it was re-read on every run —
+            # 103 of 111 tier C rejections in one window were Azure
+            # content-filter refusals on Ukraine and Russia coverage, 59 unique
+            # headlines, re-sent three times a day to be refused again.
+            #
+            # Remembered rather than filtered by topic. A Baltic wire that
+            # quietly drops military stories has an editorial problem, not a
+            # cost one; remembering that THIS CARD was refused leaves the next
+            # story from the same outlet to be read on its merits.
+            ledger = DecisionLedger(store)
+            try:
+                refused = await ledger.refused_slugs()
+            except Exception as exc:  # noqa: BLE001
+                log.warning("could not read the decision ledger (%s)", exc)
+                refused = set()
+            decided = live | refused
+            report.syndicated = [card for card in cards if card.slug not in decided]
+            report.syndication_skipped = len(cards) - len(report.syndicated)
+            if report.syndication_skipped:
+                log.info(
+                    "syndication: %d card(s) already decided (%d published, "
+                    "%d previously refused), %d to decide",
+                    report.syndication_skipped,
+                    len(live),
+                    len(refused),
+                    len(report.syndicated),
+                )
             try:
                 report.edited = edit_syndicated_articles(report.syndicated, writer)
             except Exception as exc:  # noqa: BLE001
                 log.exception("editor stage failed")
                 report.errors.append(f"editor: {exc}")
+            else:
+                # Record only what cannot change. See `decisions.py`.
+                by_id = {card.id: card for card in report.syndicated}
+                try:
+                    await ledger.remember(
+                        (getattr(by_id.get(outcome.article_id), "slug", ""), outcome)
+                        for outcome in report.edited
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("could not update the decision ledger (%s)", exc)
 
         # --- 11. publish ---------------------------------------------------
         await _store_all(store, report)

@@ -45,6 +45,7 @@ const CHECK_LABELS: Record<ValidatorCheckName, string> = {
   no_lived_experience_claims: 'No claim of an interview, a visit or a witnessed event',
   attribution_present: 'Required attribution is present',
   comparison_basis_stated: 'Every change states what it is measured against',
+  no_repeated_findings: 'No paragraph restates a figure another has already made',
 };
 
 function formatTimestamp(value: string | undefined): string {

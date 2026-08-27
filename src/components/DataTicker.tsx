@@ -1,10 +1,43 @@
 import { useState, useEffect } from 'react';
 import { useCountry } from '../CountryContext';
+import { changeDescription, sentimentColor, sentimentOf } from '../utils/polarity';
 
 interface TickerItem {
   label: string;
   value: string;
+  /** The indicator id `polarity.ts` knows this series by, where we know it. */
+  indicator?: string;
+  /** The API's preformatted delta, e.g. "+0.3pp". */
   change?: string;
+}
+
+/**
+ * The economy endpoint labels its four indicators for display and does not
+ * send an id, so the ticker maps the labels it publishes back onto the ids
+ * `polarity.ts` reasons about. A label it does not recognise simply gets no
+ * colour, which is the safe direction to fail in: an unknown series is drawn
+ * neutral rather than confidently miscoloured.
+ */
+const INDICATOR_BY_LABEL: Record<string, string> = {
+  'GDP Growth': 'gdp',
+  'Avg Salary': 'salary',
+  'CPI Inflation': 'cpi',
+  Unemployment: 'unemployment',
+};
+
+/** The signed magnitude inside a preformatted delta like "+0.3pp" or "-1.2%". */
+function magnitudeOf(change: string): number | null {
+  const parsed = Number.parseFloat(change.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * A delta as the rest of the site writes one: a real minus sign rather than a
+ * hyphen, which is narrower than a digit and breaks column alignment even in a
+ * tabular face (DESIGN.md §3.7).
+ */
+function withRealMinus(change: string): string {
+  return change.replace(/^-/, '\u2212');
 }
 
 export function DataTicker() {
@@ -37,18 +70,17 @@ export function DataTicker() {
           tickers.push({
             label: ind.label,
             value: ind.value,
+            indicator: INDICATOR_BY_LABEL[ind.label],
             change: ind.change,
           });
         });
 
-        // Registry counts — omitted entirely when the portal could not answer,
-        // rather than scrolling past as a fabricated zero.
-        if (typeof d.businessPulse?.activeVatPayers === 'number') {
-          tickers.push({ label: 'VAT businesses', value: d.businessPulse.activeVatPayers.toLocaleString() });
-        }
-        if (typeof d.businessPulse?.suspendedBusinesses === 'number') {
-          tickers.push({ label: 'Suspended', value: d.businessPulse.suspendedBusinesses.toLocaleString() });
-        }
+        // The registry counts used to scroll past here — "VAT businesses
+        // 84,748", "Suspended 3,693" — with no unit, no direction and no
+        // comparison. A ticker is for things that move, and those two are
+        // steady-state totals that have been the same order of magnitude for
+        // years. They are still on the Economy tile, in context and beside
+        // their source, which is where a number without a delta belongs.
 
         setItems(tickers);
       })
@@ -64,25 +96,45 @@ export function DataTicker() {
        its source, in the tiles below. So it is hidden from assistive
        technology entirely rather than announced once. */
     <div
-      className="overflow-hidden"
+      className="overflow-hidden edge-fade-x"
       style={{ borderBottom: '1px solid var(--border-card)' }}
       aria-hidden="true"
     >
       <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
-          {[...items, ...items].map((item, i) => (
-            <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0">
-              <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
-              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{item.value}</span>
-              {/* The delta carries its own sign, and the ticker cannot know
-                  whether a rise in an arbitrary indicator is good news, so it
-                  does not pretend to. It used to colour every `+` green — in a
-                  light-theme green, on a dark background. See DESIGN.md §3.5. */}
-              {item.change && (
-                <span style={{ color: 'var(--text-secondary)' }}>{item.change}</span>
-              )}
-              <span style={{ color: 'var(--border-card)' }}>·</span>
-            </span>
-          ))}
+          {[...items, ...items].map((item, i) => {
+            // Direction is meaning, not arithmetic. The ticker used to render
+            // every delta in flat grey because it could not tell whether a
+            // rise was good news — true when it was written, and untrue since
+            // `polarity.ts` arrived: the indicator cards have read direction
+            // by meaning for some time and the ticker was simply never given
+            // the same treatment. It flips on the `lower-better` series, so
+            // rising inflation is red and falling unemployment is green.
+            //
+            // The colour is the third encoding and never the first. The arrow
+            // and the sign carry the direction on their own, which matters
+            // because our green and red sit ΔE 8 apart under a deuteranopia
+            // simulation — indistinguishable for roughly 8% of men.
+            const magnitude = item.change ? magnitudeOf(item.change) : null;
+            const sentiment = item.indicator ? sentimentOf(item.indicator, magnitude) : 'none';
+            return (
+              <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0">
+                <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
+                <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{item.value}</span>
+                {item.change && (
+                  <span style={{ color: sentimentColor(sentiment) }}>
+                    {magnitude !== null && magnitude !== 0 && (
+                      <span>{magnitude > 0 ? '▲' : '▼'}</span>
+                    )}
+                    {withRealMinus(item.change)}
+                    {item.indicator && (
+                      <span className="sr-only"> {changeDescription(item.indicator, magnitude)}</span>
+                    )}
+                  </span>
+                )}
+                <span style={{ color: 'var(--border-card)' }}>·</span>
+              </span>
+            );
+          })}
       </div>
     </div>
   );
