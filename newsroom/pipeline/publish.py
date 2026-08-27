@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from newsroom.pipeline import config
+from newsroom.pipeline.ids import slug_problem
 from newsroom.pipeline.models import Article, isoformat, utcnow
 
 log = logging.getLogger(__name__)
@@ -136,6 +137,13 @@ class ArticleStore:
             raise NotServable(
                 f"{article.id} is marked published without a passing validator verdict"
             )
+        # The schema has declared this pattern since the first commit and
+        # nothing ever checked it, so the store is where the check goes: an
+        # article whose own URL the frontend will refuse must not reach the
+        # container at all.
+        problem = slug_problem(article.slug)
+        if problem is not None:
+            raise NotServable(f"{article.id}: {problem}")
         name = self.blob_name_for(article)
         body = json.dumps(article.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
         await asyncio.to_thread(self._write_local, name, body)
@@ -576,7 +584,11 @@ class ArticleStore:
         by_slug: dict[str, dict[str, Any]] = {}
         for entry in await asyncio.to_thread(self._read_existing_index):
             slug = entry.get("slug")
-            if isinstance(slug, str) and slug:
+            # Entries written before the slug was checked. They are still on
+            # disk and still reachable by anyone holding the URL, but listing
+            # them here advertises them in the feed and the sitemap, and the
+            # frontend's own gate answers "Article not found".
+            if isinstance(slug, str) and slug and slug_problem(slug) is None:
                 by_slug[slug] = entry
         for entry in fresh:  # this run wins on a slug collision
             by_slug[entry["slug"]] = entry
