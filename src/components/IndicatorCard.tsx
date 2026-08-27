@@ -9,6 +9,7 @@ import { fetchBalticCompare } from '../api';
 import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
 import { changeDescription, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
+import { list } from '../utils/payload';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -194,10 +195,10 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     );
   }
 
-  if (!data || data.series.length === 0) return null;
+  if (!data || list(data.series).length === 0) return null;
 
   const { summary } = data;
-  const chartData = data.series.filter((p) => p.value !== null).slice(-20);
+  const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null).slice(-20);
   const isRise = summary.change !== null && summary.change > 0;
   const sentiment = sentimentOf(id, summary.change);
   const changeColor = sentimentColor(sentiment);
@@ -435,7 +436,7 @@ export function IndicatorChart({
   if (loading) {
     return <div className="h-64 bg-slate-900/50 rounded-xl animate-pulse" />;
   }
-  if (!data || data.series.length === 0) {
+  if (!data || list(data.series).length === 0) {
     // Callers that have something better to show than an apology pass a
     // fallback. Under an article that is the three-country Eurostat series:
     // an empty panel captioned "Live data" tells the reader nothing, and the
@@ -450,7 +451,7 @@ export function IndicatorChart({
     );
   }
 
-  const chartData = data.series.filter((p) => p.value !== null);
+  const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null);
   const { summary } = data;
   const sentiment = sentimentOf(id, summary.change);
   const color =

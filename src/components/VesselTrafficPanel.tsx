@@ -1,5 +1,6 @@
 import type { PortMeasure } from '../types';
 import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
+import { list } from '../utils/payload';
 
 /**
  * Vessels arriving in each main port, per quarter.
@@ -14,7 +15,7 @@ import { PanelEmpty, PanelShell, MeasureHeadline, PortBars, PanelNote, DormantPo
 export function VesselTrafficPanel({ measure }: { measure: PortMeasure }) {
   const title = 'Vessel Arrivals';
 
-  if (measure.ports.length === 0 || !measure.latest) {
+  if (list(measure?.ports).length === 0 || !measure?.latest) {
     return <PanelEmpty title={title} reason="No vessel traffic reported for these ports." />;
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCountry } from '../CountryContext';
 import { changeDescription, sentimentColor, sentimentOf } from '../utils/polarity';
+import { finite, list } from '../utils/payload';
 
 interface TickerItem {
   label: string;
@@ -52,28 +53,32 @@ export function DataTicker() {
         if (!d) return;
         const tickers: TickerItem[] = [];
 
-        // Electricity
-        tickers.push({
-          label: 'Electricity',
-          value: `€${d.electricityCurrent.toFixed(2)}/MWh`,
-        });
+        // One absent field used to cost the whole ticker. `electricityCurrent`
+        // was read as `d.electricityCurrent.toFixed(2)` inside this `.then`,
+        // so a payload without it threw, the `.catch` below swallowed the
+        // throw, and every *other* item — the rates, the four indicators —
+        // was silently dropped with it. The ticker did not look broken; it
+        // looked like there was no data.
+        const electricity = finite(d.electricityCurrent);
+        if (electricity !== null) {
+          tickers.push({ label: 'Electricity', value: `€${electricity.toFixed(2)}/MWh` });
+        }
 
         // Top exchange rates
-        if (d.exchangeRates?.length > 0) {
-          d.exchangeRates.slice(0, 4).forEach((r: { currency: string; rate: number }) => {
-            tickers.push({ label: `EUR/${r.currency}`, value: r.rate.toFixed(4) });
-          });
+        for (const r of list<{ currency: string; rate: unknown }>(d.exchangeRates).slice(0, 4)) {
+          const rate = finite(r.rate);
+          if (rate !== null) tickers.push({ label: `EUR/${r.currency}`, value: rate.toFixed(4) });
         }
 
         // Indicators
-        d.indicators?.forEach((ind: { label: string; value: string; change?: string }) => {
+        for (const ind of list<{ label: string; value: string; change?: string }>(d.indicators)) {
           tickers.push({
             label: ind.label,
             value: ind.value,
             indicator: INDICATOR_BY_LABEL[ind.label],
             change: ind.change,
           });
-        });
+        }
 
         // The registry counts used to scroll past here — "VAT businesses
         // 84,748", "Suspended 3,693" — with no unit, no direction and no

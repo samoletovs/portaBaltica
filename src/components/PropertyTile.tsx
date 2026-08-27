@@ -2,6 +2,7 @@ import type { PropertyData } from '../types';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
 import { TileHeader } from './TileHeader';
+import { finite, list } from '../utils/payload';
 
 interface PropertyTileProps {
   data: PropertyData | null;
@@ -13,8 +14,15 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
   if (loading) return <TileSkeleton />;
   if (!data) return null;
 
-  const maxPermits = Math.max(...data.constructionPermits.map((p) => p.count), 1);
-  const maxCerts = Math.max(...data.energyCerts.map((c) => c.count), 1);
+  // `!data` above checks that something arrived, not that it has these two
+  // arrays. A 404-shaped response from data.gov.lv resolves fine and has
+  // neither, and `.map` on `undefined` threw in the render path.
+  const permits = list<{ municipality: string; count: number }>(data.constructionPermits);
+  const certs = list<{ rating: string; count: number }>(data.energyCerts);
+  const maxPermits = Math.max(...permits.map((p) => p.count), 1);
+  const maxCerts = Math.max(...certs.map((c) => c.count), 1);
+  const totalPermits = finite(data.totalPermits);
+  const totalCerts = finite(data.totalCerts);
 
   return (
     <section>
@@ -30,10 +38,10 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-caption text-slate-400">Construction Permits</p>
-            <p className="text-lead font-semibold text-white font-mono">{data.totalPermits.toLocaleString()}</p>
+            <p className="text-lead font-semibold text-white font-mono">{totalPermits === null ? '—' : totalPermits.toLocaleString()}</p>
           </div>
           <div className="space-y-2">
-            {data.constructionPermits.slice(0, 8).map((p) => (
+            {permits.slice(0, 8).map((p) => (
               <div key={p.municipality}>
                 <div className="flex items-center justify-between text-caption mb-0.5">
                   <span className="text-slate-200 truncate max-w-[60%]">{p.municipality}</span>
@@ -55,11 +63,11 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6">
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-caption text-slate-400">Building Energy Profile</p>
-            <p className="text-lead font-semibold text-white font-mono">{data.totalCerts.toLocaleString()}</p>
+            <p className="text-lead font-semibold text-white font-mono">{totalCerts === null ? '—' : totalCerts.toLocaleString()}</p>
           </div>
-          {data.energyCerts.length > 0 ? (
+          {certs.length > 0 ? (
             <div className="space-y-2">
-              {data.energyCerts.map((cert) => (
+              {certs.map((cert) => (
                 <div key={cert.rating}>
                   <div className="flex items-center justify-between text-caption mb-0.5">
                     <span className="text-slate-200 truncate max-w-[65%]">{cert.rating}</span>

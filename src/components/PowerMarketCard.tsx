@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
-import { fetchPowerPrices, type PowerPriceData } from '../api';
+import { fetchPowerPrices, type PowerPriceData, type PowerPricePoint, type PowerPriceZone } from '../api';
 import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
+import { list } from '../utils/payload';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
  *  as the country is on every comparison chart. */
@@ -58,7 +59,7 @@ export function PowerMarketCard() {
     );
   }
 
-  if (!data || data.series.length === 0) {
+  if (!data || list(data.series).length === 0) {
     return (
       <div className="rounded-xl p-4 flex items-center justify-center h-64" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Power market data unavailable</p>
@@ -71,7 +72,7 @@ export function PowerMarketCard() {
     ? Math.round((data.decoupledIntervals / data.totalIntervals) * 100)
     : 0;
 
-  const chartData = data.series.map((p) => ({ ...p, label: formatHour(p.time) }));
+  const chartData = list<PowerPricePoint>(data.series).map((p) => ({ ...p, label: formatHour(p.time) }));
   const zoneColor = (id: string) => chartColors.series[ZONE_SERIES[id as keyof typeof ZONE_SERIES]];
 
   // The window is two days on purpose — "day-ahead" means tomorrow — but
@@ -105,7 +106,7 @@ export function PowerMarketCard() {
       </div>
 
       <div className="grid grid-cols-4 gap-2 mb-3">
-        {data.zones.map((z) => (
+        {list<PowerPriceZone>(data.zones).map((z) => (
           <div key={z.id} className="text-center">
             <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{z.flag} {z.label}</p>
             <p className="text-ui font-mono font-semibold" style={{ color: zoneColor(z.id) }}>
@@ -146,7 +147,7 @@ export function PowerMarketCard() {
               contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
               labelStyle={{ color: chartColors.axis }}
               formatter={(v, name) => {
-                const zone = data.zones.find((z) => z.id === name);
+                const zone = list<PowerPriceZone>(data.zones).find((z) => z.id === name);
                 return [v === null ? '—' : `€${(v as number).toFixed(2)}`, zone?.label ?? String(name)];
               }}
             />

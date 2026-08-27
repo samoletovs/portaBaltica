@@ -4,6 +4,7 @@ import { IndicatorCard } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
 import { IndicatorTable } from './IndicatorTable';
 import { TileHeader } from './TileHeader';
+import { finite, fixed, list } from '../utils/payload';
 import { useTheme } from '../ThemeContext';
 
 import { useCountry } from '../CountryContext';
@@ -46,11 +47,11 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest">Electricity</p>
             {data && (
               <p className="text-lead font-semibold text-white font-mono">
-                €{data.electricityCurrent.toFixed(2)}<span className="text-caption font-normal text-slate-500 ml-1">/MWh</span>
+                €{fixed(data.electricityCurrent, 2)}<span className="text-caption font-normal text-slate-500 ml-1">/MWh</span>
               </p>
             )}
           </div>
-          {data && data.electricityPrices.length > 0 ? (() => {
+          {data && list(data.electricityPrices).length > 0 ? (() => {
             // The day this chart shows and the hours it labels have to be the
             // same day.
             //
@@ -69,8 +70,8 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             const hourIn = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: timezone });
             const dayIn = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: timezone });
             const today = dayIn.format(new Date());
-            const todayPrices = data.electricityPrices.filter((p) => dayIn.format(new Date(p.timestamp)) === today);
-            const prices = todayPrices.length > 0 ? todayPrices : data.electricityPrices.slice(0, 24);
+            const todayPrices = list<{ timestamp: string; price: number }>(data.electricityPrices).filter((p) => dayIn.format(new Date(p.timestamp)) === today);
+            const prices = todayPrices.length > 0 ? todayPrices : list<{ timestamp: string; price: number }>(data.electricityPrices).slice(0, 24);
             const minPrice = Math.min(...prices.map((p) => p.price));
             const maxPrice = Math.max(...prices.map((p) => p.price));
 
@@ -116,13 +117,13 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
           <p className="text-caption text-slate-400 font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
           {data ? (
             <div className="space-y-1">
-              {data.exchangeRates.map((rate) => (
+              {list<{ currency: string; name: string; rate: number }>(data.exchangeRates).map((rate) => (
                 <div key={rate.currency} className="flex items-center justify-between py-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-ui text-slate-300">EUR/{rate.currency}</span>
                     <span className="text-caption text-slate-500">{rate.name}</span>
                   </div>
-                  <span className="text-ui font-mono text-white">{rate.rate.toFixed(4)}</span>
+                  <span className="text-ui font-mono text-white">{fixed(rate.rate, 4)}</span>
                 </div>
               ))}
             </div>
@@ -142,12 +143,12 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             <StatCard
               label="VAT-registered businesses"
               hint="Currently active payers in the VID VAT register"
-              value={data.businessPulse.activeVatPayers}
+              value={finite(data.businessPulse?.activeVatPayers)}
             />
             <StatCard
               label="Suspended activities"
               hint="Businesses barred by VID from trading: suspension decided, never lifted, and not yet expired"
-              value={data.businessPulse.suspendedBusinesses}
+              value={finite(data.businessPulse?.suspendedBusinesses)}
             />
           </div>
           <p className="text-caption text-slate-600 mt-2">
