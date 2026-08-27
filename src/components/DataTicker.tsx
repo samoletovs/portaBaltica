@@ -41,6 +41,29 @@ function withRealMinus(change: string): string {
   return change.replace(/^-/, '\u2212');
 }
 
+/**
+ * Build ticker items from a list, letting each entry fail on its own.
+ *
+ * The guard is here, at the boundary, rather than repeated at every read
+ * inside every builder — which is the same conclusion the other sessions
+ * reached with `withSecurity` and `valueAt` on the same day.
+ *
+ * `list()` validates the *container* and casts the *contents*, so an array
+ * carrying a `null` reaches the builder and `entry.label` throws. Wrapping the
+ * whole loop would still cost every later entry; wrapping each entry costs
+ * exactly the one that could not be read.
+ */
+function tickerItems<T>(source: T[], build: (entry: T) => TickerItem | null): TickerItem[] {
+  return source.flatMap((entry) => {
+    try {
+      const item = build(entry);
+      return item ? [item] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function DataTicker() {
   const [items, setItems] = useState<TickerItem[]>([]);
   const { country } = useCountry();
@@ -51,7 +74,6 @@ export function DataTicker() {
       .then((r) => r.ok ? r.json() : null)
       .then((d) => {
         if (!d) return;
-        const tickers: TickerItem[] = [];
 
         // One absent field used to cost the whole ticker. `electricityCurrent`
         // was read as `d.electricityCurrent.toFixed(2)` inside this `.then`,
@@ -59,26 +81,43 @@ export function DataTicker() {
         // throw, and every *other* item — the rates, the four indicators —
         // was silently dropped with it. The ticker did not look broken; it
         // looked like there was no data.
-        const electricity = finite(d.electricityCurrent);
-        if (electricity !== null) {
-          tickers.push({ label: 'Electricity', value: `€${electricity.toFixed(2)}/MWh` });
-        }
-
-        // Top exchange rates
-        for (const r of list<{ currency: string; rate: unknown }>(d.exchangeRates).slice(0, 4)) {
-          const rate = finite(r.rate);
-          if (rate !== null) tickers.push({ label: `EUR/${r.currency}`, value: rate.toFixed(4) });
-        }
-
-        // Indicators
-        for (const ind of list<{ label: string; value: string; change?: string }>(d.indicators)) {
-          tickers.push({
-            label: ind.label,
-            value: ind.value,
-            indicator: INDICATOR_BY_LABEL[ind.label],
-            change: ind.change,
-          });
-        }
+        //
+        // #100 fixed those reads with `finite()` and `list()`. It did not
+        // change the **scope**, and the scope is the defect: this one `.then`
+        // still builds three independent things behind one `.catch`, so the
+        // next unguarded read has the same blast radius. Measured, it still
+        // did — a single `null` inside `d.indicators` emptied the entire
+        // ticker, rates included.
+        //
+        // So the unit of failure is now the **item**. An entry that cannot be
+        // read costs that entry and nothing else, which is what "independent"
+        // meant all along. `Header` and `DataTicker` render above every route
+        // including the newsroom (DESIGN.md §3.9), so this chain's blast
+        // radius is the whole site.
+        setItems([
+          ...tickerItems<unknown>([d.electricityCurrent], (value) => {
+            const electricity = finite(value);
+            return electricity === null
+              ? null
+              : { label: 'Electricity', value: `€${electricity.toFixed(2)}/MWh` };
+          }),
+          ...tickerItems<{ currency: string; rate: unknown }>(
+            list<{ currency: string; rate: unknown }>(d.exchangeRates).slice(0, 4),
+            (r) => {
+              const rate = finite(r.rate);
+              return rate === null ? null : { label: `EUR/${r.currency}`, value: rate.toFixed(4) };
+            },
+          ),
+          ...tickerItems<{ label: string; value: string; change?: string }>(
+            list<{ label: string; value: string; change?: string }>(d.indicators),
+            (ind) => ({
+              label: ind.label,
+              value: ind.value,
+              indicator: INDICATOR_BY_LABEL[ind.label],
+              change: ind.change,
+            }),
+          ),
+        ]);
 
         // The registry counts used to scroll past here — "VAT businesses
         // 84,748", "Suspended 3,693" — with no unit, no direction and no
@@ -86,8 +125,6 @@ export function DataTicker() {
         // steady-state totals that have been the same order of magnitude for
         // years. They are still on the Economy tile, in context and beside
         // their source, which is where a number without a delta belongs.
-
-        setItems(tickers);
       })
       .catch(() => {});
   }, [country]);

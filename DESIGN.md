@@ -780,6 +780,54 @@ permanently — and deepen the colonisation described in §7.4. The dashboard's
 own section rail costs 44px and appears only where there is something to
 navigate.
 
+### 3.10 A handler's scope is part of its correctness
+
+A `try`/`catch` or a `.catch` is not judged only by whether it handles the
+error. It is judged by **how much it discards** — and a handler that is
+correct in itself can be wrong in what it spans.
+
+`DataTicker` fetched one payload and built three independent things from it in
+a single `.then`: the electricity price, four exchange rates, and the
+indicators. One unguarded read threw, the chain's single `.catch` swallowed
+it, and all three went. The ticker never looked broken; it looked like there
+was no data, which is why it went unreported for so long even though it sits
+above every route.
+
+**Fixing the reads is not fixing the scope.** #100 replaced those reads with
+`finite()` and `list()`, and the ticker still emptied completely when a single
+`null` appeared inside `d.indicators` — because `list()` validates the
+container and casts the contents, so the *next* unguarded read had the same
+blast radius as the last one. Measured, not assumed: with one bad indicator the
+rendered ticker was the empty string.
+
+So the unit of failure has to be the smallest independent thing. An entry that
+cannot be read costs that entry:
+
+```ts
+source.flatMap((entry) => {
+  try { const item = build(entry); return item ? [item] : []; }
+  catch { return []; }
+});
+```
+
+Guard once at the boundary, not n times at each read inside the builder.
+
+**Rank by blast radius, and check the coupling is not real before splitting
+it.** A shared denominator poisons every row where a per-row one loses a
+single bar (§3.8), and the same ordering applies here: a chain in `SiteLayout`
+costs every route, one in a tile costs a tile. But `FreightModalSplit`
+legitimately couples two fetches — a modal split computed from one mode is not
+a partial answer, it is a wrong one — so a single `.catch` over the pair is
+correct there and must not be "fixed". `App` and `IndicatorTable` already
+attach a `.catch` to each call *before* `Promise.all` sees it, which is the
+shape to copy.
+
+One coupling is recorded and not fixed: `fetchAllWeather` uses `allSettled`
+between ports but `Promise.all([marine, weather])` *within* one, so a port
+whose air-temperature request fails loses its wave height too. Repairing it
+means making `weather` optional on `PortCard`, which belongs to the maritime
+work rather than here.
+
 ---
 
 ## 4. Editorial layout
