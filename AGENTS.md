@@ -1124,7 +1124,7 @@ That is the row's saving grace: an absurd reading defends itself. A plausible
 one does not, which is why the middle row is the dangerous one and needs a
 mechanical check rather than an instinct.
 
-## Before reporting a regression, confirm which tree you measured
+## State the SHA you measured, not the branch
 
 The rule above fires on an empty reading. **The failure it does not catch
 produces a perfectly plausible one**, and that is the more dangerous case,
@@ -1140,36 +1140,51 @@ LAZY CHUNK 404   document requests: 1     <- no reload
                  while a LINK carries href, so the case is filtered out
 ```
 
-Every word of that is true — of `index.html` as it stood **51 commits earlier**.
-It is a verbatim description of the code *before* `#174`, which is the PR that
-added the `LINK` + `rel="modulepreload"` branch precisely because a lazy chunk
-never dispatches `unhandledrejection`. Master recovers; the session's own
-worktree did not.
-
-Everything downstream of the mistake was excellent. Real browser, real build,
-a corroborating signal, and it caught a defect in its *own* first instrument —
-`load` cannot count reloads when the bundle 404s, because such a page never
-reaches `load`. **A rigorous instrument pointed at the wrong tree yields a
-confident, well-evidenced, false regression**, which survives review in a way a
-sloppy one does not.
-
-This is the deploy-window trap one layer down. That rule says a green deploy
-job means the package uploaded, not that the app serves it. This is the same
-error against a *local* tree, and **in a parallel-session programme a stale
-branch is the default state, not the exception** — that branch merged at 12:12
-and the work continued around it for another ten hours.
-
-So before reporting that something is broken, run the ten-second check neither
-party ran:
+Every word of that was true, of the commit it was measured on. Master then
+recovered, the message describing the earlier tree arrived after, and the
+manager read a live regression into it:
 
 ```
-git rev-list --count HEAD..origin/master     # how far behind am I?
-git log --oneline -1 -- <the file you measured>
+b5fb6ad  then-current master, 20:55   tagName === 'LINK': 0     <- measured here
+a142621  #174, merged 21:16           tagName === 'LINK': 1
+         re-measured 21:18            lazy chunk: 1 -> 2 requests, RELOADED
 ```
 
-And prefer measuring a checkout of `origin/master` over your own worktree
-whenever the claim is about what production does. The claim is about master; so
-must the measurement be.
+**Neither party was measuring the wrong tree.** The session measured master
+correctly, twice, and reported both. What failed was the *handoff*: a finding
+that says "the lazy case does not recover" is true only of a commit, and the
+commit was not in the message.
+
+The manager's diagnosis — that the session had used a 51-commit-stale worktree —
+was **wrong, and unfalsifiable from the evidence he had.** That branch lacked
+the `LINK` handler, and so did then-current master; **the two hypotheses produce
+the identical observation.** He picked one and wrote it into this file as a
+worked example, three sections after writing that an example in guidance is a
+claim about behaviour and must be executed. The session checked its reflog and
+sent it back.
+
+So the fix is not a check on your own tree, which here would have printed `0`
+and changed nothing. It is one line in the report:
+
+```
+measured on b5fb6ad          # not "on master", which means something else by
+                             # the time anyone reads it
+```
+
+**A branch name is a moving reference; a SHA is a claim that stays true.** In a
+programme where several sessions merge into one branch through an afternoon,
+every message describing "master" describes a different tree from the one its
+reader will check, and the gap is invisible from both ends.
+
+Two things survive from the wrong diagnosis, because they are true independently
+of it. **A rigorous instrument produces a confident, well-evidenced conclusion,
+which survives review in a way a sloppy one does not** — that session's work was
+excellent throughout, including catching a defect in its own first instrument
+(`load` cannot count reloads when the bundle 404s, because such a page never
+reaches `load`). And a plausible reading like `document requests: 1` never
+triggers *print the shape*, because nothing about it looks absent. That
+limitation on the rule above is real; it just was not what happened here.
+
 
 ## Write an exemption as an assertion, not a filter
 
