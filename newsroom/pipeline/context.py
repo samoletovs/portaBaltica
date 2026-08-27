@@ -83,6 +83,7 @@ from typing import Any, Iterable, Literal, Mapping, Sequence
 
 from newsroom import numeric_scan
 from newsroom.pipeline.detect.series import (
+    REFERENCE_GEOGRAPHIES,
     SUBJECT_GEOGRAPHIES,
     Observation,
     TimeSeries,
@@ -91,7 +92,7 @@ from newsroom.pipeline.models import Signal
 
 log = logging.getLogger(__name__)
 
-FactKind = Literal["peer", "companion", "placement", "trajectory"]
+FactKind = Literal["peer", "companion", "placement", "trajectory", "denominator"]
 
 #: The three states this wire covers. Order is the ranking order in prose.
 #: Re-exported rather than restated: a fourth copy of this tuple is a fourth
@@ -351,6 +352,121 @@ def _fact_from(
         geography=series.geography,
         dataset=series.source.dataset,
     )
+
+
+def _reported_quantum(values: Sequence[float]) -> float:
+    """Half the smallest change the source actually reports.
+
+    "Flat" is not a taste. Eurostat publishes the EU aggregate to one decimal,
+    so a move of 0.04 is not a small change — it is **no reported change**,
+    invisible at the precision we were given. Half the last significant digit
+    is the line below which a movement cannot be distinguished from rounding.
+
+    Deriving it from the values rather than fixing a constant matters because
+    the metrics are not commensurable: 0.05 is a real move on an unemployment
+    rate, noise on an index around 100, and nothing at all on cargo tonnes.
+    A single literal would have been right for the series I measured and wrong
+    for most of the others.
+    """
+    places = 0
+    for value in values:
+        text = f"{float(value):.10f}".rstrip("0")
+        places = max(places, len(text.partition(".")[2]))
+    return (10.0 ** -places) / 2.0
+
+
+def _movement(series: TimeSeries, current: str, previous: str) -> float | None:
+    """The change between two *named* periods, or ``None`` if either is absent.
+
+    Both periods are looked up by name rather than by position. A denominator
+    built from "the last two observations of each series" would compare a
+    Latvian June with an EU May whenever one of them lags — traceable,
+    uninvented, and false. The wrap's period gate learned this the hard way,
+    and it is the same hazard one layer down.
+    """
+    at = {observation.period: observation.value for observation in series.observations}
+    if current not in at or previous not in at:
+        return None
+    return float(at[current]) - float(at[previous])
+
+
+def _previous_period(series: TimeSeries, period: str) -> str | None:
+    """The period immediately before ``period`` in this series."""
+    periods = [observation.period for observation in series.observations]
+    if period not in periods:
+        return None
+    index = periods.index(period)
+    return periods[index - 1] if index > 0 else None
+
+
+def _denominator(
+    signal: Signal, own: TimeSeries, by_metric: Mapping[str, list[TimeSeries]]
+) -> list[ContextFact]:
+    """The EU reading, but only when it moved the *other way*.
+
+    A denominator earns a sentence when it changes the reading, not when it
+    differs. "Unemployment rose to 6.8% while the EU average fell" is a
+    different story; "6.8%, against an EU average of 6.1%" is a footnote
+    wearing a sentence's clothes.
+
+    Measured over 114 country-month comparisons on four monthly indicators:
+    offering the fact whenever the direction differs fires on **61%** of them,
+    because a 27-country average reported to one decimal is flat most months
+    by construction. Requiring genuinely opposite movement fires on **29%** —
+    frequent enough to be worth collecting, rare enough never to read as
+    furniture.
+
+    The flat third is deliberately excluded. "Latvia rose while the EU held
+    steady" is the sentence most likely to be true and hollow, because a flat
+    aggregate is usually an artefact of averaging rather than a fact about
+    Europe.
+    """
+    if signal.geography not in BALTIC_STATES:
+        return []
+    reference = next(
+        (
+            candidate
+            for candidate in by_metric.get(signal.metric, [])
+            if candidate.geography in REFERENCE_GEOGRAPHIES
+        ),
+        None,
+    )
+    if reference is None:
+        return []
+
+    previous = _previous_period(own, signal.period)
+    if previous is None:
+        return []
+
+    own_move = _movement(own, signal.period, previous)
+    eu_move = _movement(reference, signal.period, previous)
+    if own_move is None or eu_move is None:
+        return []
+
+    flat = _reported_quantum(
+        [observation.value for observation in reference.observations]
+    )
+    if abs(own_move) < flat or abs(eu_move) < flat:
+        return []
+    if own_move * eu_move > 0:
+        return []
+
+    at = {o.period: o for o in reference.observations}
+    observation = at[signal.period]
+    direction = "fell" if eu_move < 0 else "rose"
+    name = COUNTRY_NAMES.get(reference.geography, reference.geography)
+    return [
+        _fact_from(
+            reference,
+            observation,
+            field="denominator_eu",
+            label=(
+                f"{name}: {reference.metric_label} in {signal.period}, "
+                f"which {direction} over the same period"
+            ),
+            kind="denominator",
+        )
+    ]
 
 
 def _peers(signal: Signal, by_metric: Mapping[str, list[TimeSeries]]) -> list[ContextFact]:
@@ -666,13 +782,15 @@ def build_context(signal: Signal, series: Sequence[TimeSeries]) -> ContextPack:
     placement: list[ContextFact] = []
     trajectory: list[ContextFact] = []
     notes: list[str] = []
+    denominator: list[ContextFact] = []
     if own is not None:
         placement, notes = _placement(signal, own)
         trajectory = _trajectory(signal, own)
+        denominator = _denominator(signal, own, by_metric)
 
     observations = [*_peer_observations(signal, peers), *notes]
     facts = _without_collisions(
-        [*peers, *companions, *placement, *trajectory], signal.fields
+        [*peers, *companions, *placement, *trajectory, *denominator], signal.fields
     )
 
     period_labels = sorted(

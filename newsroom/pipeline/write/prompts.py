@@ -645,6 +645,7 @@ def _context_section(pack: ContextPack | None, signal: Signal) -> str:
         ("companion", "RELATED MEASURES IN THE SAME ECONOMY (note their periods)"),
         ("placement", "WHERE THIS READING SITS IN ITS OWN HISTORY"),
         ("trajectory", "THE SAME POINT IN EARLIER YEARS"),
+        ("denominator", "THE EU AVERAGE, WHICH MOVED THE OTHER WAY OVER THIS PERIOD"),
     ):
         facts = pack.of_kind(kind)  # type: ignore[arg-type]
         if not facts:
