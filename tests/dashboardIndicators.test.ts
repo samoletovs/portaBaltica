@@ -106,3 +106,87 @@ describe('the captions claim nothing the data does not support', () => {
       .toMatch(/lifted|tonnes/i);
   });
 });
+
+describe('a card and a chart never carry the same title', () => {
+  /**
+   * Six pairs did. Not similar wording — the identical string on the same
+   * tile, so "GDP growth" appeared twice one above the other.
+   *
+   * The fix was not to delete the chart in most cases. The card is *this
+   * country, latest value, delta, sparkline*; the chart is *three countries
+   * over time*. Those are different questions, and cross-country comparison is
+   * the premise of the site, so cutting it to resolve a naming collision would
+   * throw away the better half. Four were retitled to say which question they
+   * answer; two were cut, because GDP and unemployment already appear as a
+   * card *and* in the ticker, making the chart a third telling of the same
+   * number.
+   */
+  const MAP: Record<string, string> = (() => {
+    const src = readFileSync(resolve('src/components/IndicatorCard.tsx'), 'utf8');
+    const block = src.match(/EUROSTAT_FALLBACK[^=]*=\s*\{([\s\S]*?)\n\};/);
+    return Object.fromEntries(
+      [...(block?.[1] ?? '').matchAll(/(\w+):\s*'([^']+)'/g)].map((m) => [m[1], m[2]]),
+    );
+  })();
+
+  // `EconomyTile` is deliberately absent and must be added by the follow-up
+  // that cuts its GDP and unemployment charts and retitles house prices. It
+  // is in the colour migration's inventory (27 hardcoded instances), so its
+  // three remaining clashes are being fixed in a separate PR that can be
+  // sequenced against that work rather than racing it. Running this test
+  // against `EconomyTile` today reports exactly those three, which is the
+  // to-do list for that PR.
+  const TILES = ['EnergyTile.tsx', 'GovernmentTile.tsx', 'LabourTile.tsx', 'TradeTile.tsx'];
+
+  it.each(TILES)('%s gives its card and chart distinct titles', (name) => {
+    const text = tile(name);
+    const cards = [...text.matchAll(/IndicatorCard\s+id="([^"]+)"\s+title="([^"]+)"/g)]
+      .map((m) => ({ id: MAP[m[1]] ?? m[1], title: m[2] }));
+    const charts = [...text.matchAll(/BalticCompareChart\s+indicator="([^"]+)"\s+title="([^"]+)"/g)]
+      .map((m) => ({ id: m[1], title: m[2] }));
+
+    const clashes: string[] = [];
+    for (const card of cards) {
+      for (const chart of charts) {
+        if (card.id === chart.id && card.title.trim() === chart.title.trim()) {
+          clashes.push(`${card.id}: "${card.title}" appears as both`);
+        }
+      }
+    }
+
+    expect(clashes, `${name} repeats a title`).toEqual([]);
+  });
+});
+
+describe('the thinnest charts are gone', () => {
+  /**
+   * Measured, not assumed. At the dashboard's default five-year window these
+   * were the point counts per line, taken from the live API across LV, EE and
+   * LT: `digital_skills` 3, `online_shoppers` 5, `net_migration` 5,
+   * `poverty_risk` 5. A three-point line chart carrying a legend and two axes
+   * is a table pretending to be a chart.
+   *
+   * Ten of the forty-six charts had six points or fewer. Only four are cut
+   * here — thinness was half the argument and editorial weight the other half,
+   * and the remaining six are worth keeping until there is a compact "three
+   * countries, latest, ranked" component to move them into. Replacing ten
+   * charts with ten of something else would be a redesign wearing a removal's
+   * clothes.
+   */
+  it.each(['digital_skills', 'online_shoppers', 'net_migration', 'poverty_risk'])(
+    'no tile still draws %s', (id) => {
+      const drawn = ['EconomyTile.tsx', 'EnergyTile.tsx', 'GovernmentTile.tsx',
+        'LabourTile.tsx', 'TradeTile.tsx']
+        .filter((name) => new RegExp(`indicator="${id}"`).test(tile(name)));
+      expect(drawn, `${id} is still drawn`).toEqual([]);
+    });
+
+  it('keeps the indicators themselves, which the newsroom may still cite', () => {
+    // Removing a visual is not the same as removing a statistic. These stay
+    // queryable through /api/baltic-compare and resolvable for an article.
+    for (const id of ['digital_skills', 'online_shoppers', 'net_migration', 'poverty_risk']) {
+      expect(INDICATORS, `${id} must remain available`).toHaveProperty(id);
+      expect(DASHBOARD_INDICATORS.has(id), `${id} must stay citable`).toBe(true);
+    }
+  });
+});
