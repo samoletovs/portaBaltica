@@ -115,3 +115,39 @@ describe('deploy workflow deploy path', () => {
     ).toBe("github.event_name == 'push'");
   });
 });
+
+describe('the live smoke step', () => {
+  /**
+   * A live check that cannot run must not report a pass.
+   *
+   * `reducedMotionLayout.live.test.ts` has existed since #109 and had **never
+   * executed on a runner**: playwright is a devDependency but the browser
+   * binary is not, no workflow installed it, and the test's own
+   * `catch { console.warn(...); return; }` turned that into a pass. Measured by
+   * pointing `PLAYWRIGHT_BROWSERS_PATH` at an empty directory — the two
+   * browser-based live files report `Tests 2 passed` in **1.4 seconds**,
+   * against **188 seconds** when a browser is actually there.
+   *
+   * So it reported a pass on every deploy while a 196px sideways scroll sat on
+   * production at every phone width — the exact defect it was written to
+   * catch.
+   *
+   * `tests/liveBrowser.ts` now throws instead of skipping whenever `CI` is
+   * set. This asserts the other half: that the runner is given a browser, so
+   * the new failure is a real signal rather than a permanent red.
+   */
+  it('installs a browser before running the live suite', () => {
+    const install = workflow.indexOf('playwright install');
+    const smoke = workflow.indexOf('npm run test:live');
+
+    expect(install, 'no step installs a browser, so the browser-based live checks cannot run').toBeGreaterThan(-1);
+    expect(smoke, 'no step runs the live suite').toBeGreaterThan(-1);
+    expect(install, 'the browser must be installed before the suite runs, not after').toBeLessThan(smoke);
+  });
+
+  it('installs the same browser the checks ask for', () => {
+    // `playwright install` with no browser named downloads all three, which is
+    // slow and still leaves the wrong one if a check later asks for firefox.
+    expect(workflow).toMatch(/playwright install[^\n]*\bchromium\b/);
+  });
+});

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { launchForLiveCheck } from './liveBrowser';
 
 /**
  * Does any text on the deployed site carry a colour that cannot meet the floor
@@ -40,30 +41,11 @@ const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 /** Routes that render a comparison chart, the power market, or an indicator. */
 const ROUTES = ['/data/economy', '/data/energy', '/data/trade', '/indicator/gdp'];
 
-async function chromium() {
-  try {
-    const playwright = await import('playwright');
-    return playwright.chromium;
-  } catch {
-    return null;
-  }
-}
-
 describe('the deployed site’s series palette', () => {
   it('never uses a chart-line colour at a floor it cannot meet', async () => {
-    const browserType = await chromium();
-    if (!browserType) {
-      console.warn('playwright is not installed; skipping the contrast measurement');
-      return;
-    }
-
-    let browser;
-    try {
-      browser = await browserType.launch();
-    } catch {
-      console.warn('no chromium binary — run `npx playwright install chromium`; skipping');
-      return;
-    }
+    // Skips locally without a browser; throws in CI. See `tests/liveBrowser.ts`.
+    const browser = await launchForLiveCheck();
+    if (!browser) return;
 
     const offenders: string[] = [];
     let textNodesSeen = 0;

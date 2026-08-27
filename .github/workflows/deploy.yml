@@ -153,6 +153,23 @@ jobs:
           api_location: api
           skip_app_build: true
 
+      # The browser the layout and contrast checks need.
+      #
+      # Without this, `browserType.launch()` throws, both browser-based live
+      # tests take their "no chromium binary — skipping" path, and the suite
+      # reports 2 passed in about three seconds having measured nothing. That
+      # is what happened: `reducedMotionLayout.live.test.ts` has existed since
+      # #109 and had never executed on a runner, so it could not have reported
+      # the sideways scroll it was written to catch — and did not, for a fix
+      # that took three weeks to notice.
+      #
+      # `tests/liveBrowser.ts` now turns that skip into a failure whenever CI
+      # is set, so a runner that cannot launch a browser says so instead of
+      # passing. This step is what keeps that from firing.
+      - name: Install Playwright browser
+        if: github.event_name == 'push'
+        run: npx playwright install --with-deps chromium
+
       # Live smoke tests run HERE, against what was just deployed — not in the
       # PR gate, where they only measured production's latency from a runner
       # and could fail a correct change because a Free-tier Function was cold.

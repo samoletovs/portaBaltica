@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { launchForLiveCheck } from './liveBrowser';
 
 /**
  * Does the deployed site scroll sideways?
@@ -57,30 +58,13 @@ const WIDTHS = [
   512, 480, 414, 375, 320, // the narrow band: 320–512
 ];
 
-async function chromium() {
-  try {
-    const playwright = await import('playwright');
-    return playwright.chromium;
-  } catch {
-    return null;
-  }
-}
-
 describe('the deployed site under prefers-reduced-motion', () => {
   it('does not scroll horizontally on any route', async () => {
-    const browserType = await chromium();
-    if (!browserType) {
-      console.warn('playwright is not installed; skipping the layout measurement');
-      return;
-    }
-
-    let browser;
-    try {
-      browser = await browserType.launch();
-    } catch {
-      console.warn('no chromium binary — run `npx playwright install chromium`; skipping');
-      return;
-    }
+    // Skips locally without a browser; throws in CI, where a skip would be
+    // the runner reporting a pass for a check it never ran. See
+    // `tests/liveBrowser.ts` — this file spent weeks doing exactly that.
+    const browser = await launchForLiveCheck();
+    if (!browser) return;
 
     const offenders: string[] = [];
     try {
