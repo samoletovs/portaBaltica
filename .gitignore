@@ -10,6 +10,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+
+# Isolated build made by tests/deployRecoveryReal.live.test.ts. It builds its
+# own copy rather than reading dist/, which is gitignored and which 
+pm test`r
+# never produces - a test that reads whatever build is lying in the working
+# directory is how this suite once turned master red across three merges.
+.tmp-recovery-build
 *.local
 .env
 .env.local

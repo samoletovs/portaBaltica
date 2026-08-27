@@ -131,10 +131,38 @@
         }
         window.addEventListener('error', function (event) {
           var el = event.target;
-          // A resource that failed to load, not a runtime error: those report
-          // window as their target and must not trigger anything.
-          if (el && el.tagName === 'SCRIPT' && /\/assets\//.test(el.src || '')) recover();
+          if (!el || !el.tagName) return;   // a runtime error, not a resource
+
+          // The MAIN BUNDLE. A failed <script> reports an `error` event on the
+          // element, which only capture phase sees. Measured against a real
+          // build with the entry 404ing: this fires, and it is the only signal
+          // that does, because nothing is running to catch anything.
+          if (el.tagName === 'SCRIPT' && /\/assets\//.test(el.src || '')) return recover();
+
+          // A LAZY CHUNK, and this is the branch that took a second measurement
+          // to find. React.lazy catches its own rejection and re-throws it
+          // during render, so the browser dispatches NO `unhandledrejection`
+          // for it — the listener below never sees a chunk 404, and for one
+          // release it was a handler waiting for an event that does not come.
+          //
+          // What does arrive is this: Vite inserts
+          // `<link rel="modulepreload" as="script">` immediately before it
+          // imports a chunk, and a 404 fires an `error` event on that link.
+          // Measured on three separate routes against a real build — /,
+          // /about/ai and /data — each producing exactly one event, always
+          // `rel="modulepreload"`, always pointing at `/assets/`.
+          //
+          // Narrow on purpose. A stylesheet is `rel="stylesheet"`, an icon is
+          // `rel="icon"`, and neither stops the app, so neither may reload it.
+          if (el.tagName === 'LINK' && el.rel === 'modulepreload' &&
+              /\/assets\//.test(el.href || '')) return recover();
         }, true);
+
+        // Kept, though nothing observed has ever fired it: a direct `import()`
+        // outside React.lazy still rejects to here, and so does a browser that
+        // reports chunk failures this way. It costs nothing and it is the
+        // documented path — but it is no longer the only one relied upon,
+        // which is what the release before this one quietly assumed.
         window.addEventListener('unhandledrejection', function (event) {
           var message = (event.reason && event.reason.message) || '';
           if (/dynamically imported module|Importing a module script failed/i.test(message)) recover();
