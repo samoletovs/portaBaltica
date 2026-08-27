@@ -145,6 +145,14 @@ def test_one_field_can_never_be_established(signal_with_context):
 
     The claim is still offered to the writer, but as "consistent", which the
     prompt renders as an observed relationship rather than a cause.
+
+    The field is a *companion* rather than the signal's own ``latest_value``,
+    because a mechanism resting only on the finding's own fields is now
+    discarded outright: it restates the opening rather than relating two
+    series, and three articles in one run were rejected for exactly that.
+    The count of fields was only ever a proxy for "two series", and a proxy
+    that ``(latest_value, streak_length, streak_start_value)`` beats with
+    three fields drawn from one.
     """
     signal, pack = signal_with_context
     writer = StubWriter(
@@ -152,7 +160,7 @@ def test_one_field_can_never_be_established(signal_with_context):
             mechanisms=[
                 {
                     "claim": "costs are rising",
-                    "grounded_in": ["latest_value"],
+                    "grounded_in": ["companion_unemployment_rate"],
                     "confidence": "established",
                 }
             ]
@@ -171,7 +179,7 @@ def test_the_same_field_twice_does_not_buy_established(signal_with_context):
             mechanisms=[
                 {
                     "claim": "costs are rising",
-                    "grounded_in": ["latest_value", "latest_value"],
+                    "grounded_in": ["companion_unemployment_rate", "companion_unemployment_rate"],
                     "confidence": "established",
                 }
             ]
