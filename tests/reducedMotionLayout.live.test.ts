@@ -34,8 +34,28 @@ const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 /** Routes that render the masthead, and therefore the ticker. */
 const ROUTES = ['/', '/data', '/data/economy', '/data/business'];
 
-/** Widths either side of the layout's breakpoints. */
-const WIDTHS = [1440, 1274, 768, 375];
+/**
+ * Widths either side of every breakpoint, and inside every band a defect has
+ * actually occupied.
+ *
+ * This list used to be `[1440, 1274, 768, 375]`, and that was not wrong so
+ * much as too sparse to describe what it found. When the EU27 reference line
+ * gave chart legends a fourth entry, the page overflowed at **98 of the 177
+ * widths between 320 and 1024**, in two bands — 768–960 where
+ * `md:grid-cols-2` halves the card, and 320–512 where the viewport itself is
+ * narrower than the legend. The four widths above caught it, at 768 and 375,
+ * and reported two numbers for a defect that spans half the useful range.
+ *
+ * The width list is the resolution of the finding. Sampling every breakpoint
+ * edge and the middle of each band means the next report says *where* the
+ * problem lives, which is what turns "the page scrolls" into a diagnosis.
+ */
+const WIDTHS = [
+  1440, 1274, 1024, // desktop, and the widest clean width
+  960, 900, 820, 768, // the two-column band: 768–960
+  700, 600, 540, // clean between the bands
+  512, 480, 414, 375, 320, // the narrow band: 320–512
+];
 
 async function chromium() {
   try {
