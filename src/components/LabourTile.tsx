@@ -22,6 +22,13 @@ export function LabourTile() {
           <BalticCompareChart indicator="employment_rate" title="Employment rate (20-64)" compact />
           <BalticCompareChart indicator="job_vacancy" title="Job vacancy rate" compact />
           <BalticCompareChart indicator="minimum_wage" title="Minimum wage" compact />
+          {/* Title is deliberately neutral. The obvious guess about who leads is
+              wrong — Latvia is at 111.7 against its 2020 base while Estonia is
+              at 99.6, still below where it started after peaking at 108.1 in
+              2021 — and a chart that characterises the trend in its title would
+              have to get that right. Letting the lines speak avoids the
+              question, and the reader can see it for themselves. */}
+          <BalticCompareChart indicator="labour_productivity" title="Labour productivity per person" compact />
           <BalticCompareChart indicator="gdp_per_capita" title="GDP per capita" compact />
           <BalticCompareChart indicator="life_expectancy" title="Life expectancy at birth" compact />
           <BalticCompareChart indicator="digital_skills" title="Basic digital skills" compact />
