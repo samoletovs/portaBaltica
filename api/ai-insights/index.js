@@ -1,6 +1,6 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 const airQuality = require('../shared/airQuality.js');
 const countries = require('../shared/country.js');
 
@@ -130,9 +130,6 @@ function httpGetText(url) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   // Normalised once, at the boundary, and a miss is a bad request rather than
   // a request for Latvia. `zoneMap[country] || 'lv'` and
   // `capitalCoords[country] || capitalCoords.lv` both key lower-case maps, so
@@ -367,7 +364,13 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'ai-insights',
+  keyOn: ['country'],
+  ttlMs: 900000,
+  graceMs: 3600000,
+  staleWhileRevalidate: true,
+}));
 // Exported so the derivation is assertable on its own, rather than only
 // through a live handler that depends on what the market did today.
 module.exports.percentile = percentile;

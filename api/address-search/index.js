@@ -1,6 +1,6 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -32,8 +32,6 @@ const ADDRESS_RESOURCE_ID = 'a510737a-18ce-400f-ad4b-04fce5228272';
  * Returns matching addresses with coordinates, postal codes, and municipality info.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
   var query = (req.query && req.query.q) || '';
   if (!query || query.length < 3) {
     context.res = {
@@ -90,4 +88,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'address-search',
+  keyOn: ['q'],
+  ttlMs: 300000,
+  graceMs: 900000,
+  staleWhileRevalidate: false,
+}));

@@ -15,10 +15,17 @@
  * same green as a real one.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+
+// `/api/power-prices` now serves a remembered response for fifteen minutes, so
+// each case must start from an empty cache. Without this the second case is
+// handed the first case's payload — which is the endpoint working correctly and
+// the test measuring the wrong thing.
+const responseCache = require('../api/shared/cache.js');
+beforeEach(() => responseCache.clear());
 
 /** Elering's shape: unix-second timestamps per bidding zone. */
 function eleringPayload(intervals: { ts: number; ee: number; lv: number; lt: number }[]) {

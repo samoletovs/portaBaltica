@@ -82,11 +82,14 @@ portaBaltica/
 │   ├── shared/
 │   │   ├── eurostat.js     # Deadline-bounded HTTP + strict JSON-stat parsing
 │   │   ├── indicators.js   # Every Baltic comparison indicator, fully pinned
+│   │   ├── cache.js        # TTL + grace, request coalescing, LRU
+│   │   ├── responseCache.js# withCache: one computed response per key per TTL
 │   │   └── ports.js        # Baltic port registry + Eurostat maritime cubes
 │   ├── baltic-compare/     # LV vs EE vs LT from Eurostat
 │   ├── historical-data/    # Latvian series: CSP PxWeb, Eurostat fallback
 │   ├── power-prices/       # Nord Pool day-ahead + zone spread
 │   ├── port-data/          # Baltic port statistics from Eurostat (?country=)
+│   ├── sea-state/          # All three ports' marine + surface weather, in one
 │   ├── economy-data/       # ECB, NordPool, CSP, business registries
 │   ├── property-data/      # Construction, energy certs, cadastral
 │   ├── environment-data/   # Weather, air quality, population
@@ -390,7 +393,11 @@ address to whoever serves it.
 - **CKAN Datastore:** `fetch('https://data.gov.lv/dati/api/3/action/datastore_search?resource_id=ID&limit=N')`.
   The portal answers HTTP 200 with `success: false` for an unknown action, so
   check `success` rather than the status code.
-- **Open-Meteo:** Direct client-side fetch (CORS-enabled)
+- **Open-Meteo:** proxied, never called from the browser. `/api/sea-state`
+  serves all three ports' marine and surface weather from one cached response,
+  and `connect-src` no longer permits the page to reach Open-Meteo at all. It
+  used to be a direct client-side fetch — two calls per port on every load of
+  `/data`, for fixed coordinates, from every visitor independently.
 - **ECB rates:** `fetch('https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml')` — parse XML
 - **NordPool/Elering:** `fetch('https://dashboard.elering.ee/api/nps/price?start=...&end=...')` —
   returns all four bidding zones (EE, LV, LT, FI) in one response
@@ -472,6 +479,97 @@ request — fine today, and exactly how the newsroom acquired this.
 A cheap invariant catches it either way: `goods_balance + services_balance`
 equals `trade_balance`, so if the three ever agree exactly, they are the same
 series wearing three names.
+
+## Caching, and why it is not a database
+
+Every endpoint is wrapped in `withCache` from `api/shared/responseCache.js`,
+which remembers the **finished response** — body, headers and all — for a TTL
+chosen from how often the upstream can actually change. Read that file before
+changing any of it; what follows is the shape and the reasoning.
+
+Applied at the boundary, once, for the same reason `withSecurity` is: adding
+`cache.memo(...)` around each fetch inside each handler is a change that is
+*finished* only if every call site was found, and a miss is invisible because
+the endpoint keeps working. Caching the response rather than the fetches also
+buys the parsing and assembly — `/api/port-data` reduces four Eurostat cubes to
+12KB of JSON, and remembering the four fetches still leaves that work per
+request.
+
+**`keyOn` is mandatory and there is no default.** It names every query parameter
+the handler reads. This is the same rule as `requestKey`, for the same reason,
+and the consequence of getting it wrong is not a slow page but Estonia's figures
+under Latvia's heading — correct, well-formed, and wrong. Declaring the
+parameters rather than hashing the whole query string also means an unknown
+parameter cannot be used to walk past the cache and drive upstream load at will.
+
+Only a `200` is remembered. A `400` is an answer about the request and costs
+nothing to repeat; a `502` would turn a blip into a fixed outage for the length
+of the TTL. When upstream fails and a good answer is still inside its grace, the
+reader gets the last good data with `Age` and `X-Cache: stale` rather than a
+502 — the body carries its own `fetchedAt`, so it degrades to "here is what we
+knew, and when" rather than to a lie or a blank page. `system-status` is the
+deliberate exception at `graceMs: 0`: a remembered "healthy" during a real
+outage is exactly the false green this codebase exists to remove.
+
+Three defects were measured in the layer underneath, and all three got worse in
+proportion to the audience — which is the shape of bug that matters here:
+
+| Measured | Was | Now |
+|---|---|---|
+| 20 concurrent requests for one key | 20 upstream calls | 1 |
+| A key read every round, under cache pressure | re-fetched 4× (FIFO evicts hot keys) | survives (LRU) |
+| 50,000 distinct client addresses | 50,000 permanent rate-limiter entries | bounded at 10,000 |
+
+The stampede is the important one. Without in-flight coalescing a cache miss is
+not one upstream call, it is one *per concurrent visitor* — so a hundred readers
+on a cold key means a hundred simultaneous calls to Eurostat from one address,
+which is how a shared egress address gets throttled. A remedy for "we ask too
+often" cannot multiply asking by the number of readers.
+
+The rate limiter's map is bounded by **hit count**, not by how recently an
+address was seen. Evicting the quietest sounds right and is backwards: a caller
+rotating forged `X-Forwarded-For` values arrives *after* the client actually
+hammering us, so a flood of forged entries all look more recent and evict the
+record of the abuser. Eviction is also done in bulk to a headroom mark — the
+first version sorted the whole map on every request once full, and 50,000
+requests took 33 seconds. A guard against heavy traffic that degrades under
+heavy traffic is worse than the leak it replaced: a leak costs memory, that cost
+latency on every request.
+
+**`/api/sea-state` exists because the browser was the one uncacheable caller.**
+The dashboard fetched marine and surface weather straight from Open-Meteo, two
+requests per port across three ports, on every load of `/data`. The ports are
+fixed coordinates, so every visitor fetched the same six payloads independently
+for data republished hourly. It is now six upstream calls per TTL — twenty-four
+an hour whether one person is reading or ten thousand — and `connect-src` no
+longer permits the page to reach Open-Meteo, Eurostat, data.gov.lv, Elering or
+the ECB at all. That turns "all upstream data goes through the proxy" into
+something the browser enforces rather than something a reviewer has to notice.
+
+### Why not Cosmos DB
+
+The instinct — stop asking upstream on every page load — is right, and it is
+what the above implements. Cosmos is the wrong instrument for it, on four counts:
+
+- **The free tier is already spent.** A subscription allows one, and golazo has
+  it, so this would be a new paid dependency for a site whose whole cost target
+  is €3–5/mo.
+- **It would reintroduce a key.** SWA managed functions on the Free tier have no
+  managed identity, so reaching Cosmos means a connection string in app
+  settings. This project has no key anywhere and `disableLocalAuth` /
+  `allowSharedKeyAccess: false` are set so that one could not be used. That is a
+  security posture worth more than the cache.
+- **It replaces memory I/O with network I/O.** A cache exists to avoid a round
+  trip; serving it over one is backwards. A Cosmos read is 5–15ms against ~0 for
+  a Map.
+- **The data is tiny.** All 65 indicators are a few hundred kilobytes. It fits in
+  memory with room to spare.
+
+The in-process cache is also *better* under the growth this was meant to
+address, not worse: cold starts hurt when traffic is low, and hit rate rises as
+traffic rises. If a shared cache is ever genuinely needed — several instances
+each paying their own miss — the answer is the blob storage the newsroom already
+uses under managed identity, not a database.
 
 ## What was surveyed and deliberately not added
 

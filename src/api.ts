@@ -1,8 +1,5 @@
 import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus } from './types';
-import { PORTS } from './types';
 
-const OPEN_METEO_MARINE = 'https://marine-api.open-meteo.com/v1/marine';
-const OPEN_METEO_WEATHER = 'https://api.open-meteo.com/v1/forecast';
 
 export interface BalticCompareSeriesPoint {
   period: string;
@@ -94,107 +91,46 @@ export interface PowerPriceData {
   fetchedAt: string;
 }
 
-/** Fetch marine weather for a port from Open-Meteo */
-export async function fetchMarineWeather(port: Port): Promise<MarineWeatherForecast> {
-  const params = new URLSearchParams({
-    latitude: port.lat.toString(),
-    longitude: port.lon.toString(),
-    current: 'wave_height,wave_direction,wave_period,sea_surface_temperature,wind_wave_height,swell_wave_height',
-    hourly: 'wave_height,sea_surface_temperature',
-    forecast_days: '3',
-    timezone: 'Europe/Riga',
-  });
-
-  const res = await fetch(`${OPEN_METEO_MARINE}?${params}`);
-  if (!res.ok) throw new Error(`Marine weather failed: ${res.status}`);
-  const data = await res.json();
-
-  return {
-    portCode: port.code,
-    current: {
-      waveHeight: data.current?.wave_height ?? 0,
-      waveDirection: data.current?.wave_direction ?? 0,
-      wavePeriod: data.current?.wave_period ?? 0,
-      seaSurfaceTemp: data.current?.sea_surface_temperature ?? 0,
-      windWaveHeight: data.current?.wind_wave_height ?? 0,
-      swellWaveHeight: data.current?.swell_wave_height ?? 0,
-    },
-    hourly: {
-      time: data.hourly?.time ?? [],
-      waveHeight: data.hourly?.wave_height ?? [],
-      seaSurfaceTemp: data.hourly?.sea_surface_temperature ?? [],
-    },
-  };
+/**
+ * Live marine and surface weather for the three ports, in one request.
+ *
+ * This used to be six cross-origin calls straight from the browser — two per
+ * port — on every load of `/data`. The ports are fixed coordinates, so every
+ * visitor was fetching the same six payloads independently, for data Open-Meteo
+ * republishes hourly. It was also the only data on the site that could not be
+ * cached server-side, because it never reached our server.
+ *
+ * `/api/sea-state` answers all three ports from one cached response. A port
+ * Open-Meteo did not answer for is named in `unavailable` rather than dropped
+ * silently, and every reading is `number | null` — never a zero standing in for
+ * absence, because zero is an ordinary wave height.
+ */
+export interface SeaStateResponse {
+  ports: { port: Port; marine: MarineWeatherForecast; weather: PortWeather }[];
+  unavailable: string[];
+  source: string;
+  fetchedAt: string;
 }
 
-/** Fetch regular weather for a port from Open-Meteo */
-export async function fetchPortWeather(port: Port): Promise<PortWeather> {
-  const params = new URLSearchParams({
-    latitude: port.lat.toString(),
-    longitude: port.lon.toString(),
-    current: 'temperature_2m,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation',
-    timezone: 'Europe/Riga',
-  });
-
-  const res = await fetch(`${OPEN_METEO_WEATHER}?${params}`);
-  if (!res.ok) throw new Error(`Port weather failed: ${res.status}`);
-  const data = await res.json();
-
-  return {
-    portCode: port.code,
-    temperature: data.current?.temperature_2m ?? 0,
-    windSpeed: data.current?.wind_speed_10m ?? 0,
-    windDirection: data.current?.wind_direction_10m ?? 0,
-    cloudCover: data.current?.cloud_cover ?? 0,
-    precipitation: data.current?.precipitation ?? 0,
-  };
-}
-
-/** Fetch all marine + regular weather for all 3 ports.
- *  Uses allSettled so individual port failures don't break everything. */
 export async function fetchAllWeather() {
-  const settled = await Promise.allSettled(
-    PORTS.map(async (port) => {
-      const [marine, weather] = await Promise.all([
-        fetchMarineWeather(port),
-        fetchPortWeather(port),
-      ]);
-      return { port, marine, weather };
-    })
-  );
-  return settled
-    .filter((r): r is PromiseFulfilledResult<{ port: Port; marine: MarineWeatherForecast; weather: PortWeather }> => r.status === 'fulfilled')
-    .map(r => r.value);
+  const data = await cachedFetch<SeaStateResponse>('sea-state', '/api/sea-state');
+  return data.ports;
 }
-
-const PORT_DATA_CACHE_KEY = 'portabaltica_port_data';
-/** Eurostat publishes maritime tables quarterly; an hour is already generous. */
-const PORT_DATA_CACHE_TTL = 60 * 60 * 1000;
 
 /** Fetch Baltic port statistics (cargo, passengers, vessels) via the SWA API
- *  proxy. Cached per country in localStorage for an hour. */
+ *  proxy. Cached per country for an hour.
+ *
+ *  Keyed by country: a shared key served Estonia's figures under Latvia's label
+ *  for an hour after switching. It now goes through the same helper as
+ *  everything else rather than carrying its own hand-rolled copy of the cache,
+ *  which is how it came to be the one path with no in-flight deduplication and
+ *  no quota handling. */
 export async function fetchPortData(country: string = 'LV'): Promise<PortDataResponse> {
-  // Keyed by country: a shared key served Estonia's figures under Latvia's
-  // label for an hour after switching.
-  const cacheKey = `${PORT_DATA_CACHE_KEY}_${country.toUpperCase()}`;
-
-  try {
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < PORT_DATA_CACHE_TTL) return data;
-    }
-  } catch { /* ignore cache errors */ }
-
-  const res = await fetch(`/api/port-data?country=${encodeURIComponent(country.toUpperCase())}`);
-  if (!res.ok) throw new Error(`Port data API failed: ${res.status}`);
-  const data: PortDataResponse = await res.json();
-
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch { /* ignore storage errors */ }
-
-  return data;
+  const code = country.toUpperCase();
+  return cachedFetch<PortDataResponse>(
+    `port_data_${code}`,
+    `/api/port-data?country=${encodeURIComponent(code)}`
+  );
 }
 
 // ─── Cached fetch helper ───
@@ -211,60 +147,106 @@ function getTTL(key: string): number {
   return match ? match[1] : 60 * 60 * 1000;
 }
 
-async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
-  const cacheKey = `portabaltica_${key}`;
+const CACHE_PREFIX = 'portabaltica_';
+
+/**
+ * Write to localStorage, and make room rather than giving up when it is full.
+ *
+ * The previous `catch { }` swallowed a quota error and moved on, which sounds
+ * harmless and is not: once the quota is reached *nothing* can be cached again,
+ * so the browser silently reverts to fetching everything on every navigation
+ * and the failure is invisible from the outside.
+ *
+ * Reaching the quota is not far-fetched. `baltic_compare` keys carry both an
+ * indicator and a year span — 65 indicators against several spans — and nothing
+ * ever removed one. A reader who browses the dashboard accumulates keys
+ * indefinitely.
+ *
+ * So a failed write drops the oldest entries this site owns and tries again.
+ * Only our own prefix is touched: the quota is shared with anything else on the
+ * origin, and clearing keys we do not own to make room for a cached chart would
+ * be a rude way to lose someone's unrelated state.
+ */
+function evictOldestEntries(fraction: number): boolean {
+  const entries: { key: string; at: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith(CACHE_PREFIX)) continue;
+    let at = 0;
+    try {
+      at = JSON.parse(localStorage.getItem(key) || '{}').timestamp || 0;
+    } catch {
+      // Unparseable means unusable, so treat it as the very oldest.
+    }
+    entries.push({ key, at });
+  }
+  if (entries.length === 0) return false;
+
+  entries.sort((a, b) => a.at - b.at);
+  const drop = Math.max(1, Math.ceil(entries.length * fraction));
+  for (let i = 0; i < drop && i < entries.length; i++) {
+    localStorage.removeItem(entries[i].key);
+  }
+  return true;
+}
+
+function writeCache(cacheKey: string, data: unknown): void {
+  const payload = JSON.stringify({ data, timestamp: Date.now() });
+  try {
+    localStorage.setItem(cacheKey, payload);
+    return;
+  } catch {
+    // Most likely the quota. Make room and try once more.
+  }
+  if (!evictOldestEntries(0.25)) return;
+  try {
+    localStorage.setItem(cacheKey, payload);
+  } catch {
+    // Still no room — the payload may simply be larger than the quota. Caching
+    // is an optimisation, so failing to cache must never fail the request.
+  }
+}
+
+function readCache<T>(cacheKey: string, key: string): T | null {
   try {
     const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < getTTL(key)) {
-        return data as T;
-      }
-    }
-  } catch { /* ignore */ }
-
-  const res = await fetch(endpoint);
-  if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
-  const data: T = await res.json();
-
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
-  } catch { /* ignore */ }
-
-  return data;
+    if (!cached) return null;
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < getTTL(key)) return data as T;
+  } catch {
+    // Malformed cache is no cache; fall through to a live request.
+  }
+  return null;
 }
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
-async function cachedFetchDeduped<T>(key: string, endpoint: string): Promise<T> {
-  const cacheKey = `portabaltica_${key}`;
+/**
+ * Fetch once per key per TTL, and once per key at a time.
+ *
+ * There used to be two of these — one that deduplicated concurrent callers and
+ * one that did not — and all but a single endpoint used the one that did not.
+ * That is a distinction nobody can be expected to make correctly at each call
+ * site, and getting it wrong is invisible: the page works, it simply issues the
+ * request twice. The dashboard mounts several components at once and re-fetches
+ * on every country switch, so the duplicate path was the common one.
+ *
+ * There is now one function and no choice to get wrong.
+ */
+async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
+  const cacheKey = `${CACHE_PREFIX}${key}`;
 
-  try {
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < getTTL(key)) {
-        return data as T;
-      }
-    }
-  } catch {
-    // Ignore malformed cache and continue with live request.
-  }
+  const cached = readCache<T>(cacheKey, key);
+  if (cached !== null) return cached;
 
   const existing = inFlightRequests.get(cacheKey);
-  if (existing) {
-    return existing as Promise<T>;
-  }
+  if (existing) return existing as Promise<T>;
 
   const request = fetch(endpoint)
     .then(async (res) => {
       if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
       const data = await res.json() as T;
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({ data, timestamp: Date.now() }));
-      } catch {
-        // Ignore storage failures.
-      }
+      writeCache(cacheKey, data);
       return data;
     })
     .finally(() => {
@@ -318,7 +300,7 @@ export async function fetchSystemStatus(): Promise<SystemStatus> {
 export async function fetchBalticCompare(indicator: string, years = 5): Promise<BalticCompareData | null> {
   const normalizedYears = Number.isFinite(years) && years >= 0 ? years : 5;
   const encodedIndicator = encodeURIComponent(indicator);
-  return cachedFetchDeduped<BalticCompareData | null>(
+  return cachedFetch<BalticCompareData | null>(
     `baltic_compare-${encodedIndicator}-${normalizedYears}`,
     `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`
   );

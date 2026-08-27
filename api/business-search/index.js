@@ -1,6 +1,6 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -31,8 +31,6 @@ const UBO_RESOURCE_ID = '20a9b26d-d056-4dbb-ae18-9ff23c87bdee';
  * or person surname. Returns matching records from the official PLG dataset.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
   var query = (req.query && req.query.q) || '';
   if (!query || query.length < 3) {
     context.res = {
@@ -104,4 +102,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'business-search',
+  keyOn: ['q'],
+  ttlMs: 300000,
+  graceMs: 900000,
+  staleWhileRevalidate: false,
+}));

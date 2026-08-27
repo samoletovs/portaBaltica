@@ -1,6 +1,6 @@
 const newsroom = require('../shared/newsroom.js');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 const CORRESPONDENTS = ['nida', 'akmensrags', 'kolka', 'ristna', 'irbene'];
 const SECTIONS = [
@@ -15,9 +15,6 @@ const SECTIONS = [
  * in other people's sitemaps.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   try {
     const site = newsroom.SITE_URL;
     const escape = newsroom.escapeXml;
@@ -72,4 +69,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'news-sitemap',
+  keyOn: [],
+  ttlMs: 3600000,
+  graceMs: 21600000,
+  staleWhileRevalidate: true,
+}));

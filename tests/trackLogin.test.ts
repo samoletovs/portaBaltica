@@ -265,13 +265,51 @@ describe('every public endpoint has a limiter', () => {
   it('including this one, which was the only exception', async () => {
     // The registry check that used to record track-login as a known gap. It is
     // now an assertion that there are none.
+    //
+    // Two shapes count, because the limit moved to the boundary for most
+    // endpoints. A handler may call `rateLimit.check` itself, or it may be
+    // wrapped in `withCache`, which checks before it does anything else. What
+    // does not count is neither.
     const { readdirSync, readFileSync, existsSync } = await import('node:fs');
-    const missing = readdirSync(API, { withFileTypes: true })
+
+    // Read rather than assume: the wrapper only discharges the obligation if it
+    // actually performs the check, so the test asserts that instead of trusting
+    // the name of the function.
+    const wrapper = readFileSync(join(API, 'shared', 'responseCache.js'), 'utf-8');
+    expect(wrapper, 'withCache must rate-limit before serving anything')
+      .toContain('rateLimit.check(req)');
+
+    const endpoints = readdirSync(API, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
       .filter((entry) => existsSync(join(API, entry.name, 'index.js')))
-      .filter((entry) => !readFileSync(join(API, entry.name, 'index.js'), 'utf-8').includes('rateLimit.check'))
-      .map((entry) => entry.name);
+      .map((entry) => ({
+        name: entry.name,
+        source: readFileSync(join(API, entry.name, 'index.js'), 'utf-8'),
+      }));
+
+    const missing = endpoints
+      .filter((e) => !e.source.includes('rateLimit.check') && !e.source.includes('withCache('))
+      .map((e) => e.name);
 
     expect(missing, `endpoints with no rate limit: ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('counts each request once, never twice', async () => {
+    // An endpoint that both calls `rateLimit.check` and is wrapped in
+    // `withCache` records two hits for one request, which silently halves its
+    // own limit from 60 to 30 a minute. Nothing about that surfaces: the
+    // endpoint keeps working and legitimate callers are simply cut off early.
+    const { readdirSync, readFileSync, existsSync } = await import('node:fs');
+    const doubleCounted = readdirSync(API, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== 'shared')
+      .filter((entry) => existsSync(join(API, entry.name, 'index.js')))
+      .filter((entry) => {
+        const source = readFileSync(join(API, entry.name, 'index.js'), 'utf-8');
+        return source.includes('rateLimit.check') && source.includes('withCache(');
+      })
+      .map((entry) => entry.name);
+
+    expect(doubleCounted, `these limit twice per request: ${doubleCounted.join(', ')}`)
+      .toEqual([]);
   });
 });

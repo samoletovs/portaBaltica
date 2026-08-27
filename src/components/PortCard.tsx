@@ -16,6 +16,11 @@ function windDirectionLabel(deg: number): string {
 export function PortCard({ port, marine, weather }: PortCardProps) {
   const seaState = classifySeaState(marine.current?.waveHeight);
   const stateInfo = seaState ? SEA_STATE_LABELS[seaState] : null;
+  // Narrowed once here rather than re-read inside the JSX. `finite()` returns
+  // the value or null, so using its result is what actually proves the reading
+  // exists — testing it and then reading the raw field again asserts the same
+  // thing twice and only the second one reaches `windDirectionLabel`.
+  const windDirection = finite(weather?.windDirection);
   // `classifySeaState` already treats an absent wave height as unknown, and
   // every reading below came from the same payload — so guarding one and
   // calling `.toFixed()` straight on the others would have the card announce
@@ -74,9 +79,9 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
           <div>
             <p className="text-callout font-semibold dash-fg">{fixed(weather?.windSpeed, 0)}</p>
             <p className="text-caption dash-muted">
-              km/h {finite(weather?.windDirection) === null
+              km/h {windDirection === null
                 ? '—'
-                : windDirectionLabel(weather.windDirection)}
+                : windDirectionLabel(windDirection)}
             </p>
           </div>
           <div>

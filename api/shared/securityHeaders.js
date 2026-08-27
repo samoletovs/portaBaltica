@@ -64,8 +64,20 @@ const SECURITY_HEADERS = {
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  // `connect-src` lists only what the *browser* opens a connection to, which is
+  // this origin and the articles blob container. It used to name nine upstream
+  // data hosts as well — Eurostat, Open-Meteo, data.gov.lv, Elering, the ECB —
+  // because the dashboard fetched marine weather straight from Open-Meteo. That
+  // is now proxied through `/api/sea-state`, so nothing in `src/` opens a
+  // cross-origin connection to any of them and listing them only widened where
+  // an injected script could send data.
+  //
+  // It is also what makes "all upstream data goes through the proxy" a rule the
+  // browser enforces rather than a convention: a future direct call would fail
+  // in development rather than quietly reintroduce an uncacheable request on
+  // every page load.
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://stportabalticabpmff5so.blob.core.windows.net https://ec.europa.eu https://api.open-meteo.com https://air-quality-api.open-meteo.com https://data.stat.gov.lv https://data.gov.lv https://opendata.riga.lv https://marine-api.open-meteo.com https://dashboard.elering.ee https://www.ecb.europa.eu; img-src 'self' data:; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://stportabalticabpmff5so.blob.core.windows.net; img-src 'self' data:; font-src 'self' data:; object-src 'none'; frame-ancestors 'none'",
 };
 
 /** Returns the security headers merged with whatever the caller adds. */

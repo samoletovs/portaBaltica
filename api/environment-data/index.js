@@ -1,7 +1,7 @@
-const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const cache = require('../shared/cache.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 const airQuality = require('../shared/airQuality.js');
 const countries = require('../shared/country.js');
 
@@ -247,9 +247,6 @@ async function fetchCapitalPopulation(country) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   // Normalised once, at the boundary. All three lookups below —
   // `CITIES_BY_COUNTRY`, `AQ_COORDS`, `CAPITAL_REGIONS` — key lower-case maps
   // and end `|| …lv`, so an upper-case `EE` returned Riga's weather, Riga's air
@@ -299,4 +296,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'environment-data',
+  keyOn: ['country'],
+  ttlMs: 900000,
+  graceMs: 3600000,
+  staleWhileRevalidate: true,
+}));

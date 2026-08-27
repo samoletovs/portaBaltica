@@ -1,8 +1,8 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const EUROSTAT_INDICATORS = require('../shared/indicators.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 function httpsPost(url, body) {
   return new Promise(function (resolve, reject) {
@@ -415,8 +415,6 @@ function readPxWebSeries(data, transform) {
  * fallback is visible rather than silent.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
   var indicator = (req.query && req.query.indicator) || '';
   var def = INDICATORS[indicator];
   if (!def) {
@@ -527,4 +525,10 @@ const handler = async function (context, req) {
   };
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'historical-data',
+  keyOn: ['indicator', 'years'],
+  ttlMs: 3600000,
+  graceMs: 21600000,
+  staleWhileRevalidate: true,
+}));

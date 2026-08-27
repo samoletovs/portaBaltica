@@ -275,14 +275,28 @@ export const PORTS: Port[] = [
   { code: 'LVLPX', name: 'Liepāja', lat: 56.52, lon: 20.97, description: 'Port of Liepāja — Latvia\'s warmest port with growing ferry traffic' },
 ];
 
-/** Marine weather from Open-Meteo */
+/**
+ * Marine weather from Open-Meteo, via `/api/sea-state`.
+ *
+ * Every reading is nullable because a request can fail, and **zero is an
+ * ordinary value for all of these** — a calm Baltic really does read 0.0m, and
+ * the sea really does sit at 0°C in February. The browser-side fetch these
+ * replaced coalesced absence to zero with `?? 0`, so a failed request rendered
+ * as a flat calm in the same colours as a measurement.
+ *
+ * The consumers never needed that: `PortCard` reads every field through
+ * `fixed()`, which renders an em dash for null, and `classifySeaState` already
+ * declared `number | null | undefined` and returns null rather than guessing a
+ * band. They were written defensively and the fabricated zero was the only
+ * thing defeating them.
+ */
 export interface MarineWeather {
-  waveHeight: number;       // meters
-  waveDirection: number;    // degrees
-  wavePeriod: number;       // seconds
-  seaSurfaceTemp: number;   // °C
-  windWaveHeight: number;   // meters
-  swellWaveHeight: number;  // meters
+  waveHeight: number | null;       // meters
+  waveDirection: number | null;    // degrees
+  wavePeriod: number | null;       // seconds
+  seaSurfaceTemp: number | null;   // °C
+  windWaveHeight: number | null;   // meters
+  swellWaveHeight: number | null;  // meters
 }
 
 export interface MarineWeatherForecast {
@@ -295,14 +309,15 @@ export interface MarineWeatherForecast {
   };
 }
 
-/** Weather from Open-Meteo */
+/** Surface weather from Open-Meteo, via `/api/sea-state`. Nullable for the same
+ *  reason: 0°C, no wind and no rain are all real readings. */
 export interface PortWeather {
   portCode: string;
-  temperature: number;      // °C
-  windSpeed: number;        // km/h
-  windDirection: number;    // degrees
-  cloudCover: number;       // %
-  precipitation: number;    // mm
+  temperature: number | null;      // °C
+  windSpeed: number | null;        // km/h
+  windDirection: number | null;    // degrees
+  cloudCover: number | null;       // %
+  precipitation: number | null;    // mm
 }
 
 
