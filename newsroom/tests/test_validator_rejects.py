@@ -7,11 +7,12 @@ by default asserts it was the only check that fired, which means the fixture
 isolates the behaviour rather than tripping some unrelated gate.
 
 Each mutation starts from a clean article that
-``test_validator_accepts.py`` proves passes all eight checks.
+``test_validator_accepts.py`` proves passes every check.
 """
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from .conftest import assert_rejected_by
@@ -626,3 +627,96 @@ def test_should_reject_a_qualitative_change_when_no_block_states_a_basis(
     verdict = validate(tier_a_article, signal=signal)
 
     assert_rejected_by(verdict, "comparison_basis_stated")
+
+
+# ── no_repeated_findings ────────────────────────────────────────────────
+#
+# THIS SECTION WAS MISSING. `no_repeated_findings` was added to the contract
+# after this file was written -- the module docstring above still said "all
+# eight checks" -- and it was the only one of the nine with no negative fixture
+# here. It was mentioned in tests four times, all of them incidental.
+#
+# That is the defect this suite exists to prevent, arriving through the gap the
+# suite does not cover: a check nothing proves can reject anything. The meta
+# test at the bottom of this file now fails if a tenth check is added the same
+# way.
+
+
+def test_should_reject_two_paragraphs_resting_on_the_same_fields(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    # The failure in production: the model restates its lead in the closing,
+    # citing exactly the same signal fields, and the piece says one thing twice.
+    tier_a_article["body"][1] = {
+        "type": "paragraph",
+        "text": (
+            "Prices averaged 142.5 euros per megawatt-hour, up 12.0% on the "
+            "same day a year earlier, when the market cleared at 127.2 euros."
+        ),
+        "figures": copy.deepcopy(tier_a_article["body"][0]["figures"]),
+    }
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "no_repeated_findings")
+
+
+def test_should_accept_two_paragraphs_that_share_only_some_fields(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The boundary. Carrying one figure into a paragraph that adds another is
+    ordinary reporting -- a piece that may never mention a number twice cannot
+    compare anything -- so only an IDENTICAL set is a repetition."""
+    tier_a_article["body"][1] = {
+        "type": "paragraph",
+        "text": (
+            "That 142.5 euro average sat against a spread of 303.5 euros "
+            "between the cheapest and dearest hour of the day."
+        ),
+        "figures": [
+            {"value": 142.5, "unit": "EUR/MWh", "signal_field": "price.latest"},
+            {"value": 303.5, "unit": "EUR/MWh", "signal_field": "spread"},
+        ],
+    }
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert verdict.passed, (
+        "a paragraph that reuses one figure and adds another was treated as a "
+        f"repetition: {[c.name for c in verdict.failures()]}"
+    )
+
+
+# ── the meta test ───────────────────────────────────────────────────────
+
+
+def test_every_check_in_the_contract_has_a_negative_fixture() -> None:
+    """Every check must be proven capable of rejecting something.
+
+    A check with no negative fixture is indistinguishable from a check that
+    returns ``passed`` unconditionally, and the whole suite stays green either
+    way. `no_repeated_findings` sat in exactly that state from the day it was
+    added until the day this test was written.
+
+    This is the same defect the lab has now hit four times in one day, in four
+    disguises: an invariant test whose corpus omitted three detectors; fixtures
+    that were alphabetically lucky; a production verification that read back
+    through the store it had written to; and a feed guard filtering on a field
+    the data did not carry. All four were GREEN.
+
+    The discipline is not "test more". It is: check that the thing you are
+    asserting about can actually be false.
+    """
+    import pathlib
+    import re
+
+    from newsroom.validator import _CHECKS
+
+    suite = pathlib.Path(__file__).read_text(encoding="utf-8")
+    covered = set(re.findall(r'assert_rejected_by\(\s*verdict,\s*"([a-z_]+)"', suite))
+
+    missing = sorted(set(_CHECKS) - covered)
+    assert not missing, (
+        "these checks have no fixture proving they can reject anything, so "
+        f"nothing here would notice if they stopped working: {missing}"
+    )
