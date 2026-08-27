@@ -327,22 +327,34 @@ the truncation bug it was supposed to fix. A validator test that passes because
 the validator does nothing is worse than no test, because it manufactures
 confidence. Each check needs at least one fixture that *should* be rejected.
 
-That failure has now recurred three times in different clothes, and the third
-is the one worth remembering:
+That failure has now recurred four times in different clothes:
 
 * `all_detector_signals()` did not cover `sharp_move`, `streak` or
   `threshold_cross`, so the invariant test over "every detector" was green
   while three detectors went unchecked;
 * the cross-run suppression fixtures were alphabetically lucky, so a test that
   should have proved ordering proved nothing;
-* and the first verification of the retraction read back through `ArticleStore`,
+* the first verification of the retraction read back through `ArticleStore`,
   which is **local-first** — so it reported success for a write that never
-  reached blob storage at all.
+  reached blob storage at all;
+* and `ourArticles` filtered feeds on an article's `status`, which index
+  entries did not carry, so the guard could not fire on any live index.
 
-The third is the same defect one level up: a *verification* that cannot fail,
-which is harder to spot than a test that cannot fail because it sits outside
-the suite where nobody is looking for it. Assertions about production go
-through `BlobServiceClient` directly, never through the store that wrote them.
+**All four were green.** None failed, none errored, and each read as protection
+in review. Two of them were not tests at all — one was a production
+verification, one a runtime guard — which is why "write better tests" does not
+describe the fix. The rule that does:
+
+> **Check that the thing you are asserting about can actually be false.**
+
+Concretely, that means every validator check needs a fixture that *should* be
+rejected, and `test_validator_rejects.py` ends with a meta test asserting one
+exists for every entry in `_CHECKS`. `no_repeated_findings` sat with none from
+the day it was added until the day that meta test was written — the suite was
+green throughout, and its own docstring still said "all eight checks". A
+verification of production goes through `BlobServiceClient` directly, never
+through the store that wrote it. A guard that filters on a field is accompanied
+by a test that the field is emitted.
 
 ### What the validator cannot see: the article's subject
 
