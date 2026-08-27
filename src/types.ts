@@ -58,7 +58,15 @@ export interface BusinessPulse {
 export interface EconomyData {
   exchangeRates: ExchangeRate[];
   electricityPrices: ElectricityPrice[];
-  electricityCurrent: number;
+  /**
+   * The price now, or `null` when we do not have one.
+   *
+   * Nullable because it used to be `0` on both a missing hour and a failed
+   * fetch, and zero is a plausible Nord Pool price rather than an obvious
+   * sentinel — the tile even has a branch for negative prices. So the
+   * fabricated value was indistinguishable from a reading.
+   */
+  electricityCurrent: number | null;
   indicators: EconomyIndicator[];
   businessPulse: BusinessPulse;
   fetchedAt: string;

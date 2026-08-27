@@ -47,7 +47,14 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             <p className="text-caption dash-muted font-semibold uppercase tracking-widest">Electricity</p>
             {data && (
               <p className="text-lead font-semibold dash-fg font-mono">
-                €{fixed(data.electricityCurrent, 2)}<span className="text-caption font-normal dash-subtle ml-1">/MWh</span>
+                {finite(data.electricityCurrent) === null ? (
+                  // Not "€0.00/MWh", which is what this showed when the fetch
+                  // failed — and zero is a real Nord Pool price, so it read as
+                  // a reading rather than as an absence.
+                  <span className="dash-subtle">—<span className="text-caption font-normal ml-1">/MWh</span></span>
+                ) : (
+                  <>€{fixed(data.electricityCurrent, 2)}<span className="text-caption font-normal dash-subtle ml-1">/MWh</span></>
+                )}
               </p>
             )}
           </div>
@@ -72,15 +79,20 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
             const today = dayIn.format(new Date());
             const todayPrices = list<{ timestamp: string; price: number }>(data.electricityPrices).filter((p) => dayIn.format(new Date(p.timestamp)) === today);
             const prices = todayPrices.length > 0 ? todayPrices : list<{ timestamp: string; price: number }>(data.electricityPrices).slice(0, 24);
-            const minPrice = Math.min(...prices.map((p) => p.price));
-            const maxPrice = Math.max(...prices.map((p) => p.price));
+            // Filtered before the aggregate, not floored after it. `Math.min`
+            // coerces `null` to 0 and propagates `NaN`, so a single unpriced
+            // interval — which a day-ahead feed routinely contains — printed
+            // "Low €0.00" for a day whose real floor was nowhere near zero.
+            const priced = prices.map((p) => finite(p.price)).filter((v): v is number => v !== null);
+            const minPrice = priced.length > 0 ? Math.min(...priced) : null;
+            const maxPrice = priced.length > 0 ? Math.max(...priced) : null;
 
             return (
               <>
                 <div className="flex items-center gap-3 mb-2 text-caption">
-                  <span className="dash-positive">Low €{minPrice.toFixed(2)}</span>
-                  <span className="dash-negative">High €{maxPrice.toFixed(2)}</span>
-                  {data.electricityCurrent < 0 && (
+                  {minPrice !== null && <span className="dash-positive">Low €{minPrice.toFixed(2)}</span>}
+                  {maxPrice !== null && <span className="dash-negative">High €{maxPrice.toFixed(2)}</span>}
+                  {finite(data.electricityCurrent) !== null && data.electricityCurrent! < 0 && (
                     <span className="dash-warning dash-tint-warning px-2 py-0.5 rounded">Negative price</span>
                   )}
                 </div>
