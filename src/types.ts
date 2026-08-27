@@ -275,14 +275,24 @@ export const PORTS: Port[] = [
   { code: 'LVLPX', name: 'Liepāja', lat: 56.52, lon: 20.97, description: 'Port of Liepāja — Latvia\'s warmest port with growing ferry traffic' },
 ];
 
-/** Marine weather from Open-Meteo */
+/**
+ * Marine weather from Open-Meteo.
+ *
+ * Every reading is nullable, and that is load-bearing rather than defensive
+ * typing. The fetch layer used to coerce each field with `?? 0`, which made
+ * `classifySeaState`'s "unknown" branch unreachable through the only path that
+ * calls it: a payload missing `wave_height` arrived as `0`, and 0 m is not
+ * absence — it is the calmest band on the WMO scale. So a reading we never
+ * received rendered as "Calm", confidently, in the colour that means the sea is
+ * fine.
+ */
 export interface MarineWeather {
-  waveHeight: number;       // meters
-  waveDirection: number;    // degrees
-  wavePeriod: number;       // seconds
-  seaSurfaceTemp: number;   // °C
-  windWaveHeight: number;   // meters
-  swellWaveHeight: number;  // meters
+  waveHeight: number | null;       // meters
+  waveDirection: number | null;    // degrees
+  wavePeriod: number | null;       // seconds
+  seaSurfaceTemp: number | null;   // °C
+  windWaveHeight: number | null;   // meters
+  swellWaveHeight: number | null;  // meters
 }
 
 export interface MarineWeatherForecast {
@@ -290,19 +300,19 @@ export interface MarineWeatherForecast {
   current: MarineWeather;
   hourly: {
     time: string[];
-    waveHeight: number[];
-    seaSurfaceTemp: number[];
+    waveHeight: (number | null)[];
+    seaSurfaceTemp: (number | null)[];
   };
 }
 
 /** Weather from Open-Meteo */
 export interface PortWeather {
   portCode: string;
-  temperature: number;      // °C
-  windSpeed: number;        // km/h
-  windDirection: number;    // degrees
-  cloudCover: number;       // %
-  precipitation: number;    // mm
+  temperature: number | null;      // °C
+  windSpeed: number | null;        // km/h
+  windDirection: number | null;    // degrees
+  cloudCover: number | null;       // %
+  precipitation: number | null;    // mm
 }
 
 

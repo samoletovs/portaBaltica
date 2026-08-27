@@ -11,7 +11,7 @@ import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
 interface PortWeatherData {
   port: typeof PORTS[0];
   marine: MarineWeatherForecast;
-  weather: PortWeather;
+  weather: PortWeather | null;
 }
 
 interface MaritimeTileProps {

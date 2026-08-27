@@ -5,7 +5,9 @@ import { fixed, finite, list } from '../utils/payload';
 interface PortCardProps {
   port: Port;
   marine: MarineWeatherForecast;
-  weather: PortWeather;
+  /** Absent when the land forecast failed while the marine call succeeded.
+   *  Every reading below already routes through `fixed`/`finite`. */
+  weather: PortWeather | null;
 }
 
 function windDirectionLabel(deg: number): string {
@@ -34,6 +36,10 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
       return value === null ? [] : [{ height: value, time: marine.hourly?.time?.[i] }];
     });
   const peak = Math.max(...forecast.map((p) => p.height), 1);
+  // Read once and narrowed, rather than calling `finite` for the guard and
+  // reaching past it for the value — which is how the check and the thing
+  // checked drift apart.
+  const windDirection = finite(weather?.windDirection);
 
   return (
     <div className="dash-card border dash-edge rounded-xl p-6 dash-hover-edge transition-colors">
@@ -74,9 +80,7 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
           <div>
             <p className="text-callout font-semibold dash-fg">{fixed(weather?.windSpeed, 0)}</p>
             <p className="text-caption dash-muted">
-              km/h {finite(weather?.windDirection) === null
-                ? '—'
-                : windDirectionLabel(weather.windDirection)}
+              km/h {windDirection === null ? '—' : windDirectionLabel(windDirection)}
             </p>
           </div>
           <div>
