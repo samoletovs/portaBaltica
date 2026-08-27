@@ -321,6 +321,25 @@ The single most important component. An article is servable only if
 | `comparison_basis_stated` | a change is described without naming what it is measured against |
 | `no_repeated_findings` | two paragraphs rest on the identical set of `signal_field`s |
 
+The general case, which the rest of this section is examples of:
+
+> **An assertion that something is absent needs a companion proving it could
+> have been present.**
+
+`== []`, `not in`, `assertRaises`, `toBeNull`, `queryBy...` returning nothing —
+every one of them is satisfied by a world where the mechanism under test never
+ran at all. The assertion cannot tell the difference between "the guard
+excluded it" and "nothing was ever there to exclude", and neither can a
+reviewer reading the assertion on its own.
+
+The cheapest companion is usually the same fixture aimed somewhere the
+exclusion does not apply. The EU27 exclusion asserts
+`detect_all([eu_series]) == []`; beside it, the identical series for Latvia
+must produce signals. That pairing caught a fixture of ten flat readings and a
+spike, which fires nothing at all — a flat run has no variance, so the
+sigma-based detectors refuse it, and the exclusion would have been untested
+while reading as proven.
+
 **Write these tests so they fail when the requirement is unmet, not merely when
 the code changes.** The lab has already shipped a green PR whose test asserted
 the truncation bug it was supposed to fix. A validator test that passes because
