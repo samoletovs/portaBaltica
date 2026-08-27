@@ -132,17 +132,26 @@ describe('static routes are unchanged', () => {
 });
 
 describe('the endpoint that was genuinely sniffable', () => {
-  it('no longer serves text/plain without nosniff', async () => {
+  it('is gone from the deployed site', async () => {
     // Measured 2026-08-27: POST /api/track-login returned
     //   Content-Type: text/plain; charset=utf-8
     //   {"ok":true}
     // with no X-Content-Type-Options. text/plain is the type browsers sniff.
-    // The body is a fixed two-key object so it was not exploitable, but this
-    // is the one response on the site where the missing header met a content
+    // The body was a fixed two-key object so it was not exploitable, but this
+    // was the one response on the site where the missing header met a content
     // type it actually governs.
+    //
+    // The endpoint has since been removed, because its real job was to send a
+    // Telegram notification on every page load — and this very test was one of
+    // the things ringing it, on every deploy, from a GitHub runner. A live
+    // smoke test that triggers a notification is a test with a side effect on
+    // the people watching the channel.
+    //
+    // Asserting it stays gone is the useful thing now: a 404 here is the
+    // success condition, and a 200 would mean the endpoint came back.
     const response = await fetch(`${BASE}/api/track-login`, { method: 'POST' });
     await response.arrayBuffer().catch(() => undefined);
-    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.status, 'track-login answered; it was removed deliberately').toBe(404);
   });
 });
 

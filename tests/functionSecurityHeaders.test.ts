@@ -132,8 +132,9 @@ function assertSecured(res: Res | undefined, label: string) {
 describe('the function inventory', () => {
   it('found every deployed function', () => {
     // If this drops to a handful, the suite below is asserting about almost
-    // nothing while still passing.
-    expect(NAMES.length).toBeGreaterThanOrEqual(17);
+    // nothing while still passing. The floor moved 17 → 16 when `track-login`
+    // was removed; it is a floor against silent collapse, not a target.
+    expect(NAMES.length).toBeGreaterThanOrEqual(16);
     expect(NAMES).toContain('news-rss');
     expect(NAMES).toContain('news-sitemap');
     expect(NAMES).toContain('system-status');
@@ -159,9 +160,25 @@ describe('the pre-handler refusal', () => {
    * saying in as many words to use it as the first thing in every public
    * endpoint. It was anonymous, POST-only, and sent an outbound Telegram
    * notification per request, so an unlimited caller got unlimited messages to
-   * somebody's phone. That gap is closed, and the exclusion is gone with it —
-   * a list of known exceptions is only honest while the exceptions exist.
+   * somebody's phone.
+   *
+   * #139 closed that gap by giving it a limiter and a global notification
+   * budget. This change then removed the endpoint altogether, because the
+   * notification could not answer the question it was built to ask: every one
+   * it ever sent said "anonymous", and the post-deploy smoke suite was POSTing
+   * it on every push, so the beacon was partly ringing itself. A rate-limited
+   * doorbell on a public street is safer than an unlimited one; no doorbell is
+   * better still.
+   *
+   * Both changes deleted the exemption list, which is the part that matters
+   * here: a list of endpoints allowed to have no limiter is only honest while
+   * one of them does. The rule is universal now, with no list left to grow.
    */
+  it('covers every function, with no exceptions', () => {
+    expect(NAMES.length).toBeGreaterThanOrEqual(16);
+    expect(NAMES).not.toContain('track-login');
+  });
+
   for (const name of NAMES) {
     it(`${name} is secured when it refuses`, async () => {
       const handler = require(join(API, name, 'index.js'));
@@ -203,26 +220,36 @@ describe('the headers themselves', () => {
     expect(SECURITY_HEADERS['X-Content-Type-Options']).toBe('nosniff');
   });
 
-  it('reach the one response that production genuinely served sniffable', async () => {
+  it('reaches a response that sets no Content-Type of its own', async () => {
     /**
-     * `track-login` sets no `Content-Type` on either of its responses — the
-     * only `'Content-Type'` in that file is on the outbound Telegram request —
-     * so the host picks one. Measured against production on 2026-08-27, a POST
-     * came back:
+     * This is the case that was genuinely served sniffable in production.
+     * `track-login` set no `Content-Type` on either of its responses, so the
+     * host picked one. Measured against production on 2026-08-27, a POST came
+     * back:
      *
      *     HTTP/1.1 200 OK
      *     Content-Type: text/plain; charset=utf-8
      *     {"ok":true}
      *
      * with no `X-Content-Type-Options`. `text/plain` is the type browsers
-     * sniff, so that is the one response on this site where the missing header
-     * met a content type it actually governs. The body is a fixed two-key
-     * object, so this was not exploitable — which is the honest way to put it,
-     * and not a reason to keep serving it that way.
+     * sniff, so that was the one response on this site where the missing header
+     * met a content type it actually governs. The body was a fixed two-key
+     * object, so it was not exploitable — the honest way to put it, and not a
+     * reason to have kept serving it that way.
+     *
+     * That endpoint is gone. The test is kept and rewritten to assert the
+     * *property* rather than the example: any handler that omits a
+     * `Content-Type` still comes back with `nosniff`. Pointing it at whichever
+     * endpoint happens to omit one today would make it lapse silently the day
+     * that endpoint changed, which is the failure this file exists to prevent.
      */
-    const handler = require(join(API, 'track-login', 'index.js'));
+    const { withSecurity } = require(join(API, 'shared/securityHeaders.js'));
+    const bare = withSecurity(async (context: { res: Res }) => {
+      context.res = { status: 200, body: JSON.stringify({ ok: true }) };
+    });
+
     const context = makeContext();
-    await handler(context, request({ method: 'POST' }));
+    await bare(context, request({ method: 'POST' }));
 
     expect(context.res?.headers?.['X-Content-Type-Options']).toBe('nosniff');
   });

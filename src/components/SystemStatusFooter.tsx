@@ -28,6 +28,32 @@ function sourceLook(status: DataSourceCheck['status']): { dot: string; label: st
   }
 }
 
+/**
+ * Thousands separators, with a fixed locale.
+ *
+ * `toLocaleString()` without an argument follows whoever is looking, which
+ * means the same build renders `12,944` and `12 944` and `12.944` depending on
+ * the browser — and makes any assertion about the rendered text a coin toss.
+ * The site is English-only today, so the locale is pinned to match.
+ */
+function formatCount(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+/**
+ * How stale the published traffic counts are, in words.
+ *
+ * The figure is republished hourly, so it is never live and must not look it.
+ * Printing the age is what stops a reader reading a quiet hour as a crash.
+ */
+function freshnessLabel(ageMs: number): string {
+  const minutes = Math.floor(ageMs / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
+}
+
 export function SystemStatusFooter() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -50,6 +76,21 @@ export function SystemStatusFooter() {
   const statusColor =
     status.status === 'healthy' ? 'dash-positive' :
     status.status === 'degraded' ? 'dash-warning' : 'dash-negative';
+
+  // Same defence as `counts` above, for the same reason: the block is rendered
+  // only when every figure it prints is actually a number. A payload carrying
+  // the key with a null or a string would otherwise render "NaN" beside a
+  // healthy status line, which reads as a broken site rather than as a missing
+  // file.
+  const rawTraffic = status.traffic;
+  const traffic =
+    rawTraffic &&
+    typeof rawTraffic.today === 'number' &&
+    typeof rawTraffic.last7Days === 'number' &&
+    typeof rawTraffic.last30Days === 'number' &&
+    typeof rawTraffic.dailyAverage30d === 'number'
+      ? rawTraffic
+      : null;
 
   return (
     <div className="mt-8 dash-card border dash-edge rounded-xl p-4">
@@ -124,6 +165,42 @@ export function SystemStatusFooter() {
                   <span className="dash-fg font-mono">{status.respondedIn}</span>
                 </div>
               </div>
+
+              {/* Traffic.
+                  Deliberately headed "Site requests" rather than "Visits". The
+                  source metric counts every HTTP request the app serves, and a
+                  single-page app serves a dozen or more per arrival, so calling
+                  these visits would overstate the audience by whatever the
+                  asset-per-page ratio happens to be. The note below says so in
+                  the interface, not only in the source. */}
+              {traffic && (
+                <div className="mt-4 pt-3 border-t dash-edge">
+                  <p className="text-caption dash-muted mb-2">Site requests</p>
+                  <div className="space-y-2 text-caption">
+                    <div className="flex justify-between">
+                      <span className="dash-body">Today</span>
+                      <span className="dash-fg font-mono">{formatCount(traffic.today)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="dash-body">Last 7 days</span>
+                      <span className="dash-fg font-mono">{formatCount(traffic.last7Days)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="dash-body">Last 30 days</span>
+                      <span className="dash-fg font-mono">{formatCount(traffic.last30Days)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="dash-body">Daily average</span>
+                      <span className="dash-fg font-mono">{formatCount(traffic.dailyAverage30d)}</span>
+                    </div>
+                  </div>
+                  <p className="text-caption dash-subtle mt-2">
+                    HTTP requests, not unique visitors
+                    {' · '}{(traffic.timezone ?? 'Europe/Riga').replace('Europe/', '')} days
+                    {typeof traffic.ageMs === 'number' && ` · updated ${freshnessLabel(traffic.ageMs)}`}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
