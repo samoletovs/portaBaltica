@@ -558,6 +558,27 @@ The ▲/▼ glyph, the explicit `+`/`−` sign and a screen-reader description a
 what actually carry the direction (WCAG 2.2 SC 1.4.1). None of them is
 optional.
 
+**And on a `lower-better` series the card says so in words.** This section used
+to claim the arrow was enough to resolve the ambiguity the polarity flip
+creates. It is not, and a reader said so: *"some indicators do not represent the
+trend with the colour — is the rate going up or down, not clear."*
+
+The complaint is exact. Put two falling cards side by side — imports and
+producer prices — and one draws a red ▼ while the other draws a green ▼. Both
+are correct under the rule above. Neither tells the reader whether green means
+*up* or means *good*, because on that one screen it means both. A 12px glyph
+tinted the same colour as the number beside it does not read as an independent
+channel; it reads as part of one coloured token.
+
+So `polarityNote()` returns "Lower is better" for the twelve flipped series and
+the card prints it under the value. Only those twelve need it: everywhere else a
+rise is already drawn green, which is what an unprimed reader assumes anyway, so
+a note would be noise explaining the obvious.
+
+The general point is the one worth keeping. **A rule that is correct can still
+be unreadable, and the fix for an ambiguity is usually to say the thing rather
+than to encode it more cleverly.**
+
 The **sparkline follows the same rule as the delta**, so a card reads as one
 statement rather than a green number above a red line. What it must never do
 again is take its colour from the raw sign of the last data point, which is how
@@ -581,106 +602,176 @@ instead of to a chart.
 
 ### 3.6 The country palette is the flags
 
-Latvia carmine, Estonia blue, Lithuania yellow. A reader who knows the flags
+Latvia carmine, Estonia blue, Lithuania gold. A reader who knows the flags
 never has to consult a legend, which is the cheapest legibility win available
 on a three-country chart.
 
 | | Dark | Light |
 |---|---|---|
-| Latvia | `#dc3b4a` | `#e6414e` |
-| Estonia | `#4da6ff` | `#1a7ae0` |
-| Lithuania | `#fdb913` | `#c28206` |
-| Finland *(bidding zone only)* | `#f0abfc` | `#8b1a9c` |
+| Latvia | `#bf5259` | `#c07173` |
+| Estonia | `#407cc0` | `#5580b4` |
+| Lithuania | `#a67300` | `#9c761f` |
+| Finland *(bidding zone only)* | `#9c5089` | `#96688c` |
 
-Four measured constraints produced those exact values.
+**The axis that decides these is chroma, and it is the one nobody was
+measuring.** Two generations of this palette were chosen against contrast,
+lightness and colour-blind separation — three real constraints, all enforced by
+tests, none of which pushes back on *saturation*. So the optimiser took all of
+it. Measured against the maximum chroma sRGB can even produce at each hue and
+lightness, the values this table replaces sat at:
+
+| | Light | Dark |
+|---|---|---|
+| Latvia | 80% of gamut | 82% |
+| Estonia | 93% | **100%** — the boundary exactly |
+| Lithuania | 99% | 99% |
+
+A reader reported the charts as painful to look at. That was not a preference;
+it was an accurate description of a palette drawn at the edge of the display.
+Datawrapper says it plainly — *"avoid bright, saturated colors"*, and *"if your
+colors come close to 100% saturation and 100% brightness, it's likely your
+colors are too colorful"* — and the affective-colour work behind that advice is
+Bartram, Patra and Stone, CHI 2017.
+
+The replacements sit at OKLCH chroma ≈ 0.10 (light) and ≈ 0.13 (dark), inside
+the C 0.08–0.15 band that Our World in Data's line palette and Tableau 10 both
+occupy. `tests/design-system.test.ts` now enforces a ceiling of 0.16, which is
+a ratchet against the next well-meaning "make it pop" rather than a target.
+
+**Nothing was traded away for it — the separations improved.**
+
+| | Weakest deuteranopia pair | Latvia vs `--data-negative` |
+|---|---|---|
+| light, before | ΔE 26 | ΔE 13.9 |
+| light, after | **ΔE 37** | **ΔE 37.8** |
+| dark, before | ΔE 52 | ΔE 22.7 |
+| dark, after | ΔE 36 | ΔE 19.3 |
+
+That is worth dwelling on, because it is the opposite of what the earlier
+reasoning assumed. Saturation was being spent as though it bought separation.
+It did not: under deuteranopia red and gold both collapse toward yellow, so what
+separates them is *lightness*, and chroma was pure cost.
+
+The other constraints still hold and still have their reasons:
 
 1. **Raw flag colours fail.** Latvian carmine `#9E3039` is 2.40:1 on a card and
    Lithuanian green `#006A44` is 2.87:1, both under the 3:1 SC 1.4.11 asks of a
    graphical object. They are lightened until they pass.
-2. **Lithuania is yellow, not green.** Against Latvian carmine, flag green
-   measures **ΔE 6** under deuteranopia — total convergence, so around 8% of men
-   could not tell Latvia from Lithuania. Yellow measures ΔE 52.
-3. **Latvia must not be the same red as "declining".** At `#e4707a` it sat
-   **ΔE 8.6** from `--data-negative` — the same colour — and red would have meant
-   both *Latvia* and *falling* on one screen, which is the three-meanings defect
-   this book exists to remove.
+2. **Latvia must not be the same red as "declining".** At `#e4707a` it once sat
+   ΔE 8.6 from `--data-negative` — the same colour — so red would have meant
+   both *Latvia* and *falling* on one screen. The floor the test enforces is 12;
+   the light theme now clears it at 37.8, where it used to scrape by at 13.9.
+3. **3:1 is the floor, not the target.** An early light palette answered
+   constraint 1 by pushing all three to about 7:1 — `#a4262c`, `#0057a8`,
+   `#b4700a` — which is AAA *text* contrast applied to a line. It read as dark
+   and muddy and the gold came out brown. Contrast cannot express "too dark",
+   because in a dark theme brighter means *more* contrast and in a light theme
+   it means less; lightness can, and the test asserts **L\* ≥ 45** in both
+   themes.
 
-   The value that shipped is **ΔE 13.9** in light and 22.7 in dark. That light
-   figure is the tightest separation in the whole palette — every *series* pair
-   is 26 or more — and it is recorded here rather than left implicit because
-   the rejected 8.6 above is the only reason anyone thought to measure it. It
-   is a deliberate trade: constraint 4 caps gold near `L* 60`, Latvia has to
-   stay clear of gold under deuteranopia, and that pins it into a band which
-   happens to sit near the negative red. If a future change loosens any of
-   those three, this is the number to re-open. The floor the test enforces is
-   12.
-4. **3:1 is the floor, not the target.** The first light palette answered
-   constraint 1 by pushing all three to about **7:1** — `#a4262c`, `#0057a8`,
-   `#b4700a` — which is AAA *text* contrast applied to a line. Readers reported
-   the light charts as dark and muddy and they were right: `#b4700a` reads
-   brown, not gold. The values above are the brightest that still clear 3:1 on
-   a white card, and they are **14–16 L\* lighter** than the ones they replace:
+Constraints 3 and the chroma ceiling are the two guard rails, and they point in
+opposite directions on purpose: one stops the palette going muddy, the other
+stops it going neon. The previous two revisions each satisfied one and violated
+the other.
 
-   | | Contrast on white | ΔE under deuteranopia |
-   |---|---|---|
-   | Latvia `#e6414e` | 4.01:1 | LV–EE 109 |
-   | Estonia `#1a7ae0` | 4.28:1 | EE–LT 135 |
-   | Lithuania `#c28206` | 3.24:1 | LV–LT 26 |
+#### Why Lithuania is gold and not green
 
-   Gold is the binding constraint in the light theme, not red or blue. Yellow
-   is intrinsically light, so on white it cannot be both vivid and 3:1 — about
-   `L* 60` is the ceiling, and Latvia then has to stay far enough below it to
-   survive deuteranopia, where red and gold both collapse toward yellow and
-   only lightness separates them.
+The old answer was that flag green sat **ΔE 6** from Latvian carmine under a
+deuteranopia simulation — total convergence, so roughly 8% of men could not
+tell Latvia from Lithuania — while yellow measured ΔE 52.
 
-Contrast cannot express "too dark" on its own, because in a dark theme brighter
-means *more* contrast and in a light theme it means less. So the test asserts
-**L\* ≥ 45** for the three Baltic series in both themes. The old light palette
-sat at 37.
+**That answer is now obsolete, and it was re-measured rather than repeated.**
+Against the muted Latvia above, green separates *better* than gold does: ΔE 44
+versus 37 in the light theme, 53 versus 36 in dark. The old figure was a
+property of the old carmine, and this book had explicitly invited the question
+to be re-opened if the palette moved. It moved.
+
+Green is still not available, for a different and harder reason. Lithuania's
+flag green `#006A44` is hue 160, and green is intrinsically mid-lightness: on a
+white card it has to go dark to clear 3:1, which walks straight into the L\* ≥ 45
+floor that exists *because* readers called an earlier palette muddy. Scanned
+across the whole green range at this palette's chroma, the light theme yields:
+
+| Hue | Legal candidates |
+|---|---|
+| 128 (lime) | 87 |
+| 132 | 47 |
+| 136 (olive) | 10 |
+| 140–172 | **0** |
+
+Nothing at all at the flag's own hue. Green survives in the light theme only as
+olive, which does not read as the Lithuanian stripe, and a country cannot be
+olive in one theme and green in the other.
+
+And green already means something here. `--data-positive` colours every delta
+and every sparkline that moved the good way, so a green *country* line would be
+a third meaning for one colour — which is the defect this section exists to
+remove, wearing a different hue.
 
 Finland is deliberately **not** a flag colour: its flag is blue, which is
-Estonia's. It appears only as a Nord Pool bidding zone, never as one of the
-three Baltic states. It used to be violet and is now fuchsia in both themes,
-because a brighter Estonia crowded the violet down to ΔE 23 — under the
-threshold. That is the second-order cost of constraint 4, and the reason the
-whole palette is chosen together rather than one series at a time.
+Estonia's, and the two collide at ΔE 3 under deuteranopia. It appears only as a
+Nord Pool bidding zone, never as one of the three Baltic states, and it is the
+series that most constrains the rest — at low chroma, fuchsia collapses toward
+blue, so it is separated by lightness instead, which is free.
 
-**Stroke patterns stay** — Latvia solid, Estonia `8 5`, Lithuania `18 6` — even
-though the hues are now well separated. That is measured, not cautious:
-between-series *luminance* contrast is only 1.19–1.76:1, well under the 3:1 at
-which WCAG's note on SC 1.4.1 lets lightness count as a second distinction. Hue
-is therefore the only other channel, and hue alone is precisely what the
-criterion forbids. The dash is the second channel, and it survives greyscale
-printing too.
+**A second, non-colour encoding is mandatory** — Latvia solid, Estonia `8 5`,
+Lithuania `18 6` — even though the hues are well separated. That is measured,
+not cautious: between-series *luminance* contrast is only 1.19–1.76:1, well
+under the 3:1 at which WCAG's note on SC 1.4.1 lets lightness count as a second
+distinction. Hue is therefore the only other channel, and hue alone is precisely
+what the criterion forbids.
 
-They are quieter than they were. Lithuania used to be `2 4` — two on, four off
-— which at a 2px stroke is not a dashed line but a dot every six pixels, and
-over a dense multi-year series it read as texture rather than as a series. The
-power chart had the same `2 3`, plus an `8 2 2 2` that read as morse code. A
-mark **at least 6px long and never shorter than the gap after it** is the
-difference between a dashed line and a row of dots, and the test enforces it.
+**Which encoding is now the reader's choice**, because the two trade against
+each other and neither is right for everyone. A dashed line survives greyscale
+printing, which a marker does not; but over a dense multi-year series a dash
+reads as texture rather than as a series, which is why Highcharts' accessibility
+guidance prefers shape for line charts. So `StrokeStyle` in `FilterContext`
+offers:
+
+- `patterned` *(default)* — the dash patterns above.
+- `plain` — solid strokes, each line ending in a distinct shape: circle for
+  Latvia, square for Estonia, triangle for Lithuania. The marker is drawn only
+  at the last observation, because 60-odd monthly points across three series is
+  186 shapes on a 250px panel, which is worse than either problem it solves. It
+  sits on the last *observation* rather than the last column, since the three
+  countries do not publish on the same schedule.
+
+The setting may not remove the second channel, only swap it, and
+`tests/design-system.test.ts` asserts that: a `plain` mode that merely deleted
+the dashes would be a preference that turns off accessibility.
+
+The patterns are quieter than they were. Lithuania used to be `2 4` — two on,
+four off — which at a 2px stroke is not a dashed line but a dot every six
+pixels, and over a dense multi-year series it read as texture rather than as a
+series. The power chart had the same `2 3`, plus an `8 2 2 2` that read as morse
+code. A mark **at least 6px long and never shorter than the gap after it** is
+the difference between a dashed line and a row of dots, and the test enforces it.
 
 Lines are drawn at **2–2.5px**, not 1.5px. At hairline weight on a dark ground
 chroma perception collapses and two warm hues read as one colour — which is
 what "the red and the orange are hard to tell apart" actually meant.
 
 **A series colour never touches text.** The palette is tuned to clear SC
-1.4.11's 3:1 as a *line*, and a hue sitting just above that floor cannot also
-clear SC 1.4.3's 4.5:1 as text under 24px — the two are not satisfiable in one
-value at these hues. Measured against the real card surface across both themes
-and eleven routes, **328 of 496 series-coloured text nodes failed the floor
-that governed them**:
+1.4.11's 3:1 as a *line*, and a hue sitting above that floor cannot also clear
+SC 1.4.3's 4.5:1 as text under 24px — the two are not satisfiable in one value
+at these hues. Measured against the real card surface across both themes and
+eleven routes, **328 of 496 series-coloured text nodes failed the floor that
+governed them**. Every Baltic series still does, at the current values:
 
 | token | hex | on card | as text (4.5) | as a line (3.0) |
 |---|---|---|---|---|
-| `--series-lt` light | `#c28206` | 3.24 | **fail** | pass |
-| `--series-lv` dark | `#dc3b4a` | 3.90 | **fail** | pass |
-| `--series-lv` light | `#e6414e` | 4.01 | **fail** | pass |
-| `--series-ee` light | `#1a7ae0` | 4.28 | **fail** | pass |
+| `--series-lv` light | `#c07173` | 3.59 | **fail** | pass |
+| `--series-ee` light | `#5580b4` | 4.09 | **fail** | pass |
+| `--series-lt` light | `#9c761f` | 4.18 | **fail** | pass |
+| `--series-lv` dark | `#bf5259` | 3.74 | **fail** | pass |
+| `--series-ee` dark | `#407cc0` | 3.98 | **fail** | pass |
+| `--series-lt` dark | `#a67300` | 4.15 | **fail** | pass |
 
-Brightening them is the wrong repair twice over: it would undo constraint 4
-above, and moving Latvia up walks it toward `--data-negative`, collapsing the
-ΔE 13.9 that keeps "Latvia" distinguishable from "this got worse".
+The chroma reduction is the proof that no value fixes this. It *raised* most of
+these ratios — light Lithuania went 3.24 → 4.18, dark Lithuania 9.92 → 4.15 —
+and **not one series crossed 4.5**. Brightening is the wrong repair twice over:
+it would undo the "3:1 is the floor, not the target" constraint above, and
+moving Latvia up walks it toward `--data-negative`.
 
 So the colour **moves rather than changes**. It was carrying something real —
 which line in the chart belongs to this reading — so the value goes to
@@ -693,25 +784,35 @@ the *text* colour: an identifier that carries none of the country's hue.
 Deleting the colour outright would have left a Windows reader with no way to
 match a label to a line at all. Verified by screenshot, not assumed.
 
-**Known and unfixed: gold on a raised surface.** The light 3:1 was verified
-against the white card, and the ranked-comparison and modal-split bars are not
-on the card — they sit in a `--bg-raised` track:
+**Fixed, and worth recording how.** This section used to carry a known,
+deliberately unfixed defect: the light 3:1 was verified against the white card,
+and the ranked-comparison and modal-split bars are not on the card — they sit in
+a `--bg-raised` track, where gold measured 2.95:1 and on `--bg-sunken` 2.88:1.
+The same fault as the one above, one level out: **a floor verified against one
+background and then used against another.**
+
+It was left unfixed because the fix looked like a bad trade — darkening gold
+until it cleared 3:1 on the raised track walks it into `--data-warning`
+(`#a16207`), swapping a marginal contrast failure for a semantic collision.
+
+The chroma reduction resolved it as a side effect, and from the direction nobody
+was looking in. `#9c761f` is *less saturated* rather than darker, so it gained
+contrast without approaching the warning hue:
 
 ```
---series-lt #c28206   on --bg-card   #ffffff   3.24:1  pass
-                      on --bg-page   #f6f8fb   3.04:1  pass
-                      on --bg-raised #f1f5f9   2.95:1  FAIL
-                      on --bg-sunken #eef2f7   2.88:1  FAIL
+--series-lt #9c761f   on --bg-card   #ffffff   4.18:1  pass
+                      on --bg-page   #f6f8fb   3.93:1  pass
+                      on --bg-raised #f1f5f9   3.81:1  pass
+                      on --bg-sunken #eef2f7   3.72:1  pass
 ```
 
-Only gold, only light, only those two surfaces — LV, EE and FI clear raised at
-3.66, 3.91 and 7.03, and every dark value clears it. It is the same fault as
-the one above, one level out: **a floor verified against one background and
-then used against another.** It is recorded rather than fixed because the fix
-is a decision: darkening gold until it clears 3:1 on `--bg-raised` walks it
-into `--data-warning` (`#a16207`), trading a marginal contrast failure for a
-semantic collision. `tests/seriesContrast.live.test.ts` names it explicitly, so
-it stays visible and a *new* offender still fails.
+The allowance in `tests/seriesContrast.live.test.ts` is deleted rather than left
+in place, because a stale exception is indistinguishable from a live one and
+would go on excusing the next value that lands at 2.9:1.
+
+The general lesson is the one the trade obscured: when two constraints appear to
+conflict, check whether the axis you are moving along is the only one available.
+Darkening and desaturating both raise contrast; only one of them was considered.
 
 ### 3.7 Numbers
 
@@ -723,10 +824,43 @@ it stays visible and a *new* offender still fails.
   is the third encoding, never the first.
 - **Use a real minus sign** (`−`, U+2212), not a hyphen. A hyphen is
   narrower than a digit and breaks column alignment even in a tabular face.
-- **Abbreviate in house style**: `bn` and `tn`, lower case, no space — the FT
-  and Reuters convention, not the American `B`/`T`.
+- **Abbreviate in house style**: `m`, `bn` and `tn`, lower case, no space — the
+  FT and Reuters convention, not the American `M`/`B`/`T`.
 - **Fixed decimal places within a column.** `1.20` and not `1.2` when its
   neighbour is `1.25`.
+- **A number states what it is measured in.** `formatValue` has an explicit
+  branch per unit and `tests/formatValue.test.ts` asserts that *no unit in the
+  indicator registry reaches the generic fallback*, so a new indicator with an
+  unhandled unit fails the suite rather than shipping a bare figure.
+
+That last rule is there because both halves of it shipped broken.
+
+**The scale was dropped.** `M EUR` means the series is denominated in *millions*
+of euro — every Eurostat definition behind it queries `currency=MIO_EUR`.
+`formatValue` read the raw number as though it were euro and only appended a
+magnitude once the number itself passed a million. Latvia's quarterly goods
+imports, 5,623 million euro, rendered as **`€5,623`**, and a quarterly move of
+200 million rendered as **`−€200`**. A reader could not tell five thousand euro
+from five billion, and the delta looked like the price of a bicycle.
+
+The unit test asserted exactly that behaviour — `formatValue(3500, 'M EUR')` →
+`'€3,500'` — which is why nothing caught it. **The test was written from the same
+misreading as the code**, which is this book's recurring failure mode in a new
+place: a check that agrees with its author's imagination cannot find the thing
+the author did not imagine.
+
+**The unit was dropped entirely.** Nine indicators declared units the function
+had no branch for — `nights`, `passengers/quarter`, `thousand tonnes CO2-eq`,
+`M tonne-km`, `k tonnes`, `k passengers`, `per 1000 inhabitants` — and every one
+fell through to a numeric fallback that printed a bare number. Rail freight read
+`1,234`, of nothing.
+
+The repair that matters is not the nine branches; it is the registry check. Nine
+more examples would have been nine more things somebody thought of. Comparing
+the handled set against the units the registry actually declares is a check on
+the *property*, and it is the difference between fixing these nine and stopping
+the tenth — the same distinction §"A word list encodes your examples" draws in
+AGENTS.md.
 
 ### 3.8 Attribution
 

@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../ThemeContext';
 import { useCountry, type Country } from '../CountryContext';
 import { useFilter } from '../FilterContext';
-import { formatValue } from '../utils/formatValue';
+import { formatValue, unitCaption } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
-import { changeDescription, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
+import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
 import { list } from '../utils/payload';
 
@@ -204,6 +204,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const changeColor = sentimentColor(sentiment);
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
+  const note = polarityNote(id);
+  const basis = unitCaption(displayUnit);
 
   // The sparkline is coloured by the same rule as the delta, so a card reads
   // as one object rather than as a green number above a red line.
@@ -240,23 +242,40 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
       aria-label={`View ${title} details`}
     >
-      <div className="flex items-start justify-between mb-1">
+      <div className="flex items-start justify-between mb-1 gap-2">
         <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{title}</p>
         <span className="text-caption opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--text-tertiary)' }} aria-hidden="true">→</span>
       </div>
 
-      <div className="flex items-baseline gap-2 mb-3">
+      <div className="flex items-baseline gap-2 mb-1 flex-wrap">
         <span className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
           {fmt(summary.latest)}
         </span>
         {summary.change !== null && summary.change !== 0 && (
           <span className="text-caption font-mono" style={{ color: changeColor }}>
-            <span aria-hidden="true">{isRise ? '▲' : '▼'}</span>
+            {/* A hair of space between the glyph and the number. Set flush they
+                read as one coloured token and the arrow stops registering as a
+                separate statement, which is most of why the direction was hard
+                to see at a glance. */}
+            <span aria-hidden="true" className="mr-0.5">{isRise ? '▲' : '▼'}</span>
             {signed(fmt(Math.abs(summary.change)), summary.change)}
             <span className="sr-only"> {changeDescription(id, summary.change)}</span>
           </span>
         )}
       </div>
+
+      {/* One caption line carrying whatever the value could not.
+          - the basis, where the value is a dimensionless index and the card
+            title would otherwise read as money ("Manufacturing wages 150.2");
+          - why a green ▼ is not a contradiction, on the twelve `lower-better`
+            series. Everywhere else green already means "up", which is what a
+            reader assumes anyway. */}
+      {(basis || note) && (
+        <p className="text-caption mb-2" style={{ color: 'var(--text-tertiary)' }}>
+          {[basis, note].filter(Boolean).join(' · ')}
+        </p>
+      )}
+      {!basis && !note && <div className="mb-2" />}
 
       <div className="h-20" role="img" aria-label={describeSeries(title, chartData, fmt, formatPeriod)}>
         <ResponsiveContainer width="100%" height="100%">

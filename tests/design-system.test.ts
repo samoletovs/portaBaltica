@@ -682,6 +682,32 @@ function deltaE(a: string, b: string): number {
   return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
 }
 
+/**
+ * OKLCH, for the saturation axis.
+ *
+ * L*a*b* above answers "how far apart are these two colours". This answers
+ * "how loud is this one", which is a different question and the one nothing was
+ * asking when the previous palette was chosen.
+ */
+function toOklch(hex: string): { L: number; C: number; h: number } {
+  const clean = hex.replace('#', '');
+  const [r, g, b] = [0, 2, 4]
+    .map((i) => Number.parseInt(clean.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+  const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+
+  let h = (Math.atan2(bb, a) * 180) / Math.PI;
+  if (h < 0) h += 360;
+  return { L, C: Math.hypot(a, bb), h };
+}
+
 /** Brettel/Viénot deuteranopia simulation — the common form, ~8% of men. */
 function deuteranope(hex: string): string {
   const clean = hex.replace('#', '');
@@ -770,6 +796,29 @@ describe('the country palette', () => {
     expect(chart, 'the dash must actually reach the line').toMatch(/strokeDasharray=\{/);
   });
 
+  it('keeps that second encoding when a reader turns the dashes off', () => {
+    // The stroke style is a reader preference now, and a preference that can
+    // remove the only non-colour distinction is a preference that turns off
+    // SC 1.4.1. So `plain` has to supply its own: a distinct shape at the end
+    // of each line.
+    //
+    // This is the check that stops the setting decaying into
+    // `strokeDasharray={undefined}` and nothing else, which is what it would
+    // have been if the marker were left as a nicety rather than a requirement.
+    const chart = components().find((c) => c.file === 'BalticCompareChart.tsx')!.text;
+
+    // Anchored on the trailing comma so this reads the three data entries and
+    // not the `marker: 'circle' | 'square' | 'triangle'` in the type above them.
+    const markers = [...chart.matchAll(/marker:\s*'(circle|square|triangle)',/g)].map((m) => m[1]);
+    expect(markers.length, 'every country needs an end-of-line marker shape').toBe(3);
+    expect(new Set(markers).size, `the three markers must differ, got ${markers.join(', ')}`).toBe(3);
+
+    expect(chart, 'the marker must be drawn when the dash is off').toMatch(/strokeStyle === 'plain'/);
+    expect(chart, 'the dash must be conditional, not deleted').toMatch(
+      /strokeDasharray=\{strokeStyle === 'patterned'/,
+    );
+  });
+
   it('draws dashes that read as a line rather than as a row of dots', () => {
     // Lithuania was `2 4` — two on, four off. At a 2px stroke that is not a
     // dashed line, it is a dot every six pixels, and over a dense multi-year
@@ -829,6 +878,34 @@ describe('the country palette', () => {
         tokens['--series-default'].toLowerCase(),
         `${name} --series-default is the accent, so a chart line looks like a link`,
       ).not.toBe(tokens['--news-accent'].toLowerCase());
+    });
+
+    it(`does not draw the Baltic series at the edge of the gamut in ${name}`, () => {
+      // The axis that was missing, and the reason the palette had to be redone.
+      //
+      // The previous values were optimised for lightness (L* >= 45, so the
+      // charts do not read as muddy) and for separation under deuteranopia.
+      // Nothing in that objective pushed back on *saturation*, so the optimiser
+      // took all of it: measured against the maximum chroma sRGB can produce at
+      // each hue and lightness, the old palette sat at LV 80%, EE 93%, LT 99%
+      // in light and EE 100% — the gamut boundary exactly — in dark.
+      //
+      // Contrast cannot express that and neither can ΔE: a maximally saturated
+      // colour passes both happily. Readers reported the charts as painful,
+      // which is a real property of a high-chroma line on a bright ground —
+      // Datawrapper's "avoid bright, saturated colors" and the Bartram/Patra/
+      // Stone CHI 2017 work on affective colour say the same thing.
+      //
+      // The ceiling is 0.16, comfortably above where these sit (0.10 light,
+      // 0.14 dark) and comfortably below where the old ones did (0.20). It is a
+      // ratchet against the next well-meaning "make it pop", not a target.
+      for (const token of ['--series-lv', '--series-ee', '--series-lt', '--series-fi']) {
+        const { C } = toOklch(tokens[token]);
+        expect(
+          Number(C.toFixed(3)),
+          `${name} ${token} is ${tokens[token]} at OKLCH chroma ${C.toFixed(3)} — too saturated for a chart line`,
+        ).toBeLessThanOrEqual(0.16);
+      }
     });
   }
 });
@@ -1010,6 +1087,42 @@ describe('direction is not sentiment', () => {
             'compute it from the two periods rather than assuming they are adjacent.'
         ).not.toMatch(/month|quarter|year|week|since|last|ago|previous/i);
       }
+    }
+  });
+
+  it('explains the twelve series where the colour contradicts the arrow', async () => {
+    // On a `lower-better` series a fall is drawn green, which is correct and is
+    // the point of the polarity module. But put it next to a red ▼ on a card
+    // that is also falling — imports and producer prices, both on the overview
+    // — and colour alone cannot say whether green meant "up" or meant "good".
+    // On that screen it means both.
+    //
+    // §3.5 used to hold that the arrow resolved this. A reader reported that it
+    // does not, and they were right: a 12px glyph tinted the same colour as the
+    // number beside it reads as part of one coloured token, not as a second
+    // channel. So the surface says it in words.
+    //
+    // Note what this may not do: the note says "Lower is better" and never
+    // "than last quarter", because the comparison behind it is positional. The
+    // assertion above governs that, and this one has to stay compatible with
+    // it — the two tests are about different things and neither may quietly
+    // relax the other.
+    const { polarityNote } = await import('../src/utils/polarity');
+
+    expect(polarityNote('unemployment')).toBe('Lower is better');
+    expect(polarityNote('ppi')).toBe('Lower is better');
+    // Only where the colour is surprising. On `higher-better` and `neutral` a
+    // rise is already green, which is what an unprimed reader assumes, so a
+    // note would be noise explaining the obvious.
+    expect(polarityNote('gdp')).toBeNull();
+    expect(polarityNote('imports')).toBeNull();
+    expect(polarityNote('nonsense_indicator')).toBeNull();
+
+    for (const file of ['IndicatorCard.tsx', 'IndicatorTable.tsx']) {
+      const text = components().find((component) => component.file === file)!.text;
+      expect(text, `${file} must explain a colour that contradicts its arrow`).toMatch(
+        /polarityNote\(/,
+      );
     }
   });
 

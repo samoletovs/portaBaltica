@@ -9,31 +9,40 @@ import { chartTick, chartTooltip } from '../utils/chartType';
 import { describeComparison } from '../utils/chartAccessibility';
 
 /**
- * Each country's identity in a chart: its flag colour, a stroke pattern and a
- * label.
+ * Each country's identity in a chart: its flag colour, a stroke pattern, an
+ * end-of-line marker shape, and a label.
  *
- * Latvia carmine, Estonia blue, Lithuania yellow — a reader who knows the
- * flags never has to consult a legend. The exact values, and why Lithuania is
- * yellow rather than green, are worked out in `ThemeContext`.
+ * Latvia carmine, Estonia blue, Lithuania gold — a reader who knows the flags
+ * never has to consult a legend. The exact values, why they are much less
+ * saturated than they were, and why Lithuania is gold rather than green, are
+ * worked out in `ThemeContext`.
  *
- * The stroke patterns stay even though the hues are now well separated, and
- * that is a measured decision rather than caution. Between-series *luminance*
- * contrast is only 1.19–1.76:1, well under the 3:1 at which WCAG 2.2's note on
- * SC 1.4.1 lets a difference in lightness count as a second distinction. So
- * hue is the only other channel, and hue alone is what the criterion forbids.
- * The dash is the second channel; it also survives greyscale printing.
+ * **A second, non-colour encoding is mandatory, and that is measured rather
+ * than cautious.** Between-series *luminance* contrast is only 1.19–1.76:1,
+ * well under the 3:1 at which WCAG 2.2's note on SC 1.4.1 lets a difference in
+ * lightness count as a second distinction. So hue is the only other channel,
+ * and hue alone is what the criterion forbids.
  *
- * They are quieter than they were. Lithuania used to be `2 4` — two on, four
- * off — which at a 2px stroke is not a dashed line but a row of dots, and over
- * a dense multi-year series it read as noise rather than as a series. Both
- * patterns are now long enough to read as line first and pattern second, and
- * they differ by more than 2× in mark length so they stay distinguishable at
- * the compact size, where a panel is barely 250px wide.
+ * There are two ways to supply it and a reader may now choose (see
+ * `StrokeStyle` in `FilterContext`), because they trade against each other and
+ * neither is right for everyone:
+ *
+ *   - `dash` — survives greyscale printing, which a marker does not, but over a
+ *     dense multi-year series a dashed line reads as texture. The patterns are
+ *     deliberately long: Lithuania used to be `2 4`, which at a 2px stroke is
+ *     not a dashed line but a row of dots. Both are now at least 6px on and
+ *     never shorter than the gap after them, and they differ by more than 2× in
+ *     mark length so they stay apart at the compact size.
+ *   - `marker` — a distinct shape at the last point. Highcharts' accessibility
+ *     guidance prefers shape over dashing for line charts for exactly the
+ *     density reason above. It is drawn only at the end rather than at every
+ *     point, because 62 monthly markers on three series is 186 shapes on a
+ *     250px panel, which is worse than either problem it solves.
  */
-const COUNTRY_META: Record<string, { dash?: string; label: string; flag: string }> = {
-  LV: { label: 'Latvia', flag: '🇱🇻' },
-  EE: { dash: '9 4', label: 'Estonia', flag: '🇪🇪' },
-  LT: { dash: '18 6', label: 'Lithuania', flag: '🇱🇹' },
+const COUNTRY_META: Record<string, { dash?: string; marker: 'circle' | 'square' | 'triangle'; label: string; flag: string }> = {
+  LV: { marker: 'circle', label: 'Latvia', flag: '🇱🇻' },
+  EE: { dash: '9 4', marker: 'square', label: 'Estonia', flag: '🇪🇪' },
+  LT: { dash: '18 6', marker: 'triangle', label: 'Lithuania', flag: '🇱🇹' },
 };
 
 const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;
@@ -48,6 +57,37 @@ const COUNTRY_ORDER = ['LV', 'EE', 'LT'] as const;
  */
 const REFERENCE_KEY = 'EU27';
 
+/**
+ * The shape drawn at the last observation of a series, in `plain` mode.
+ *
+ * Rendered as an SVG primitive rather than a recharts `dot` preset because the
+ * shape has to differ *per series* — a circle for everyone is decoration, and
+ * the whole reason this exists is to be the second encoding once the dash is
+ * gone. Filled with the series colour and ringed in the card surface so it
+ * stays readable where two lines end on top of each other.
+ */
+function EndMarker({
+  cx,
+  cy,
+  shape,
+  colour,
+  size,
+}: {
+  cx: number;
+  cy: number;
+  shape: 'circle' | 'square' | 'triangle';
+  colour: string;
+  size: number;
+}) {
+  const common = { fill: colour, stroke: 'var(--bg-card)', strokeWidth: 1.5 };
+  if (shape === 'circle') return <circle cx={cx} cy={cy} r={size} {...common} />;
+  if (shape === 'square') {
+    return <rect x={cx - size} y={cy - size} width={size * 2} height={size * 2} rx={1} {...common} />;
+  }
+  const h = size * 1.15;
+  return <polygon points={`${cx},${cy - h} ${cx + h},${cy + h * 0.75} ${cx - h},${cy + h * 0.75}`} {...common} />;
+}
+
 interface BalticCompareChartProps {
   indicator: string;
   title?: string;
@@ -59,7 +99,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
-  const { years: filterYears } = useFilter();
+  const { years: filterYears, strokeStyle } = useFilter();
   const years = yearsProp ?? filterYears;
 
   useEffect(() => {
@@ -147,6 +187,18 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     latestValues[geo] = valid.length > 0 ? valid[valid.length - 1].value : null;
   }
 
+  // Where each country's line actually ends, which is not always the last
+  // period on the chart: the three do not publish on the same schedule, and in
+  // `plain` mode the marker has to sit on the last *observation* rather than on
+  // the last column, or it would be drawn floating over a gap.
+  const lastIndex: Record<string, number> = {};
+  for (const geo of COUNTRY_ORDER) {
+    lastIndex[geo] = chartData.reduce(
+      (found, point, index) => (typeof point[geo] === 'number' ? index : found),
+      -1,
+    );
+  }
+
   // Zero is the most important value on a percentage-change series, and it was
   // previously unmarked. Only drawn where the data actually straddles it.
   const allValues = chartData.flatMap((point) =>
@@ -191,13 +243,19 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
 
             The reading itself is `--text-primary`. It used to be the series
             colour, which put a 12px figure on a hue tuned to clear 3:1 as a
-            line — 3.90:1 for Latvia in dark, 3.24:1 for Lithuania in light,
-            both under the 4.5:1 that SC 1.4.3 asks of text this size. The
+            line — 3.74:1 for Latvia in dark, 3.59:1 in light — under the 4.5:1
+            SC 1.4.3 asks of text this size. Lowering the palette's chroma
+            improved every one of those ratios and changed nothing here, which
+            is the point: the two floors are not satisfiable in one value at
+            these hues, so the colour has to move rather than change. The
             swatch carries the same mapping at the floor it was built for. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {COUNTRY_ORDER.map((geo) => (
             <div key={geo} className="flex items-center gap-1 text-caption font-mono">
-              <SeriesSwatch color={chartColors.series[geo]} />
+              <SeriesSwatch
+                color={chartColors.series[geo]}
+                marker={strokeStyle === 'plain' ? COUNTRY_META[geo].marker : undefined}
+              />
               <span aria-hidden="true">{COUNTRY_META[geo].flag}</span>
               <span className="sr-only">{COUNTRY_META[geo].label}: </span>
               <span style={{ color: 'var(--text-primary)' }}>
@@ -306,9 +364,30 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
                 type="monotone"
                 dataKey={geo}
                 stroke={chartColors.series[geo]}
-                strokeDasharray={COUNTRY_META[geo].dash}
+                strokeDasharray={strokeStyle === 'patterned' ? COUNTRY_META[geo].dash : undefined}
                 strokeWidth={compact ? 2 : 2.5}
-                dot={false}
+                // In `plain` mode the dash is gone, so the shape at the end of
+                // the line is the only thing left besides hue — and hue alone
+                // is what SC 1.4.1 forbids. `dot` is false either way: a marker
+                // at every one of 60-odd monthly points is texture, not a cue.
+                dot={
+                  strokeStyle === 'plain'
+                    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      (props: any) =>
+                        props.index === lastIndex[geo] ? (
+                          <EndMarker
+                            key={`${geo}-end`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            shape={COUNTRY_META[geo].marker}
+                            colour={chartColors.series[geo]}
+                            size={compact ? 3 : 4}
+                          />
+                        ) : (
+                          <g key={`${geo}-${props.index}`} />
+                        )
+                    : false
+                }
                 isAnimationActive={false}
               />
             ))}
