@@ -507,7 +507,13 @@ def corpus_signal(corpus: WeeklyCorpus) -> Signal:
             f"and {corpus.end}"
         ),
         score=1.0,
-        section=SECTION,
+        # The week's busiest beat, so `generate_article` selects that beat's
+        # correspondent and the article's section agrees with its byline.
+        # Overriding the persona afterwards instead was wrong twice: it
+        # duplicated the persona-to-JSON shape (and got it wrong, storing the
+        # dataclass), and it left a maritime byline on a piece filed under
+        # economy.
+        section=dominant_section(corpus),
         fields=corpus_fields(corpus),
         sources=tuple(sources) or (SourceRef(source_id="eurostat", retrieved_at=""),),
         context=corpus_context(corpus),
@@ -652,7 +658,6 @@ async def write_weekly(
     fact worth recording, because the alternative reading of the same silence
     is that the trigger never ran.
     """
-    from newsroom.pipeline.safety import persona_for_section
     from newsroom.pipeline.vintage import VintageStore
     from newsroom.pipeline.write.generator import generate_article
 
@@ -703,10 +708,8 @@ async def write_weekly(
             detail=detail,
         )
 
-    persona = persona_for_section(dominant_section(corpus))
-    if persona is not None:
-        result.article.persona = _persona_json(persona)
-    result.article.provenance.update(cites_provenance(corpus, result.article))
+    cites = cites_provenance(corpus, result.article)
+    result.article.provenance.update(cites)
 
     await store.put(result.article)
     # `put` stores; it does not publish. The index is a separate artefact and
@@ -725,8 +728,12 @@ async def write_weekly(
         week_end=corpus.end,
         findings_available=len(corpus),
         slug=result.article.slug,
-        cites=corpus.slugs,
-        detail=f"published, citing {len(corpus.slugs)} article(s)",
+        # What the article recorded, not what the corpus offered. The two
+        # differ whenever the writer uses fewer findings than it was given, and
+        # the first published wrap reported eight while storing three -- so the
+        # run report and the artefact disagreed about the same piece.
+        cites=tuple(cites["cites"]),
+        detail=f"published, citing {len(cites['cites'])} article(s)",
     )
 
 
@@ -755,11 +762,6 @@ async def write_weekly_report(
     )
     log.info("weekly report: %s (%s)", document["outcome"], document["detail"])
     return document
-
-
-def _persona_json(persona: Any) -> Any:
-    to_json = getattr(persona, "to_json", None)
-    return to_json() if callable(to_json) else persona
 
 
 __all__ = [
