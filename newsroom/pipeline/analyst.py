@@ -575,10 +575,23 @@ def _research_section(research: ResearchContext | None) -> str:
     )
 
 
-#: Fact kinds that bring a *different* series. ``placement`` and ``trajectory``
-#: describe the finding's own history, so a mechanism resting only on those is
-#: still a claim about one series.
+#: Fact kinds that bring a *different* series, so a mechanism naming one of
+#: them relates two series rather than restating the finding.
 _CROSS_SERIES_KINDS = frozenset({"peer", "companion", "denominator"})
+
+#: Fact kinds that describe the finding's own series -- where this reading sits
+#: in its history, and the same point in earlier years. A mechanism resting
+#: only on these is still a claim about one series.
+#:
+#: Written down rather than left as "everything not in the set above", because
+#: an abstention that lives in an absence is not a decision anyone can find. A
+#: sixth kind added tomorrow would land here silently: if it genuinely brought
+#: another series, every mechanism grounded in it would be discarded, and the
+#: symptom is a wire that goes slightly quieter for no reason anyone can see.
+#:
+#: ``test_kind_partition.py`` asserts these two exhaust ``FactKind``, so a new
+#: kind has to be classified deliberately or the suite says so by name.
+_SAME_SERIES_KINDS = frozenset({"placement", "trajectory"})
 
 
 def _ground(
