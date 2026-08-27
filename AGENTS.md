@@ -453,6 +453,33 @@ And the lesson is per-cube rather than per-code — `TOT_KWH` in `nrg_pc_204`
 code you are about to pin against its siblings rather than reasoning about what
 it ought to contain.
 
+`tests/indicators.live.test.ts` now asserts it: the newest eight observations
+must be contiguous, read back from each country's *own* last observation. All
+sixty-six definitions pass it today, which is the useful half of the result —
+one bad pin, not a class of them.
+
+**Where a gap is data rather than a defect**, because the sweep found both and
+the difference is not obvious. Sparseness has a shape:
+
+| Shape | Reading |
+|---|---|
+| **Leading** run of nulls | The country began reporting later. Data. Estonia's long-term interest rate starts seventeen months into the window. |
+| **Trailing** null | Ordinary publication lag; the freshness check already owns this. |
+| **Interior** hole between two real readings | Usually the pin. This is the signature. |
+
+Interior holes are only *usually* the pin, so the test that settles it is:
+**can it be fixed by repinning without changing what the number means?**
+
+- `elec_price_industry` — yes. A sibling code measured the same statistic and
+  was complete 10/10/10, so the gap was ours.
+- `tourism` — no. Estonia is missing eleven months of `tour_occ_nim`, all of
+  them historical and clustered in the off-season. The components `I551` and
+  `I552` carry those months but the aggregate `I551-I553` does not, because
+  `I553` is suppressed and Eurostat will not publish a total without it. The
+  only available "fixes" are hotels-only, which is a different statistic, or
+  summing components, which fabricates the suppressed one. So the gap is real
+  and the pin is right.
+
 **An optional probe must never make a reader wait.** `overallStatus` reads only
 the required checks, so an optional result cannot change the verdict by
 construction. Riga Open Data — `required: false`, powering nothing — was measured
