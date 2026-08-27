@@ -32,6 +32,12 @@ export function TradeTile() {
               of the same thing; this says something none of them did, and
               something most readers would guess the wrong way round. */}
           <FreightModalSplit compact />
+          {/* Rail and road volumes behind the modal split above. Both in
+              tonne-kilometres would be the comparable pair, but `road_freight`
+              is the tonnes-lifted series and belongs here on its own terms —
+              how much is carried is a different question from how far. */}
+          <BalticCompareChart indicator="rail_freight" title="Rail freight volume" compact />
+          <BalticCompareChart indicator="road_freight" title="Road freight lifted" compact />
           <BalticCompareChart indicator="transport_services" title="Transport services balance" compact />
           <BalticCompareChart indicator="financial_services" title="Financial services balance" compact />
           <BalticCompareChart indicator="tourism_foreign" title="Nights spent by foreign visitors" compact />
