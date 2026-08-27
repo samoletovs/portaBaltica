@@ -1069,6 +1069,35 @@ regex matched three `.js` assets and no stylesheet. Both returned a clean,
 reproducible *absent*. Both were caught only because the result contradicted
 something already verified — which is luck, not method.
 
+**The method, and it is cheap: when a probe returns nothing, print the shape
+before printing a conclusion.**
+
+This is the most-reproduced failure in the programme — six times in one day
+across two participants, every one of them against code that was merged and
+working. Twice more by the manager (`checks` and `overallStatus` on
+`/api/system-status`, whose real path is `dataSources.checks`; then grepping
+master's stylesheet for `--surface-*`, a token that exists in neither branch it
+was comparing), and twice consecutively by a session probing the same endpoint —
+`checks` returning an empty array, then `dataSources` indexed as an array and
+raising a `TypeError`.
+
+That session also found why the rule has to be procedural rather than a
+reminder to read field names carefully:
+
+> An empty array is suspicious in a way a plausible value is not. If `checks`
+> had happened to exist and carry something else, I would have believed it.
+
+**A rule that fires only once you suspect you are wrong is not available at the
+moment you need it.** "Print the structure after the second wrong guess" needs
+no suspicion — it is triggered by the guessing, which you can always observe.
+Had that session stopped at its first guess it would have reported *"the
+maritime probe is missing from production"*: a confident false regression
+against its own merged work.
+
+Note what none of the six had in common with a bug: every one was an *absent*
+result, never a wrong value. The instrument fails silently in exactly the
+direction that reads as a finding.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
