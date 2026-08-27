@@ -71,6 +71,42 @@ const OVERALL_BUDGET_MS = 8000;
 const OPEN_METEO_TTL_MS = 5 * 60 * 1000;
 const OPEN_METEO_GRACE_MS = 25 * 60 * 1000;
 
+/**
+ * How long a reader waits for a source that cannot change the answer.
+ *
+ * `overallStatus` reads only the required checks, so an optional probe's result
+ * is, by construction, incapable of altering the verdict. Riga Open Data is the
+ * limiting case: it is `required: false` and it `powers` nothing at all, being
+ * retained purely so that we notice if it ever recovers. Measured against
+ * production it hung for 6202ms on eight consecutive requests and was the whole
+ * of a 6206ms page, while every other probe answered inside a few hundred
+ * milliseconds. The endpoint whose job is to report health was the slowest
+ * thing on the site, and it was slow for a datum that changes nothing.
+ *
+ * So an optional probe now gets a short slice of the reader's time and no more.
+ * It is not cancelled — it runs on with its full deadline and files its result
+ * in the cache — so the next caller gets the real answer at no cost, and a
+ * recovery still surfaces. Only the waiting is removed.
+ *
+ * A budget of 750ms is comfortably above every healthy latency on the board
+ * (16–63ms for Open-Meteo, 21–500ms for the cubes, 351ms for PxWeb metadata),
+ * so a source that is actually working still answers inside it on the first
+ * request and is never reported as pending.
+ */
+const OPTIONAL_RESPONSE_BUDGET_MS = 750;
+
+/**
+ * How long a completed optional probe stands before it is run again.
+ *
+ * The same five minutes Open-Meteo uses, for the same reason: it bounds how
+ * long a recovery can go unnoticed while cutting the call volume by more than
+ * an order of magnitude. The measured process lifetime supports it — the
+ * Open-Meteo entry was observed climbing monotonically from 118s to 170s of age
+ * across eight requests, so the cache demonstrably survives between calls on
+ * the deployed app rather than being cold every time.
+ */
+const OPTIONAL_RESULT_TTL_MS = 5 * 60 * 1000;
+
 function httpOptions(check) {
   return {
     deadlineMs: (check && check.deadlineMs) || PROBE_DEADLINE_MS,
@@ -180,6 +216,28 @@ async function probe(check) {
     if (body && body.success === false) {
       throw new Error('CKAN reported failure: ' + JSON.stringify(body.error || body).slice(0, 120));
     }
+
+    // Liveness is not availability. `status_show` answering says the portal is
+    // up; it says nothing about `datastore_search`, which is the action four of
+    // our endpoints actually read through. `site_read` was removed from this
+    // portal while everything else kept answering, so this is the documented
+    // failure mode rather than a hypothetical one.
+    if (check.datastoreUrl) {
+      const data = await es.httpJson(check.datastoreUrl, httpOptions(check));
+      if (!data || data.success !== true) {
+        throw new Error('CKAN datastore_search unavailable: ' +
+          JSON.stringify((data && (data.error || data)) || 'no body').slice(0, 120));
+      }
+      const result = data.result || {};
+      if (!Array.isArray(result.fields) || result.fields.length === 0) {
+        throw new Error('CKAN datastore_search answered without a field schema');
+      }
+      // A datastore emptied by a failed ingestion answers perfectly well with
+      // nothing in it — the same shape as the header-only maritime CSVs.
+      if (typeof result.total === 'number' && result.total === 0) {
+        throw new Error('CKAN datastore_search answered with an empty datastore');
+      }
+    }
     return null;
   }
 
@@ -225,6 +283,19 @@ async function probe(check) {
     if (body && body.success === false) throw new Error('Elering reported failure');
     const observation = freshness.extract.elering(body);
     if (observation === null) throw new Error('Elering answered with no priced intervals');
+    return observation;
+  }
+
+  if (check.type === 'elering-system') {
+    const body = await es.httpJson(check.url, httpOptions(check));
+    if (body && body.success === false) throw new Error('Elering reported failure');
+    // Actuals only. `data.plan` runs into the future — measured 178 minutes
+    // ahead while `data.real` was 77 minutes behind — so reading the newest row
+    // of the whole payload would make this a probe that can never go stale.
+    const observation = freshness.extract.eleringMetered(body);
+    if (observation === null) {
+      throw new Error('Elering answered with no metered production intervals');
+    }
     return observation;
   }
 
@@ -384,6 +455,86 @@ function withBudget(promise, check, budgetMs, startedAt) {
 }
 
 /**
+ * Run an optional check without making the reader wait for it.
+ *
+ * The probe is started, filed in the cache when it finishes, and raced against
+ * a short budget. Three outcomes, and each is a different thing to say:
+ *
+ *   - it answered in time — reported exactly as a required check would be;
+ *   - it had already answered recently — served from the cache, with the age of
+ *     that answer attached, because "healthy as of four minutes ago" is a
+ *     different claim from "healthy just now";
+ *   - it is still running — reported as `pending`, which is neither `healthy`
+ *     (a lie) nor `unhealthy` (a claim about the source we have not earned).
+ *
+ * The outcome is cached whether the probe succeeded or failed, because a
+ * failure is exactly as much worth remembering as a success — and because a
+ * cache that only remembers successes would leave a permanently broken source
+ * costing the budget on every single request, which is the situation this
+ * exists to end.
+ *
+ * `runner` exists so the race can be exercised without a network. It is a real
+ * seam rather than a test hook: the thing under test here is the timing rule,
+ * and pointing a probe at an unreachable host does not produce a hang — DNS
+ * refuses `.invalid` in microseconds, which is how an earlier version of this
+ * test passed while proving nothing.
+ */
+function runOptionalCheck(check, now, startedAt, runner) {
+  const run = runner || runCheck;
+  const key = cache.requestKey('status-optional', check.url || check.name);
+
+  // The fetcher deliberately never rejects: `memo` only stores what resolves,
+  // and the failure is the thing we most need to stop re-paying for.
+  const settled = cache.memo(key, OPTIONAL_RESULT_TTL_MS, OPTIONAL_RESULT_TTL_MS, function () {
+    return Promise.resolve(run(check, now));
+  });
+
+  // The race below may walk away from this promise. Without a catch, a rejection
+  // arriving afterwards is an unhandled rejection, which on some hosts takes the
+  // worker down — a status endpoint that crashes the process is worse than a
+  // slow one.
+  settled.catch(function () { /* recorded by the outcome shape, not by throwing */ });
+
+  return Promise.race([
+    settled.then(function (hit) {
+      const result = Object.assign({}, hit.value);
+      // Two different ages, deliberately not merged: `readAgoMs` is when we last
+      // reached the *source*, `checkedAgoMs` is when we last ran this *probe*.
+      if (hit.cached && hit.ageMs > 0) result.checkedAgoMs = hit.ageMs;
+      return result;
+    }).catch(function (e) {
+      return {
+        name: check.name,
+        status: 'unhealthy',
+        freshness: 'unknown',
+        latency: Date.now() - startedAt,
+        required: check.required,
+        powers: check.powers,
+        note: check.note,
+        error: (e && e.message) || String(e),
+      };
+    }),
+    new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve({
+          name: check.name,
+          status: 'pending',
+          freshness: 'unknown',
+          latency: Date.now() - startedAt,
+          required: check.required,
+          powers: check.powers,
+          note: check.note,
+          pendingReason: 'Optional source did not answer within ' +
+            OPTIONAL_RESPONSE_BUDGET_MS + 'ms; still being checked, and the ' +
+            'result will show on the next request. It cannot affect the ' +
+            'overall status.',
+        });
+      }, OPTIONAL_RESPONSE_BUDGET_MS);
+    }),
+  ]);
+}
+
+/**
  * One word for the whole site.
  *
  * `stale` sits between `healthy` and `degraded` deliberately: everything is
@@ -406,6 +557,19 @@ function overallStatus(results) {
   return 'unhealthy';
 }
 
+/**
+ * Route one check according to whether its answer can change the verdict.
+ *
+ * Separated from the handler so the routing itself is testable. A required
+ * probe's answer *is* the verdict, so the page waits for it up to the overall
+ * budget. An optional one is discarded by `overallStatus` no matter what it
+ * says, so it gets a short slice of the reader's time and no more.
+ */
+function runRegistryCheck(check, now, startedAt, runner) {
+  const run = runner || runCheck;
+  if (!check.required) return runOptionalCheck(check, now, startedAt, run);
+  return withBudget(run(check, now), check, OVERALL_BUDGET_MS, startedAt);
+}
 const API_ENDPOINTS = [
   '/api/baltic-compare', '/api/historical-data', '/api/economy-data',
   '/api/property-data', '/api/environment-data', '/api/power-prices',
@@ -420,7 +584,7 @@ module.exports = async function (context, req) {
   const now = new Date();
 
   const results = await Promise.all(registry.CHECKS.map(function (check) {
-    return withBudget(runCheck(check, now), check, OVERALL_BUDGET_MS, startTime);
+    return runRegistryCheck(check, now, startTime);
   }));
 
   const healthy = results.filter(function (r) { return r.status === 'healthy'; }).length;
@@ -468,3 +632,7 @@ module.exports = async function (context, req) {
 module.exports.overallStatus = overallStatus;
 module.exports.newsroomObservation = newsroomObservation;
 module.exports.probe = probe;
+module.exports.runOptionalCheck = runOptionalCheck;
+module.exports.runRegistryCheck = runRegistryCheck;
+module.exports.OPTIONAL_RESPONSE_BUDGET_MS = OPTIONAL_RESPONSE_BUDGET_MS;
+module.exports.OPTIONAL_RESULT_TTL_MS = OPTIONAL_RESULT_TTL_MS;

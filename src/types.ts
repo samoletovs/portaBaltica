@@ -202,9 +202,20 @@ export interface AddressSearchResult {
 
 export interface DataSourceCheck {
   name: string;
-  status: 'healthy' | 'unhealthy';
+  /**
+   * Four states, deliberately not three. `stale` is a source that answered but
+   * has stopped moving, which is a different thing to tell a reader than one
+   * that is unreachable — flattening the two is how `prc_hicp_manr` served the
+   * same month for eight months behind a green light. `pending` is an optional
+   * source still being checked: we do not yet know, and "we do not know" must
+   * render as neither of the other three.
+   */
+  status: 'healthy' | 'stale' | 'pending' | 'unhealthy';
   latency: number;
   error?: string;
+  pendingReason?: string;
+  required?: boolean;
+  powers?: string;
 }
 
 export interface SystemStatus {

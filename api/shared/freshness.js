@@ -208,6 +208,34 @@ const extract = {
     return newest === null ? null : { at: new Date(newest * 1000) };
   },
 
+  /**
+   * Elering's `system/with-plan` carries metered actuals *and* a forecast, and
+   * only the actuals say anything about whether the feed is alive.
+   *
+   * This is the reason the generic `elering` extractor above cannot be reused:
+   * it takes the newest timestamp across every key of `data`, which for this
+   * endpoint means `plan` as well as `real`. Measured against the live feed,
+   * `real` ended 77 minutes in the past while `plan` ran 178 minutes into the
+   * *future* — so a probe reading the newest row would compute a negative age
+   * and report the source fresh forever, including on the day metering stopped.
+   * A probe that cannot fail is not a probe.
+   *
+   * It also matches what the consumer reads: `/api/live-grid` sets `meteredTo`
+   * from `newestWithProduction(actual)`, so a row present but carrying no
+   * production is not a reading there and is not one here either.
+   */
+  eleringMetered: function (body) {
+    const rows = body && body.data && body.data.real;
+    if (!Array.isArray(rows)) return null;
+    let newest = null;
+    rows.forEach(function (r) {
+      if (!r || typeof r.timestamp !== 'number') return;
+      if (typeof r.production !== 'number' || !Number.isFinite(r.production)) return;
+      if (newest === null || r.timestamp > newest) newest = r.timestamp;
+    });
+    return newest === null ? null : { at: new Date(newest * 1000) };
+  },
+
   /** Open-Meteo stamps `current.time`, in the timezone the query asked for. */
   openMeteo: function (body) {
     const time = body && body.current && body.current.time;

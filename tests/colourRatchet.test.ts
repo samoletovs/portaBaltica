@@ -96,7 +96,7 @@ const REMAINING: Record<string, number> = {
   'src/components/EnvironmentTile.tsx': 19,
   'src/components/PropertyTile.tsx': 13,
   'src/components/EconomyTile.tsx': 12,
-  'src/components/SystemStatusFooter.tsx': 11,
+  'src/components/SystemStatusFooter.tsx': 9,
   'src/components/InsightsBanner.tsx': 10,
   'src/components/IndicatorTable.tsx': 9,
   'src/types.ts': 8,
