@@ -74,15 +74,18 @@ jobs:
       # this job already pays for checkout and `npm ci`, which is the expensive
       # part, so the marginal cost is the suite itself and no extra run.
       #
-      # The build has to come first. `tests/deployRecovery.test.ts` reads
-      # `dist/index.html`, because its whole point is that the recovery script
-      # survives Vite's rewrite rather than merely existing in the source — and
-      # `build_and_deploy` `needs: quality`, so nothing had built by the time the
-      # suite ran. It passed locally for anyone who had built recently and failed
-      # in CI every time, which took master red from #134 to here.
-      - name: Build (so tests that read dist/ have something to read)
-        run: npm run build
-
+      # There is deliberately NO `npm run build` step here. One was added when
+      # `tests/deployRecovery.test.ts` read `dist/index.html`, but that test now
+      # reads the source instead — precisely because a `dist/` left lying in a
+      # working directory is whatever the last build produced, which is how a
+      # real failure passed locally and went red in CI from #134 onward. Nothing
+      # in `tests/` reads `dist/` any more, so building here would feed nobody.
+      #
+      # It is not needed to catch a build break either: `build_and_deploy` runs
+      # `npm ci && npm run build` on pull_request as well as push, and only the
+      # *upload* step is push-only. So a Vite failure still fails a PR, one job
+      # to the right. Re-adding a build here costs a second full build per run
+      # and buys nothing.
       - name: Test
         run: npm test
 
@@ -177,23 +180,47 @@ jobs:
             echo "Check the endpoints before assuming the release is healthy." >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The smoke outcome is carried INTO this message, not left to the step's
+      # own red mark and the summary above.
+      #
+      # `continue-on-error` on the smoke step is right — the code is already
+      # live and failing the job would announce "deploy FAILED" for a deploy
+      # that succeeded. But it also means `success()` stays true when the live
+      # checks fail, so this notification used to send a bare ✅ whatever the
+      # site was actually doing. The only signals were a red step and a summary
+      # line, neither of which reaches anybody not already reading the run.
+      #
+      # That is a notification that cannot report a failure, and it is why
+      # `/data` scrolled sideways on every phone from #84 until someone opened
+      # the site by hand. A ✅ that is sent unconditionally is worse than no
+      # message: it is not silence, it is a false assurance.
       - name: Notify Telegram (success)
         if: success() && github.event_name == 'push'
         env:
           NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
           NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           [ -z "$NAURO_BOT_TOKEN" ] && { echo "NAURO_BOT_TOKEN not set; skipping"; exit 0; }
           COMMIT_MSG=$(printf '%s' "$COMMIT_MESSAGE" | head -1)
+          if [ "$SMOKE_OUTCOME" = "success" ]; then
+            HEADLINE="✅ <b>portaBaltica</b> deployed"
+            TAIL="URL: https://portabaltica.naurolabs.com"
+          else
+            HEADLINE="⚠️ <b>portaBaltica</b> deployed — LIVE CHECKS FAILED"
+            TAIL="The code is live and something it depends on is not answering.
+          Run: ${RUN_URL}"
+          fi
           curl -sf -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
             --data-urlencode "parse_mode=HTML" \
-            --data-urlencode "text=✅ <b>portaBaltica</b> deployed
+            --data-urlencode "text=${HEADLINE}
           Branch: ${{ github.ref_name }}
           Commit: ${COMMIT_MSG}
           SHA: ${{ github.sha }}
-          URL: https://portabaltica.naurolabs.com" \
+          ${TAIL}" \
             || echo "::warning::Telegram notification failed"
 
       - name: Notify Telegram (failure)
