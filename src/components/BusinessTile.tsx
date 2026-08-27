@@ -3,6 +3,7 @@ import type { BusinessSearchResult, EUFundsData, AddressSearchResult } from '../
 import { searchBusinessOwners, searchAddress } from '../api';
 import { useCountry } from '../CountryContext';
 import { TileHeader } from './TileHeader';
+import { finite, list } from '../utils/payload';
 
 interface BusinessTileProps {
   euFunds: EUFundsData | null;
@@ -95,13 +96,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                 {searchResult.totalMatches} matches for &quot;{searchResult.query}&quot;
               </p>
               <div className="space-y-3 max-h-60 overflow-y-auto">
-                {searchResult.companies.slice(0, 10).map((company) => (
+                {list<{ registrationNumber: string; owners: { forename: string; surname: string; nationality?: string }[] }>(searchResult.companies).slice(0, 10).map((company) => (
                   <div key={company.registrationNumber} className="bg-slate-800/40 rounded-lg p-3">
                     <p className="text-ui font-mono text-slate-300 mb-1">
                       Reg# {company.registrationNumber}
                     </p>
                     <div className="space-y-1">
-                      {company.owners.map((owner, i) => (
+                      {list<{ forename: string; surname: string; nationality?: string }>(company.owners).map((owner, i) => (
                         <div key={i} className="flex items-center gap-2 text-caption">
                           <span className="text-white">{owner.forename} {owner.surname}</span>
                           <span className="text-slate-500">
@@ -139,13 +140,17 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
           {euFunds && !euLoading && (
             <>
               <p className="text-title font-semibold text-white font-mono mb-1">
-                {euFunds.total}
+                {finite(euFunds.total) ?? '—'}
                 <span className="text-ui font-normal text-slate-400 ml-2">projects</span>
               </p>
 
               <div className="space-y-2 mb-3">
-                {euFunds.statusSummary.map((s) => {
-                  const pct = (s.count / euFunds.total) * 100;
+                {list<{ status: string; count: number }>(euFunds.statusSummary).map((s) => {
+                  const total = finite(euFunds.total) ?? 0;
+                  // A zero total made this Infinity, which CSS drops silently,
+                  // so every bar rendered at its default width and the chart
+                  // read as "all statuses equal".
+                  const pct = total > 0 ? (s.count / total) * 100 : 0;
                   const isApproved = s.status.toLowerCase().includes('apstiprin');
                   return (
                     <div key={s.status}>
@@ -203,7 +208,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
           {addrResult && (
             <div className="space-y-2 max-h-52 overflow-y-auto">
-              {addrResult.addresses.slice(0, 8).map((addr) => (
+              {list<{ code: string; fullAddress: string; postalCode?: string; lat?: number; lon?: number }>(addrResult.addresses).slice(0, 8).map((addr) => (
                 <div key={addr.code} className="bg-slate-800/40 rounded-lg p-2">
                   <p className="text-caption text-white leading-snug">{addr.fullAddress}</p>
                   <div className="flex items-center gap-2 mt-1">
@@ -223,7 +228,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                   </div>
                 </div>
               ))}
-              <p className="text-caption text-slate-600">{addrResult.total.toLocaleString()} total matches</p>
+              <p className="text-caption text-slate-600">{finite(addrResult.total)?.toLocaleString() ?? '—'} total matches</p>
             </div>
           )}
 

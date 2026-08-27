@@ -3,6 +3,7 @@ import type { PortMeasure, CargoMix } from '../types';
 import { formatPeriod } from '../dataFreshness';
 import { formatMeasure } from '../portStats';
 import { PanelEmpty, MeasureHeadline, PortBars, PanelNote, DormantPorts } from './PortPanelParts';
+import { list } from '../utils/payload';
 
 /**
  * Gross weight of goods handled, by port and by cargo type.
@@ -26,11 +27,12 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
   const [view, setView] = useState<'port' | 'type'>('port');
   const title = 'Port Cargo';
 
-  const hasPorts = measure.ports.length > 0 && measure.latest !== null;
-  const hasMix = mix.categories.length > 0;
+  const hasPorts = list(measure?.ports).length > 0 && measure.latest !== null;
+  const categories = list<CargoMix['categories'][number]>(mix?.categories);
+  const hasMix = categories.length > 0;
   // Older cached responses predate the field; an empty mix without one is the
   // case this used to conflate, so treat it as unknown rather than assert.
-  const breakdown = mix.breakdown ?? (hasMix ? 'published' : undefined);
+  const breakdown = mix?.breakdown ?? (hasMix ? 'published' : undefined);
 
   if (!hasPorts && !hasMix) {
     return (
@@ -66,7 +68,7 @@ export function CargoPanel({ measure, mix }: { measure: PortMeasure; mix: CargoM
           <DormantPorts measure={measure} />
         </>
       ) : (
-        <CargoMixView mix={mix} />
+        <CargoMixView mix={mix} categories={categories} />
       )}
 
       {breakdown === 'unpublished' && (
@@ -102,9 +104,18 @@ function ViewButton({ label, active, onClick }: { label: string; active: boolean
 /** Cargo types take the same ranked ramp as the port bars. */
 const MIX_TOKENS = ['--cat-1', '--cat-2', '--cat-3', '--cat-4', '--cat-5'];
 
-function CargoMixView({ mix }: { mix: CargoMix }) {
-  const total = mix.categories.reduce((s, c) => s + c.weight, 0);
-  const max = Math.max(...mix.categories.map(c => c.weight), 1);
+/**
+ * The cargo-type breakdown.
+ *
+ * It takes the validated categories as a prop rather than re-reading
+ * `mix.categories`. The caller has already established the array is real and
+ * non-empty, and re-deriving it here meant a reader — and any tooling — had to
+ * find a guard several lines away in another component to know this was safe.
+ * Passing it in makes the safety local.
+ */
+function CargoMixView({ mix, categories }: { mix: CargoMix; categories: CargoMix['categories'] }) {
+  const total = categories.reduce((s, c) => s + c.weight, 0);
+  const max = Math.max(...categories.map(c => c.weight), 1);
 
   return (
     <>
@@ -112,14 +123,14 @@ function CargoMixView({ mix }: { mix: CargoMix }) {
         <span className="text-title font-semibold text-white font-mono">
           {mix.total !== null ? formatMeasure(mix.total, 'THS_T') : formatMeasure(total, 'THS_T')}
         </span>
-        <span className="text-caption text-slate-500">across {mix.categories.length} cargo types</span>
+        <span className="text-caption text-slate-500">across {categories.length} cargo types</span>
       </div>
       <p className="text-caption text-slate-500 mb-3">
         national total{mix.period ? ` · ${formatPeriod(mix.period)}` : ''}
       </p>
 
       <div className="space-y-2">
-        {mix.categories.map((c, idx) => {
+        {categories.map((c, idx) => {
           const share = total > 0 ? ((c.weight / total) * 100).toFixed(1) : '0.0';
           return (
             <div key={c.code}>

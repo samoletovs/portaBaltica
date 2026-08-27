@@ -1,6 +1,7 @@
 import type { EnvironmentData } from '../types';
 import { useCountry } from '../CountryContext';
 import { TileHeader } from './TileHeader';
+import { fixed, list } from '../utils/payload';
 
 interface EnvironmentTileProps {
   data: EnvironmentData | null;
@@ -54,9 +55,17 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
   // `AQI_STYLES.good` was the fallback for an unknown status, so a failed
   // reading was painted in the same green as clean air. An unavailable
   // measurement now has no colour of its own to borrow.
-  const aq = data.airQuality;
+  const aq = data.airQuality ?? { available: false, status: null, label: '', pm25: null, no2: null };
   const aqAvailable = aq.available !== false && aq.status !== null;
   const band = aqAvailable && aq.status ? AQI_BANDS[aq.status] ?? null : null;
+  // `!data` says a payload arrived, not that it carries a weather array.
+  const weather = list<{
+    city: string;
+    temperature: number | null;
+    description: string | null;
+    windSpeed: number | null;
+    humidity: number | null;
+  }>(data.weather);
   const capitals: Record<string, string> = { LV: 'Riga', EE: 'Tallinn', LT: 'Vilnius' };
   const capital = capitals[country] || 'Riga';
   const coverage = data.weatherCoverage;
@@ -69,20 +78,20 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
         {/* Weather */}
         <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 md:col-span-2">
           <p className="text-caption text-slate-400 mb-3">Current Weather</p>
-          {data.weather.length === 0 ? (
+          {weather.length === 0 ? (
             <p className="text-ui text-slate-400">No city reported a reading just now.</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {data.weather.map((w) => (
+              {weather.map((w) => (
                 <div key={w.city} className="text-center">
                   <p className="text-title mb-1">{WEATHER_ICONS[w.description ?? ''] ?? '🌡️'}</p>
                   <p className="text-lead font-semibold text-white">
-                    {w.temperature !== null ? `${w.temperature.toFixed(0)}°` : '—'}
+                    {w.temperature !== null ? `${fixed(w.temperature, 0)}°` : '—'}
                   </p>
                   <p className="text-ui text-slate-200">{w.city}</p>
                   <p className="text-caption text-slate-400">{w.description ?? 'no reading'}</p>
                   <p className="text-caption text-slate-500">
-                    💨 {w.windSpeed !== null ? `${w.windSpeed.toFixed(0)} km/h` : '—'}
+                    💨 {w.windSpeed !== null ? `${fixed(w.windSpeed, 0)} km/h` : '—'}
                     {' · '}💧 {w.humidity !== null ? `${w.humidity}%` : '—'}
                   </p>
                 </div>
@@ -149,13 +158,13 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
                   <p className="text-ui font-mono text-white">
-                    {aq.pm25 !== null ? aq.pm25.toFixed(1) : '—'}
+                    {fixed(aq.pm25, 1)}
                   </p>
                   <p className="text-caption text-slate-400">PM2.5 µg/m³</p>
                 </div>
                 <div>
                   <p className="text-ui font-mono text-white">
-                    {aq.no2 !== null ? aq.no2.toFixed(1) : '—'}
+                    {fixed(aq.no2, 1)}
                   </p>
                   <p className="text-caption text-slate-400">NO₂ µg/m³</p>
                 </div>
