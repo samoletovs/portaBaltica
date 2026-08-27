@@ -127,6 +127,124 @@ describe('memo', () => {
       () => Promise.resolve('refetched'), T0 + cache.MAX_ENTRIES + 9);
     expect(newest.cached).toBe(true);
   });
+
+  it('asks once when twenty callers arrive together, not twenty times', async () => {
+    // The defect that scales with the audience. The entry used to be written
+    // only after the fetch resolved, so every request arriving during a fetch
+    // saw an empty store and started its own. Measured on that version: twenty
+    // concurrent callers, twenty upstream calls.
+    //
+    // At one visitor a minute that is invisible. At a hundred concurrent
+    // readers on a cold key it is a hundred simultaneous calls to Eurostat from
+    // one address — which is how this project got throttled by Open-Meteo in
+    // the first place. A remedy for "we ask too often" cannot multiply asking
+    // by the number of readers.
+    let calls = 0;
+    const slow = () => {
+      calls++;
+      return new Promise((resolve) => setTimeout(() => resolve('v'), 40));
+    };
+
+    const answers = await Promise.all(
+      Array.from({ length: 20 }, () => cache.memo('herd', TTL, GRACE, slow))
+    );
+
+    expect(calls).toBe(1);
+    expect(answers.every((a) => a.value === 'v')).toBe(true);
+  });
+
+  it('lets every waiter fall back when the shared fetch fails', async () => {
+    // Sharing the fetch must not mean sharing one caller's error handling: each
+    // still applies the grace rule against what it can see.
+    await cache.memo('shared', TTL, GRACE, () => Promise.resolve('good'), T0);
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        cache.memo('shared', TTL, GRACE,
+          () => Promise.reject(new Error('hang')), T0 + TTL + 1))
+    );
+
+    expect(results.every((r) => r.value === 'good')).toBe(true);
+    expect(results.every((r) => r.servedAfterFailure)).toBe(true);
+  });
+
+  it('does not wedge a key when the fetcher throws synchronously', async () => {
+    // A synchronous throw never produces a promise, so a naive in-flight map
+    // would keep an entry that never settles and the key would be dead for the
+    // life of the process.
+    await expect(cache.memo('sync', TTL, GRACE, () => { throw new Error('boom'); }, T0))
+      .rejects.toThrow(/boom/);
+
+    const recovered = await cache.memo('sync', TTL, GRACE, () => Promise.resolve('ok'), T0 + 1);
+    expect(recovered.value).toBe('ok');
+  });
+
+  it('keeps the entry that is read, not the one that was written recently', async () => {
+    // Eviction used to run on write time, which targets exactly the entries
+    // earning their place: a key read on every request is by definition one
+    // whose value was written a while ago. Measured on that version, a key read
+    // every round was still re-fetched four times over three rounds.
+    let clock = T0;
+    const put = (k: string) =>
+      cache.memo(k, 9e9, 9e9, () => Promise.resolve(k), clock++);
+
+    for (let i = 0; i < cache.MAX_ENTRIES; i++) await put('fill-' + i);
+
+    let refetches = 0;
+    for (let round = 0; round < 50; round++) {
+      await cache.memo('hot', 9e9, 9e9,
+        () => { refetches++; return Promise.resolve('hot'); }, clock++);
+      await put('cold-' + round);
+    }
+
+    // 'hot' was written before all fifty cold keys, so insertion-order eviction
+    // would have discarded it repeatedly. One fetch is the initial miss.
+    expect(refetches, 'the key being read every round must survive').toBe(1);
+  });
+});
+
+describe('stale while revalidating', () => {
+  it('answers immediately from a lapsed entry and refreshes behind it', async () => {
+    // Without this the unlucky reader who arrives as a TTL lapses pays the full
+    // upstream latency — 1.3 to 2.2 seconds measured on /api/economy-data — on
+    // behalf of everyone arriving after them.
+    let calls = 0;
+    const fetcher = () => { calls++; return Promise.resolve('v' + calls); };
+
+    await cache.memo('swr', 100, GRACE, fetcher, T0);
+    const served = await cache.memo('swr', 100, GRACE, fetcher,
+      { now: T0 + 5_000, staleWhileRevalidate: true });
+
+    expect(served.value, 'the reader is not made to wait').toBe('v1');
+    expect(served.revalidating).toBe(true);
+
+    await served.revalidation;
+    const next = await cache.memo('swr', 100, GRACE, fetcher, T0 + 5_001);
+    expect(next.value, 'and the refresh did land').toBe('v2');
+  });
+
+  it('is off unless asked for, so nothing changes for callers that did not opt in', async () => {
+    let calls = 0;
+    const fetcher = () => { calls++; return Promise.resolve('v' + calls); };
+
+    await cache.memo('plain', 100, GRACE, fetcher, T0);
+    const served = await cache.memo('plain', 100, GRACE, fetcher, T0 + 5_000);
+
+    expect(served.value).toBe('v2');
+    expect(served.revalidating).toBeUndefined();
+  });
+
+  it('keeps serving the remembered answer when the refresh fails', async () => {
+    await cache.memo('swrfail', 100, GRACE, () => Promise.resolve('good'), T0);
+
+    const served = await cache.memo('swrfail', 100, GRACE,
+      () => Promise.reject(new Error('hang')),
+      { now: T0 + 5_000, staleWhileRevalidate: true });
+
+    expect(served.value).toBe('good');
+    // A failed background refresh must not surface as an unhandled rejection.
+    await expect(served.revalidation).resolves.toBeUndefined();
+  });
 });
 
 describe('the Open-Meteo probe bounds', () => {

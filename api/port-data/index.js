@@ -1,8 +1,8 @@
-const rateLimit = require('../shared/rateLimit.js');
 const eurostat = require('../shared/eurostat.js');
 const ports = require('../shared/ports.js');
 const countries = require('../shared/country.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 /**
  * Baltic port statistics: cargo tonnage, passengers and vessel arrivals.
@@ -245,9 +245,6 @@ function groupLatest(group) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   // Case-insensitive, and an unrecognised country is a bad request rather than
   // a silent request for Latvia. This endpoint already upper-cased while the
   // other three did not normalise at all — that disagreement is what made the
@@ -336,4 +333,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'port-data',
+  keyOn: ['country'],
+  ttlMs: 21600000,
+  graceMs: 86400000,
+  staleWhileRevalidate: true,
+}));

@@ -1,7 +1,7 @@
-const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const cache = require('../shared/cache.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 /**
  * GET /api/live-grid
@@ -96,9 +96,6 @@ function newestWithProduction(points) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   const end = new Date();
   const start = new Date(end.getTime() - WINDOW_HOURS * 3600 * 1000);
   const url = ELERING_SYSTEM +
@@ -173,4 +170,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'live-grid',
+  keyOn: [],
+  ttlMs: 300000,
+  graceMs: 1800000,
+  staleWhileRevalidate: true,
+}));

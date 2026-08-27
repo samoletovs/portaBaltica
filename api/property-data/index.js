@@ -1,6 +1,6 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -82,8 +82,6 @@ async function fetchEnergyCerts() {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
   try {
     const [construction, energy] = await Promise.all([
       fetchConstructionPermits(),
@@ -111,4 +109,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'property-data',
+  keyOn: [],
+  ttlMs: 3600000,
+  graceMs: 21600000,
+  staleWhileRevalidate: true,
+}));

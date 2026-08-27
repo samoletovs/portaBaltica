@@ -297,7 +297,7 @@ export const PORTS: Port[] = [
 ];
 
 /**
- * Marine weather from Open-Meteo.
+ * Marine weather from Open-Meteo, via `/api/sea-state`.
  *
  * Every reading is nullable, and that is load-bearing rather than defensive
  * typing. The fetch layer used to coerce each field with `?? 0`, which made
@@ -306,6 +306,11 @@ export const PORTS: Port[] = [
  * absence — it is the calmest band on the WMO scale. So a reading we never
  * received rendered as "Calm", confidently, in the colour that means the sea is
  * fine.
+ *
+ * The coercion is now gone from both ends. The browser no longer calls
+ * Open-Meteo at all — `/api/sea-state` answers all three ports from one cached
+ * response — and that endpoint applies the same rule at the source, returning
+ * `null` for a reading it did not receive rather than a plausible zero.
  */
 export interface MarineWeather {
   waveHeight: number | null;       // meters
@@ -326,7 +331,8 @@ export interface MarineWeatherForecast {
   };
 }
 
-/** Weather from Open-Meteo */
+/** Surface weather from Open-Meteo, via `/api/sea-state`. Nullable for the same
+ *  reason: 0°C, no wind and no rain are all real readings. */
 export interface PortWeather {
   portCode: string;
   temperature: number | null;      // °C

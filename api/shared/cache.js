@@ -34,8 +34,25 @@
  * we genuinely do not know, and "I don't know" must never render as "fine".
  */
 
-/** Entries are tiny and few; the cap is a guard against an unbounded key space. */
-const MAX_ENTRIES = 64;
+/**
+ * How many answers to keep.
+ *
+ * This was 64, chosen when the cache held a handful of Open-Meteo URLs. It is
+ * now far too small for what it must cover: `/api/baltic-compare` alone has
+ * **65 indicators**, so a single pass over the indicator list evicted every
+ * entry before it was read a second time, and that is before the per-country
+ * economy, property, environment, port and EU-funds keys are counted.
+ *
+ * Measured on the old cap: a key read on every round was still re-fetched four
+ * times over three rounds, because eviction ran on insertion order and could
+ * not tell a hot key from a cold one.
+ *
+ * 512 entries of parsed JSON — the largest response on the site is
+ * `/api/power-prices` at 21KB — is a few megabytes against a Consumption
+ * instance's 1.5GB. The cap is here to bound an unbounded key space, not to
+ * conserve memory that is not scarce.
+ */
+const MAX_ENTRIES = 512;
 
 /**
  * A cache key covering the request as it is actually made.
@@ -93,13 +110,82 @@ function requestKey(namespace, url, volatile) {
 
 const store = new Map();
 
-function evictOldest() {
-  let oldestKey = null;
-  let oldestAt = Infinity;
+/**
+ * Fetches that have been started and not yet settled, keyed exactly as the
+ * store is.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * Without it, a cache miss is not one upstream call — it is one call *per
+ * concurrent visitor*. Measured directly against `memo` as it was written:
+ * twenty concurrent requests for a single key produced **twenty** upstream
+ * calls, because the entry is only written once the fetch resolves, so every
+ * request that arrives during the fetch sees an empty store and starts its own.
+ *
+ * That is the one defect here that gets worse in exact proportion to the thing
+ * we are trying to support. At one visitor a minute it is invisible. At a
+ * hundred concurrent visitors on a cold key it is a hundred simultaneous calls
+ * to Eurostat from a single address — which is how a shared egress address gets
+ * throttled, and this project has already been throttled once, by Open-Meteo,
+ * for asking too often. The remedy for "we ask too much" cannot itself multiply
+ * asking by the number of readers.
+ *
+ * So the first caller starts the fetch and every caller that arrives while it
+ * is in flight awaits the same promise. Failure is shared too, and each waiter
+ * then applies the grace rule independently against its own view of the store.
+ */
+const inFlight = new Map();
+
+/**
+ * Start a fetch, or join the one already running for this key.
+ *
+ * A synchronous throw from `fetcher` is converted to a rejection so that one
+ * malformed caller cannot leave a permanent entry in `inFlight` and wedge the
+ * key for the life of the process.
+ */
+function fetchShared(key, fetcher) {
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+
+  let started;
+  try {
+    started = Promise.resolve(fetcher());
+  } catch (err) {
+    return Promise.reject(err);
+  }
+
+  const tracked = started.then(
+    function (value) { inFlight.delete(key); return value; },
+    function (err) { inFlight.delete(key); throw err; }
+  );
+
+  inFlight.set(key, tracked);
+  return tracked;
+}
+
+function remember(key, value, at) {
+  if (!store.has(key) && store.size >= MAX_ENTRIES) evictLeastRecentlyUsed();
+  store.set(key, { value: value, at: at, readAt: at });
+}
+
+/**
+ * Evict the entry nobody has read for the longest.
+ *
+ * This used to evict the entry written longest ago, which is a different thing
+ * and the wrong one: a key that is read on every single request is, by
+ * definition, one whose value was written a while back. Insertion-order
+ * eviction therefore targets precisely the entries that are earning their
+ * place. Measured on the old implementation, a key read every round was
+ * re-fetched four times over three rounds while colder keys survived.
+ */
+function evictLeastRecentlyUsed() {
+  let victim = null;
+  let seenLongestAgo = Infinity;
   store.forEach(function (entry, key) {
-    if (entry.at < oldestAt) { oldestAt = entry.at; oldestKey = key; }
+    const lastSeen = entry.readAt === undefined ? entry.at : entry.readAt;
+    if (lastSeen < seenLongestAgo) { seenLongestAgo = lastSeen; victim = key; }
   });
-  if (oldestKey !== null) store.delete(oldestKey);
+  if (victim !== null) store.delete(victim);
 }
 
 /**
@@ -109,26 +195,75 @@ function evictOldest() {
  * old the answer is, always — a caller that wants to say "as of four minutes
  * ago" has what it needs without asking twice.
  *
+ * Concurrent callers for one key share a single upstream fetch; see `inFlight`.
+ *
  * @param {string}   key      identity of the thing being fetched
  * @param {number}   ttlMs    how long an answer is served without asking again
  * @param {number}   graceMs  how long a stale answer stands once fetches fail
  * @param {Function} fetcher  produces a fresh value; may reject
+ * @param {number|object} [opts] legacy `now`, or `{ now, staleWhileRevalidate }`
  */
-async function memo(key, ttlMs, graceMs, fetcher, now) {
-  const at = typeof now === 'number' ? now : Date.now();
+async function memo(key, ttlMs, graceMs, fetcher, opts) {
+  // `now` was the fifth positional argument and several tests and callers pass
+  // it that way. Accepting either shape keeps them working rather than making
+  // an internal improvement into a breaking change.
+  const options = typeof opts === 'number' ? { now: opts } : (opts || {});
+  const pinnedNow = typeof options.now === 'number' ? options.now : null;
+  const at = pinnedNow === null ? Date.now() : pinnedNow;
   const hit = store.get(key);
 
-  if (hit && at - hit.at <= ttlMs) {
+  // Strictly less than, so `ttlMs: 0` means what it looks like — never reuse —
+  // rather than "reuse for the remainder of this millisecond". An entry exactly
+  // at its time to live has lived it.
+  if (hit && at - hit.at < ttlMs) {
+    hit.readAt = at;
     return { value: hit.value, ageMs: at - hit.at, cached: true, servedAfterFailure: false };
   }
 
+  // Serve the stale answer and refresh behind it, when the caller has said the
+  // data is worth more promptly than it is worth freshly.
+  //
+  // Opt-in, because it is not universally right: it is correct for a quarterly
+  // Eurostat cube, where an answer a few minutes past its TTL is identical to
+  // the one upstream would give, and wrong for anything whose whole purpose is
+  // to report the current instant. Without it the unlucky visitor who arrives
+  // at the moment a TTL lapses pays the full upstream latency — 1.3 to 2.2
+  // seconds, measured on `/api/economy-data` — on behalf of everyone who
+  // arrives after them.
+  if (hit && options.staleWhileRevalidate && at - hit.at < graceMs) {
+    hit.readAt = at;
+    const revalidation = fetchShared(key, fetcher).then(
+      function (value) {
+        remember(key, value, pinnedNow === null ? Date.now() : pinnedNow);
+        return value;
+      },
+      function () {
+        // The stale entry stands and `graceMs` already governs how long it may.
+        // Swallowed here so a background refresh cannot become an unhandled
+        // rejection and take the worker down; the next foreground miss will
+        // surface the failure to a caller that can act on it.
+        return undefined;
+      }
+    );
+    return {
+      value: hit.value,
+      ageMs: at - hit.at,
+      cached: true,
+      servedAfterFailure: false,
+      revalidating: true,
+      // Exposed so a test can await the refresh instead of sleeping, and so a
+      // caller that wants to block on it may.
+      revalidation: revalidation,
+    };
+  }
+
   try {
-    const value = await fetcher();
-    if (!store.has(key) && store.size >= MAX_ENTRIES) evictOldest();
-    store.set(key, { value: value, at: at });
+    const value = await fetchShared(key, fetcher);
+    remember(key, value, at);
     return { value: value, ageMs: 0, cached: false, servedAfterFailure: false };
   } catch (err) {
-    if (hit && at - hit.at <= graceMs) {
+    if (hit && at - hit.at < graceMs) {
+      hit.readAt = at;
       return {
         value: hit.value,
         ageMs: at - hit.at,
@@ -144,6 +279,18 @@ async function memo(key, ttlMs, graceMs, fetcher, now) {
 /** Drop everything. Tests only — a warm process should never need this. */
 function clear() {
   store.clear();
+  inFlight.clear();
 }
 
-module.exports = { memo: memo, clear: clear, requestKey: requestKey, MAX_ENTRIES: MAX_ENTRIES };
+/** What the cache is holding. For `/api/system-status` to report on itself. */
+function stats() {
+  return { entries: store.size, inFlight: inFlight.size, maxEntries: MAX_ENTRIES };
+}
+
+module.exports = {
+  memo: memo,
+  clear: clear,
+  stats: stats,
+  requestKey: requestKey,
+  MAX_ENTRIES: MAX_ENTRIES,
+};

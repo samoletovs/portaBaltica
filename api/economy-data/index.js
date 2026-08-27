@@ -1,8 +1,8 @@
 const https = require('https');
-const rateLimit = require('../shared/rateLimit.js');
 const businessRegistry = require('../shared/businessRegistry.js');
 const http = require('http');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 const country = require('../shared/country.js');
 
 function httpGet(url) {
@@ -263,9 +263,6 @@ async function fetchPxWebIndicators() {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   // Normalised once, at the boundary. `data.data[zone]` below keys Elering's
   // payload, whose zone keys are lower case — so an upper-case `LV` found
   // nothing, the `|| []` swallowed it, and the endpoint returned an empty price
@@ -320,4 +317,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'economy-data',
+  keyOn: ['country'],
+  ttlMs: 1800000,
+  graceMs: 7200000,
+  staleWhileRevalidate: true,
+}));

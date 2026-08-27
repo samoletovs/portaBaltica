@@ -1,10 +1,10 @@
-const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const cubeHealth = require('../shared/cubeHealth.js');
 const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
 const cache = require('../shared/cache.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 /**
  * GET /api/system-status
@@ -652,8 +652,6 @@ async function visitStats(now) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
   const startTime = Date.now();
   const now = new Date();
 
@@ -711,7 +709,13 @@ const handler = async function (context, req) {
   };
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'system-status',
+  keyOn: [],
+  ttlMs: 60000,
+  graceMs: 0,
+  staleWhileRevalidate: false,
+}));
 module.exports.overallStatus = overallStatus;
 module.exports.newsroomObservation = newsroomObservation;
 module.exports.probe = probe;

@@ -1,7 +1,7 @@
-const rateLimit = require('../shared/rateLimit.js');
 const INDICATORS = require('../shared/indicators.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 const GEOS = ['LV', 'EE', 'LT'];
 
@@ -68,9 +68,6 @@ function buildReference(entry) {
  * charts without anything going red.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   const query = req.query || {};
 
   if (query.list) {
@@ -147,7 +144,13 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'baltic-compare',
+  keyOn: ['indicator', 'years', 'list'],
+  ttlMs: 3600000,
+  graceMs: 21600000,
+  staleWhileRevalidate: true,
+}));
 // Exported so the split between the three and the denominator is assertable,
 // rather than being a convention a future refactor could quietly undo.
 module.exports.GEOS = GEOS;

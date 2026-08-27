@@ -1,6 +1,6 @@
-const rateLimit = require('../shared/rateLimit.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 const ELERING_URL = 'https://dashboard.elering.ee/api/nps/price';
 
@@ -76,9 +76,6 @@ function couplingOf(rows) {
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   const end = new Date(start);
@@ -196,4 +193,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'power-prices',
+  keyOn: [],
+  ttlMs: 900000,
+  graceMs: 3600000,
+  staleWhileRevalidate: true,
+}));

@@ -20,6 +20,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 import https from 'node:https';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 const STUB_DELAY_MS = 300;
 const UPSTREAM_COUNT = 4;
@@ -56,6 +59,22 @@ describe('ai-insights upstream fan-out', () => {
 
   beforeEach(async () => {
     started = [];
+    // `/api/ai-insights` now serves a remembered response for fifteen minutes.
+    // Clearing matters more here than elsewhere: without it the second case is
+    // answered from cache in about no time and still passes its "completes in
+    // about the slowest upstream" assertion — so it would go green whether the
+    // calls were parallel or sequential, which is a test that has stopped
+    // measuring anything rather than one that has broken.
+    //
+    // Cleared through both module handles on purpose. The endpoint is loaded
+    // here with `await import` while it requires the cache internally as
+    // CommonJS, and those need not resolve to the same object under Vitest.
+    // Clearing one and assuming it was the right one is how this test would go
+    // quietly vacuous again.
+    require('../api/shared/cache.js').clear();
+    const cacheMod = await import('../api/shared/cache.js');
+    (cacheMod.default || cacheMod).clear();
+
     vi.spyOn(https, 'get').mockImplementation((url, _opts, cb) => {
       started.push({ url, at: Date.now() });
       const req = new EventEmitter();

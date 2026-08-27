@@ -16,13 +16,18 @@
  * A scale that only ever errs towards reassurance is worse than one that errs
  * both ways, because nothing about it ever looks alarming enough to check.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const airQuality = require('../api/shared/airQuality.js');
+
+// `/api/environment-data` now serves a remembered response, so each case must
+// start from an empty cache or it is handed the previous case's reading.
+const responseCache = require('../api/shared/cache.js');
+beforeEach(() => responseCache.clear());
 
 /**
  * The European Air Quality Index as the EEA publishes it.

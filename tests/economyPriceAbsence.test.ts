@@ -89,7 +89,13 @@ async function callEconomy(eleringBody: string | null) {
 }
 
 describe('a failed price fetch does not report a price', () => {
-  beforeEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    // `/api/economy-data` now serves a remembered response for thirty minutes.
+    // Each case stubs a different upstream answer, so the cache must be empty
+    // or the second case is handed the first case's prices.
+    require('../api/shared/cache.js').clear();
+  });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it('reports null, not zero, when the upstream fails outright', async () => {
@@ -137,6 +143,11 @@ describe('a failed price fetch does not report a price', () => {
     expect(priced.electricityCurrent).toBe(87.5);
 
     vi.restoreAllMocks();
+    // Two calls to the same endpoint with the same parameters inside one case:
+    // the second is a cache hit by design, and would be handed 87.5 again. The
+    // clear is what makes this a second observation rather than an echo of the
+    // first.
+    require('../api/shared/cache.js').clear();
     const free = await callEconomy(eleringPayload({ includeCurrentHour: true, price: 0 }));
     expect(free.electricityCurrent, 'a real zero must survive').toBe(0);
   });

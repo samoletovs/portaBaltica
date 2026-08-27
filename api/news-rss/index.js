@@ -1,6 +1,6 @@
 const newsroom = require('../shared/newsroom.js');
-const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const { withCache } = require('../shared/responseCache.js');
 
 /**
  * GET /rss.xml (rewritten to /api/news-rss)
@@ -9,9 +9,6 @@ const { withSecurity } = require('../shared/securityHeaders.js');
  * see api/shared/newsroom.js for why.
  */
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
   try {
     const articles = newsroom.ourArticles(await newsroom.fetchIndex());
     const site = newsroom.SITE_URL;
@@ -69,4 +66,10 @@ const handler = async function (context, req) {
   }
 };
 
-module.exports = withSecurity(handler);
+module.exports = withSecurity(withCache(handler, {
+  name: 'news-rss',
+  keyOn: [],
+  ttlMs: 900000,
+  graceMs: 3600000,
+  staleWhileRevalidate: true,
+}));
