@@ -17,8 +17,19 @@ import { headingId, parseMarkdown } from './markdown-parse';
 const INLINE = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/g;
 const LINK = /^\[([^\]]+)\]\(([^)]+)\)$/;
 
+// `break-words` because a policy document is prose we do not control the width
+// of. `corrections.md` links with the label `github.com/samoletovs/portaBaltica/issues`
+// — 41 characters, and a URL offers a line break nowhere — which pushed
+// `/corrections` 42px past a 320px viewport, on the one page a reader reaches
+// when they already think we have got something wrong.
+//
+// Applied to the class rather than to that label: shortening the label fixes
+// the instance, and the next long path or repository URL someone writes into a
+// policy is the same defect again. The same reasoning covers inline code, which
+// carries `newsroom/sources.yaml` at 21 characters today and is one edit from
+// being the next offender.
 const LINK_CLASS =
-  'news-link underline underline-offset-4';
+  'news-link break-words underline underline-offset-4';
 
 /** Renders inline emphasis, code and links. Returns React nodes, never HTML. */
 function renderInline(text: string, keyPrefix = ''): ReactNode[] {
@@ -47,7 +58,7 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
       return (
         <code
           key={key}
-          className="news-accent-panel news-accent code-inline rounded px-1 py-0.5 font-mono"
+          className="news-accent-panel news-accent code-inline break-words rounded px-1 py-0.5 font-mono"
         >
           {part.slice(1, -1)}
         </code>
