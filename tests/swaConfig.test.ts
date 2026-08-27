@@ -20,7 +20,9 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
 
+const require = createRequire(import.meta.url);
 const ROOT = resolve(__dirname, '..');
 const DEPLOYED = resolve(ROOT, 'public/staticwebapp.config.json');
 const DECOY = resolve(ROOT, 'staticwebapp.config.json');
@@ -28,7 +30,7 @@ const DECOY = resolve(ROOT, 'staticwebapp.config.json');
 /** Shape of the parts of the SWA config these tests assert on. */
 interface SwaConfig {
   globalHeaders?: Record<string, string>;
-  routes?: { route: string }[];
+  routes?: { route: string; rewrite?: string }[];
   navigationFallback?: { rewrite?: string; exclude?: string[] };
 }
 
@@ -69,6 +71,59 @@ describe('Static Web Apps configuration', () => {
 
     it('still forbids framing', () => {
       expect(csp()).toContain("frame-ancestors 'none'");
+    });
+  });
+
+  describe('article pages', () => {
+    const routes = (): { route: string; rewrite?: string }[] => deployedConfig().routes ?? [];
+
+    it('sends /article/* to the function that injects per-article metadata', () => {
+      const rule = routes().find((r) => r.route === '/article/*');
+      expect(rule).toBeDefined();
+      expect(rule?.rewrite).toBe('/api/article-page');
+    });
+
+    it('keeps that rule ahead of the catch-all', () => {
+      // SWA takes the first matching route. Behind `/*` this rule never runs,
+      // and the failure is invisible: the site keeps serving the static shell,
+      // which is exactly what it did before and looks like nothing changed.
+      const all = routes().map((r) => r.route);
+      expect(all.indexOf('/article/*')).toBeGreaterThanOrEqual(0);
+      expect(all.indexOf('/article/*')).toBeLessThan(all.indexOf('/*'));
+    });
+
+    it('does not swallow the /articles/* blob route', () => {
+      // `/article*` — one character shorter — matches `/articles/foo.json`
+      // too, and this rule sits above `/articles/*`. Every article payload
+      // would then be answered by the HTML function, the front page would stop
+      // loading, and the article pages would keep working, so the cause would
+      // look like anything but this.
+      const all = routes().map((r) => r.route);
+      expect(all).toContain('/article/*');
+      expect(all).not.toContain('/article*');
+      expect(all).toContain('/articles/*');
+    });
+  });
+
+  describe('security headers on function-served HTML', () => {
+    /**
+     * MEASURED, NOT ASSUMED
+     * ---------------------
+     * `globalHeaders` does not reach a managed function's response. Against
+     * production on 2026-08-27, the static shell came back with CSP,
+     * X-Frame-Options, X-Content-Type-Options, Referrer-Policy and
+     * Permissions-Policy; `/rss.xml`, `/sitemap.xml` and `/api/system-status`
+     * came back with none of them.
+     *
+     * Moving `/article/*` onto a function therefore drops the CSP from the one
+     * route that renders model-written prose and third-party headlines, unless
+     * the function sets them itself. It does — and this is what stops the copy
+     * drifting from the config it copies, which the Function App cannot read at
+     * runtime because it is deployed from `api/` alone.
+     */
+    it('are byte-identical to the globalHeaders the static pipeline applies', () => {
+      const { SECURITY_HEADERS } = require(resolve(ROOT, 'api/shared/securityHeaders.js'));
+      expect(SECURITY_HEADERS).toEqual(deployedConfig().globalHeaders);
     });
   });
 });
