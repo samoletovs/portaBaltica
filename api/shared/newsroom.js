@@ -72,15 +72,59 @@ function fetchIndex() {
 }
 
 /**
- * Our own pages only.
+ * Statuses whose article is a live, reader-facing page.
+ *
+ * `corrected` belongs here: a corrected article is a valid one that has been
+ * amended, and withholding it from the feed would suppress the very version a
+ * reader should see. `retracted` does not, and neither do the pre-publication
+ * states — the pipeline keeps a retracted article at its stable URL on purpose
+ * ("we do not delete the evidence"), so its absence from the feed is the only
+ * thing that stops a withdrawn headline continuing to circulate.
+ */
+const SYNDICATABLE_STATUSES = ['published', 'corrected'];
+
+/**
+ * Our own pages only, and only ones still standing.
  *
  * Tier C is a link out to somebody else's journalism; syndicating their
  * snippet through our feed would be reuse we have no right to, and would make
  * the feed look like an aggregator's. Tier A and B have pages of their own.
+ *
+ * The status check is the second lock on a door that currently has one. A
+ * retracted article is removed from `index.json` by `drop_from_index`, and
+ * that is what cleaned the feeds when five articles were withdrawn. But it is
+ * a single point of failure: if `write_published` succeeds and
+ * `drop_from_index` does not — a partial write, a transient blob error — the
+ * article stays retracted in storage *and* keeps appearing in RSS. A feed
+ * reader does not come back to see the correction, so that is the one surface
+ * where a withdrawn claim goes on circulating after we have publicly taken it
+ * back.
+ *
+ * It is deliberately not `status !== 'retracted'`. Index entries carry no
+ * `status` at all today — verified against the live index, nought of seventy —
+ * so that comparison is true for every article that has ever existed and the
+ * guard could never fire. It would read as protection in review and be inert
+ * in production, which is the failure this codebase keeps finding rather than
+ * one worth adding.
+ *
+ * Nor is it `status === 'published'`, matching `isServable` on the client.
+ * That is the right rule for a full article, which carries its status and its
+ * validator verdict; applied to an index entry that carries neither it would
+ * drop all twenty tier A and B articles and serve an empty feed.
+ *
+ * So: honour the status strictly when it is there, and fall back to tier and
+ * slug when it is not. Correct today, and genuinely protective — against every
+ * withheld state, not only retraction — the day the index carries the field.
+ * Until then the real fix is upstream, and it is one line in the newsroom's
+ * index writer rather than anything here.
  */
 function ourArticles(articles) {
   return articles.filter(function (article) {
-    return article && (article.tier === 'A' || article.tier === 'B') && typeof article.slug === 'string';
+    if (!article || typeof article.slug !== 'string') return false;
+    if (article.tier !== 'A' && article.tier !== 'B') return false;
+    if (typeof article.status === 'string' &&
+        SYNDICATABLE_STATUSES.indexOf(article.status) < 0) return false;
+    return true;
   });
 }
 
