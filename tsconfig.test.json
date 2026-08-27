@@ -1,0 +1,38 @@
+{
+  /* Typechecking for `tests/`, which nothing checked at all.
+   *
+   * `tsconfig.app.json` includes only `src`, and `tsconfig.node.json` only
+   * `vite.config.ts`, so `tsc -b` never looked at a test file. Vitest does not
+   * typecheck either. A deliberate `needsNumber('not a number')` placed in a
+   * test file was verified to pass `npm test`, `npm run lint` **and**
+   * `npm run build`.
+   *
+   * That is wider than the hole this was added for. Two sessions hit `TS2345`
+   * in `src/` on the same afternoon and both were caught by `npm run build`;
+   * nothing would ever have caught the same mistake in a test.
+   *
+   * The five files below are excluded because they carry 34 pre-existing
+   * errors between them, and every one tests code owned by another session --
+   * `api/**` or the newsroom -- so those fixes belong with that work rather
+   * than here. They are listed individually rather than tolerated by a
+   * threshold count, so the debt is a list that shrinks by deletion and cannot
+   * quietly absorb a new offender.
+   *
+   * Everything else under `tests/` is checked and clean today, which means a
+   * new test file is typechecked from the day it is written.
+   */
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  "include": ["src", "tests"],
+  "exclude": [
+    "tests/aiInsightsFanout.test.ts",
+    "tests/airQualityBands.test.ts",
+    "tests/articlePageFunction.test.ts",
+    "tests/byline.test.tsx",
+    "tests/functionSecurityHeaders.test.ts"
+  ]
+}

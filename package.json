@@ -8,9 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "npm run typecheck && vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "react": "^19.2.7",
