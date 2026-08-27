@@ -71,13 +71,45 @@ const POLARITY: Record<string, Polarity> = {
   energy_price_gas: 'lower-better',
   bankruptcies: 'lower-better',
 
-  // Deliberately absent, and therefore coloured by direction only:
+  // Deliberately absent, and therefore coloured by direction only. The list
+  // below is the checked copy of this decision — see DELIBERATELY_NEUTRAL.
   //   house_prices  — good if you own, bad if you are buying
   //   population    — the Baltic depopulation story is not ours to grade
   //   imports       — a rise is domestic demand or it is dependency
   //   gov_revenue   — receipts are not by themselves good or bad news
   //   new_vehicles  — more cars is not self-evidently progress
 };
+
+/**
+ * Ids that reach `sentimentOf` and are ungraded **on purpose**.
+ *
+ * This exists so the abstention is a decision rather than an omission, and so
+ * the difference between them is checkable. `polarityOf` answers `neutral` for
+ * anything it does not recognise, which is the right default and also means a
+ * card added tomorrow with an unregistered id is silently coloured by
+ * direction with nobody having decided anything.
+ *
+ * The newsroom hit the identical shape on the same day: its parity test
+ * excluded `freq` with a comment naming the field the newsroom carries it in,
+ * and nothing checked that field — so the exclusion read as "not comparable"
+ * rather than "compared elsewhere", and the cadence went unverified from the
+ * day it was written. A documented decision that nothing enforces decays into
+ * an assumption.
+ *
+ * The port ids carry their reasoning at their own call site in
+ * `PortPanelParts.tsx`: a rise in tonnage is trade or it is transit
+ * dependency, and a rise in passengers is tourism or it is emigration.
+ */
+export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
+  'house_prices',
+  'population',
+  'imports',
+  'gov_revenue',
+  'new_vehicles',
+  'port_goods',
+  'port_passengers',
+  'port_vessels',
+]);
 
 /** The polarity of an indicator. Unknown ids are neutral, which is the safe default. */
 export function polarityOf(id: string): Polarity {

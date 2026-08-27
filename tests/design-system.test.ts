@@ -928,6 +928,55 @@ describe('direction is not sentiment', () => {
     expect(sentimentOf('population', -1000)).toBe('negative');
   });
 
+  it('has decided about every id it colours, rather than defaulting quietly', async () => {
+    // `polarityOf` answers `neutral` for anything it does not recognise, which
+    // is the right default and also means a card added tomorrow with an
+    // unregistered id is coloured by direction with nobody having decided
+    // anything. The five abstentions are deliberate and reasoned; the way to
+    // keep that true is to make the difference between a decision and an
+    // omission checkable rather than a comment.
+    //
+    // The newsroom hit the identical shape on the same day: a parity test
+    // excluded `freq` with a comment naming the field the newsroom carries it
+    // in, nothing checked that field, and the exclusion read as "not
+    // comparable" rather than "compared elsewhere".
+    const { DELIBERATELY_NEUTRAL, polarityOf } = await import('../src/utils/polarity');
+
+    // Every id handed to sentimentOf, gathered the way the page does it.
+    const ids = new Set<string>();
+    for (const { text } of components()) {
+      for (const m of text.matchAll(/<IndicatorCard[^>]*\bid="([^"]+)"/g)) ids.add(m[1]);
+    }
+    const table = components().find((c) => c.file === 'IndicatorTable.tsx')!.text;
+    const list = table.match(/const INDICATORS = \[([^\]]+)\]/);
+    if (list) for (const m of list[1].matchAll(/'([^']+)'/g)) ids.add(m[1]);
+    const panels = components().find((c) => c.file === 'PortPanelParts.tsx')!.text;
+    for (const m of panels.matchAll(/^\s{2}\w+:\s*'([a-z_]+)',$/gm)) ids.add(m[1]);
+
+    expect(ids.size, 'the sweep found no ids, so it is proving nothing').toBeGreaterThan(20);
+
+    const undecided = [...ids]
+      .filter((id) => polarityOf(id) === 'neutral' && !DELIBERATELY_NEUTRAL.has(id))
+      .sort();
+
+    expect(
+      undecided,
+      'these are coloured by direction because nobody classified them, not because ' +
+        'anyone decided they were ungradable. Either give them a polarity or add them ' +
+        'to DELIBERATELY_NEUTRAL with a line saying why a rise is not self-evidently ' +
+        'good news.'
+    ).toEqual([]);
+  });
+
+  it('keeps the deliberate list honest in the other direction too', async () => {
+    // An entry here claims an id is ungradable. If it is also in POLARITY the
+    // two disagree, and POLARITY silently wins.
+    const { DELIBERATELY_NEUTRAL, polarityOf } = await import('../src/utils/polarity');
+
+    const contradicted = [...DELIBERATELY_NEUTRAL].filter((id) => polarityOf(id) !== 'neutral');
+    expect(contradicted, 'these are listed as ungraded and also graded').toEqual([]);
+  });
+
   it('flips the twelve series where a rise is unambiguously bad', async () => {
     const { sentimentOf, polarityOf } = await import('../src/utils/polarity');
 
