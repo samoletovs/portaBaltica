@@ -77,6 +77,38 @@ class EurostatDataset:
         self.geographies = tuple(geographies) if geographies is not None else None
 
 
+def request_params(
+    spec: EurostatDataset, geographies: Sequence[str] = COLLECTED_GEOGRAPHIES
+) -> list[tuple[str, str]]:
+    """The query as actually sent. One definition, because two would drift.
+
+    The cache is keyed on this, and several definitions read the same cube and
+    differ only here — ``bop_c6_q`` backs ten of them, ``prc_hicp_minr``
+    eight. A key that misses one of these pairs serves one metric's payload
+    under another's name, which is how five articles published real Eurostat
+    figures attached to metrics they never measured.
+
+    ``test_no_two_datasets_can_collide_on_a_key`` asserts no two specs produce
+    the same key. It used to rebuild this list itself, and had already drifted:
+    it hardcoded the three Baltic states while the collector's default had
+    become ``COLLECTED_GEOGRAPHIES``. It made no difference to the outcome,
+    which is exactly why nobody noticed — a guard must read the same object
+    the behaviour reads, or it is checking a copy of the code rather than the
+    code.
+    """
+    # A dataset that pins its own territorial axis asks for none here. Sending
+    # geo=LV to a per-country maritime cube that has no geo dimension is an
+    # HTTP 400, not an empty series.
+    requested = spec.geographies if spec.geographies is not None else geographies
+    return [
+        ("format", "JSON"),
+        ("lang", "EN"),
+        ("lastTimePeriod", str(spec.periods)),
+        *spec.params.items(),
+        *[(spec.geo_dimension, geo) for geo in requested],
+    ]
+
+
 EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="une_rt_m",
@@ -622,14 +654,7 @@ async def collect_eurostat(
         # A dataset that pins its own territorial axis asks for none here. Sending
         # geo=LV to a per-country maritime cube that has no geo dimension is an
         # HTTP 400, not an empty series.
-        requested = spec.geographies if spec.geographies is not None else geographies
-        params: list[tuple[str, str]] = [
-            ("format", "JSON"),
-            ("lang", "EN"),
-            ("lastTimePeriod", str(spec.periods)),
-            *spec.params.items(),
-            *[(spec.geo_dimension, geo) for geo in requested],
-        ]
+        params = request_params(spec, geographies)
         result = await http.fetch(
             source_id="eurostat",
             url=url,
