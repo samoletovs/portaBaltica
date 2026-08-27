@@ -1098,6 +1098,53 @@ Note what none of the six had in common with a bug: every one was an *absent*
 result, never a wrong value. The instrument fails silently in exactly the
 direction that reads as a finding.
 
+## Before reporting a regression, confirm which tree you measured
+
+The rule above fires on an empty reading. **The failure it does not catch
+produces a perfectly plausible one**, and that is the more dangerous case,
+because a plausible value invites no second look.
+
+A session closing out its track measured the deploy-race recovery in real
+Chromium against a real build, blocked a lazy chunk, counted document requests
+and cross-checked `sessionStorage`. It reported:
+
+```
+LAZY CHUNK 404   document requests: 1     <- no reload
+                 handler tests el.tagName === 'SCRIPT' and reads el.src,
+                 while a LINK carries href, so the case is filtered out
+```
+
+Every word of that is true — of `index.html` as it stood **51 commits earlier**.
+It is a verbatim description of the code *before* `#174`, which is the PR that
+added the `LINK` + `rel="modulepreload"` branch precisely because a lazy chunk
+never dispatches `unhandledrejection`. Master recovers; the session's own
+worktree did not.
+
+Everything downstream of the mistake was excellent. Real browser, real build,
+a corroborating signal, and it caught a defect in its *own* first instrument —
+`load` cannot count reloads when the bundle 404s, because such a page never
+reaches `load`. **A rigorous instrument pointed at the wrong tree yields a
+confident, well-evidenced, false regression**, which survives review in a way a
+sloppy one does not.
+
+This is the deploy-window trap one layer down. That rule says a green deploy
+job means the package uploaded, not that the app serves it. This is the same
+error against a *local* tree, and **in a parallel-session programme a stale
+branch is the default state, not the exception** — that branch merged at 12:12
+and the work continued around it for another ten hours.
+
+So before reporting that something is broken, run the ten-second check neither
+party ran:
+
+```
+git rev-list --count HEAD..origin/master     # how far behind am I?
+git log --oneline -1 -- <the file you measured>
+```
+
+And prefer measuring a checkout of `origin/master` over your own worktree
+whenever the claim is about what production does. The claim is about master; so
+must the measurement be.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
