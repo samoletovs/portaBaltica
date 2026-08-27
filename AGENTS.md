@@ -908,6 +908,41 @@ human reading the output, never by the suite — a lexical check's tests are
 written from the same imagination as the check, so they agree with it. **Read
 the artefact.**
 
+## The correct sibling that conceals the broken one
+
+A departure from a pattern **already present in the file** is harder to spot
+than a missing idea, and for a reason worth naming: the file demonstrably knows
+the answer, so a reader who goes to check finds the correct pattern and stops
+looking.
+
+Both of the last two faults found in this repo were that shape.
+
+`detect_streak` claimed *consecutive periods* from a count of *readings*, so
+five readings across ten months printed as "four consecutive monthly moves".
+Two functions above it, `detect_record_extreme` says *"across 14 observations
+since 1999"* — counts observations, calls them observations, claims no time
+unit, and is true at any cadence. The correct pattern was in the same file, and
+reading it is what reassured the author that the file was sound.
+
+`api/shared/statusChecks.js` hand-built a Eurostat query while importing `es`
+at line 24 — **and using it for `sincePeriod` two lines into the very string
+that should have been `buildUrl`.** The probe drifted to `rep_mar=LV_0LVRIX`
+over three years while the app read four Latvian ports over eight, so it could
+not see a Ventspils, Liepāja or Skulte failure at all and went red whenever
+Riga alone was quiet — which the check's own comment already described as
+routine.
+
+So when something is wrong, **check whether the file already contains the right
+version of it.** If it does, that is not reassurance; it is the thing that hid
+the fault. And the same concealment happens in prose: a note that answers the
+question you were about to ask, with an answer to a different question, closes
+the enquiry just as effectively — `NOT_COMPARED = {"freq"}` read as *"not
+comparable"* while meaning *"compared elsewhere"*, and nowhere else compared it.
+
+`newsroom/README.md` carries the newsroom-side version and the practical rule
+that both sides reached independently: **when you audit the consumers, audit the
+input they share.**
+
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:
