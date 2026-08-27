@@ -59,7 +59,7 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
         // this shipped at 1.44:1 against white. A staleness warning nobody can
         // read is worse than none, because the page then looks confident.
         // `--data-warning` is defined per theme and is legible on both.
-        <div className="mb-3 px-3 py-2 rounded-lg text-caption bg-amber-400/10 border border-amber-400/20"
+        <div className="mb-3 px-3 py-2 rounded-lg text-caption dash-notice-warning"
           style={{ color: 'var(--data-warning)' }}>
           {coverage?.spans && newest ? (
             // Naming only the oldest would be false about the measures that are

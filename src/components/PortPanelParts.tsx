@@ -97,9 +97,8 @@ export function MeasureHeadline({ measure }: { measure: PortMeasure }) {
   );
 }
 
-const BAR_COLORS = [
-  'bg-cyan-500', 'bg-teal-500', 'bg-emerald-600', 'bg-slate-400', 'bg-slate-500',
-];
+/** Ranked bars take the categorical ramp, `--cat-1` for the largest. */
+const BAR_TOKENS = ['--cat-1', '--cat-2', '--cat-3', '--cat-4', '--cat-5'];
 
 /** One bar per port, sized against the largest, with its share of the total. */
 export function PortBars({ measure }: { measure: PortMeasure }) {
@@ -134,8 +133,11 @@ export function PortBars({ measure }: { measure: PortMeasure }) {
             </div>
             <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-[width] duration-500 ${BAR_COLORS[Math.min(idx, BAR_COLORS.length - 1)]}`}
-                style={{ width: `${width}%` }}
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{
+                  width: `${width}%`,
+                  background: `var(${BAR_TOKENS[Math.min(idx, BAR_TOKENS.length - 1)]})`,
+                }}
               />
             </div>
           </div>

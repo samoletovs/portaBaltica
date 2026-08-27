@@ -49,10 +49,10 @@ export function InsightsBanner() {
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide" role="status" aria-label="Loading insights">
           {[1, 2, 3].map((placeholder) => (
             <div key={placeholder} className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 animate-pulse">
-              <div className="h-3 w-20 rounded bg-slate-700/40 mb-3" />
+              <div className="h-3 w-20 rounded dash-skeleton mb-3" />
               <div className="h-4 w-3/4 rounded bg-slate-700/30 mb-2" />
-              <div className="h-3 w-full rounded bg-slate-700/20 mb-1" />
-              <div className="h-3 w-5/6 rounded bg-slate-700/20" />
+              <div className="h-3 w-full rounded dash-skeleton mb-1" />
+              <div className="h-3 w-5/6 rounded dash-skeleton" />
             </div>
           ))}
         </div>

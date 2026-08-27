@@ -99,7 +99,8 @@ function ViewButton({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-const MIX_COLORS = ['bg-cyan-500', 'bg-teal-500', 'bg-emerald-600', 'bg-slate-400', 'bg-slate-500', 'bg-slate-600'];
+/** Cargo types take the same ranked ramp as the port bars. */
+const MIX_TOKENS = ['--cat-1', '--cat-2', '--cat-3', '--cat-4', '--cat-5'];
 
 function CargoMixView({ mix }: { mix: CargoMix }) {
   const total = mix.categories.reduce((s, c) => s + c.weight, 0);
@@ -133,8 +134,11 @@ function CargoMixView({ mix }: { mix: CargoMix }) {
               </div>
               <div className="h-2.5 bg-slate-800/50 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-[width] duration-500 ${MIX_COLORS[Math.min(idx, MIX_COLORS.length - 1)]}`}
-                  style={{ width: `${Math.max((c.weight / max) * 100, 1)}%` }}
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${Math.max((c.weight / max) * 100, 1)}%`,
+                    background: `var(${MIX_TOKENS[Math.min(idx, MIX_TOKENS.length - 1)]})`,
+                  }}
                 />
               </div>
             </div>

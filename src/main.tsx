@@ -55,7 +55,7 @@ createRoot(document.getElementById('root')!).render(
           <FilterProvider>
             <BrowserRouter>
               <ScrollToTop />
-              <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+              <Suspense fallback={<div className="min-h-screen" style={{ background: 'var(--bg-page)' }} />}>
                 <Routes>
                   <Route element={<SiteLayout />}>
                     <Route element={<NewsroomLayout />}>

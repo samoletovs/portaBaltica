@@ -371,7 +371,19 @@ export interface PortDataResponse {
 /** Sea state classification */
 export type SeaState = 'calm' | 'slight' | 'moderate' | 'rough' | 'very-rough';
 
-export function classifySeaState(waveHeight: number): SeaState {
+/**
+ * The Douglas sea state for a wave height, or `null` when there is no reading.
+ *
+ * The `null` matters. This used to take a bare `number` and compare it with a
+ * chain of `<`, and every one of those comparisons is false for `NaN` — so a
+ * missing or unparseable wave height fell through to the final `return` and a
+ * port with no data was labelled **"Very Rough"**, in red, as confidently as a
+ * real storm. That is the same defect as painting an unavailable air-quality
+ * reading green, pointed the other way: the fallback carried a meaning it had
+ * not measured.
+ */
+export function classifySeaState(waveHeight: number | null | undefined): SeaState | null {
+  if (typeof waveHeight !== 'number' || !Number.isFinite(waveHeight)) return null;
   if (waveHeight < 0.1) return 'calm';
   if (waveHeight < 0.5) return 'slight';
   if (waveHeight < 1.25) return 'moderate';

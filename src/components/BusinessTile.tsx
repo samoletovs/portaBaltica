@@ -72,7 +72,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               placeholder="Company reg# or surname..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white dash-placeholder"
               aria-label="Search beneficial owners by company registration number or surname"
             />
             <button
@@ -155,8 +155,11 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                       </div>
                       <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${isApproved ? 'bg-emerald-500' : 'bg-slate-500'}`}
-                          style={{ width: `${pct}%` }}
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: isApproved ? 'var(--data-positive)' : 'var(--cat-3)',
+                        }}
                         />
                       </div>
                     </div>
@@ -185,7 +188,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               onChange={(e) => setAddrQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
               placeholder="Street, city, or postal code..."
-              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white placeholder-slate-500"
+              className="flex-1 bg-slate-800/50 border border-slate-800/40 rounded-lg px-3 py-2 text-ui text-white dash-placeholder"
               aria-label="Search Latvian addresses"
             />
             <button

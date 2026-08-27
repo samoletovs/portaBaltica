@@ -14,20 +14,26 @@ function windDirectionLabel(deg: number): string {
 
 export function PortCard({ port, marine, weather }: PortCardProps) {
   const seaState = classifySeaState(marine.current.waveHeight);
-  const stateInfo = SEA_STATE_LABELS[seaState];
+  const stateInfo = seaState ? SEA_STATE_LABELS[seaState] : null;
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 hover:border-slate-600/60 transition-colors">
+    <div className="bg-slate-900/50 border border-slate-800/40 rounded-xl p-6 dash-hover-edge transition-colors">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lead font-semibold text-white">{port.name}</h2>
           <p className="text-caption text-slate-400 font-mono">{port.code}</p>
         </div>
-        <div className={`text-right`}>
-          <span className={`text-ui font-semibold ${stateInfo.color}`}>
-            {stateInfo.emoji} {stateInfo.label}
-          </span>
+        <div className="text-right">
+          {stateInfo ? (
+            <span className={`text-ui font-semibold ${stateInfo.color}`}>
+              {stateInfo.emoji} {stateInfo.label}
+            </span>
+          ) : (
+            <span className="text-ui" style={{ color: 'var(--text-tertiary)' }}>
+              Sea state unavailable
+            </span>
+          )}
         </div>
       </div>
 
@@ -68,8 +74,8 @@ export function PortCard({ port, marine, weather }: PortCardProps) {
               return (
                 <div
                   key={i}
-                  className="flex-1 bg-slate-500/40 rounded-t-sm min-w-0"
-                  style={{ height: `${Math.max(pct, 2)}%` }}
+                  className="flex-1 rounded-t-sm min-w-0"
+                  style={{ height: `${Math.max(pct, 2)}%`, background: 'var(--cat-4)' }}
                   title={`${marine.hourly.time[i]}: ${h.toFixed(1)}m`}
                 />
               );

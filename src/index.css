@@ -255,6 +255,23 @@
   --series-default: #7dd3fc;
   --chart-reference: #9fb0c4;
 
+  /* ─── Ranked categorical bars ───
+     One hue, five lightness steps, `--cat-1` always the most prominent.
+
+     These replaced a five-colour ramp of raw Tailwind — cyan, teal, emerald,
+     then two greys — which mixed three hues and two neutrals for data whose
+     rank is already carried by bar length. Hue variety bought nothing there
+     and cost legibility: `bg-slate-400` measured 2.63:1 on a white card and
+     three of the five had no rule in the compatibility layer at all, so they
+     shipped as raw Tailwind in both themes.
+
+     Every step clears 3:1 against its own card (SC 1.4.11), measured. */
+  --cat-1: #67cdf3;
+  --cat-2: #36bdef;
+  --cat-3: #12aae1;
+  --cat-4: #1092c1;
+  --cat-5: #0d759b;
+
   /* The focus ring. 3:1 against every surface above; see the rule below. */
   --focus-ring: #7dd3fc;
 }
@@ -310,6 +327,12 @@
   --series-default: #0891b2;
   --chart-reference: #455468;
   --focus-ring: #0369a1;
+  /* Reversed against dark: on white the most prominent bar is the darkest. */
+  --cat-1: #0e718c;
+  --cat-2: #0f7996;
+  --cat-3: #1083a2;
+  --cat-4: #118eb0;
+  --cat-5: #139cc2;
 }
 
 body {
@@ -695,6 +718,34 @@ button,
 }
 .bg-yellow-400 {
   background: var(--data-warning) !important;
+}
+
+/* ─── Dashboard utilities ────────────────────────────────────────────────────
+   Named classes for the handful of patterns that had no rule in the
+   compatibility layer at all, so they reached the browser as raw Tailwind and
+   were never theme-aware. These are the target state the rest of the dashboard
+   is migrating toward: a name that says what the thing is, resolved from
+   tokens, following both themes.
+
+   Measured before the change, on the surface each actually sits on:
+     placeholder-slate-500   3.61:1 dark  — under the 4.5:1 SC 1.4.3 asks of text
+     border-slate-600/60     2.27:1 dark  — a hover boundary nobody could see
+     bg-slate-700/20         1.66:1 dark  — skeleton bars, invisible while loading
+     border-amber-400/20     1.72:1 light — the stale-data notice's own border */
+.dash-placeholder::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1; /* Firefox dims placeholders by default; the token already is the dim step. */
+}
+.dash-hover-edge:hover {
+  border-color: var(--text-tertiary);
+}
+.dash-skeleton {
+  background: var(--bg-raised);
+}
+.dash-notice-warning {
+  color: var(--data-warning);
+  background: color-mix(in srgb, var(--data-warning) 10%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--data-warning) 40%, var(--border-card));
 }
 
 /* ─── Horizontal scroll affordance ───────────────────────────────────────────
