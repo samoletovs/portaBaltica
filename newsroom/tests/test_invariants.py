@@ -17,6 +17,7 @@ Two are load-bearing:
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -117,7 +118,14 @@ def test_tier_b_and_c_sources_do_not_recreate_a_human_approval_queue(
 def test_every_tier_c_source_is_pinned_to_the_outlets_own_rss_snippet(
     registry: SourceRegistry,
 ) -> None:
-    for source in registry.by_tier("C"):
+    tier_c = list(registry.by_tier("C"))
+    assert tier_c, (
+        "no tier C sources found, so this test asserted nothing. Tier C is the "
+        "tier the snippet limit exists for; an empty list here is a silent "
+        "retirement of the check, not a clean bill of health."
+    )
+
+    for source in tier_c:
         assert source.max_snippet_source == "rss_description_verbatim", (
             f"{source.id} may show more than the outlet's own syndication snippet"
         )
@@ -126,7 +134,10 @@ def test_every_tier_c_source_is_pinned_to_the_outlets_own_rss_snippet(
 def test_every_source_carries_a_licence_and_an_attribution(
     registry: SourceRegistry,
 ) -> None:
-    for source in registry:
+    sources = list(registry)
+    assert sources, "the registry is empty, so this test asserted nothing"
+
+    for source in sources:
         assert source.licence.strip(), f"{source.id} has no licence recorded"
         assert source.attribution.strip(), f"{source.id} has no attribution string"
 
@@ -134,9 +145,18 @@ def test_every_source_carries_a_licence_and_an_attribution(
 def test_the_shipped_registry_satisfies_the_loaders_own_contract(
     registry: SourceRegistry,
 ) -> None:
-    for source in registry:
-        if source.tier in NO_REWRITE_TIERS:
-            assert source.rewrite_allowed is False
+    # Filter first, then assert the filtered set is non-empty. Asserting only
+    # that the *registry* is non-empty would still leave this vacuous: the
+    # check lives inside the `if`, so a registry with no B or C source asserts
+    # nothing while looking fully exercised.
+    restricted = [source for source in registry if source.tier in NO_REWRITE_TIERS]
+    assert restricted, (
+        f"no sources in {sorted(NO_REWRITE_TIERS)}, so this test asserted nothing. "
+        "These are the tiers the rewrite prohibition exists for."
+    )
+
+    for source in restricted:
+        assert source.rewrite_allowed is False
 
 
 # ── invariant 2: every section routes to a real correspondent ───────────
@@ -173,7 +193,13 @@ def test_routing_covers_no_section_the_schema_does_not_define(
 def test_every_correspondent_renders_a_byline_that_discloses_ai(
     personas: PersonaRegistry,
 ) -> None:
-    for persona in personas:
+    roster = list(personas)
+    assert roster, (
+        "no correspondents found, so this test asserted nothing. This is the "
+        "EU AI Act disclosure check; an empty roster must fail it, not pass it."
+    )
+
+    for persona in roster:
         assert AI_DISCLOSURE in persona.byline, f"{persona.id} byline hides its nature"
 
 
@@ -227,3 +253,53 @@ def test_the_test_fixtures_conform_to_the_publication_schema(
     article = request.getfixturevalue(fixture_name)
 
     Draft202012Validator(schema).validate(article)
+
+
+# ── invariant 0: none of the above can pass by asserting nothing ────────
+
+
+def _asserts_outside_every_loop(fn: ast.FunctionDef) -> bool:
+    """True when the function asserts something regardless of how many times it loops.
+
+    A test whose entire body is ``for x in collection: assert ...`` runs zero
+    assertions when the collection is empty, and pytest reports that as PASSED.
+    Four tests in this file were that shape, including the tier C snippet
+    limit, the licence and attribution check, and the EU AI Act byline
+    disclosure -- the three one would least want to stop being checked in
+    silence.
+
+    Emptying them needs no code change: deleting entries from ``sources.yaml``
+    is enough, and the tier C roster has changed before.
+    """
+    loops = [node for node in fn.body if isinstance(node, (ast.For, ast.While))]
+    if not loops:
+        return True
+
+    inside: set[int] = set()
+    for loop in loops:
+        for node in ast.walk(loop):
+            inside.add(id(node))
+
+    return any(
+        isinstance(node, ast.Assert) and id(node) not in inside
+        for node in ast.walk(fn)
+    )
+
+
+def test_no_invariant_in_this_file_can_pass_by_asserting_nothing() -> None:
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+
+    offenders = [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+        and node.name.startswith("test_")
+        and not _asserts_outside_every_loop(node)
+    ]
+
+    assert offenders == [], (
+        f"these tests assert nothing when their collection is empty: {offenders}. "
+        "Materialise the collection, assert it is non-empty, then loop. This file "
+        "exists so that loosening the configuration fails the build rather than "
+        "shipping quietly -- a check that cannot fail does not do that."
+    )
