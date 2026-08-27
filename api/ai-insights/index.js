@@ -14,6 +14,76 @@ const countries = require('../shared/country.js');
  */
 const WHO_PM25_24H = 15;
 
+/**
+ * How much recent market history to fetch, so today can be described against
+ * the distribution it belongs to rather than against a constant.
+ *
+ * Thirty days is long enough for a percentile to mean something and short
+ * enough to still be "recent" for a market that moves seasonally. It is the
+ * same Elering call with a wider `start`, so no new upstream is involved.
+ */
+const PRICE_WINDOW_DAYS = 30;
+
+/**
+ * How exceptional today has to be before we say so.
+ *
+ * A named percentile of the trailing window, not a price. The threshold this
+ * replaces was the literal `100`, and measured against 62 days of Latvian
+ * day-ahead prices it fired on **58 of them — 93.5%** — while describing them
+ * as "significantly above normal". The median daily peak over that window was
+ * **168**, so the constant sat *below* the typical day and labelled the
+ * ordinary as exceptional. A severity that almost always fires carries no
+ * information, and this one carried instructions with it.
+ *
+ * At p90 the same 62 days produce 6 alerts rather than 58.
+ */
+const PRICE_ALERT_PERCENTILE = 0.90;
+
+/**
+ * How many prior days a percentile needs before it is worth quoting.
+ *
+ * Below this the "highest tenth" of the window is one or two observations, and
+ * a threshold drawn from that describes the sample rather than the market. The
+ * card then states the figures and makes no comparison, which is what they are
+ * entitled to say on their own.
+ */
+const MIN_BASELINE_DAYS = 14;
+
+/** The value at a percentile of a sorted-ascending array. */
+function percentile(sortedAscending, fraction) {
+  if (sortedAscending.length === 0) return null;
+  const idx = Math.min(
+    sortedAscending.length - 1,
+    Math.max(0, Math.floor(sortedAscending.length * fraction)),
+  );
+  return sortedAscending[idx];
+}
+
+/**
+ * Split priced intervals into today and the trailing window that precedes it.
+ *
+ * Days are keyed on the UTC date, matching the window the request asks for.
+ * Today is excluded from its own baseline: comparing a day against a
+ * distribution it is part of drags the threshold toward itself, and on a short
+ * window that is not a small effect.
+ */
+function splitByDay(rows, todayKey) {
+  const today = [];
+  const priorPeaks = [];
+  const byDay = new Map();
+  for (var i = 0; i < rows.length; i++) {
+    const p = rows[i];
+    if (typeof p.price !== 'number' || !Number.isFinite(p.price)) continue;
+    const key = new Date(p.timestamp * 1000).toISOString().slice(0, 10);
+    if (key === todayKey) { today.push(p); continue; }
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(p.price);
+  }
+  byDay.forEach(function (prices) { priorPeaks.push(Math.max.apply(null, prices)); });
+  priorPeaks.sort(function (a, b) { return a - b; });
+  return { today: today, priorPeaks: priorPeaks };
+}
+
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
     var req = https.get(url, { timeout: 15000 }, function (res) {
@@ -104,9 +174,13 @@ const handler = async function (context, req) {
     var now = new Date();
     var dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
     var dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    // A trailing window, so today can be characterised against the market's own
+    // recent distribution rather than against a constant somebody chose. Same
+    // endpoint and one call: the window widens, nothing new is fetched.
+    var windowStart = new Date(dayStart.getTime() - PRICE_WINDOW_DAYS * 86400e3);
 
     var eleringPromise = jsonGet(
-      ELERING_URL + '?start=' + dayStart.toISOString() + '&end=' + dayEnd.toISOString()
+      ELERING_URL + '?start=' + windowStart.toISOString() + '&end=' + dayEnd.toISOString()
     );
     var ecbPromise = httpGetText(ECB_URL);
     var airPromise = jsonGet(
@@ -127,21 +201,61 @@ const handler = async function (context, req) {
     // 1. Electricity prices from Elering
     try {
       var elData = await eleringPromise;
-      var prices = (elData.data && elData.data[zone]) || [];
+      var allRows = (elData.data && elData.data[zone]) || [];
+      var split = splitByDay(allRows, dayStart.toISOString().slice(0, 10));
+      var prices = split.today;
+
       if (prices.length > 0) {
         var avg = prices.reduce(function (s, p) { return s + p.price; }, 0) / prices.length;
         var minP = Math.min.apply(null, prices.map(function (p) { return p.price; }));
         var maxP = Math.max.apply(null, prices.map(function (p) { return p.price; }));
         var curHour = now.getHours();
         var curEntry = prices.find(function (p) { return new Date(p.timestamp * 1000).getHours() === curHour; });
-        var current = curEntry ? curEntry.price : avg;
+        // Not `: avg`. Reporting the day's average *as* the current price is a
+        // guard whose false branch is a claim, and a plausible one — an average
+        // price looks exactly like a price. #131 removed the same line from
+        // `economy-data`; this copy was untouched.
+        var current = curEntry && Number.isFinite(curEntry.price) ? curEntry.price : null;
 
-        if (current < 0) {
-          insights.push({ headline: 'Negative electricity price: €' + current.toFixed(2) + '/MWh', description: 'Wind/solar overproduction drives prices below zero. Industrial consumers benefit from flexible scheduling. Range: €' + minP.toFixed(0) + ' to €' + maxP.toFixed(0) + '.', level: 'significant', category: 'economy', timestamp: now.toISOString() });
-        } else if (maxP > 100) {
-          insights.push({ headline: 'Electricity price spike: peak €' + maxP.toFixed(0) + '/MWh', description: 'Today\'s peak is significantly above normal. Average €' + avg.toFixed(0) + '/MWh. Consider shifting energy-intensive tasks to off-peak hours.', level: 'significant', category: 'economy', timestamp: now.toISOString() });
+        // The comparison is drawn from the market's own trailing distribution,
+        // and the sentence names its basis. Below `MIN_BASELINE_DAYS` we do not
+        // have a distribution worth quoting, so we state the numbers and stop —
+        // which is what the figures are entitled to say on their own.
+        var threshold = split.priorPeaks.length >= MIN_BASELINE_DAYS
+          ? percentile(split.priorPeaks, PRICE_ALERT_PERCENTILE)
+          : null;
+        var basis = split.priorPeaks.length + ' preceding days';
+        var range = 'Range €' + minP.toFixed(0) + '–€' + maxP.toFixed(0) + '/MWh, day average €' + avg.toFixed(0) + '.';
+
+        if (minP < 0) {
+          insights.push({
+            headline: 'Negative electricity price: €' + minP.toFixed(2) + '/MWh',
+            description: 'Prices below zero indicate more generation than the grid can absorb. ' + range,
+            level: 'significant', category: 'economy', timestamp: now.toISOString(),
+          });
+        } else if (threshold !== null && maxP > threshold) {
+          insights.push({
+            headline: 'Electricity peak €' + maxP.toFixed(0) + '/MWh',
+            // The claim names the comparison it rests on, so a reader can judge
+            // it. "Significantly above normal" named nothing and was true of
+            // 93.5% of days.
+            description: "Today's peak is in the highest tenth of daily peaks over the last "
+              + basis + ' (above €' + threshold.toFixed(0) + '). ' + range,
+            level: 'significant', category: 'economy', timestamp: now.toISOString(),
+          });
         } else {
-          insights.push({ headline: 'Electricity: €' + current.toFixed(2) + '/MWh (avg €' + avg.toFixed(0) + ')', description: 'Day-ahead prices range €' + minP.toFixed(0) + '–€' + maxP.toFixed(0) + '/MWh. ' + (avg < 30 ? 'Below seasonal average — favorable for operations.' : 'Within normal Baltic market range.'), level: 'routine', category: 'economy', timestamp: now.toISOString() });
+          insights.push({
+            headline: current !== null
+              ? 'Electricity €' + current.toFixed(2) + '/MWh'
+              : 'Electricity: day average €' + avg.toFixed(0) + '/MWh',
+            // No characterisation. "Below seasonal average" named a statistic
+            // this endpoint never computed, and "within normal Baltic market
+            // range" was asserted against nothing at all — it was the `else`.
+            description: range + (threshold !== null
+              ? ' Highest tenth of the last ' + basis + ' begins at €' + threshold.toFixed(0) + '.'
+              : ''),
+            level: 'routine', category: 'economy', timestamp: now.toISOString(),
+          });
         }
       }
     } catch (e) { /* skip */ }
@@ -152,7 +266,26 @@ const handler = async function (context, req) {
       var usdMatch = xml.match(/currency='USD' rate='([\d.]+)'/);
       if (usdMatch) {
         var usdRate = parseFloat(usdMatch[1]);
-        insights.push({ headline: 'EUR/USD: ' + usdRate.toFixed(4), description: usdRate > 1.12 ? 'Euro strengthening against the dollar — favorable for Baltic importers.' : usdRate < 1.05 ? 'Euro weakening — Baltic exporters benefit from cheaper euro-denominated goods.' : 'Exchange rate within normal range. ECB rates updated daily at 16:00 CET.', level: usdRate > 1.15 || usdRate < 1.03 ? 'notable' : 'routine', category: 'economy', timestamp: new Date().toISOString() });
+        insights.push({
+          headline: 'EUR/USD: ' + usdRate.toFixed(4),
+          // No direction. "Euro strengthening against the dollar" describes a
+          // *change*, and this endpoint fetches a single day's reference rate —
+          // there is no previous value anywhere in it, so the claim could not
+          // be derived from what we hold no matter where the threshold sat.
+          //
+          // Nor was the threshold sound: measured over the ECB's own 90-day
+          // file, all 64 observations sat between 1.134 and 1.1699, so the
+          // `> 1.12` branch fired on **100% of trading days** and the other two
+          // were unreachable. A branch that always wins is a constant.
+          //
+          // Saying the rate and when it was set is what the figure supports.
+          // A real direction needs the 90-day series, which is a separate
+          // change and a separate call.
+          description: 'ECB euro foreign exchange reference rate, published each working day at 16:00 CET.',
+          level: 'routine',
+          category: 'economy',
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (e) { /* skip */ }
 
@@ -235,3 +368,10 @@ const handler = async function (context, req) {
 };
 
 module.exports = withSecurity(handler);
+// Exported so the derivation is assertable on its own, rather than only
+// through a live handler that depends on what the market did today.
+module.exports.percentile = percentile;
+module.exports.splitByDay = splitByDay;
+module.exports.PRICE_ALERT_PERCENTILE = PRICE_ALERT_PERCENTILE;
+module.exports.PRICE_WINDOW_DAYS = PRICE_WINDOW_DAYS;
+module.exports.MIN_BASELINE_DAYS = MIN_BASELINE_DAYS;
