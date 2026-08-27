@@ -439,6 +439,17 @@ HOW TO READ THAT:
   declared in every one of them.
 - "figure N does not match <field>=M" means you declared a figure whose value
   disagrees with the verified data. Use M exactly, or drop the claim.
+
+  EXACTLY MEANS THE SIGN. A field of -16.35 is written -16.35, or the sentence
+  is rephrased so the signed value is the one that appears. Writing 16.35
+  because the prose already says "fell" does not satisfy this: the comparison
+  is arithmetic and does not read your sentence. On a data wire the sign is
+  frequently the whole story, so this is not a formality.
+
+  EXACTLY ALSO MEANS UNROUNDED. 629 is not 600, and 4.17 is not 4.2. A
+  comfortable-looking number is the most common way this check is failed. If
+  the precision reads badly, give the figure once as it stands and describe it
+  in words afterwards -- do not adjust it to suit the sentence.
 - "describes a change without naming the comparison basis" means a paragraph
   contained BOTH a movement word (rose, fell, declined, up, down, widened,
   higher, lower, increase, rise) AND a digit, without naming what the

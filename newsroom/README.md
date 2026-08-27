@@ -482,6 +482,50 @@ author. The honest form is stranger and less flattering:
 A shim can be sound, tested, and unreachable. Reading it tells you what it
 would do, not whether it runs.
 
+### A sweep inherits the frame of whatever prompted it
+
+The newest member, and the only one found twice on the same afternoon by two
+people working independently on opposite sides of the repo.
+
+The dashboard side supplied a rule about where a gap in a series is dangerous:
+**a hole needs a guard where the consumer indexes by position, and is
+self-limiting where the consumer addresses by label.** The newsroom side ran it
+over every consumer it had — `same_season_history` filters on a season key,
+`_latest_at_or_before` compares period spans, `_adjacent` compares period
+labels — found one positional access in `detect_sharp_move`, fixed it, and
+reported the sweep clean.
+
+It was not clean. **`_adjacent` is correct only if `series.frequency` is
+correct, and nothing checked `frequency`.** Its correctness rested on a
+hand-check run once against live data, which existed nowhere in the repo. The
+sweep audited the consumers and not the input all of them trust.
+
+The dashboard side made the identical mistake in the same hour, and worse:
+it ran the rule over one of its own consumers, generalised to the file, and
+wrote the rule down — *while writing the rule down* — before finishing the
+audit.
+
+> **A sweep inherits the frame of whatever prompted it.**
+
+You go looking for positional accesses because the example was a positional
+access. `frequency` is not one; it is the value those accesses are safe
+*because of*. The rule was right and the search took the shape of its example,
+which is the word-list failure one level up: **a word list encodes the author's
+examples, and a sweep encodes the shape of the instance that prompted it.**
+
+The practical form, which both sides reached independently:
+
+> **When you audit the consumers, audit the input they share.**
+
+And a corollary about where these hide. `NOT_COMPARED = {"freq"}` carried a
+note explaining, correctly, why frequency could not be compared *as a query
+parameter* — and naming the attribute the newsroom carries it in instead.
+Nothing compared that attribute. **The note read as "not comparable" while
+meaning "compared elsewhere", and closed the enquiry of anyone who came
+looking.** That is the same concealment as a correct sibling function
+reassuring a reader about a broken one: documentation that answers the
+question you were about to ask, with an answer to a different question.
+
 ### What the validator cannot see: the article's subject
 
 Every check above is about a *figure*. None is about what the article is

@@ -127,3 +127,66 @@ class TestTheOtherFailureKindsStillExplained:
         assert "describes a change without naming the comparison basis" in (
             revision_note()
         )
+
+
+def figure_note() -> str:
+    """A revision note for the figure check rather than the mechanism one.
+
+    Whitespace is collapsed. The prompt is hard-wrapped, so a phrase that
+    happens to straddle a line break would fail an assertion about wording
+    that is present and correct -- and rewrapping a paragraph would break a
+    test that has nothing to do with wrapping.
+    """
+    return " ".join(
+        prompts.build_revision_prompt(
+            "ORIGINAL BRIEF",
+            "figures_traceable: body[2]: figure 16.35 does not match "
+            "deviation=-16.35",
+        ).split()
+    )
+
+
+class TestTheFigureNoteSaysWhatExactlyMeans:
+    """`figures_traceable` compares signed values and the writer kept losing
+    the sign -- two of three failures in one run were 16.35 against -16.35 and
+    4.2 against -4.2, the magnitude of a negative quantity with the direction
+    carried in the prose instead.
+
+    The tempting repair was to compare magnitudes when the sentence already
+    says "fell". That needs a list of direction words, and it fails in the one
+    direction that matters: it would accept "rose by 16.35" against -16.35,
+    because "rose" is only another word in the list until somebody writes
+    "climbed". A check that lets a sign error through is worse than one that
+    rejects a well-phrased sentence -- the first publishes something false and
+    the second costs a revision.
+
+    So the gate stays strict and the instance is coached, which is "reject what
+    is wrong, coach what is weak" applied one level up: the fault *class* is
+    dangerous enough to gate, and the *instance* is a writer who was never told
+    what "exactly" covers.
+    """
+
+    def test_it_says_the_sign_is_part_of_the_figure(self) -> None:
+        assert "EXACTLY MEANS THE SIGN" in figure_note()
+
+    def test_it_says_the_prose_direction_does_not_substitute(self) -> None:
+        """The specific reasoning error: "fell" in the sentence is not the
+        minus sign in the figure."""
+        note = figure_note()
+
+        assert "does not read your sentence" in note
+
+    def test_it_says_why_this_is_not_a_formality(self) -> None:
+        note = figure_note()
+
+        assert "the sign is" in note and "whole story" in note
+
+    def test_it_covers_rounding_in_the_same_place(self) -> None:
+        """629 -> 600 survived three runs and is the same check firing."""
+        note = figure_note()
+
+        assert "EXACTLY ALSO MEANS UNROUNDED" in note
+        assert "629 is not 600" in note
+
+    def test_it_offers_a_way_out_that_is_not_adjusting_the_number(self) -> None:
+        assert "describe it in words afterwards" in figure_note()
