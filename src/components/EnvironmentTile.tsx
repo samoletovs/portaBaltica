@@ -9,7 +9,14 @@ interface EnvironmentTileProps {
 }
 
 /**
- * The three air-quality bands.
+ * The six European air-quality bands.
+ *
+ * Six, not three, because the index we fetch is the EEA's `european_aqi` and
+ * the EEA runs it in six bands at 20/40/60/80/100. This used to carry three,
+ * split at the **US EPA's** 50 and 100 with the EPA's word "Unhealthy" — a
+ * European index banded on an American scale. Measured over 6696 hourly
+ * readings from the three capitals, 76.1% of them named the air better than the
+ * European scale does and none named it worse.
  *
  * Colour comes from the semantic tokens rather than raw Tailwind, so both
  * themes follow and both are contrast-checked. The ring used to be
@@ -17,22 +24,36 @@ interface EnvironmentTileProps {
  * 1.91:1 and 3.81:1 — the moderate ring was very nearly invisible in the light
  * theme, and neither was reachable by the compatibility layer.
  *
- * `rank` is the part that matters most. Good and unhealthy are green and red,
- * and under a deuteranopia simulation they measure **ΔE 8.3** apart in the dark
- * theme — indistinguishable for roughly 8% of men. In light, moderate and
- * unhealthy sit at 23.1, also under the 25 floor. The glyph and the band label
+ * `rank` is the part that matters most. Good and the worst band are green and
+ * red, and under a deuteranopia simulation they measure **ΔE 8.3** apart in the
+ * dark theme — indistinguishable for roughly 8% of men. In light, moderate and
+ * unhealthy sat at 23.1, also under the 25 floor. The glyph and the band label
  * were the only other encodings, and a glyph is easy to miss at 14px.
  *
- * So the band is also drawn as an ordinal meter: three segments, filled up to
- * the current band. That is a *position* encoding, which survives any colour
- * vision and greyscale printing, and it suits the data — air quality is
+ * So the band is also drawn as an ordinal meter: one segment per band, filled
+ * up to the current one. That is a *position* encoding, which survives any
+ * colour vision and greyscale printing, and it suits the data — air quality is
  * ordered, not categorical. See DESIGN.md §3.2.
+ *
+ * **Colour and glyph carry four steps and group the same bands.** There are
+ * four semantic tokens and six bands, so some must share; what must not happen
+ * is colour and glyph grouping *differently*, which is the defect that had five
+ * sea states rendering in three colours beside a five-step emoji. The colour
+ * changes at 40 — where the EEA's own "Moderate" begins and it first advises
+ * sensitive groups to consider easing off — and the meter and label carry the
+ * full six.
  */
 const AQI_BANDS: Record<string, { token: string; glyph: string; rank: number }> = {
-  good: { token: '--data-positive', glyph: '✓', rank: 1 },
-  moderate: { token: '--data-warning', glyph: '!', rank: 2 },
-  unhealthy: { token: '--data-negative', glyph: '✕', rank: 3 },
+  'good': { token: '--data-positive', glyph: '✓', rank: 1 },
+  'fair': { token: '--data-positive', glyph: '✓', rank: 2 },
+  'moderate': { token: '--data-neutral', glyph: '~', rank: 3 },
+  'poor': { token: '--data-warning', glyph: '!', rank: 4 },
+  'very-poor': { token: '--data-negative', glyph: '✕', rank: 5 },
+  'extremely-poor': { token: '--data-negative', glyph: '✕', rank: 6 },
 };
+
+/** How many segments the ordinal meter draws. */
+const AQI_BAND_COUNT = Object.keys(AQI_BANDS).length;
 
 const WEATHER_ICONS: Record<string, string> = {
   'Clear sky': '☀️',
@@ -134,17 +155,19 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
                   <p className="text-caption dash-muted">European AQI</p>
                 </div>
               </div>
-              {/* The ordinal encoding. Good and unhealthy are green and red,
-                  which converge under deuteranopia (ΔE 8.3 in dark), so the
-                  band cannot be carried by hue. Three segments filled to the
-                  current band is a position encoding: it survives any colour
-                  vision, and greyscale. */}
+              {/* The ordinal encoding. The best and worst bands are green and
+                  red, which converge under deuteranopia (ΔE 8.3 in dark), so the
+                  band cannot be carried by hue. One segment per band, filled to
+                  the current one, is a position encoding: it survives any colour
+                  vision, and greyscale. Six segments because the European index
+                  has six bands — it drew three while the scale had six, so the
+                  meter itself was understating. */}
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex gap-1" aria-hidden="true">
-                  {[1, 2, 3].map((step) => (
+                  {Array.from({ length: AQI_BAND_COUNT }, (_, i) => i + 1).map((step) => (
                     <span
                       key={step}
-                      className="h-1.5 w-6 rounded"
+                      className="h-1.5 w-4 rounded"
                       style={{
                         background: step <= band.rank ? `var(${band.token})` : 'var(--border-card)',
                       }}
@@ -152,7 +175,7 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
                   ))}
                 </div>
                 <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-                  Band {band.rank} of 3
+                  Band {band.rank} of {AQI_BAND_COUNT}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">

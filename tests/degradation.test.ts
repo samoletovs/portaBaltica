@@ -72,12 +72,19 @@ describe('an unrecognised air-quality band', () => {
   });
 
   it('carries its band as a position, not only as a hue', () => {
-    // good vs unhealthy is ΔE 8.3 under deuteranopia in the dark theme, so hue
-    // cannot be the carrier. Three segments filled to the current band is a
-    // position encoding, which survives any colour vision and greyscale.
+    // good vs the worst band is ΔE 8.3 under deuteranopia in the dark theme, so
+    // hue cannot be the carrier. One segment per band, filled to the current
+    // one, is a position encoding that survives any colour vision and greyscale.
+    //
+    // The count is read from the band table rather than written here, because
+    // the meter drew three segments while the European scale had six — a
+    // hardcoded "of 3" is how the meter itself came to understate.
     const tile = readFileSync(resolve('src/components/EnvironmentTile.tsx'), 'utf8');
-    expect(tile, 'each band needs an ordinal rank').toMatch(/rank:\s*[123]/);
-    expect(tile, 'the rank needs to be stated in words too').toMatch(/Band \{band\.rank\} of 3/);
+    expect(tile, 'each band needs an ordinal rank').toMatch(/rank:\s*\d/);
+    expect(tile, 'the rank needs to be stated in words too')
+      .toMatch(/Band \{band\.rank\} of \{AQI_BAND_COUNT\}/);
+    expect(tile, 'the meter must size itself from the band table')
+      .toMatch(/length:\s*AQI_BAND_COUNT/);
   });
 });
 

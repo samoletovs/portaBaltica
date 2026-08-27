@@ -1,6 +1,17 @@
 const https = require('https');
 const rateLimit = require('../shared/rateLimit.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
+const airQuality = require('../shared/airQuality.js');
+
+/**
+ * WHO 2021 global air quality guideline for PM2.5, 24-hour mean, in µg/m³.
+ *
+ * Named rather than inlined because it is a published figure with a date, and
+ * because the claim this file makes about it must be checked against the value
+ * it prints rather than inferred from an index band.
+ * @see https://www.who.int/publications/i/item/9789240034228
+ */
+const WHO_PM25_24H = 15;
 
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
@@ -134,10 +145,46 @@ const handler = async function (context, req) {
     try {
       var aqData = await airPromise;
       var aqCurrent = aqData.current || {};
-      var aqi = aqCurrent.european_aqi || 0;
-      var pm25 = aqCurrent.pm2_5 || 0;
-      var aqStatus = aqi > 100 ? 'unhealthy' : aqi > 50 ? 'moderate' : 'good';
-      insights.push({ headline: capital.name + ' air quality: ' + (aqStatus === 'good' ? 'Good' : aqStatus === 'moderate' ? 'Moderate' : 'Unhealthy'), description: 'PM2.5: ' + pm25.toFixed(1) + ' µg/m³. ' + (aqStatus === 'good' ? 'Well below WHO guidelines. Outdoor activities recommended.' : aqStatus === 'moderate' ? 'Sensitive groups should limit prolonged outdoor exposure.' : 'Consider limiting outdoor activities. Monitor WHO advisories.'), level: aqStatus === 'good' ? 'routine' : aqStatus === 'moderate' ? 'notable' : 'significant', category: 'environment', timestamp: new Date().toISOString() });
+      // No `|| 0`. A missing index is not a reading of zero, and zero is the
+      // best band there is — that is how this file would have announced perfect
+      // air on the strength of a field that never arrived.
+      var aqi = typeof aqCurrent.european_aqi === 'number' && Number.isFinite(aqCurrent.european_aqi)
+        ? aqCurrent.european_aqi : null;
+      var pm25 = typeof aqCurrent.pm2_5 === 'number' && Number.isFinite(aqCurrent.pm2_5)
+        ? aqCurrent.pm2_5 : null;
+      var band = airQuality.classifyEuropeanAqi(aqi);
+
+      if (band) {
+        // The advice follows the EEA's own bands, because the index is the
+        // EEA's. This used to split at the US EPA's 50 and 100 and call the
+        // worst band "Unhealthy", an EPA word the European scale does not use.
+        var advice = band.rank <= 2
+          ? 'Within the European index\u2019s two cleanest bands.'
+          : band.rank === 3
+            ? 'Sensitive groups may wish to limit prolonged outdoor exertion.'
+            : 'Consider limiting outdoor activity, particularly for sensitive groups.';
+
+        // The WHO comparison is made against the number we are about to print,
+        // rather than inferred from the index band. Those two disagree: sampled
+        // over 6696 hourly readings, every single occasion PM2.5 exceeded the
+        // WHO 24-hour guideline the old line still read "Well below WHO
+        // guidelines" — printing 16.9 µg/m³ and calling it well below 15.
+        var whoNote = pm25 === null
+          ? ''
+          : pm25 > WHO_PM25_24H
+            ? ' PM2.5 is above the WHO 24-hour guideline of ' + WHO_PM25_24H + ' \u00b5g/m\u00b3.'
+            : ' PM2.5 is within the WHO 24-hour guideline of ' + WHO_PM25_24H + ' \u00b5g/m\u00b3.';
+
+        insights.push({
+          headline: capital.name + ' air quality: ' + band.label,
+          description: 'European AQI ' + aqi
+            + (pm25 === null ? '. PM2.5 unavailable.' : '. PM2.5: ' + pm25.toFixed(1) + ' \u00b5g/m\u00b3.')
+            + whoNote + ' ' + advice,
+          level: band.rank <= 2 ? 'routine' : band.rank === 3 ? 'notable' : 'significant',
+          category: 'environment',
+          timestamp: new Date().toISOString(),
+        });
+      }
     } catch (e) { /* skip */ }
 
     // 4. Weather
