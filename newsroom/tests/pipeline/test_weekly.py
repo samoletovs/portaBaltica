@@ -23,6 +23,8 @@ from newsroom.pipeline.retract import retract_all, wraps_citing
 from newsroom.pipeline.vintage import PublishedFigure
 from newsroom.pipeline.weekly import (
     MIN_FINDINGS,
+    _field_name,
+    period_problems,
     cited_slugs,
     cites_provenance,
     collect_week,
@@ -45,12 +47,13 @@ def figure(
     geography: str = "LV",
     published: str = "2026-08-26T09:00:00Z",
     basis: str = "the same quarter a year earlier",
+    period: str = "2026-Q2",
 ) -> PublishedFigure:
     return PublishedFigure(
         metric=metric,
         metric_label=metric.replace("_", " "),
         geography=geography,
-        period="2026-Q2",
+        period=period,
         value=value,
         unit="%",
         slug=slug,
@@ -143,8 +146,8 @@ class TestOnlyVerifiedNumbersReachTheWriter:
         )
         context = corpus_context(corpus)
 
-        assert "NO COMPARISON BASIS RECORDED" in context["construction_output_lv"]
-        assert "do not describe it as a rise" in context["construction_output_lv"]
+        assert "NO COMPARISON BASIS RECORDED" in context["construction_output_lv_2026_q2"]
+        assert "do not describe it as a rise" in context["construction_output_lv_2026_q2"]
 
     def test_each_field_is_explained_with_its_comparison_basis(self):
         """`check_comparison_basis_stated` refuses prose that quantifies a
@@ -348,8 +351,8 @@ class TestAWrapDoesNotOutliveItsCitations:
 # that could have assumed a single signal, and asserts what it actually does.
 
 
-HOUSE = {"value": 1.0, "unit": "%", "signal_field": "house_prices_lv"}
-JOBS = {"value": 2.0, "unit": "%", "signal_field": "unemployment_rate_ee"}
+HOUSE = {"value": 1.0, "unit": "%", "signal_field": "house_prices_lv_2026_q2"}
+JOBS = {"value": 2.0, "unit": "%", "signal_field": "unemployment_rate_ee_2026_q2"}
 
 
 def _wrap_payload(blocks: list[dict]) -> dict:
@@ -695,3 +698,196 @@ class TestTheSectionMapMatchesProduction:
         from newsroom.pipeline.weekly import _section_of
 
         assert _section_of(figure("s", "something_new_entirely")) == "economy"
+
+
+class TestTheWeekIsThePublicationWindowNotTheMeasurementPeriod:
+    """The defect that stopped the first wrap being published.
+
+    A dry run against the real corpus produced an article that passed all nine
+    checks, took two attempts, was marked publishable, and said:
+
+        "Baltic port goods throughput reached 6,149 thousand tonnes during the
+         week of August 21 to August 27, 2026."
+
+    That figure is 2025-Q4. The eight findings spanned nine months and five
+    were attributed to the week they were PUBLISHED in. Every number was real,
+    traced and correctly bound; only the period the prose attached it to was
+    wrong, and nothing checked that.
+
+    The model was not inventing. `signal.period` is the window and the prompt
+    frames the piece as being about the signal's period -- the third time the
+    writer has been blamed for doing what the guidance said, after the persona
+    `closing_move` entries and the analyst's `what_to_watch`.
+
+    So the check asserts the DISTINCTION rather than banning the word: a wrap
+    may say the week is when we reported something, never when it was measured.
+    """
+
+    def _article(self, *texts, fields=()):
+        """Blocks carry figures, because the check resolves them.
+
+        A lexical version of this check could be tested with bare prose. This
+        one answers "do the figures this sentence cites share a period?", so a
+        block with no figures is correctly silent.
+        """
+        from newsroom.pipeline.models import Article, Block, Figure
+
+        return Article(
+            id="1", slug="s", tier="A", status="published",
+            headline="The week in Baltic data",
+            section="economy", created_at="2026-08-27T00:00:00Z", provenance={},
+            body=[
+                Block(
+                    type="paragraph",
+                    text=t,
+                    figures=[Figure(value=1.0, signal_field=f) for f in fields],
+                )
+                for t in texts
+            ],
+        )
+
+    def _mixed(self):
+        """Two findings from different periods, which is the normal case."""
+        return collect_week(
+            [
+                figure("a", "port_goods_throughput", geography="Baltic", period="2026-Q2"),
+                figure("b", "economic_sentiment", geography="EE", period="2026-04"),
+            ],
+            now=NOW,
+        )
+
+    def test_the_live_failure_is_caught(self):
+        corpus = self._mixed()
+        article = self._article(
+            "Baltic port goods throughput reached 6,149 thousand tonnes during "
+            "the week of August 21 to August 27, 2026.",
+            fields=[_field_name(corpus.figures[0])],
+        )
+
+        problems = period_problems(article, corpus)
+
+        assert problems
+        assert "publication window" in problems[0]
+
+    def test_a_false_shared_period_claim_is_caught(self):
+        """The sentence a lexical check let through.
+
+        It knew "period" and "week" and not "quarter", so
+        "…lower than Lithuania's 3233 thousand tonnes in the same quarter"
+        passed while the two figures were from 2025-Q4 and 2026-Q1.
+        """
+        corpus = self._mixed()
+        fields = [_field_name(f) for f in corpus.figures]
+        article = self._article(
+            "Baltic throughput was 6,149 thousand tonnes, lower than Estonia's "
+            "89.7 index points in the same quarter.",
+            fields=fields,
+        )
+
+        problems = period_problems(article, corpus)
+
+        assert problems
+        assert "the figures it cites are from" in problems[0]
+
+    def test_a_true_shared_period_claim_is_allowed(self):
+        """The other half. `prompts.py` REQUIRES "in the same period" for a
+        related measure, and when the cited figures really do share one the
+        phrase is true and must survive."""
+        corpus = self._mixed()
+        same = _field_name(corpus.figures[0])
+        article = self._article(
+            "Throughput was 6,149 thousand tonnes, against 6,000 in the same period.",
+            fields=[same, same],
+        )
+
+        assert period_problems(article, corpus) == []
+
+    def test_reporting_in_the_window_is_allowed(self):
+        """The window doing its real job: saying why the reader is told now.
+
+        Without this the check would ban the wrap's own premise, and the format
+        could not describe itself.
+        """
+        corpus = self._mixed()
+        article = self._article(
+            "This week we reported a container record at Lithuania's ports.",
+            "In the week to 27 August portaBaltica covered eight findings.",
+        )
+
+        assert period_problems(article, corpus) == []
+
+    def test_naming_each_figures_own_period_is_allowed(self):
+        corpus = self._mixed()
+        article = self._article(
+            "Baltic port goods throughput reached 6,149 thousand tonnes in 2026-Q2.",
+            "Estonia's economic sentiment stood at 89.7 index points in 2026-04.",
+            fields=[_field_name(corpus.figures[0])],
+        )
+
+        assert period_problems(article, corpus) == []
+
+    def test_a_single_period_week_may_say_the_same_period(self):
+        """When every finding really does report one period, the phrase is
+        true and `prompts.py` requires it for a related measure."""
+        corpus = collect_week(
+            [
+                figure("a", "port_goods_throughput", geography="Baltic"),
+                figure("b", "economic_sentiment", geography="EE"),
+            ],
+            now=NOW,
+        )
+        article = self._article(
+            "Economic sentiment stood at 89.7 index points in the same period."
+        )
+
+        assert len({f.period for f in corpus.figures}) == 1
+        assert period_problems(article, corpus) == []
+
+
+class TestCitesRecordsWhatWasUsed:
+    """The first dry run cited eight articles and quoted five.
+
+    Provenance claimed the piece drew on findings that never appear in it. That
+    is a claim we cannot support -- and it has a second cost: a retraction
+    elsewhere would send an operator to review a wrap that never used the
+    withdrawn figure, and an alert that cries wolf gets ignored.
+    """
+
+    def _article_using(self, *fields):
+        from newsroom.pipeline.models import Article, Block, Figure
+
+        return Article(
+            id="1", slug="s", tier="A", status="published",
+            headline="The week in Baltic data",
+            section="economy", created_at="2026-08-27T00:00:00Z", provenance={},
+            body=[
+                Block(
+                    type="paragraph",
+                    text="Something.",
+                    figures=[Figure(value=1.0, signal_field=f) for f in fields],
+                )
+            ],
+        )
+
+    def test_only_the_quoted_articles_are_cited(self):
+        corpus = collect_week(a_week(5), now=NOW)
+        used = _field_name(corpus.figures[0])
+
+        cites = cites_provenance(corpus, self._article_using(used))["cites"]
+
+        assert cites == [corpus.figures[0].slug]
+
+    def test_the_corpus_counts_are_not_mistaken_for_citations(self):
+        """`findings_covered` belongs to no article."""
+        corpus = collect_week(a_week(5), now=NOW)
+
+        cites = cites_provenance(
+            corpus, self._article_using("findings_covered", "sections_covered")
+        )["cites"]
+
+        assert cites == list(corpus.slugs), "fell back rather than citing nothing"
+
+    def test_without_an_article_the_whole_corpus_is_recorded(self):
+        corpus = collect_week(a_week(5), now=NOW)
+
+        assert cites_provenance(corpus)["cites"] == list(corpus.slugs)
