@@ -569,6 +569,40 @@ human reading the output, never by the suite — a lexical check's tests are
 written from the same imagination as the check, so they agree with it. **Read
 the artefact.**
 
+## One generation is not a measurement
+
+The writer, the analyst and the desk are stochastic. Sampling one of them once
+tells you what it did once, and a single sample is routinely mistaken for a
+verdict — in both directions.
+
+The denominator fact in `#129` is the clean case. Sampled five times against
+the same signal, it used the intended direction contrast **four times**, and
+once rendered the same fact as a flat level comparison. The first sample drawn
+was the one-in-five. Reporting it alone would have retired a feature that works
+in 80% of outings; reporting a single *good* draw would have claimed one that
+works in 20%. Nothing about the artefact tells you which kind of draw you are
+holding.
+
+So **sample a stochastic stage several times before concluding anything about
+it**, and report the rate rather than the instance. Five is enough to tell 80%
+from 20%, which is the distinction that usually matters. State the denominator:
+"4 of 5" is a measurement, "it works" is an anecdote.
+
+The corollary is about what to do with a minority failure. Ask whether it is
+*wrong* or merely *weak*. A draw that states something true but less
+informative costs one paragraph; a gate that rejects it costs the whole article
+and the six model calls that produced it. **Prefer sharpening the prompt to
+adding a check** — a prompt cannot reject a true article, and a validator that
+fires on a true sentence is a worse defect than the one it was built to catch.
+
+This belongs to the same family as the two rules above it: a measurement that
+cannot answer the question it is posed. A word list agrees with its author's
+imagination; a single generation agrees with whichever draw you happened to
+take; and a comparison between two stages of a pipeline where one already
+filters the other — as `publishable` does before the desk ever runs — is empty
+by construction and will report a confident zero. Before measuring, ask what
+result would look identical whether the hypothesis is true or false.
+
 ## Measuring the newsroom after a change
 
 **A green deploy job means the package was uploaded, not that the app is

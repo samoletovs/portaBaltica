@@ -304,6 +304,53 @@ This also fixes portaBaltica's standing anti-pattern: it is currently listed in
 `.github/wiki/insights/foundrylab-shared-account.md` as a project that had *not*
 adopted the shared Foundry account. It does now — no new AI resource, no keys.
 
+## Why the wire goes quiet, and the only thing that refills it
+
+A quiet day is the intended behaviour and `rank.py` says so: *"the pipeline has
+no mechanism to top the wire up."* But it is worth being precise about **what**
+runs out, because two plausible-looking fixes cannot work and one non-obvious
+one can.
+
+Cross-run suppression is keyed on `finding_key(metric, geography, period)`.
+That is deliberately narrower than `Signal.id`, which also hashes the detector
+and the value: without it, two detectors firing on one reading give a reader
+*"Estonian unemployment hits a record"* and *"Estonian unemployment extends its
+run"* about the same number on the same day.
+
+Measured on a real unattended edition, with 90 series in the collector:
+
+```
+ranking: 50 signal(s) considered, 1 below the quality floor, 0 deduplicated,
+         49 already published, 0 selected
+```
+
+Three consequences follow from the shape of that key.
+
+- **Adding detector kinds cannot increase volume.** A new detector firing on a
+  current reading produces a finding whose key is already published, so it is
+  suppressed before it costs a single model call. This is the obvious idea and
+  it is dead on arrival.
+- **Replaying detectors over history *does* clear the gate**, because the period
+  is part of the key — and that is exactly the trap. Replayed across 59 months
+  of `une_rt_m` for all three states it yields 51× more signals, of which the
+  records are *all* superseded by later readings. They were news once; publishing
+  them now would be true, traceable and misleading. Perishability, not volume,
+  is the binding constraint.
+- **Only new `(metric, geography)` pairs refill the space.** The collector holds
+  roughly 22 metrics across 3–4 geographies, and the wire has consumed it. A new
+  metric is a fresh key space: one story when it is first detected, then a
+  trickle on each release.
+
+So when the wire is quiet, the question is never *"which gate is too strict?"*
+It is *"what have we not yet measured?"* — and the answer lives in
+`pipeline/collect/opendata.py`, which must stay in step with
+`api/shared/indicators.js`. They drifted once: Eurostat froze the ECOICOP ver.1
+HICP tables, the dashboard was migrated and the newsroom was not, and the
+newsroom read eight-month-old inflation with every validator check passing,
+because the number really was in the payload. It was simply the wrong payload.
+`tests/pipeline/test_collector_matches_dashboard.py` exists to stop that
+recurring; a comment asserting the two are copies is not an invariant.
+
 ## The validator
 
 The single most important component. An article is servable only if
