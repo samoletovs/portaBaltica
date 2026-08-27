@@ -159,6 +159,47 @@ def test_should_reject_an_unsupported_number_in_the_headline(
     assert_rejected_by(verdict, "no_invented_numbers")
 
 
+def test_should_reject_an_unsupported_number_in_the_dek(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The standfirst, which had no negative fixture of its own.
+
+    `generated_prose` scans `("headline", "dek")` together and the headline has
+    been covered since this file was written; the dek never was. It is checked
+    against the union of *every* block's figures rather than one block's, which
+    is a looser rule than the body gets, so it is the one place an unverified
+    numeral has the most room to look justified.
+
+    The prompt asks for a standfirst with no digits at all, and that instruction
+    is followed -- 17 of 18 sampled drafts obeyed it on 2026-08-27, and the one
+    that did not was traceable. But a prompt is guidance and cannot reject
+    anything, so what happens on the eighteenth has to be asserted here.
+    """
+    tier_a_article["dek"] = "The day-ahead average reached 402.6 euros per megawatt-hour."
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "no_invented_numbers")
+
+
+def test_should_accept_a_period_label_in_the_dek(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The companion, without which the test above proves less than it appears.
+
+    A fixture showing the dek is scanned says nothing about *what* it rejects
+    unless something shows it also lets the safe case through. A bare year is
+    the safe case: it says when, not how much, and `numeric_scan` ignores it by
+    design. Tightening that -- to "no digits at all in the dek", which the
+    prompt asks for in words -- would fail here, which is the point.
+    """
+    tier_a_article["dek"] = "The highest reading since 2019, on the same basis."
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert all(check.passed for check in verdict.checks), verdict.failure_summary()
+
+
 def test_should_reject_a_number_justified_only_by_a_different_blocks_figures(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:
