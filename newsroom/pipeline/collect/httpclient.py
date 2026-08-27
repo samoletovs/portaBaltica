@@ -24,7 +24,7 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 
@@ -160,17 +160,42 @@ class CollectorHttp:
     ) -> FetchResult:
         assert self._client is not None, "use CollectorHttp as an async context manager"
 
-        if not force and self._state.is_fresh(url, cache_ttl_minutes):
+        # The cache is keyed on the URL **and its query**, because on a
+        # statistical API the query IS the resource. Eurostat exposes one
+        # endpoint per table and selects the series with parameters, so
+        # nineteen of this newsroom's datasets resolve to four URLs:
+        #
+        #   bop_c6_q      x7   trade, goods, services, transport, financial,
+        #                      ICT and other-business balances
+        #   mar_go_qm_lv  x5   total throughput and four cargo categories
+        #   mar_go_qm_lt  x5   the same
+        #   sts_rb_q      x2   business registrations and bankruptcies
+        #
+        # Keyed on the URL alone, the first fetch of each won and the other
+        # fifteen were served its body from cache — inside a 720-minute TTL,
+        # every run. The series were then parsed and labelled with the metric
+        # that had *asked*, so the numbers were real, traceable and attached to
+        # the wrong name.
+        #
+        # That published. "Lithuania's business bankruptcy declarations spike
+        # to 130.9 index points" carried the NEW REGISTRATIONS series — 130.9
+        # is REG; bankruptcies were 120.3 — and the two mean opposite things
+        # about an economy. Every gate passed it, because every gate checks
+        # that a figure traces to its signal and none can check that the signal
+        # is the series it claims to be. It has to be right here.
+        cache_key = _cache_key(url, params)
+
+        if not force and self._state.is_fresh(cache_key, cache_ttl_minutes):
             log.info("%s: inside %d-minute TTL, not requesting", source_id, cache_ttl_minutes)
             return FetchResult(
                 source_id,
                 url,
-                self._cached_item(source_id, url),
+                self._cached_item(source_id, url, cache_key),
                 skipped_reason="within_cache_ttl",
             )
 
         headers = {"Accept": accept}
-        remembered = self._state.get(url)
+        remembered = self._state.get(cache_key)
         if remembered.get("etag"):
             headers["If-None-Match"] = remembered["etag"]
         if remembered.get("last_modified"):
@@ -182,11 +207,11 @@ class CollectorHttp:
 
         if response.status_code == 304:
             log.info("%s: 304 Not Modified", source_id)
-            self._state.remember(url, etag=None, last_modified=None, archive_name=None)
+            self._state.remember(cache_key, etag=None, last_modified=None, archive_name=None)
             return FetchResult(
                 source_id,
                 url,
-                self._cached_item(source_id, url),
+                self._cached_item(source_id, url, cache_key),
                 skipped_reason="not_modified",
             )
 
@@ -205,10 +230,10 @@ class CollectorHttp:
         # durably stored, so any later validator failure is reproducible from
         # exactly what the publisher served us.
         await self._archive.store(item)
-        self._memory_cache[url] = item
+        self._memory_cache[cache_key] = item
 
         self._state.remember(
-            url,
+            cache_key,
             etag=item.etag,
             last_modified=item.last_modified,
             archive_name=item.archive_name,
@@ -216,8 +241,9 @@ class CollectorHttp:
         )
         return FetchResult(source_id, url, item)
 
-    def _cached_item(self, source_id: str, url: str) -> RawItem | None:
-        in_memory = self._memory_cache.get(url)
+    def _cached_item(self, source_id: str, url: str, cache_key: str | None = None) -> RawItem | None:
+        key = cache_key if cache_key is not None else url
+        in_memory = self._memory_cache.get(key)
         if in_memory is not None:
             return RawItem(
                 source_id=in_memory.source_id,
@@ -231,7 +257,7 @@ class CollectorHttp:
                 last_modified=in_memory.last_modified,
             )
 
-        state = self._state.get(url)
+        state = self._state.get(key)
         archive_name = state.get("archive_name")
         retrieved_at = state.get("retrieved_at")
         if not isinstance(archive_name, str):
@@ -292,6 +318,29 @@ class CollectorHttp:
                 await self._sleep(delay)
         log.error("%s: giving up after %d attempts (%s)", source_id, self._max_retries, last_error)
         return None
+
+
+def _cache_key(url: str, params: Any = None) -> str:
+    """Identify the RESOURCE, not the endpoint.
+
+    On a statistical API the query selects the series, so two requests to one
+    URL with different parameters are two different resources and must not
+    share a cache entry. See the note in ``fetch`` for what happened when they
+    did.
+
+    Sorted, so a caller that builds its parameters in a different order still
+    hits the same entry rather than silently refetching. Accepts the list of
+    pairs the collectors actually pass — Eurostat needs a repeated ``geo``, so
+    the parameters are a sequence and not a mapping — as well as a plain dict.
+    """
+    if not params:
+        return url
+    if isinstance(params, Mapping):
+        pairs = list(params.items())
+    else:
+        pairs = list(params)
+    query = "&".join(f"{name}={value}" for name, value in sorted(pairs, key=lambda p: (str(p[0]), str(p[1]))))
+    return f"{url}?{query}" if query else url
 
 
 def _retrieved_at_from_archive_name(archive_name: str) -> str | None:

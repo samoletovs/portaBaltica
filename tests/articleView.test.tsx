@@ -235,3 +235,57 @@ describe('ArticleView — tier C is link-out only', () => {
     expect(link.getAttribute('rel')).toContain('noopener');
   });
 });
+
+// The corrections policy promises that a retracted article's page "stays up,
+// showing why. We do not delete the evidence." A retracted piece passed every
+// check and was wrong anyway, so the generic refusal — "it has not passed the
+// checks we run before publishing" — would say something false about it.
+describe('ArticleView — a retracted article', () => {
+  function retracted() {
+    return tierAArticle({
+      status: 'retracted',
+      corrections: [
+        {
+          corrected_at: '2026-08-27T09:00:00Z',
+          description:
+            'RETRACTED. A caching fault served this article the aggregate trade ' +
+            'balance under a different metric’s name. No figure in it should be ' +
+            'relied on.',
+        },
+      ],
+    });
+  }
+
+  it('shows the reader what was withdrawn and why', () => {
+    const article = retracted();
+    renderArticle(article);
+
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByText(/^Retracted$/)).toBeTruthy();
+    expect(screen.getByText(/caching fault served this article/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /corrections policy/i })).toBeTruthy();
+
+    // Never the headline. In the fault this was built for, the headline was
+    // the false claim, so re-rendering it would republish the error under a
+    // banner announcing we had withdrawn it.
+    expect(screen.queryByText(article.headline)).toBeNull();
+  });
+
+  // The point of the whole exercise. The page stays up; the claims do not.
+  it('renders no figure, no body and no byline from it', () => {
+    renderArticle(retracted());
+
+    expect(screen.queryByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeNull();
+    expect(screen.queryByText(/AI correspondent/)).toBeNull();
+    expect(screen.queryByTestId('chart-embed')).toBeNull();
+  });
+
+  // Without the retraction branch this is what a reader would be told, and it
+  // is untrue: the article passed validation and was withdrawn afterwards.
+  it('does not claim it failed the checks', () => {
+    renderArticle(retracted());
+
+    expect(screen.queryByText(/not passed the checks we run before publishing/i)).toBeNull();
+  });
+});
+
