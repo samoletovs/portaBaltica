@@ -643,6 +643,29 @@ is self-limiting where the consumer addresses by label.** Structure beats a
 test wherever you can have it — and that is the same choice as counting periods
 rather than observations, one layer down.
 
+Applied across this repo's consumers, the split is:
+
+| Consumer | How it addresses a reading | |
+|---|---|---|
+| `portStats.ts` — `valueAt`, `sameQuarterLastYear` | period label | safe by construction |
+| `PortBars`, `MeasureHeadline` | via `valueAt` | safe by construction |
+| `IndicatorCard`, `IndicatorTable` — `values[length - 2]` | **position** | safe only by a guard elsewhere |
+
+That last row is the one to know about. `previous` is the second-newest
+*non-null value*, not the previous *period*, because the array is filtered
+before it is indexed. It is correct today for two independent reasons: no time
+word is attached to it anywhere — the label is "Previous" and
+`changeDescription` says "up" or "down", never "since last quarter" — and the
+contiguity assertion in `tests/indicators.live.test.ts` makes a hole inside the
+newest eight observations impossible, so the second-newest reading *is* the
+preceding period.
+
+**The second reason lives in a different file and nothing connects them.**
+Weaken the contiguity assertion, or exempt one indicator from it, and `previous`
+silently becomes "some earlier reading" with an arrow and a sentiment colour
+attached to a change that spans more than one period. If a time word is ever
+added to that label, it must be computed from the period rather than assumed.
+
 The newsroom hit the same mismatch from the prose side on the same day: its
 streak detector walked the deltas between *readings* and stated the result as a
 claim about *periods*, so five readings across ten months would have read as
