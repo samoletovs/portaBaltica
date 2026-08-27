@@ -908,6 +908,56 @@ human reading the output, never by the suite — a lexical check's tests are
 written from the same imagination as the check, so they agree with it. **Read
 the artefact.**
 
+## Which way does absence resolve?
+
+Every "guard that cannot fail" found in this repo reduces to one sentence:
+**absence resolves to success.** Not a missing guard — a present one, handed
+nothing, and answering yes.
+
+```
+a field the payload does not carry   -> the check is skipped   -> passes
+`dist/` absent, so indexOf gives -1  -> -1 < any position      -> ordering passes
+smoke fails under continue-on-error  -> success() stays true   -> the tick is sent
+required.length === 0                -> "healthy"
+maxLag undefined, so age > undefined -> always false           -> "fresh"
+React.lazy catches its own rejection -> no unhandledrejection  -> the handler idles
+```
+
+The last one is the widest form: the *trigger* was absent rather than a value,
+and a test that synthesised the event proved the handler worked while the
+feature was dead.
+
+So the place to look is not "guards" in general. It is **every point where a
+missing value feeds a boolean**, and the question is always *which way does
+absence resolve*. That is mechanically searchable in a way "is this check
+correct?" is not — comparisons whose operand can be absent, membership tests
+against a collection that can be empty, and any `success()` downstream of
+something allowed to fail.
+
+The codebase already gets this right in at least one place, unprompted.
+`ProvenanceBlock.tsx` reads:
+
+```tsx
+passedCount === checks.length && checks.length > 0
+```
+
+The `&& > 0` is load-bearing: the schema puts no `minItems` on `checks`, so an
+empty array is valid and would otherwise render as "all checks passed".
+
+**Two rules follow.**
+
+When absence is possible, say what it means rather than letting a comparison
+decide. `judge` documents that it returns `unknown` and never `fresh` when it
+cannot tell — so a path where a missing `maxLag` yields `fresh` contradicts the
+function's own stated contract, and fixing it is not defensive programming, it
+is making the code do what it says. Where there is no such contract and the
+state is genuinely unreachable, leave it: hardening against a state no test can
+produce is the belt-and-braces this book warns about elsewhere.
+
+And **an assertion that something is absent needs a companion proving it could
+have been present.** Otherwise the assertion passes on a fixture that never had
+the thing at all, which is the same fault one level up.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
