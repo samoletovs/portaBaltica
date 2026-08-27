@@ -61,6 +61,21 @@ INDICATORS_JS = NEWSROOM_DIR.parent / "api" / "shared" / "indicators.js"
 #: written.
 NOT_COMPARED = {"freq"}
 
+#: Dimensions the newsroom pins that the dashboard *constructs*, so the literal
+#: cannot be found in its source however correct both sides are.
+#:
+#: ``rep_mar`` is the reporting port. The newsroom pins a country — ``LV`` — for
+#: the eleven port specs, while ``ports.js`` builds the parameter one port at a
+#: time (``'rep_mar=' + encodeURIComponent(c)``) from its own registry. So
+#: ``rep_mar=LV`` appears in neither file's text and a string comparison could
+#: only ever fail.
+#:
+#: It was previously excused inline, as ``or name == "rep_mar"``, with no
+#: comment: a legitimate exemption is indistinguishable from a silenced failure
+#: once it is written that way, and an exemption nobody can find is not
+#: reviewable. Naming it here makes adding a second one a visible diff line.
+CONSTRUCTED_BY_THE_DASHBOARD = {"rep_mar"}
+
 #: Eurostat's dimension code for a cadence, as the newsroom names it.
 FREQUENCY_OF_CODE = {"M": "monthly", "Q": "quarterly", "A": "annual", "S": "semi-annual"}
 
@@ -177,7 +192,7 @@ class TestEveryNewsroomSeriesIsJoinedToTheDashboard:
                 f"and this was not updated with it."
             )
             for name, value in spec.params.items():
-                if name in NOT_COMPARED or name == "rep_mar":
+                if name in NOT_COMPARED or name in CONSTRUCTED_BY_THE_DASHBOARD:
                     continue
                 if name == "cargo":
                     # ports.js leaves `cargo` unpinned on purpose -- it IS the
@@ -343,3 +358,71 @@ class TestTheRetiredTablesAreNotComingBack:
             f"{using} pin the ver.1 dimension 'coicop'; ver.2 names it 'coicop18' "
             f"and renames all-items CP00 to TOTAL"
         )
+
+
+class TestTheExclusionsAreTheOnesSomeoneDecidedAbout:
+    """Every dimension this file declines to compare, held to the full set.
+
+    Both exclusions above are legitimate, and neither could say so. They were
+    written as a *subtraction* -- ``if name in NOT_COMPARED: continue`` -- and a
+    subtraction admits a new member in silence. Measured directly: adding
+    ``unit``, ``s_adj`` and ``geo`` to ``NOT_COMPARED`` leaves all 207 tests in
+    this file green. A ``geo`` disagreement means the newsroom reads a
+    different *country* from the dashboard, which is the class of fault this
+    whole file exists to catch, and the file would have excused it on request.
+
+    So the exclusions are stated as an equality against the full set rather
+    than a filter over it. ``expect(offenders).toEqual(KNOWN)``, never
+    ``expect(offenders.filter(not_known)).toEqual([])``: both pass today and
+    only the first fails the day the exemption becomes a lie. The frontend
+    reached the same form independently in ``tests/typecheckGate.test.ts``,
+    which pins its five type-check exclusions by equality for the same reason.
+
+    This is the third member of a family found today. ``DELIBERATELY_NEUTRAL``
+    on the dashboard side was a comment listing five abstentions with nothing
+    to stop a sixth; a live-layout exemption for ``/corrections`` outlived the
+    fix it was waiting on, because a filter that matches nothing goes on
+    matching nothing forever. **A documented decision that nothing enforces
+    decays into an assumption.**
+    """
+
+    def test_only_freq_is_left_uncompared_as_a_parameter(self) -> None:
+        assert NOT_COMPARED == {"freq"}, (
+            f"NOT_COMPARED is {sorted(NOT_COMPARED)}. Adding a dimension here "
+            f"stops this file comparing it, permanently and silently. If a "
+            f"parameter comparison failed, the newsroom and the dashboard are "
+            f"reading different slices of the same cube -- which is the fault "
+            f"this file exists to find, not one to excuse."
+        )
+
+    def test_freq_is_compared_somewhere_else_as_the_note_claims(self) -> None:
+        '''The companion, and the reason the exclusion is honest.
+
+        ``NOT_COMPARED``'s note says ``freq`` is "compared as an attribute
+        instead". For the first months of its life nothing compared it, so the
+        note read as "not comparable" while meaning "compared elsewhere" and
+        closed the enquiry of anyone who came looking. ``TestTheCadencesAgree``
+        made it true; this asserts it stays true, because the claim lives in a
+        comment and the thing that satisfies it lives 200 lines away with
+        nothing connecting them.
+        '''
+        comparisons = [n for n in vars(TestTheCadencesAgree) if n.startswith("test_")]
+
+        assert comparisons, (
+            "NOT_COMPARED excuses 'freq' on the promise that it is compared as "
+            "an attribute instead. TestTheCadencesAgree is what keeps that "
+            "promise and it now has no tests, so the promise is empty."
+        )
+
+    def test_only_rep_mar_is_excused_for_being_constructed(self) -> None:
+        assert CONSTRUCTED_BY_THE_DASHBOARD == {"rep_mar"}, (
+            f"CONSTRUCTED_BY_THE_DASHBOARD is "
+            f"{sorted(CONSTRUCTED_BY_THE_DASHBOARD)}. A dimension belongs here "
+            f"only if ports.js builds it rather than writing it literally, so "
+            f"no string comparison could succeed. Anything else is a real "
+            f"disagreement being excused."
+        )
+
+    def test_the_two_exclusions_do_not_overlap(self) -> None:
+        """They excuse for different reasons; a dimension in both hides one."""
+        assert not (NOT_COMPARED & CONSTRUCTED_BY_THE_DASHBOARD)
