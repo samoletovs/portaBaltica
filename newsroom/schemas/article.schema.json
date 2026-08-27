@@ -309,7 +309,8 @@
                       "no_lived_experience_claims",
                       "attribution_present",
                       "comparison_basis_stated",
-                      "no_repeated_findings"
+                      "no_repeated_findings",
+                      "no_unsupported_mechanism"
                     ]
                   },
                   "passed": { "type": "boolean" },
