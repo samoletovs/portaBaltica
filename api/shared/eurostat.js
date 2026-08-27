@@ -404,6 +404,25 @@ function monthsSincePeriod(period, now) {
  */
 const MAX_AGE_MONTHS = { M: 6, Q: 12, S: 18, A: 30 };
 
+/**
+ * The frequencies a definition may declare, and the single place they are
+ * listed.
+ *
+ * The vocabulary lived in four copies — this table, `EXPECTED_STEP` in the live
+ * contract, and a `'A' | 'S' | 'Q' | 'M'` literal in each of two test files —
+ * with nothing tying them together. That is the shape where a union grows a
+ * member and a lookup table does not, and no toolchain notices: TypeScript
+ * checks the literals against each other never, and `MAX_AGE_MONTHS` is plain
+ * JavaScript.
+ *
+ * The failure would have been silent in the direction that matters. A frequency
+ * absent from the table falls to the `|| 30` below, which is the *annual*
+ * allowance — so a new weekly or daily series would be allowed to sit thirty
+ * months stale before the freshness gate said anything, which is the exact
+ * failure `MAX_AGE_MONTHS` exists to prevent.
+ */
+const FREQUENCIES = Object.freeze(['M', 'Q', 'S', 'A']);
+
 function maxAgeMonths(def) {
   if (def && typeof def.maxAgeMonths === 'number') return def.maxAgeMonths;
   return (def && MAX_AGE_MONTHS[def.freq]) || 30;
@@ -424,4 +443,5 @@ module.exports = {
   isSeriesStale: isSeriesStale,
   maxAgeMonths: maxAgeMonths,
   MAX_AGE_MONTHS: MAX_AGE_MONTHS,
+  FREQUENCIES: FREQUENCIES,
 };
