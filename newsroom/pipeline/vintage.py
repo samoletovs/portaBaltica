@@ -70,6 +70,15 @@ class PublishedFigure:
     observed_at: str
     published_at: str
     signal_id: str | None = None
+    #: What the figure was measured against, in the words the article used.
+    #:
+    #: Carried because a value without its basis is not a fact — "rose 12%" is
+    #: not reportable until a reader knows twelve per cent against what, and
+    #: ``check_comparison_basis_stated`` enforces exactly that on any prose
+    #: quantifying a change. Anything reading this ledger to write about a
+    #: figure therefore needs the basis or it cannot describe a movement at all.
+    #: Optional so ledger rows written before this field are still readable.
+    comparison_basis: str = ""
 
     @property
     def key(self) -> str:
@@ -101,6 +110,8 @@ class PublishedFigure:
         }
         if self.signal_id:
             out["signal_id"] = self.signal_id
+        if self.comparison_basis:
+            out["comparison_basis"] = self.comparison_basis
         return out
 
     @classmethod
@@ -120,6 +131,7 @@ class PublishedFigure:
                 observed_at=str(payload.get("observed_at") or ""),
                 published_at=str(payload.get("published_at") or ""),
                 signal_id=payload.get("signal_id") or None,
+                comparison_basis=str(payload.get("comparison_basis") or ""),
             )
         except (KeyError, TypeError, ValueError) as exc:
             log.warning("skipping unreadable ledger entry (%s)", exc)
@@ -157,6 +169,7 @@ def figures_from(article: Article, signal: Signal) -> list[PublishedFigure]:
             observed_at=retrieved,
             published_at=article.published_at or article.created_at,
             signal_id=(article.provenance or {}).get("signal_id"),
+            comparison_basis=signal.comparison_basis,
         )
     ]
 
