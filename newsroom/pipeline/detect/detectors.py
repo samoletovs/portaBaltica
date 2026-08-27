@@ -21,6 +21,8 @@ test suite asserts both directions.
 
 from __future__ import annotations
 
+import re
+
 import logging
 import statistics
 from dataclasses import dataclass
@@ -40,6 +42,26 @@ from newsroom.pipeline.models import Signal
 from newsroom.pipeline import units
 
 log = logging.getLogger(__name__)
+
+
+#: Months between two consecutive readings, by declared cadence.
+_CADENCE_MONTHS = {"monthly": 1, "quarterly": 3, "semi-annual": 6, "annual": 12}
+
+_PERIOD_MONTHS = (
+    (re.compile(r"^(\d{4})-(\d{2})$"), lambda m: int(m[1]) * 12 + int(m[2]) - 1),
+    (re.compile(r"^(\d{4})-?[Qq]([1-4])$"), lambda m: int(m[1]) * 12 + (int(m[2]) - 1) * 3),
+    (re.compile(r"^(\d{4})-?[Ss]([12])$"), lambda m: int(m[1]) * 12 + (int(m[2]) - 1) * 6),
+    (re.compile(r"^(\d{4})$"), lambda m: int(m[1]) * 12),
+)
+
+
+def _period_months(period: str) -> int | None:
+    """A period label as months since year zero, or None if unrecognised."""
+    text = str(period).strip()
+    for pattern, to_months in _PERIOD_MONTHS:
+        if match := pattern.match(text):
+            return to_months(match)
+    return None
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -132,6 +154,27 @@ def detect_record_extreme(
 # ---------------------------------------------------------------------------
 # 2. Streaks
 # ---------------------------------------------------------------------------
+def _adjacent(series: TimeSeries, delta_index: int) -> bool:
+    """Whether ``deltas[delta_index]`` spans one period rather than several.
+
+    ``deltas[i]`` is the move from ``observations[i]`` to ``observations[i+1]``.
+    One cadence unit apart is contiguous; anything longer is a hole that
+    reading order hides.
+
+    True for a period shape the parser does not recognise, so an unfamiliar
+    label degrades to the previous behaviour rather than silencing a detector.
+    Silence is indistinguishable from a series with nothing to say.
+    """
+    step = _CADENCE_MONTHS.get(series.frequency)
+    if step is None:
+        return True
+    earlier = _period_months(series.observations[delta_index].period)
+    later = _period_months(series.observations[delta_index + 1].period)
+    if earlier is None or later is None:
+        return True
+    return later - earlier == step
+
+
 def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
     """Consecutive same-direction moves.
 
@@ -154,12 +197,24 @@ def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
         return None
     sign = 1 if last > 0 else -1
 
+    # A gap breaks the run. `deltas` holds the moves between *readings*, and a
+    # reading is not always the next period: Eurostat publishes some series
+    # biennially, and any source may miss one. Counting readings and then
+    # calling them "four consecutive monthly moves ... from 2026-01" asserts a
+    # contiguity the data does not have -- five readings spanning ten months
+    # are not five consecutive months. That is a claim about the world rather
+    # than a weak sentence, so it is a truth fault.
+    #
+    # Nothing else would catch it: liveness, freshness and the sanity bands all
+    # read the tip of a series, and this hole is in its body.
     run = 0
-    for delta in reversed(deltas):
-        if (delta > 0 and sign > 0) or (delta < 0 and sign < 0):
-            run += 1
-        else:
+    for i in range(len(deltas) - 1, -1, -1):
+        delta = deltas[i]
+        if not ((delta > 0 and sign > 0) or (delta < 0 and sign < 0)):
             break
+        if not _adjacent(series, i):
+            break
+        run += 1
     if run < min_length:
         return None
 
