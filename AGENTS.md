@@ -1148,6 +1148,27 @@ That is the row's saving grace: an absurd reading defends itself. A plausible
 one does not, which is why the middle row is the dangerous one and needs a
 mechanical check rather than an instinct.
 
+**And the table assumes you have something correct to compare against, which is
+its own failure point: a recollection is not a control.**
+
+A session measuring page height under a simulated outage read `6574px` and
+concluded the page got *taller* — because it compared against a ~5000px figure
+half-remembered from an audit days earlier, on a different build. Measuring the
+healthy case in the same session gave `13157px`, and **the sign inverted**: the
+empty states are half the height of the real charts, so the collapse it was
+about to implement would have made things worse.
+
+The manager did the same thing in this file, writing that it *"grew by eight
+sections in one day"*. Diffing the headings against the evening's starting
+commit gave **five** — the others had extended existing sections, which is
+precisely the distinction that paragraph was drawing.
+
+Both numbers were plausible, neither was absent or absurd, and no row above
+catches them, because **the fault is in the baseline rather than the reading**.
+So when a measurement is a comparison, measure both sides in the same session,
+on the same build. A remembered figure has no provenance, no timestamp and no
+control — it is a claim wearing a number's clothes.
+
 ## State the SHA you measured, not the branch
 
 The rule above fires on an empty reading. **The failure it does not catch
