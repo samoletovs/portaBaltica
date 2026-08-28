@@ -3,6 +3,7 @@ import { AreaChart, Area, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Cart
 import { useTheme } from '../ThemeContext';
 import { fetchLiveGrid, type LiveGridData, type LiveGridPoint } from '../api';
 import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
+import { describeComparison } from '../utils/chartAccessibility';
 
 /**
  * What the Estonian grid is physically doing, and what its operator expects
@@ -152,13 +153,42 @@ export function GridStatePanel() {
         </div>
       </div>
 
-      <div className="h-40" role="img" aria-label={
-        `Estonian grid, metered to ${formatClock(latest.time)} UTC: generation ` +
-        `${Math.round(latest.production ?? 0)} megawatts against demand ` +
-        `${Math.round(latest.consumption ?? 0)}, a net ${importing ? 'import' : 'export'} of ` +
-        `${Math.round(shortfall ?? 0)} megawatts, with ${latest.renewableShare ?? 0} per cent ` +
-        `of generation renewable`
-      }>
+      {/* Described through `chartAccessibility`, like every other chart.
+          
+          This carried a hand-written label, and the reason to replace it is
+          not consistency for its own sake — the label was describing the wrong
+          object. It recited generation, demand, net flow and **renewable
+          share**, and renewable share is not plotted here at all: the chart's
+          three `dataKey`s are `generated`, `metered` and `planned`. Every one
+          of those four figures is also already on screen as text, in the three
+          stat boxes immediately above, so a screen-reader user heard them
+          once as content and again as the chart — while the thing a sighted
+          reader actually takes from the chart, the shape over time and where
+          measurement stops and forecast begins, was never stated.
+          
+          So the series go through the shared vocabulary, and the one fact that
+          vocabulary cannot express — that the trace is part measurement and
+          part forecast, which is what the dashed segment means — is appended.
+          A per-series description cannot say that, because it is a fact about
+          the boundary between two series rather than about either. */}
+      <div
+        className="h-40"
+        role="img"
+        aria-label={
+          describeComparison(
+            'Estonian grid, generation against demand',
+            [
+              { label: 'Generation', points: rows.map((r) => ({ period: r.label, value: r.generated })) },
+              { label: 'Demand, metered', points: rows.map((r) => ({ period: r.label, value: r.metered })) },
+              { label: 'Demand, forecast', points: rows.map((r) => ({ period: r.label, value: r.planned })) },
+            ],
+            (v: number | null) => (v === null ? 'no reading' : `${Math.round(v)} megawatts`),
+          ) +
+          (boundary
+            ? ` Measured to ${formatClock(boundary)} UTC; the dashed trace after that is ${data.operator}'s own forecast.`
+            : '')
+        }
+      >
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={rows}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />

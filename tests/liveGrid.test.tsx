@@ -204,11 +204,31 @@ describe('GridStatePanel', () => {
     expect(document.body.textContent).not.toMatch(/Hz|[Ff]requency/);
   });
 
-  it('describes the whole panel to a screen reader', async () => {
+  it('describes the chart, and leaves the panel figures as text', async () => {
     await renderWith(payload);
     const label = screen.getByRole('img').getAttribute('aria-label') ?? '';
-    expect(label).toMatch(/net import of 160 megawatts/);
-    expect(label).toMatch(/2.7 per cent/);
+
+    // This used to assert the chart's `aria-label` recited the net flow and
+    // the renewable share. It was renamed and rewritten rather than deleted,
+    // because the old form pinned a defect: **renewable share is not plotted
+    // here at all.** The chart's three `dataKey`s are `generated`, `metered`
+    // and `planned`, so the label was making a claim about a quantity the
+    // graphic does not contain — and reciting three figures that are already
+    // adjacent text, which makes a screen reader read them twice.
+    //
+    // So the assertion moved from the technique to the outcome. What matters
+    // is that the information is reachable, not which element carries it.
+    expect(label, 'the label should describe what is plotted').toMatch(/generation against demand/i);
+    expect(label, 'and where measurement stops').toMatch(/Measured to .*forecast/i);
+    expect(label, 'renewable share is not plotted, so the chart must not claim it')
+      .not.toMatch(/per cent|renewable/i);
+
+    // The companion assertion, and the one that makes the removal safe: the
+    // figures are still in the accessible content of the panel, as text.
+    // Without this, the check above passes just as well on a panel that
+    // dropped them altogether.
+    expect(document.body.textContent, 'net flow is still readable').toMatch(/Net import/);
+    expect(document.body.textContent, 'renewable share is still readable').toMatch(/2\.7/);
   });
 
   it('says so plainly when the grid data will not load', async () => {

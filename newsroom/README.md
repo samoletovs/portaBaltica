@@ -95,12 +95,12 @@ convention.
    │                  settle it. A mechanism that does not name verified fields
    │                  is deleted in code before the writer sees it.
    │
-   ├─ 6b. THE PANEL   two specialists per beat, consulted separately, propose
+   ├─ 6b. THE PANEL   three analysts per beat, consulted separately, propose
    │                  *why*. This is the one stage permitted world knowledge,
    │                  and everything it returns is a hypothesis: attributed to
-   │                  whoever holds it, marked unconfirmed, and carrying no
-   │                  quantity — a claim with a number in it is deleted in code.
-   │                  See "The causal panel" below.
+   │                  an AI analyst named by role, marked unconfirmed, and
+   │                  carrying no quantity — a claim with a number in it is
+   │                  deleted in code. See "The causal panel" below.
    │
    ├─ 7. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
    │                  Receives the enriched signal, the context pack, the
@@ -192,12 +192,41 @@ argument — `_admissible` runs after the model exactly as `_ground` does:
 3. **Attribution is assigned, never claimed.** For a domain-knowledge claim the
    name is written from the panel table, not read from the answer. A model
    cannot promote its own guess into a central bank's mouth.
+4. **No analyst is a person.** See below — this one is a structure rather than a
+   guard, and it is the correction that mattered most.
 
-**Two analysts, consulted separately.** Asking one model for three perspectives
-returns one perspective wearing three hats, because the second is written in the
-light of the first. Independent calls mean a convergence is evidence rather than
-an artefact of ordering, and `_converge` tells the correspondent which causes two
-panellists reached alone.
+### An analyst is a role, and that is a correction
+
+The first version gave each lens an invented name, and on 2026-08-28 this
+published:
+
+> "Dr. Ineta Zvirbule suggests this is a likely explanation, but the data
+> cannot confirm it."
+
+Attributed, hedged, figure-free — every rule above obeyed — and still wrong. No
+such economist exists. She is not on `personas.yaml`, so she has no bio page, no
+AI byline and no correspondent route, and the sentence reads as a correspondent
+relaying an expert they rang. On a site that will not publish a synthetic human
+face and rejects an article for claiming an interview.
+
+Note where the hole was: **every correspondent name reaching a reader was
+disclosed, and the panel introduced a second class of name that no part of that
+apparatus covered.** `byline_discloses_ai` checks bylines. `test_one_roster`
+pins the roster. Neither has anything to say about a name in body prose.
+
+A personal name bought nothing here — it is the *discipline* that distinguishes
+one perspective from another. So an analyst is now `the newsroom's AI
+demographer`: a role, carrying the disclosure inside the string the brief tells
+the writer to copy, exactly as `persona_rules` builds "· AI correspondent" in
+code so it cannot be phrased away. **There is no invented person left to be
+mistaken for a real one**, which is worth more than any rule about how to
+describe one.
+
+**Three analysts, consulted separately.** Asking one model for three
+perspectives returns one perspective wearing three hats, because the second is
+written in the light of the first. Independent calls mean a convergence is
+evidence rather than an artefact of ordering, and `_converge` tells the
+correspondent which causes two analysts reached alone.
 
 **The lenses are not the sections.** A finding is read by whoever can explain it,
 which is why `environment` — where this newsroom files its demographic series —
@@ -205,25 +234,56 @@ routes to a demographer and a political economist rather than to a climate
 analyst. A section-shaped default is exactly what made the birth-rate article
 shallow.
 
-**It costs two model calls per article**, on top of the analyst's one and the
-writer's one to three. `NEWSROOM_PANEL_SIZE` is the dial; two is the floor at
-which a convergence means anything, and the third lens per beat exists for
-where they genuinely disagree. Watch it against the €3–5/mo target rather than
-assuming it is free.
+**Cost was never the constraint here, measured rather than assumed.** At the
+ranking ceiling of eight articles a day on gpt-4o-mini list price the whole
+stage is about **$0.27/month at two analysts and $0.41 at three** — so the
+€3–5/mo target is about Flex Consumption and storage, not about this.
+`NEWSROOM_PANEL_SIZE` is the dial and the default is three: the third lens
+breaks a tie on beats where the first two disagree, and it makes a corroboration
+mean more, because two of three agreeing is evidence in a way two of two, who
+had no third opinion to differ from, is not.
 
 **The gate got stricter, not looser.** `no_unsupported_mechanism` now admits a
 figure-free paragraph that explains something on the newsroom's own analyst's
-authority *only* when the same paragraph marks the cause unconfirmed, and it
-tests that branch **before** the general attribution exemption. That ordering is
-the whole guarantee: `_ATTRIBUTED_TO_A_SOURCE` matches any sentence containing
-"says", so a desk cause stated flatly would otherwise pass on the generic
-clause and the hedge requirement would be a branch nothing ever reached. The
-panellists' names are read off the article's own provenance rather than matched
-by pattern, so *"Dr Liina Sarapuu says X is driven by Y"* — the same claim on
-the same authority, without the possessive a regex would look for — is caught.
+authority *only* when the same paragraph both marks the cause unconfirmed **and**
+discloses the analyst as AI, and it tests that branch **before** the general
+attribution exemption. That ordering is the whole guarantee:
+`_ATTRIBUTED_TO_A_SOURCE` matches any sentence containing "says", so a desk cause
+stated flatly would otherwise pass on the generic clause and the two
+requirements would be branches nothing ever reached. The analysts' titles are
+read off the article's own provenance rather than matched by pattern, so a draft
+that quotes only part of the title is still recognised as ours — and then held to
+the stricter rule rather than the laxer external one.
+
+It also refuses an invented expert outright, **before every exemption**, and
+that ordering is the finding rather than a detail. Each exemption was in turn
+found to wave the same sentence through: `_DENIES_A_MECHANISM` matches
+"cannot", so *"Dr. X suggests Y, but the data cannot confirm it"* read as a
+denial — it is not one, since **a denial has no proposer**. `_ATTRIBUTED_TO_A_SOURCE`
+matches a bare "said", so a first attempt that excused an honorific whenever
+that pattern matched guarded exactly the one verb the live failure happened to
+use. And the desk branch returned early on success, so the shape the brief now
+*teaches* — putting "the newsroom's AI demographer" in the sentence — was the
+shape that skipped the check for a hallucinated name beside it. **The fix for
+one defect had become the carrier for another.**
+
+So there is no exemption: a named person may not author an explanation in our
+prose at all. That is not a new rule. `personas.yaml` already forbids
+"attributing opinion or intent to a named living person", and nothing enforced
+it. Institutions carry no honorific, so *"According to Latvijas Banka"* is
+untouched — and the honorific is matched with `str.isupper` rather than a
+character class, because the first version used the Latvian capitals and
+exempted Estonian and Lithuanian names on the diacritic alone.
+
+**A disclosure guarantee must not turn on an invisible character.** Both routes
+into the desk branch keyed on U+0027 — the regex needs "newsroom's", and every
+`Lens.title` begins with it — so they failed *together* on a typographic
+apostrophe, and the paragraph fell through to the laxer external exemption with
+no hedge and no disclosure required. Apostrophes are normalised on both sides
+now. Two routes that look independent and share a failure mode are one route.
 
 An outside publisher is on the record independently and answerable for what it
-said; our panellist is a model this newsroom prompted. The asymmetry is
+said; our analyst is a model this newsroom prompted. The asymmetry is
 deliberate.
 
 **A hypothesis is never attributed to a publisher, even when one informed it.**
@@ -233,8 +293,43 @@ compares a name against a list and never opens the release. So attributing the
 claim to the publisher would answer a question nobody asked, and the failure is
 legible to the reader and invisible to us: they follow the link, read the
 release, and find we paraphrased it into saying something it does not. Every
-claim is therefore the panellist's, for both bases, and a cited release is
+claim is therefore the analyst's, for both bases, and a cited release is
 recorded beside it as `informed_by`.
+
+**A convergence has to be measurable to be reportable.** `_converge` scored two
+claims by Jaccard, which divides by the *union*, so every qualifier either
+analyst added on its own enlarged the denominator while contributing nothing to
+the numerator. It therefore penalised exactly what a specialist writing at
+length does. Measured on the live output that exposed it — two analysts,
+consulted separately, both naming decreased reliance on Russian gas — it scored
+**0.323 against a 0.34 threshold and was dropped**, which is the one signal
+consulting them separately exists to produce. The measure is now the overlap
+coefficient, `|A ∩ B| / min(|A|, |B|)`: on the same real pairs, agreeing claims
+score 0.42–0.50 and different causes 0.00–0.16, so the threshold sits inside a
+0.26 gap rather than above both agreeing pairs. **This was a change of measure,
+not a threshold nudged until one observation passed** — which would have been
+fitting to a sample of one.
+
+Two floors guard it, and neither subsumes the other. A minimum claim length
+closes the overlap coefficient's own weakness, where a short string contained
+in a long one scores 1.0. A minimum *shared word count* closes the one that
+length floor was wrongly assumed to cover: at a 0.30 threshold a five-word
+claim needs only **two** shared words to clear it, and "Weaker external demand
+reduced industrial output" against the live Estonian energy claim shares
+*demand* and *reduced* and scored 0.333. Measured, agreeing pairs share 8–10
+content words and every non-agreeing pair shares 1–3, so the floor is four.
+A false corroboration is worse than a missed one: `_by_evidence` promotes it to
+the head of the writer's brief and the passport prints it to the reader.
+
+**The brief must not contradict itself.** With no mechanism but a live panel, the
+analyst brief opened *"MECHANISMS: none. There is no cause available to you."*
+and then said three lines later that the panel had filed some. Measured in
+production: an article whose panel returned four admissible hypotheses still
+closed *"The data does not show what drove the change in home energy inflation,
+and no specific causes can be confirmed."* An emphatic absolute followed by a
+qualification is read as the absolute, so the absolute is no longer written when
+it is false — the brief now says what is actually missing, a relationship the
+*figures* establish, rather than something broader the next line withdraws.
 
 What the gate still cannot see is the truth of an attribution: *"According to
 Latvijas Banka, the fall is driven by X"* passes whether or not the bank said
@@ -829,14 +924,17 @@ infrastructure/main.bicep      # Functions + Storage + Foundry role assignment
    advance, while it is still cheap to refuse.
 6. **A difference below the measurement floor is not a small story.** It is the
    absence of one. Never make it survivable by weighting.
-7. **A cause is never asserted, and never anonymous.** The causal panel is the
-   one stage allowed knowledge from outside the retrieved figures, and every
-   claim it produces reaches the reader carrying both a name and a mark that
-   this data cannot confirm it. Neither half is optional: without the name the
-   reader cannot weigh whose idea it is, and without the mark the wire has
-   asserted something it did not establish. A hypothesis also never carries a
-   quantity — if one is ever needed to make the claim stand up, the claim is a
-   numeric assertion the pipeline did not verify, and it is dropped.
+7. **A cause is never asserted, never anonymous, and never in a person's mouth.**
+   The causal panel is the one stage allowed knowledge from outside the
+   retrieved figures, and every claim it produces reaches the reader carrying a
+   name, a disclosure that the name is an AI analyst, and a mark that this data
+   cannot confirm it. None of the three is optional: without the name the reader
+   cannot weigh whose idea it is, without the disclosure they take our analyst
+   for a person, and without the mark the wire has asserted something it did not
+   establish. An analyst is a **role**, never a personal name — there is no
+   invented human anywhere on this site. A hypothesis also never carries a
+   quantity: if one is needed to make the claim stand up, the claim is a numeric
+   assertion the pipeline did not verify, and it is dropped.
 
 ## Deploying
 

@@ -1359,6 +1359,91 @@ The eight are 24px sparklines in a table whose row already carries the figure
 and its change, so `aria-hidden` may be the right answer there rather than a
 description — but *neither* is what they have.
 
+### 4.9 Describe the chart, not the panel around it
+
+Fixing the ten above turned into a question the audit had not asked: **what
+should an accessible name for a chart actually say?** Three answers were tried
+against the rendered page, and two of them were wrong in ways that read fine in
+source.
+
+**Do not restate what is already text beside it.** `GridStatePanel` carried a
+hand-written label reciting generation, demand, net flow and renewable share.
+Every one of those four figures is already on screen in the stat boxes
+immediately above — so a screen-reader user heard them once as content and
+again as the chart — and **renewable share is not plotted at all**: the chart's
+three `dataKey`s are `generated`, `metered` and `planned`. The label described
+the panel, not the chart. What only the chart carries — the shape over time,
+and where measurement stops and forecast begins — was never stated. It goes
+through `describeComparison` now, with one appended clause naming the
+measurement boundary, because that is a fact about the join between two series
+and no per-series description can express it.
+
+**A shared vocabulary is right until its assumption is false.**
+`describeComparison` reports the *last* observation of each series under the
+heading "Latest readings". That is correct for the historical series it was
+written for, and false for a day-ahead price curve, which runs forward into
+tomorrow. Applied to `PowerMarketCard` it produced:
+
+```
+  the label said     Estonia €28.26 … Finland €1.83    "Latest readings"
+  the panel showed   Estonia €28.41 … Finland €27.45   current
+```
+
+Finland out by a factor of fifteen — the last *interval* of the published
+curve, announced as the latest *reading*. It is the forecast trap `AGENTS.md`
+records for freshness probes, arriving in an accessible name. So that chart is
+described bespoke: how many zones, over how many intervals, whether the curve
+continues into tomorrow, and a pointer to the per-zone prices already listed
+above it.
+
+The rule is not "always share" or "always bespoke". It is: **use the shared
+vocabulary wherever its assumption holds, and prove it holds by reading the
+rendered label against the page.** Both defects above are invisible in a diff
+and obvious the moment the label is compared with the figures beside it.
+
+**And a shared helper must not leave that as the caller's problem.**
+`describeComparison` now takes an optional `asAt` — the period the caller
+declares is current — and reports the reading *there*, noting when the series
+continues past it. That is the guarantee. Underneath it sits a structural
+refusal: **when a period label occurs twice it cannot identify a point**, so no
+clause of the form "X in \<period\>" is well-defined, and the helper stops
+claiming one and reports each series' range instead.
+
+That check is structural rather than a date parser, and the measurement is why.
+Across the three real call sites the helper receives period *labels*, and they
+are display strings:
+
+```
+  PowerMarketCard   184 points   "00:45"     88 duplicate labels
+  GridStatePanel     48 points   "18:00"      0 duplicates
+  an indicator       22 points   "2026-Q2"    0 duplicates
+```
+
+The day-ahead labels carry **no date at all**, and 88 of 184 repeat because the
+clock wraps at midnight — so "00:45" names two different points and nothing in
+the input distinguishes them. `GridStatePanel` knows where measurement stops
+only because its payload carries `meteredTo`, which never reaches the helper.
+Recency is caller knowledge; a parser would only ever handle the formats its
+author imagined and fail silently on the next, in the direction that reports
+success.
+
+**The residual is stated rather than hidden:** a forward curve whose labels
+happen to be unique still gets "Latest readings" for a point that may be a
+forecast. `GridStatePanel` is exactly that case — its clause is unambiguous and
+true as drawn, and it is not current. Only `asAt` closes it. Measured across 105
+rendered chart labels, the rework changes **none** of them, so the safety is
+new and the existing wording is untouched.
+
+**The guard derives its population.** `design-system.test.ts` asserted the rule
+against a hand-written list of **two** files while **six** components rendered a
+chart, so four were unguarded while looking covered — the fourth instance of
+that shape in this project. Measured on the shipped tree, the old form is
+**green** while ten surfaces announce as anonymous graphics. The set is read
+from the source now, `ResponsiveContainer` is the marker, and a count assertion
+fails if that marker ever stops identifying charts — because an empty set passes
+everything. The one exclusion is written as an **equality**, so it cannot
+outlive its reason.
+
 ---
 
 ## 5. What the tests enforce
@@ -1408,7 +1493,10 @@ description — but *neither* is what they have.
 - controls have a 44px minimum target;
 - "back to the dashboard" goes to the dashboard;
 - every chart carries `role="img"` and a described label, and the decorative
-  ticker is `aria-hidden`;
+  ticker is `aria-hidden`. **The chart population is derived**, not listed: the
+  set is every component containing a `ResponsiveContainer`, with a count
+  assertion so an empty set cannot pass, and a single exclusion held as an
+  equality so it fails when it stops being true;
 - `prefers-reduced-motion` is honoured, and nothing animates `all`;
 - charts do not hardcode a hex colour that a theme token already provides, and
   do not use `connectNulls`;

@@ -45,6 +45,42 @@ probe that alarms on one quiet run is a probe someone mutes within a week.
 Thirty consecutive silent runs is a different thing, and telling them apart
 needs history. So the count is carried forward from the previous report rather
 than recomputed, and one fetch answers both "is it alive" and "is it working".
+
+WHY A REJECTION SAYS WHY
+------------------------
+The 14:00Z run of 2026-08-28 generated eight original articles across 21
+attempts and published two. The report named the six that died and not one word
+about why, so a reader could not tell the pipeline **working** — six bad drafts
+correctly caught — from the pipeline **misfiring**, and those two produce a
+byte-identical document. That is not a hypothetical distinction here: ``#171``
+was *"Stop comparison_basis_stated rejecting a basis that is stated"* — nine of
+nine rejections false, the check wrong and the writer right — and it was found
+by a human reading the output, because a rejection left nothing behind to read.
+
+Nothing had to be measured to fix it. ``write/generator.py`` has recorded the
+gate, the checks and the detail on ``provenance.rejection`` since the day it
+took 200 blobs to establish what was killing the wire — this file simply threw
+it away and kept the slug. A computed answer discarded at the reporting layer,
+which is the same defect shape as a freshness verdict the render layer drops.
+
+So ``rejections`` carries one entry per rejected article and ``rejected_checks``
+counts how many of them each check refused. The aggregate is the one that
+answers the question fastest: six rejections spread across six checks is a
+pipeline doing its job, and six rejections all naming one check is a check to go
+and read. On the run above it was four of six for ``comparison_basis_stated``
+and four of six for ``no_unsupported_mechanism`` — the first of those being the
+check ``#171`` had already had to fix once, which is the whole argument for
+putting the number somewhere a reader trips over it.
+
+Two things it deliberately does not do. It does not restate the draft: the check
+names are the queryable part and the detail is bounded, because this document is
+fetched by a status probe on a schedule and a reason is not a payload — the full
+text stays on the draft at ``rejected/<day>/<slug>.json``. And a rejection whose
+reason was never recorded is **not** dropped and **not** given an empty one; it
+appears carrying ``gate_unavailable``, mutually exclusive with ``gate``, exactly
+as ``revision_unavailable`` sits beside ``revision`` on the article itself. A
+missing reason is the one fault this section exists to make visible, so it must
+not be the one thing the section can hide.
 """
 
 from __future__ import annotations
@@ -69,6 +105,27 @@ STALE_AFTER_HOURS = 26
 
 REPORT_VERSION = 1
 
+#: How much of a rejection's detail this document carries. The check names are
+#: never cut — they are the part a reader filters on — but the detail can run
+#: past 600 characters, most of it the same instruction repeated verbatim for
+#: every occurrence of a fault. This file is fetched by a status probe on a
+#: schedule, so the detail is a pointer to the evidence rather than the evidence
+#: itself; the full text is on the stored draft. A cut is always marked and
+#: measured, because a sentence that merely stops is indistinguishable from one
+#: the pipeline wrote that way.
+MAX_REJECTION_DETAIL = 200
+
+#: Said when a rejection carries no recorded reason. It occupies the ``gate``
+#: field's place without occupying its namespace: a consumer asking
+#: ``"gate" in rejection`` is asking exactly "do we know why this died", and no
+#: value of ``gate`` can answer yes by accident. Same construction as
+#: ``revision_unavailable`` on the article, and for the same reason — a
+#: placeholder that looks like an answer earns trust it has not verified.
+UNRECORDED_REASON = (
+    "the pipeline recorded no reason on this draft, so why it was refused "
+    "cannot be told from this run alone"
+)
+
 
 def _history_blob(finished_at: str) -> str:
     day = finished_at[:10]
@@ -83,6 +140,63 @@ def _sections_of(articles: Any) -> dict[str, int]:
         section = getattr(article, "section", None)
         if isinstance(section, str) and section:
             counts[section] = counts.get(section, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def _clip(detail: str) -> str:
+    """The detail, cut to length with the cut stated in characters."""
+    if len(detail) <= MAX_REJECTION_DETAIL:
+        return detail
+    return f"{detail[:MAX_REJECTION_DETAIL]}… (+{len(detail) - MAX_REJECTION_DETAIL} more)"
+
+
+def _reason_for(article: Any) -> dict[str, Any]:
+    """Why one draft was refused, read off the artefact the writer stamped.
+
+    Defensive in the same way the rest of this module is, and with one rule that
+    matters more than the others: **every rejected article gets an entry**. The
+    tempting shape is to skip an article carrying no reason, which reads as
+    tidiness and is the failure this whole section exists to prevent — a
+    rejection that leaves no trace is precisely what could not be told apart
+    from a rejection that never happened.
+    """
+    entry: dict[str, Any] = {"slug": str(getattr(article, "slug", "") or "")}
+
+    provenance = getattr(article, "provenance", None)
+    record = provenance.get("rejection") if isinstance(provenance, Mapping) else None
+    gate = record.get("gate") if isinstance(record, Mapping) else None
+    if not isinstance(record, Mapping) or not isinstance(gate, str) or not gate:
+        entry["gate_unavailable"] = UNRECORDED_REASON
+        return entry
+
+    entry["gate"] = gate
+    raw_checks = record.get("checks")
+    # A string is iterable, and iterating one gives characters. Guard the type
+    # rather than the emptiness: `checks: "figures_traceable"` would otherwise
+    # become seventeen single-letter check names, each counted in the aggregate.
+    if isinstance(raw_checks, (list, tuple)):
+        entry["checks"] = [str(check) for check in raw_checks if str(check)]
+    else:
+        entry["checks"] = []
+    detail = record.get("detail")
+    if isinstance(detail, str) and detail:
+        entry["detail"] = _clip(detail)
+    return entry
+
+
+def _checks_of(reasons: list[dict[str, Any]]) -> dict[str, int]:
+    """How many rejections each check refused, most-refused first.
+
+    **Rejections, not failures.** An article that fails three checks contributes
+    one to each of three names, so these values sum to more than the rejected
+    count and adding them up says nothing. The question this answers is the only
+    one that separates a working gate from a broken one at a glance: is the
+    pipeline catching six different faults, or is one check eating the wire?
+    """
+    counts: dict[str, int] = {}
+    for reason in reasons:
+        for check in dict.fromkeys(reason.get("checks") or ()):
+            counts[check] = counts.get(check, 0) + 1
     return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
 
 
@@ -119,6 +233,12 @@ def build_run_report(
     rejected = list(getattr(report, "rejected", ()) or [])
     desk = list(getattr(report, "desk", ()) or [])
 
+    # One enumeration behind the count, the list and the aggregate. Walking
+    # `rejected` here and `generated` for the reasons would be two populations
+    # that agree today and drift silently later, which is the hazard this repo
+    # keeps finding in guards that re-derive what they guard.
+    reasons = [_reason_for(article) for article in rejected]
+
     desk_actions: dict[str, int] = {}
     for outcome in desk:
         action = getattr(getattr(outcome, "action", None), "value", None)
@@ -128,12 +248,29 @@ def build_run_report(
     # The number that matters. Nine published articles from thirty runs and
     # nine from three are the same "published" count and completely different
     # states of health, and only this distinguishes them.
+    #
+    # The filter tests `provenance` for truthiness and then calls `.get` on it,
+    # which is a type assumption wearing an emptiness check: anything truthy and
+    # not a mapping raises here, at the very end of a run, and takes the whole
+    # report with it. This module's contract is that it is "duck-typed and
+    # defensive throughout" because "a report that raises while explaining a
+    # failure is worse than no report" — so this is the contract being kept
+    # rather than belt-and-braces. Found by a test written for the rejection
+    # reasons below, which is the only reason it is documented rather than
+    # discovered on the run it would have cost.
     generated = list(getattr(report, "generated", ()) or ())
-    attempts = [
-        int(g.article.provenance.get("attempts", 1))
-        for g in generated
-        if getattr(getattr(g, "article", None), "provenance", None)
-    ]
+    attempts: list[int] = []
+    for g in generated:
+        provenance = getattr(getattr(g, "article", None), "provenance", None)
+        # `not provenance` keeps the original falsy skip exactly, so an empty
+        # provenance still contributes no attempt and `attempts_total` is
+        # unchanged for every input that did not already crash.
+        if not isinstance(provenance, Mapping) or not provenance:
+            continue
+        try:
+            attempts.append(int(provenance.get("attempts", 1)))
+        except (TypeError, ValueError):
+            continue
     originals_published = sum(1 for g in generated if getattr(g, "publishable", False))
 
     prior = previous if isinstance(previous, Mapping) else {}
@@ -189,6 +326,23 @@ def build_run_report(
         "desk": desk_actions,
         "published_slugs": [getattr(a, "slug", "") for a in published][:50],
         "rejected_slugs": [getattr(a, "slug", "") for a in rejected][:50],
+        # Which check refused how many of them. Computed over every rejection
+        # rather than over the truncated list below, so the cluster stays exact
+        # on a run long enough to be cut.
+        "rejected_checks": _checks_of(reasons),
+        # And the individual verdicts, so a suspicious cluster can be read
+        # rather than guessed at. Truncated like the slug lists above; the
+        # aggregate is the complete statement.
+        #
+        # NO CODE READS EITHER OF THESE, AND THAT IS THE INTENT. Grepping the
+        # fields a producer writes against the names its consumers read is how
+        # the defect this section fixed was found, so both will show up on that
+        # sweep as answers nobody uses. They are not: the consumer is a person
+        # reading `runs/latest.json` after a bad afternoon, which is the only
+        # reader that can tell a correct rejection from a broken check. Said
+        # here so the next sweep gets its answer from the code rather than
+        # having to reconstruct it.
+        "rejections": reasons[:50],
         "errors": [str(e) for e in (getattr(report, "errors", ()) or ())][:20],
     }
 
@@ -218,8 +372,10 @@ async def write_run_report(
 
 __all__ = [
     "LATEST_BLOB",
+    "MAX_REJECTION_DETAIL",
     "REPORT_VERSION",
     "STALE_AFTER_HOURS",
+    "UNRECORDED_REASON",
     "build_run_report",
     "write_run_report",
 ]

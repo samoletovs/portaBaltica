@@ -174,7 +174,42 @@ export function PowerMarketCard() {
         Range is today&apos;s low to high
       </p>
 
-      <div className="h-40">
+      <div
+        className="h-40"
+        role="img"
+        // Bespoke, and the reason is measured rather than stylistic.
+        //
+        // `describeComparison` was tried here first and states something
+        // false. It reports the **last** observation of each series under the
+        // heading "Latest readings", which is correct for the historical
+        // series it was written for and wrong for a day-ahead curve, because
+        // that curve runs forward into tomorrow. Measured against this very
+        // panel: it produced "Estonia €28.26 … Finland €1.83" while the boxes
+        // above read €28.41 and €27.45 — the last *interval* of the published
+        // curve, announced as the latest *reading*. Finland was out by a
+        // factor of fifteen. It is the forecast trap `AGENTS.md` records for
+        // freshness probes, arriving in an accessible name.
+        //
+        // So this describes what the chart adds instead of restating the
+        // boxes. The current price and today's range per zone are already on
+        // screen as text immediately above; repeating them would make a
+        // screen reader read the same four numbers twice. What only the chart
+        // carries is the span, how many zones are drawn, and whether the
+        // curve continues into tomorrow.
+        aria-label={
+          `Day-ahead electricity price, ${list<PowerPriceZone>(data.zones).length} bidding zones ` +
+          `plotted across ${chartData.length} intervals` +
+          (chartData.length > 0
+            ? ` from ${formatHour(String(chartData[0].time))} to ${formatHour(String(chartData[chartData.length - 1].time))}`
+            : '') +
+          (firstTomorrow ? `, continuing into tomorrow from ${formatHour(firstTomorrow.time)}` : ', today only') +
+          `. ${decoupledShare}% of today's intervals decoupled` +
+          (data.widestSpread
+            ? `, widest spread €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}`
+            : '') +
+          `. Current prices per zone are listed above the chart.`
+        }
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />

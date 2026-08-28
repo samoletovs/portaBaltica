@@ -938,9 +938,9 @@ _ATTRIBUTED_TO_A_SOURCE = re.compile(
 )
 
 #: Who the newsroom's own causal panel speaks as, when the prose names a role
-#: rather than a person. A hypothesis from
+#: rather than quoting the analyst's full title. A hypothesis from
 #: :mod:`newsroom.pipeline.hypothesis` has no outside publisher to name -- it is
-#: a specialist on this masthead proposing a cause -- so the possessive is what
+#: an analyst on this masthead proposing a cause -- so the possessive is what
 #: distinguishes it. Deliberately narrow: a bare "the analyst" or "the
 #: economist" belongs to whoever the sentence says it does, and claiming those
 #: would tighten the gate on ordinary external attribution.
@@ -958,6 +958,46 @@ _MARKED_UNCONFIRMED = re.compile(
     r"|\bwould\s+need\b|\bone\s+explanation\b",
     re.IGNORECASE,
 )
+
+#: The disclosure token, matched as a standalone word so "said" and "maintain"
+#: cannot supply it. ``hypothesis.Lens.title`` puts it inside every analyst's
+#: name, so a draft that quotes the brief carries it without trying.
+_MARKED_AI = re.compile(r"\bAI\b|\bartificial\s+intelligence\b", re.IGNORECASE)
+
+#: An apparent person, introduced the way prose introduces one. A closed set of
+#: honorifics rather than any attempt at name detection: the point is not to
+#: find every name, it is that an honorific is how a draft dresses an invented
+#: expert to be believed.
+#:
+#: The capital is checked with ``str.isupper`` rather than a character class,
+#: because a class written from one alphabet silently exempts the others. The
+#: first version was ``[A-ZĀČĒĢĪĶĻŅŠŪŽ]`` -- Latvian -- on a newsroom whose beat
+#: is three countries, so "Dr. Ülo Kaasik" and "Dr. Ąžuolas Petraitis" passed on
+#: the diacritic alone.
+_HONORIFIC_NAME = re.compile(r"\b(?:Dr|Prof|Mr|Mrs|Ms)\.?\s+([^\W\d_][^\W\d_]*)")
+
+
+def _apparent_person(text: str) -> str | None:
+    """The first honorific-led name in this text, or ``None``.
+
+    Returns the span so the rejection can quote it back: a check that says
+    "you invented an expert" without saying which one sends the writer looking.
+    """
+    for match in _HONORIFIC_NAME.finditer(text):
+        if match.group(1)[:1].isupper():
+            return match.group(0)
+    return None
+
+
+#: Both apostrophes. A draft that types the typographic one is making the same
+#: claim on the same authority, and matching only U+0027 sent it to the laxer
+#: external-attribution exemption instead of the desk rule -- a disclosure
+#: guarantee turning on a character nobody can see.
+_APOSTROPHES = str.maketrans({"\u2019": "'", "\u02bc": "'", "\u2018": "'"})
+
+
+def _normalised(text: str) -> str:
+    return text.translate(_APOSTROPHES)
 
 
 def _panellists(context: "ValidationContext") -> tuple[str, ...]:
@@ -997,28 +1037,58 @@ def _panellists(context: "ValidationContext") -> tuple[str, ...]:
 
 
 def _speaks_for_the_newsroom(text: str, panellists: Sequence[str]) -> bool:
-    """Is this paragraph explaining on our own analyst's authority?"""
-    if _DESK_ATTRIBUTION.search(text):
+    """Is this paragraph explaining on our own analyst's authority?
+
+    Apostrophes are normalised on both sides. Every ``Lens.title`` begins "the
+    newsroom's ", so the regex and the panellist list now largely agree — and
+    that agreement is the trap: both turned on U+0027, so a draft typing the
+    typographic apostrophe escaped *both* routes at once and landed on the
+    laxer external exemption with no hedge and no disclosure required.
+    """
+    normalised = _normalised(text)
+    if _DESK_ATTRIBUTION.search(normalised):
         return True
-    return any(name and name in text for name in panellists)
+    return any(name and _normalised(name) in normalised for name in panellists)
 
 
 def _is_hedged_desk_hypothesis(text: str, panellists: Sequence[str] = ()) -> bool:
-    """A cause the newsroom's own panel proposed, marked as a proposal.
+    """A cause our own panel proposed, marked as a proposal, and disclosed as AI.
 
-    Deliberately a **conjunction**, and that is the whole safety argument. The
-    panel exists so a reader gets a candidate cause instead of "the data does
-    not show what drove the change" -- but a candidate cause asserted flatly is
-    exactly the fabrication ``check_no_unsupported_mechanism`` was built to
-    catch, and the retracted container-throughput sentence would sail through a
-    check that asked only for an attribution.
+    Deliberately a **conjunction of three**, and that is the whole safety
+    argument. The panel exists so a reader gets a candidate cause instead of
+    "the data does not show what drove the change" -- but a candidate cause
+    asserted flatly is exactly the fabrication
+    ``check_no_unsupported_mechanism`` was built to catch, and one attributed
+    to an apparent human expert is a second fabrication on top of it.
 
-    So both halves are required and the exemption fails closed on either. Drop
-    the attribution and the reader cannot tell whose idea it is; drop the
-    hedge and the wire has asserted a cause it did not establish.
+    Each clause closes a different hole and the exemption fails closed on any
+    of them:
+
+    * **attribution** -- without it the reader cannot tell whose idea it is;
+    * **the hedge** -- without it the wire has asserted a cause it did not
+      establish;
+    * **the AI disclosure** -- without it the reader takes the analyst for a
+      person. That is not hypothetical. The first version of the panel gave
+      each lens an invented name, and this published::
+
+          "Dr. Ineta Zvirbule suggests this is a likely explanation, but the
+           data cannot confirm it."
+
+      Attributed and hedged, and still wrong: no such economist exists, she has
+      no bio page and no roster entry, and the sentence reads as a
+      correspondent relaying an expert they consulted -- on a site that rejects
+      an article for claiming an interview and will not publish a synthetic
+      human face.
+
+    The disclosure is carried structurally rather than only checked:
+    ``hypothesis.Lens.title`` is *"the newsroom's AI demographer"*, so a draft
+    that names the analyst the way the brief tells it to satisfies all three
+    clauses in one phrase. This is the backstop for the draft that paraphrases.
     """
     return bool(
-        _speaks_for_the_newsroom(text, panellists) and _MARKED_UNCONFIRMED.search(text)
+        _speaks_for_the_newsroom(text, panellists)
+        and _MARKED_UNCONFIRMED.search(text)
+        and _MARKED_AI.search(text)
     )
 
 
@@ -1109,28 +1179,78 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
         found = _ATTRIBUTION.search(text)
         if not found:
             continue
-        # Order matters, and this is the whole point of the branch.
+
+        # FIRST, unconditionally: an apparent person credited with explaining
+        # something. This runs ahead of every exemption because each of them
+        # was, in turn, found to wave it through.
         #
-        # Our own analyst is tested FIRST and against a stricter rule than an
-        # outside publisher, because ``_ATTRIBUTED_TO_A_SOURCE`` matches any
-        # sentence containing "says" -- so a desk cause stated flatly would
-        # otherwise pass on the generic attribution and the hedge requirement
-        # would never decide anything. A conjunction that some other clause
-        # always satisfies first is not a guard, it is an unreachable branch
-        # with a reassuring docstring.
+        # `_DENIES_A_MECHANISM` matches "cannot", so
+        #
+        #     "Dr. Ineta Zvirbule suggests the decline is driven by weaker
+        #      demand, but the data cannot confirm it."
+        #
+        # read to the gate as a denial. It is not a denial: a denial has no
+        # proposer, and this credits one while bolting a caveat to an
+        # assertion. That sentence published.
+        #
+        # `_ATTRIBUTED_TO_A_SOURCE` matches a bare "said", so an earlier
+        # version that excused an honorific whenever that pattern matched
+        # rejected the "suggests" phrasing and passed "Dr. Ineta Zvirbule SAID
+        # the decline is driven by weaker demand" -- guarding the one verb the
+        # live failure happened to use.
+        #
+        # And the desk branch below is the sharpest of the three, because the
+        # brief now *teaches* the writer to put "the newsroom's AI demographer"
+        # in the sentence: the shape most likely to carry a hallucinated name
+        # alongside it was the shape that skipped the check for it. Measured,
+        # "Dr. Ineta Zvirbule, the newsroom's AI household economist, says the
+        # fall is likely driven by weaker demand, though this data cannot
+        # confirm it" satisfied all three desk clauses and published.
+        #
+        # So there is no exemption. A named person may not be the author of an
+        # explanation in our prose at all -- which is not a new rule, it is the
+        # one `personas.yaml` already states as "attributing opinion or intent
+        # to a named living person" and that nothing enforced. Institutions
+        # carry no honorific, so "According to Latvijas Banka" is untouched.
+        apparent_person = _apparent_person(text)
+        if apparent_person is not None:
+            problems.append(
+                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+                f"and credits {apparent_person!r}. This wire does not put an "
+                f"explanation in a named person's mouth: it has interviewed nobody. "
+                f"Attribute it to the institution that published it, or to the "
+                f"newsroom's own AI analyst with the cause marked unconfirmed"
+            )
+            continue
+
+        # Our own analyst is tested before the general exemption and against a
+        # stricter rule than an outside publisher, because
+        # ``_ATTRIBUTED_TO_A_SOURCE`` matches any sentence containing "says" --
+        # so a desk cause stated flatly would otherwise pass on the generic
+        # attribution and the two requirements would never decide anything. A
+        # conjunction that some other clause always satisfies first is not a
+        # guard, it is an unreachable branch with a reassuring docstring.
         #
         # The asymmetry is also the correct editorial position: a central bank
         # is on the record independently of this wire and answerable for what
-        # it said. Our panellist is a model this newsroom prompted, so a cause
-        # in their mouth needs the reader told it is unconfirmed.
+        # it said. Our analyst is a model this newsroom prompted, so a cause in
+        # its mouth needs the reader told both that it is unconfirmed and that
+        # the analyst is software.
         if _speaks_for_the_newsroom(text, panellists):
-            if _MARKED_UNCONFIRMED.search(text):
+            missing = []
+            if not _MARKED_UNCONFIRMED.search(text):
+                missing.append("no mark that the cause is unconfirmed")
+            if not _MARKED_AI.search(text):
+                missing.append(
+                    "no disclosure that the analyst is AI -- name it the way the "
+                    "brief does, e.g. \"the newsroom's AI demographer\""
+                )
+            if not missing:
                 continue
             problems.append(
                 f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                "on the newsroom's own analyst's authority, in a paragraph carrying "
-                "no figure and no mark that the cause is unconfirmed. A candidate "
-                "cause must say that this data cannot confirm it"
+                f"on the newsroom's own analyst's authority, in a paragraph carrying "
+                f"no figure and {' and '.join(missing)}"
             )
             continue
         if _DENIES_A_MECHANISM.search(text) or _ATTRIBUTED_TO_A_SOURCE.search(text):
@@ -1139,8 +1259,8 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
             f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
             "in a paragraph carrying no figure. Say what the data shows, "
             "attribute the explanation to a named source, name the newsroom's "
-            "own analyst AND mark the cause as unconfirmed, or say plainly that "
-            "the data does not establish a cause"
+            "own AI analyst AND mark the cause as unconfirmed, or say plainly "
+            "that the data does not establish a cause"
         )
 
     if problems:

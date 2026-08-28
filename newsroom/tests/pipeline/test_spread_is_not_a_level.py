@@ -58,7 +58,9 @@ import re
 
 import pytest
 
-from newsroom.pipeline import analyst, field_meanings
+from newsroom.pipeline import analyst, field_meanings, hypothesis
+from newsroom.pipeline.hypothesis import consult_panel
+from newsroom.pipeline.write.llm import StubWriter
 from newsroom.pipeline.detect.detectors import (
     detect_divergence,
     detect_structural_divergence,
@@ -95,13 +97,17 @@ def spread_signal():
 
 
 class TestTheAnalystSeesWhatTheWriterSees:
-    def test_the_two_tables_are_identical(self):
-        # The anti-drift assertion. Two renderings of one input are free to
-        # disagree, and did: the writer's carried the meanings and the desk's
-        # did not, for every signal the newsroom has ever produced.
+    def test_all_three_stages_render_one_identical_table(self):
+        # The anti-drift assertion, and the reason this PR exists. Three
+        # renderings of one input are free to disagree, and did: the writer's
+        # carried the meanings and the two upstream of it did not, for every
+        # signal the newsroom has ever produced.
         signal = spread_signal()
 
-        assert analyst._figure_table(signal) == prompts._format_figures(signal)
+        writer_table = prompts._format_figures(signal)
+
+        assert analyst._figure_table(signal) == writer_table
+        assert hypothesis._figure_table(signal) == writer_table
 
     def test_the_desk_is_told_the_figure_is_a_distance(self):
         signal = spread_signal()
@@ -111,8 +117,19 @@ class TestTheAnalystSeesWhatTheWriterSees:
         assert "DISTANCE BETWEEN" in table
         assert "NOT a reading of the indicator" in table
 
+    def test_the_panel_is_told_too(self):
+        # The stage that produced four confident attributed hypotheses
+        # explaining a rise that never happened. An analyst brief that is
+        # merely vague is recoverable; this is not.
+        signal = spread_signal()
+
+        table = hypothesis._figure_table(signal)
+
+        assert "DISTANCE BETWEEN" in table
+        assert "NOT a reading of the indicator" in table
+
     def test_the_control_proves_the_table_could_have_been_bare(self):
-        # Without this, the assertion above would pass on a table that never
+        # Without this, the assertions above would pass on a table that never
         # had a meaning to lose.
         signal = spread_signal()
 
@@ -139,6 +156,94 @@ class TestTheQuantityNote:
 
         assert "The endpoints are LT and EE" in note
         assert "LV" not in note.replace("level", "")
+
+    def test_the_note_has_one_definition(self):
+        # Two copies of this explanation would reproduce, inside the fix for
+        # it, the exact fault this change is about. The analyst adds a line
+        # about thresholds because it proposes one; the panel does not.
+        signal = spread_signal()
+
+        shared = field_meanings.quantity_note(signal)
+        desk = analyst._quantity_note(signal)
+
+        assert shared and shared in desk
+        assert "threshold you propose" in desk
+        assert "threshold you propose" not in shared
+
+    def test_the_note_reaches_every_stage_that_writes_prose(self):
+        """The enumeration, asserted rather than remembered.
+
+        This is the third consumer, and it was missed the same way as the
+        first two: the meanings reached the writer and the note did not, in
+        the very change whose lesson is *when you fix a shared input,
+        enumerate its consumers*. Measured before it was added, 4 of 4 drafts
+        on a spread signal closed with "a reading above 23.48" — ``recent_gap``
+        used as a level.
+
+        Stated as an equality over the stages, so a fourth prompt builder
+        cannot quietly be added without one.
+        """
+        signal = spread_signal()
+        note = field_meanings.quantity_note(signal)
+        assert note, "the fixture is not a spread finding"
+
+        writer = StubWriter({"hypotheses": []})
+        consult_panel(signal, writer, size=1)
+        panel_prompt = writer.calls[0]["user"]
+
+        desk_prompt = analyst._quantity_note(signal)
+        correspondent_prompt = prompts.build_user_prompt(signal)
+
+        for stage, text in (
+            ("the analysis desk", desk_prompt),
+            ("the causal panel", panel_prompt),
+            ("the correspondent", correspondent_prompt),
+        ):
+            assert "DISTANCE, NOT A READING" in text, stage
+            assert "The endpoints are LT and EE" in text, stage
+
+    def test_a_level_finding_reaches_none_of_them(self):
+        # The control. Without it the assertion above would pass on a note
+        # that was sent unconditionally, which is a different defect.
+        signal = make_signal(detector="record_extreme")
+
+        writer = StubWriter({"hypotheses": []})
+        consult_panel(signal, writer, size=1)
+
+        assert "DISTANCE, NOT A READING" not in writer.calls[0]["user"]
+        assert analyst._quantity_note(signal) == ""
+        assert "DISTANCE, NOT A READING" not in prompts.build_user_prompt(signal)
+
+    def test_the_panel_is_asked_why_they_moved_apart(self):
+        # "What drove this?" invites a cause for the indicator. The finding is
+        # a distance, so the question that needs answering is why two series
+        # separated — which is what the panel got wrong.
+        note = field_meanings.quantity_note(spread_signal())
+
+        assert "why the two moved APART" in note
+
+    def test_the_note_actually_reaches_the_panel(self):
+        # Asserting the note exists is not the same as asserting it is sent.
+        # A plant that set the panel's copy to "" left every other assertion
+        # green, because none of them looked at the prompt the panel receives.
+        # This drives the real ``consult_panel`` and reads what was asked.
+        signal = spread_signal()
+        writer = StubWriter({"hypotheses": []})
+
+        consult_panel(signal, writer, size=1)
+
+        assert writer.calls, "the panel was never consulted"
+        assert "DISTANCE, NOT A READING" in writer.calls[0]["user"]
+        assert "The endpoints are LT and EE" in writer.calls[0]["user"]
+
+    def test_a_level_finding_sends_the_panel_no_note(self):
+        # The control: the assertion above must be capable of failing.
+        writer = StubWriter({"hypotheses": []})
+
+        consult_panel(make_signal(detector="record_extreme"), writer, size=1)
+
+        assert writer.calls
+        assert "DISTANCE, NOT A READING" not in writer.calls[0]["user"]
 
     @pytest.mark.parametrize(
         "detector", ["record_extreme", "streak", "seasonal_deviation", "sharp_move"]
@@ -227,28 +332,32 @@ class TestTheEndpointsAreArithmeticallyRight:
 
 class TestNoStageIsLeftOnTheBareTable:
     #: Stages that build their own figure table from ``signal.fields`` without
-    #: the shared registry. Stated as an equality so the day one is fixed, or a
-    #: new one appears, this list has to be updated rather than quietly growing.
+    #: the shared registry. Stated as an equality so a new one cannot appear
+    #: quietly, and so fixing the last of them forces this list to be emptied
+    #: rather than left matching nothing.
     #:
-    #: ``hypothesis.py`` is owned by another workstream. It has the same defect
-    #: and the same one-line fix.
-    KNOWN_BARE = {"hypothesis.py"}
+    #: It collected. It was ``{"hypothesis.py"}`` for exactly one commit — the
+    #: panel was owned by another workstream — and clearing it turned this
+    #: assertion red until the entry was deleted, which is the entire argument
+    #: for writing an exemption as an equality rather than as a filter.
+    KNOWN_BARE: set[str] = set()
 
     def test_every_other_stage_reads_the_shared_registry(self):
+        # The property is "does this file build its OWN table", so the probe
+        # asks whether it calls ``label_for_field`` — the one function a table
+        # builder cannot avoid. An earlier version exempted any file merely
+        # MENTIONING ``field_meanings``, and a plant caught it: once the panel
+        # imported the module for the quantity note, it was skipped even with
+        # its bare table restored. A guard keyed on a file's imports rather
+        # than on its behaviour is not a guard.
         root = pathlib.Path(analyst.__file__).parent
         registry = pathlib.Path(field_meanings.__file__).resolve()
-        bare = set()
-        for path in root.rglob("*.py"):
-            # The registry itself renders the table; it is the thing the others
-            # are supposed to call, not a stage that forgot to.
-            if path.resolve() == registry:
-                continue
-            source = path.read_text(encoding="utf-8")
-            if "units.label_for_field(" not in source:
-                continue
-            if "field_meanings" in source:
-                continue
-            bare.add(path.name)
+        bare = {
+            path.name
+            for path in root.rglob("*.py")
+            if path.resolve() != registry
+            and "units.label_for_field(" in path.read_text(encoding="utf-8")
+        }
 
         assert bare == self.KNOWN_BARE, (
             "a stage builds a figure table without the shared meanings. That is "

@@ -497,12 +497,59 @@ _THRESHOLD_ON_A_LEVEL = re.compile(
     re.IGNORECASE,
 )
 
-#: The subject of that threshold, when it is one thing's own reading.
+#: Words naming a level of one thing, as opposed to a difference between two.
 _LEVEL_SUBJECT = re.compile(
     r"\b(?:reading|readings|level|levels|balance|rate|price|prices|value|"
     r"figure|figures|index|volume)\b",
     re.IGNORECASE,
 )
+
+#: Words naming a difference between two things. A threshold governed by one of
+#: these is stated in the right quantity however the rest of the sentence reads.
+_DISTANCE_SUBJECT = re.compile(
+    r"\b(?:gap|distance|spread|difference|divergence|margin|deviation)\b",
+    re.IGNORECASE,
+)
+
+#: How far back to look for the noun the comparison is attached to.
+#:
+#: This is the whole correctness of the rule. An earlier version asked whether a
+#: level word appeared ANYWHERE in the sentence, and once the writer was fixed
+#: it flagged five correct closings out of five — "a future reading that narrows
+#: the gap below 23.48" contains "reading", and the threshold is plainly on the
+#: gap. A word list keyed on the sentence tests the vocabulary; the noun
+#: governing the comparison is the property.
+_GOVERNING_WORDS = 4
+
+
+def _governing_subject(text: str) -> str | None:
+    """Is the comparison attached to a level or to a distance?
+
+    Reads the few words immediately before the comparison word, which is what
+    the threshold is actually about:
+
+        "a consumer confidence BALANCE above 29.6"   -> level
+        "a future release showing a GAP above 23.48" -> distance
+        "a reading that narrows the GAP below 23.48" -> distance
+
+    The last of those is why proximity matters rather than presence: it carries
+    both words, and only the nearer one governs.
+    """
+    found = _THRESHOLD_ON_A_LEVEL.search(text)
+    if not found:
+        return None
+    before = re.findall(r"[A-Za-z']+", text[: found.start()])[-_GOVERNING_WORDS:]
+    window = " ".join(before)
+    distance = _DISTANCE_SUBJECT.search(window)
+    level = _LEVEL_SUBJECT.search(window)
+    if distance and level:
+        # Both in the window: the later one is nearer the comparison.
+        return "distance" if distance.start() > level.start() else "level"
+    if distance:
+        return "distance"
+    if level:
+        return "level"
+    return None
 
 
 def threshold_subject_problems(
@@ -545,7 +592,7 @@ def threshold_subject_problems(
         return []
     if not (_FORWARD_LOOKING.search(text) or _NAMES_A_CONSEQUENCE.search(text)):
         return []
-    if not (_THRESHOLD_ON_A_LEVEL.search(text) and _LEVEL_SUBJECT.search(text)):
+    if _governing_subject(text) != "level":
         return []
 
     for figure in figures or []:

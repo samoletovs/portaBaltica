@@ -313,6 +313,17 @@ def expert_for(section: str) -> Expert:
     return EXPERTS.get(section, _FALLBACK_EXPERT)
 
 
+def _plural(count: int) -> str:
+    """"1 was" rather than "1 were".
+
+    A trivial-looking fix in a string only a model ever reads, which is exactly
+    why it is worth doing: the brief spends its whole length telling a writer to
+    be precise, and an agreement error in the instruction is the one flaw in it
+    the reader of that instruction is certain to notice.
+    """
+    return f"{count} was" if count == 1 else f"{count} were"
+
+
 @dataclass(frozen=True, slots=True)
 class Mechanism:
     """A candidate explanation, and the verified fields that license it."""
@@ -432,31 +443,50 @@ class AnalystBrief:
             # mechanism was looked for and not found -- downstream, "no
             # mechanism" and "nobody checked" are the same silence.
             lines.append("")
-            lines.append("MECHANISMS: none. There is no cause available to you.")
-            if self.discarded:
-                lines.append(
-                    f"  {len(self.discarded)} were proposed and every one was "
-                    f"dropped for resting on nothing the figures establish."
-                )
             if panel_has_hypotheses:
-                # The panel found something, so the silence is no longer the
-                # whole answer. What stays true is the part this branch was
-                # actually protecting: no cause may be asserted on the
-                # *figures'* authority, because the figures do not carry one.
-                # What changes is that the alternative is now a hypothesis
-                # somebody is named for, rather than an early ending.
+                # The header used to read "MECHANISMS: none. There is no cause
+                # available to you." unconditionally, and the panel branch then
+                # said three lines later that causes HAD been filed. A flat
+                # contradiction, and it published: measured on the live article
+                # of 2026-08-28, a piece whose panel returned FOUR admissible
+                # hypotheses still closed "The data does not show what drove the
+                # change in home energy inflation, and no specific causes can be
+                # confirmed."
+                #
+                # Read an emphatic absolute first and a qualification after it,
+                # and the absolute is what gets followed. So it is no longer
+                # written when it is untrue: the section now states what is
+                # actually missing -- a relationship the FIGURES establish --
+                # rather than something broader that the next line withdraws.
+                #
+                # Same shape as the faults this repo keeps finding, one layer
+                # up: the correct sentence was present and the contradicting one
+                # was read instead.
                 lines.append(
-                    "  So do not explain this movement on the figures' authority — there "
-                    "is no wording that makes an ungrounded cause publishable, and a "
-                    "draft that asserts one is rejected rather than revised."
+                    "MECHANISMS: none. The figures here establish no relationship "
+                    "between two series, so there is no cause you may state on THEIR "
+                    "authority."
                 )
+                if self.discarded:
+                    lines.append(
+                        f"  {_plural(len(self.discarded))} proposed and dropped for "
+                        f"resting on nothing the figures establish."
+                    )
                 lines.append(
-                    "  The causal panel HAS filed candidate causes for this finding, "
-                    "listed further down. Those are attributable and you should use "
-                    "one, under the rules given there: name who holds it, and say in "
-                    "the same paragraph that this data cannot confirm it."
+                    "  That is a limit on the FIGURES, not on the article. The causal "
+                    "panel has filed candidate causes for this finding, listed further "
+                    "down, and you SHOULD use one: name the analyst exactly as written "
+                    "there, and say in the same paragraph that this data cannot confirm "
+                    "it. Do NOT write that nothing is known about what drove this -- "
+                    "something is, and it is attributable."
                 )
             else:
+                lines.append("MECHANISMS: none. There is no cause available to you.")
+                if self.discarded:
+                    lines.append(
+                        f"  {_plural(len(self.discarded))} proposed and every one was "
+                        f"dropped for resting on nothing the figures establish."
+                    )
                 lines.append(
                     "  Do NOT write a paragraph explaining why this happened. There "
                     "is no wording that makes an ungrounded cause publishable, and a "
@@ -582,38 +612,13 @@ Give the correspondent their brief."""
 
 
 def _quantity_note(signal: Signal) -> str:
-    """Say plainly when the finding is a distance rather than a reading.
+    """One line, because the definition is shared. See ``field_meanings``.
 
-    "metric: consumer confidence / unit: balance of responses" describes the
-    *series*, and for a spread detector the finding is not a reading of that
-    series at all — it is how far apart two countries are. Nothing said so, and
-    a published brief duly reported "a consumer confidence reading of 29.6 ...
-    reflecting a stronger sentiment" for three countries whose readings were
-    -15.6, -32.5 and -2.9. Every figure was real; the subject had changed.
-
-    Deterministic, and the endpoints are read from the detector's own context
-    rather than inferred by comparing numbers — the same article named Latvia
-    and Estonia as its endpoints when Latvia sat in the middle.
+    It lived here first, and putting a second copy in ``hypothesis.py`` would
+    have reproduced — inside the fix for it — the exact fault this change is
+    about: one explanation written for one consumer of three.
     """
-    if not field_meanings.is_spread_finding(signal):
-        return ""
-
-    high, low = field_meanings.endpoints(signal)
-    between = f"{high} and {low}" if high and low else "two countries"
-    return f"""
-THIS FINDING IS A DISTANCE, NOT A READING. The headline figure is how far apart
-{between} are — a difference between two series, measured in the same unit as
-the series but not a value the indicator ever took. So:
-
-  - It cannot be described as the indicator rising, falling, improving or
-    worsening. Every country's own reading may be falling while this widens.
-  - It carries no sentiment. A wider gap is not good news or bad news; saying
-    which would be an argument, and you do not have the figures for it.
-  - The endpoints are {between}. Any other country in the set is BETWEEN them,
-    and naming a different pair as the extremes is simply wrong.
-  - A threshold you propose must be stated on the distance, not on one
-    country's level.
-"""
+    return field_meanings.quantity_note(signal, mention_thresholds=True)
 
 
 def _figure_table(signal: Signal) -> str:

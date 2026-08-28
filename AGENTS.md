@@ -1063,6 +1063,80 @@ comparable"* while meaning *"compared elsewhere"*, and nowhere else compared it.
 that both sides reached independently: **when you audit the consumers, audit the
 input they share.**
 
+## The answer was already computed, and the seam dropped it
+
+Three faults found on 2026-08-28 were the same shape, and it is not one any
+section above catches. Nothing was missing, nothing was absent, no guard was
+vacuous. **The right answer existed, was correct, and the next layer did not use
+it** — so every stage passed its own tests and the site still shipped a
+confident wrong statement, or nothing at all.
+
+| The producer | The consumer | What shipped |
+|---|---|---|
+| `api/historical-data/index.js:522` ships `freshness` from `es.isSeriesStale` | `IndicatorCard` read the series and never named the field | a series last observed `2022-Q1`, server saying `stale: true, age: 54`, rendered as `2.2%` under **Latest** with a green `▲ +0.3% … favourable` |
+| `write/generator.py:482` stamps `provenance.rejection = {gate, checks, detail}` | `runreport.py:191`, at `8d1727a~1`, took `.slug` off those objects | six rejected slugs, no reason, `errors: 0` — a run that destroyed six of eight articles, byte-identical to one that caught six bad drafts |
+| `GridStatePanel` plots three `dataKey`s: `generated`, `metered`, `planned` | its hand-written label recited generation, demand, net flow and **renewable share** | a screen-reader user heard the three stat boxes a second time, and never heard the one thing the chart carries — where measurement stops and forecast begins |
+
+**The shape, and it is greppable in both directions: take the field names one
+side of a seam writes, take the names the other side reads, and diff them.**
+Read the producer's field list off the response body — no grep isolates that
+cleanly — then ask the consumer about each one:
+
+```powershell
+foreach ($k in @("indicator","title","unit","source","series","summary","freshness","fetchedAt")) {
+  $n = (Select-String -Path "src\*.ts","src\*.tsx","src\**\*.ts","src\**\*.tsx" -Pattern "\.$k\b").Count
+  "{0,-12} {1,3} reader(s)" -f $k, $n
+}
+# series 47, unit 31, title 26, source 17, indicator 5, summary 4, fetchedAt 1, freshness 0
+```
+
+A name on only one side is the finding, and **which side tells you which fault
+it is**. Producer-only is an answer nobody uses. Consumer-only is a description
+of something that is not there — and its twin, the thing that *is* there going
+undescribed, which is the half nobody looks for because the sentence reads
+fine. `GridStatePanel`'s `dataKey`s are `label` (the x axis), `generated`,
+`metered` and `planned`; the label recited a `renewableShare` that is not among
+them.
+
+**A field with no reader is a question, not a verdict**, and the section is
+worth little without that. `freshness` is still the only zero-reader field of
+the eight today — not read, not even declared in the client's type — and that is
+*not* a defect: the client recomputes the verdict itself because only one of the
+two upstreams sends one, and a rule that applies to Latvia and not to Estonia is
+worse than no rule.
+
+But run the grep and then read both sides, because the answer is more
+interesting than "fine". The producer, at `api/historical-data/index.js:513`:
+
+> How current the served series actually is, **so a consumer never has to parse
+> period labels to find out.** […] `src/dataFreshness.ts` deliberately computes
+> port-data staleness at render time instead […] **The reasoning does not carry
+> here**[…]
+
+The consumer, at `IndicatorCard.tsx:96`:
+
+> The verdict is **recomputed here rather than read from the payload** […]
+> `freshnessOf` **reads the cadence off the period label's own shape**.
+
+**Two careful comments, each individually right, in permanent contradiction.**
+The producer anticipated the render-time alternative and ruled it out; the
+consumer chose it anyway for a reason the producer had no way to know. What the
+grep found was not an unused field but an unreconciled disagreement — and a
+producer comment that is now simply false about what its consumer does.
+
+So the rule is not *every field must have a reader*. It is: **for every name on
+only one side, read both sides and say out loud whether it is a decision or a
+defect.** The same grep fires on `rejections` and `rejected_checks`, added by the
+pull request that produced this section; the answer there is that the consumer
+is a person reading `runs/latest.json` after a bad afternoon, and `runreport.py`
+says so at the field, so the next sweep gets its answer from the code instead of
+reconstructing it. That is the cheap habit worth copying — **answer the question
+where the field is defined, before someone has to ask it.**
+
+And note where all three defects were found: **at the reporting layer, by
+reading the output.** Not one is reachable from a test of the producer, because
+the producer was right every time.
+
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:

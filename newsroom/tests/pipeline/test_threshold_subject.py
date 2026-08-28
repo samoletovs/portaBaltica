@@ -166,6 +166,48 @@ class TestWhatItMustNotFlag:
         assert hs.threshold_subject_problems(present, figures(field)) == []
         assert hs.threshold_subject_problems(future, figures(field))
 
+    def test_a_threshold_governed_by_a_distance_word_is_left_alone(self):
+        """The proximity rule, and why presence was not enough.
+
+        Once the writer was fixed it started producing the correct form, and an
+        earlier version of this check flagged **five of five** of them: "a
+        future reading that narrows the gap below 23.48" contains "reading",
+        and the threshold is plainly on the gap. Asking whether a level word
+        appears anywhere in the sentence tests the vocabulary; the noun
+        governing the comparison is the property.
+
+        Every sentence here is verbatim from a generated draft.
+        """
+        gap = [{"signal_field": "recent_gap", "value": 23.48}]
+        corrected = [
+            "A future release showing a gap above 23.48 would indicate a further "
+            "widening of the distance between Lithuania and Estonia.",
+            "The next release would need to show a gap below 23.48 balance of "
+            "responses to suggest a potential narrowing of this divergence.",
+            "A future reading that narrows the gap below 23.48 would indicate a "
+            "shift in the structural divergence in consumer confidence.",
+            "A future gap below 23.48 would indicate a narrowing of the distance "
+            "between Lithuania and Estonia's consumer confidence.",
+        ]
+
+        for text in corrected:
+            assert hs.threshold_subject_problems(text, gap) == [], text
+
+    def test_the_published_fault_is_still_caught(self):
+        # The companion. Without it the test above could pass by the check
+        # having been disabled rather than sharpened.
+        assert hs.threshold_subject_problems(PUBLISHED, figures("latest_gap"))
+
+    def test_the_nearer_noun_governs(self):
+        # Both words in the window, so presence cannot decide it.
+        gap = [{"signal_field": "recent_gap", "value": 23.48}]
+
+        assert hs._governing_subject("a reading that narrows the gap below 23.48") == "distance"
+        assert hs._governing_subject("a gap that widened the balance above 23.48") == "level"
+        assert hs.threshold_subject_problems(
+            "A future reading that narrows the gap below 23.48 would confirm it.", gap
+        ) == []
+
     def test_a_closing_with_no_figures_is_left_alone(self):
         text = "The next release of the index would settle whether this holds."
 

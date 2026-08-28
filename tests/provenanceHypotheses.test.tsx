@@ -28,18 +28,18 @@ function renderPassport(hypotheses?: HypothesesProvenance) {
 
 const PANEL: HypothesesProvenance = {
   prompt_version: 'hypothesis-v1',
-  consulted: ['Dr Liina Sarapuu (demographer)', 'Rasa Irbene (political economist)'],
+  consulted: ["the newsroom's AI demographer", "the newsroom's AI political economist"],
   hypotheses: [
     {
       claim: 'The small cohort born in the 1990s is now of childbearing age',
       lens: 'demography',
-      analyst: 'Dr Liina Sarapuu',
+      analyst: "the newsroom's AI demographer",
       discipline: 'demographer',
       basis: 'domain_knowledge',
-      attribution: 'Dr Liina Sarapuu',
+      attribution: "the newsroom's AI demographer",
       strength: 'likely',
       testable_with: 'age-specific fertility rates',
-      corroborated_by: ['Rasa Irbene'],
+      corroborated_by: ["the newsroom's AI political economist"],
     },
   ],
   discarded: 2,
@@ -50,22 +50,73 @@ describe('ProvenanceBlock — the causal panel', () => {
     renderPassport(PANEL);
 
     expect(screen.getByText(/What the causal panel proposed/i)).toBeTruthy();
-    expect(screen.getByText(/Dr Liina Sarapuu \(demographer\)/)).toBeTruthy();
+    expect(screen.getAllByText(/the newsroom's AI demographer/).length).toBeGreaterThan(0);
     expect(screen.getByText(/proposals, not\s+findings/i)).toBeTruthy();
+  });
+
+  it('says plainly that the analysts are software', () => {
+    // The passport is where a reader goes to check who claimed what, so it is
+    // the one place that must not leave "analyst" ambiguous.
+    renderPassport(PANEL);
+
+    expect(screen.getByText(/These are software, not people/)).toBeTruthy();
+    expect(screen.getByText(/AI analysts were/)).toBeTruthy();
+  });
+
+  it('discloses a legacy record that names an invented person', () => {
+    // NOT a fixture assertion. Articles already in blob storage carry
+    // `analyst: "Dr Ineta Zvirbule"` — an invented economist with no bio page,
+    // no roster entry and no AI label — and one of them is live. The component
+    // cannot rewrite history; it must not echo a fabricated expert as though
+    // the site stood behind them either.
+    //
+    // Asserting against the current fixture would prove nothing, because the
+    // current fixture has no "Dr" in it to find. This supplies the shape that
+    // actually exists in production.
+    renderPassport({
+      prompt_version: 'hypothesis-v1',
+      consulted: ['Dr Ineta Zvirbule (household and labour-market economist)'],
+      hypotheses: [
+        {
+          claim: 'Weaker external demand reduced industrial output',
+          lens: 'household',
+          analyst: 'Dr Ineta Zvirbule',
+          discipline: 'household and labour-market economist',
+          basis: 'domain_knowledge',
+          attribution: 'Dr Ineta Zvirbule',
+          strength: 'likely',
+        },
+      ],
+    });
+
+    const entry = screen.getByText(/Weaker external demand reduced industrial output/);
+    expect(entry.textContent).toMatch(/an AI analyst on this masthead, not a person/);
+  });
+
+  it('does not double-disclose an analyst that names itself', () => {
+    // A control for the repair above: applied indiscriminately it would render
+    // "the newsroom's AI demographer (an AI analyst on this masthead...)".
+    renderPassport(PANEL);
+
+    const entry = screen.getByText(/small cohort born in the 1990s/);
+    expect(entry.textContent).toMatch(/proposed by the newsroom's AI demographer/);
+    expect(entry.textContent).not.toMatch(/an AI analyst on this masthead/);
   });
 
   it('attributes each cause and says what it rests on', () => {
     renderPassport(PANEL);
 
     const entry = screen.getByText(/small cohort born in the 1990s/);
-    expect(entry.textContent).toMatch(/held by Dr Liina Sarapuu/);
-    expect(entry.textContent).toMatch(/from their own expertise rather than from this data/);
+    expect(entry.textContent).toMatch(/proposed by the newsroom's AI demographer/);
+    expect(entry.textContent).toMatch(/from its own domain knowledge rather than from this data/);
   });
 
   it('reports a corroboration as independent rather than as agreement in one answer', () => {
     renderPassport(PANEL);
 
-    expect(screen.getByText(/Reached independently by Rasa Irbene/)).toBeTruthy();
+    expect(
+      screen.getByText(/Reached independently by the newsroom's AI political economist/),
+    ).toBeTruthy();
   });
 
   it('distinguishes a panel that found nothing from a panel nobody convened', () => {
@@ -75,7 +126,7 @@ describe('ProvenanceBlock — the causal panel', () => {
     // apart.
     renderPassport({
       prompt_version: 'hypothesis-v1',
-      consulted: ['Dr Liina Sarapuu (demographer)'],
+      consulted: ["the newsroom's AI demographer"],
       hypotheses: [],
     });
 
@@ -91,15 +142,15 @@ describe('ProvenanceBlock — the causal panel', () => {
     // the link and find we paraphrased it.
     renderPassport({
       prompt_version: 'hypothesis-v1',
-      consulted: ['Dr Liina Sarapuu (demographer)'],
+      consulted: ["the newsroom's AI demographer"],
       hypotheses: [
         {
           claim: 'Parental leave eligibility was narrowed',
           lens: 'demography',
-          analyst: 'Dr Liina Sarapuu',
+          analyst: "the newsroom's AI demographer",
           discipline: 'demographer',
           basis: 'official_document',
-          attribution: 'Dr Liina Sarapuu',
+          attribution: "the newsroom's AI demographer",
           informed_by: 'Latvijas Banka news',
           strength: 'possible',
         },
@@ -107,9 +158,9 @@ describe('ProvenanceBlock — the causal panel', () => {
     });
 
     const entry = screen.getByText(/Parental leave eligibility was narrowed/);
-    expect(entry.textContent).toMatch(/held by Dr Liina Sarapuu/);
-    expect(entry.textContent).toMatch(/who had read Latvijas Banka news/);
-    expect(entry.textContent).toMatch(/The claim is theirs, not that publisher's/);
+    expect(entry.textContent).toMatch(/proposed by the newsroom's AI demographer/);
+    expect(entry.textContent).toMatch(/which had read Latvijas Banka news/);
+    expect(entry.textContent).toMatch(/The claim is ours, not that publisher's/);
   });
 
   it('says nothing at all when the panel never ran', () => {

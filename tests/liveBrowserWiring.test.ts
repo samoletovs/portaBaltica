@@ -32,7 +32,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, mkdirSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 
 const TESTS_DIR = resolve(__dirname);
@@ -136,11 +137,24 @@ describe('live browser checks are wired through the helper', () => {
     const pkg = 'play' + 'wright-core';
     const launcher = 'launch' + 'PersistentContext';
 
-    // Named so no runner will ever collect it. The sweep filters on extension,
-    // so the name proves nothing either way — but a `*.live.test.ts` left
-    // behind by an interrupted run *would* be collected by the live runner and
-    // fail there, turning a killed test into a mysterious live-suite failure.
-    const dir = join(TESTS_DIR, '.wiring-control');
+    // The fixture goes in an OS scratch directory, **not** under `tests/`, and
+    // that is a fix rather than a preference.
+    //
+    // It used to be planted at `tests/.wiring-control/` and removed again,
+    // while `distIsNotRead.test.ts` walks `tests/` recursively in a different
+    // worker and `readFileSync`s every `.ts` it finds. Driven deliberately —
+    // one process cycling this create/remove against another running that
+    // walk — the reader threw in **56 of 368 walks: ENOENT ×53, EPERM ×3**.
+    // After the move, with the same probe: **0 of 339**, while the old writer
+    // rerun as a control still produced **72 of 387**, so the zero is a fact
+    // about the fix rather than about a probe that stopped working.
+    //
+    // `testSources` takes its root as a parameter, so pointing it at a scratch
+    // tree proves exactly the same thing — that the walk descends — while
+    // touching nothing another test reads. That closes it for every present
+    // and future reader of `tests/`, not just the one reader that exists today.
+    const root = mkdtempSync(join(tmpdir(), 'pb-wiring-'));
+    const dir = join(root, 'nested');
     const file = join(dir, 'planted.sample.ts');
     try {
       mkdirSync(dir, { recursive: true });
@@ -149,12 +163,12 @@ describe('live browser checks are wired through the helper', () => {
         `import { chromium } from '${pkg}';\nconst b = await chromium.${launcher}('/tmp/x');\n`,
       );
 
-      const planted = testSources().find((s) => s.name.endsWith('.wiring-control/planted.sample.ts'));
+      const planted = testSources(root).find((s) => s.name.endsWith('nested/planted.sample.ts'));
       expect(planted, 'the sweep does not descend into subdirectories, so a live check in one is unguarded').toBeDefined();
       expect(DIRECT_IMPORT.test(planted!.code), `the import pattern misses ${pkg}`).toBe(true);
       expect(LAUNCHES.test(planted!.code), `the launch pattern misses ${launcher}`).toBe(true);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
