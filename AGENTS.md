@@ -1535,6 +1535,18 @@ A **habit** rule — *read the artefact*, *a word list encodes your examples* �
 is true, is often the more important of the two, and cannot be swept for. It
 fires when someone already has the artefact in hand.
 
+**And the numbers below are not a ranking.** A shape rule fires in seven
+minutes because it can be *executed*, which makes it cheap rather than
+important. Reading the artefact produced `#171` — nine of nine rejections were
+false positives, the check was wrong and the writer was not — and `#176`, a
+prompt teaching that a construction is rejected when it never was. Neither is a
+syntactic form; both needed someone to read prose and judge it wrong, and no
+greppable rule could have reached either.
+
+So: **a shape rule is what you write down for other people; a habit rule is
+what you practise.** A programme with only the first would ship faster and find
+less.
+
 The difference is measurable. Two shape rules were written this programme and
 each produced a pull request against code they were not written about, in under
 seven minutes:
