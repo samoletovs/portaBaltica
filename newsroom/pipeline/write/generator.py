@@ -414,7 +414,7 @@ def _article_from_payload(
             # before it passed, and because a rising average is the signal that
             # the prompt, not the model, needs work.
             "attempts": attempts,
-            "accountable_editor": personas().accountable_editor or "Sam Samoletovs",
+            "accountable_editor": personas().accountable_editor or "Andre Kõpu",
             **({"research": research.to_provenance()} if research is not None else {}),
             # The context pack and the analyst brief are recorded in full. A
             # reader auditing a piece is entitled to see which other series it

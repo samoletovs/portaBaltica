@@ -148,7 +148,7 @@ def build_card(item: FeedItem, source: Source, *, now: str | None = None) -> Art
             ],
             "model": None,
             "generated_at": created_at,
-            "accountable_editor": "Sam Samoletovs",
+            "accountable_editor": "Andre Kõpu",
         },
     )
 
@@ -212,7 +212,7 @@ def pending_approval_queue(cards: Sequence[Article]) -> list[dict[str, object]]:
     link. The approver's job is to say yes or no — never to edit the text, since
     editing is precisely the rewriting the licence forbids. In the normal timer
     run, :mod:`newsroom.pipeline.editor` consumes these cards before publication
-    instead of handing routine approvals to Sam.
+    instead of handing routine approvals to Andre.
     """
     queue = []
     for card in cards:

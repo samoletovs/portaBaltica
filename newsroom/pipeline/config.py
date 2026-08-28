@@ -127,7 +127,7 @@ RESEARCH_MAX_AGE_DAYS = int(os.environ.get("NEWSROOM_RESEARCH_MAX_AGE_DAYS", "12
 # --- Editorial escalation -----------------------------------------------------
 # The editor agent handles routine tier B/C decisions itself. These credentials
 # are only for the exceptional path where the item is dangerous, harmful or
-# inappropriate enough that Sam must be interrupted.
+# inappropriate enough that Andre must be interrupted.
 TELEGRAM_BOT_TOKEN = _setting(
     "NEWSROOM_TELEGRAM_BOT_TOKEN", "NAURO_BOT_TOKEN"
 )

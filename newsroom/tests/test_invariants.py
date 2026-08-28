@@ -111,7 +111,7 @@ def test_tier_b_and_c_sources_do_not_recreate_a_human_approval_queue(
 
     assert offenders == [], (
         f"tier B/C sources still require human approval: {offenders}. "
-        "The editor agent handles routine decisions; Sam is interrupted only for escalation."
+        "The editor agent handles routine decisions; Andre is interrupted only for escalation."
     )
 
 

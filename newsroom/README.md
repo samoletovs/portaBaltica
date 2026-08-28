@@ -105,7 +105,7 @@ convention.
    ├─ 9. EDIT         tier A: the desk reads every original article and can
    │                  approve, send back once, or spike it. Tier B/C: approve,
    │                  reject or escalate. Routine decisions stay inside the
-   │                  pipeline; Sam is notified only for dangerous, harmful or
+   │                  pipeline; Andre is notified only for dangerous, harmful or
    │                  inappropriate material.
    │
    ├─ 10. PUBLISH     article JSON → Blob → SWA serves it statically
