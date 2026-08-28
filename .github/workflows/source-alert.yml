@@ -208,9 +208,13 @@ jobs:
           node -e '
             const r = JSON.parse(require("fs").readFileSync("report.json", "utf8"));
             const fs = require("fs");
-            fs.writeFileSync("headline.txt", r.headline || "status could not be summarised");
+            // Trailing newlines matter: both files are interpolated into a
+            // fenced block in the issue body, and without one the closing ```
+            // lands on the same line as the last problem and stops closing it.
+            fs.writeFileSync("headline.txt",
+              (r.headline || "status could not be summarised") + "\n");
             fs.writeFileSync("message.txt",
-              r.text || "portaBaltica data sources: ALERT - the report carried no text.");
+              (r.text || "portaBaltica data sources: ALERT - the report carried no text.") + "\n");
           '
 
       - name: Summarise
