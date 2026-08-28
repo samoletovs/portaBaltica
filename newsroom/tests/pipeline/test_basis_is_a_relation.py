@@ -164,10 +164,14 @@ class TestAPeriodLabelIsNotABasis:
 
         assert any(p.search(text) for p in _BASIS_PATTERNS)
 
-    def test_no_period_clause_survives(self):
-        import newsroom.validator as validator
-
-        assert not hasattr(validator, "_PERIOD_LABEL")
+    def test_a_bare_year_is_not_accepted_as_a_basis(self):
+        # The behavioural guard, replacing an assertion that the symbol
+        # ``_PERIOD_LABEL`` no longer exists. That one tested a NAME: a planted
+        # clause written inline, with no such symbol, left it green while the
+        # defect was fully restored. What matters is that the sentence is
+        # refused, however the clause would be spelled.
+        assert not verdict(LEAD, "Output rose 12% in 2024.").passed
+        assert not verdict(LEAD, "Prices increased 8.1% during 2025.").passed
 
 
 class TestItAcceptsABasisAReaderWouldAccept:
