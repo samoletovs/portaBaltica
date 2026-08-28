@@ -5,7 +5,8 @@ import { useFilter } from '../FilterContext';
 import { SeriesSwatch } from './SeriesSwatch';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
-import { chartTick, chartTooltip } from '../utils/chartType';
+import { chartTick, chartTooltip, tickInterval, CHART_TICK_SIZE } from '../utils/chartType';
+import { freshnessOf, formatPeriod, periodCoverage, axisPeriodLabel } from '../dataFreshness';
 import { referenceSharesAxis } from '../utils/referenceScale';
 import { describeComparison } from '../utils/chartAccessibility';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
@@ -96,9 +97,20 @@ interface BalticCompareChartProps {
   title?: string;
   years?: number;
   compact?: boolean;
+  /**
+   * A caveat the figures cannot carry themselves, printed inside the card.
+   *
+   * For the series where the obvious reading of three lines is the wrong one.
+   * Weekly deaths are counts rather than rates, so Lithuania's line is higher
+   * because Lithuania is larger — a reader comparing levels learns about
+   * population and thinks they learned about mortality. DESIGN.md §3.5's rule
+   * applies: the fix for an ambiguity is to say the thing, not to encode it
+   * more cleverly.
+   */
+  note?: string;
 }
 
-export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false }: BalticCompareChartProps) {
+export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false, note }: BalticCompareChartProps) {
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
@@ -206,6 +218,48 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     const valid = cs.series.filter((s) => s.value !== null);
     latestValues[geo] = valid.length > 0 ? valid[valid.length - 1].value : null;
   }
+
+  // When each country's reading is *from*, which the card never said.
+  //
+  // The header direct-labels three figures and the footer named the cube, and
+  // between them nothing carried a date. On a page whose energy tile draws a
+  // day-ahead power price updated hourly, an undated 0.0826 EUR/kWh from
+  // 2025-S2 reads as this morning's — the same fault the maritime panels had,
+  // in a component that draws forty charts rather than three.
+  //
+  // Dated on the *oldest* of the three latest readings, because that is the
+  // bound a reader is misled by: naming the newest over-dates whichever
+  // country is behind, and Latvia files a week ahead of Estonia and Lithuania
+  // on `demo_r_mwk_ts`. `periodCoverage` states a span when they disagree.
+  const latestPeriods = COUNTRY_ORDER.flatMap((geo) => {
+    const valid = (data.countries[geo]?.series ?? []).filter((s) => s.value !== null);
+    return valid.length > 0 ? [valid[valid.length - 1].period] : [];
+  }).sort();
+  const coverage = periodCoverage(latestPeriods[0], latestPeriods[latestPeriods.length - 1]);
+  const freshness = freshnessOf(latestPeriods[0]);
+
+  // How many ticks, and how much room the outermost one needs.
+  //
+  // The interval came from `Math.floor(chartData.length / 6)` written out
+  // here, which is `tickInterval` spelled a second time — the shape
+  // `chartType.ts` names in its own docstring as the sibling that conceals the
+  // broken one. Two derivations of a rule can disagree; one cannot.
+  //
+  // The inset is the part that was actually broken, and it was broken on every
+  // compact chart on the site rather than on anything added here. recharts
+  // centres a tick label on its tick and the first tick sits at x=0, so half
+  // the label is drawn at negative x and clipped by the card. Photographed at
+  // 375px: the gas price axis opened with `21-S1` and weekly deaths with
+  // `1-W01`, both of which read as a rendering fault rather than as a date.
+  //
+  // Sized from the labels actually drawn rather than from a constant, because
+  // the widest one depends on the cadence — `2021-W01` is eight characters
+  // where `2026-Q2` is seven, and weekly arrived after this component was
+  // written. At `CHART_TICK_SIZE` a digit is about 0.62em.
+  const interval = tickInterval(chartData.length);
+  const drawnTicks = chartData.filter((_, i) => i % (interval + 1) === 0);
+  const widestTick = Math.max(0, ...drawnTicks.map((p) => axisPeriodLabel(String(p.period)).length));
+  const axisInset = Math.ceil((widestTick * CHART_TICK_SIZE * 0.62) / 2);
 
   // Where each country's line actually ends, which is not always the last
   // period on the chart: the three do not publish on the same schedule, and in
@@ -341,14 +395,15 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
         )}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
+          <LineChart data={chartData} margin={{ top: 4, right: axisInset, bottom: 0, left: axisInset }}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="period"
               tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
-              interval={Math.max(0, Math.floor(chartData.length / 6))}
+              interval={interval}
+              tickFormatter={axisPeriodLabel}
             />
             {!compact && (
               <YAxis
@@ -450,14 +505,42 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           flatten the three into one line.
         </p>
       )}
-      {/* The source line and the export, on one row. A download belongs beside
-          the attribution rather than beside the title: it is the last thing a
-          reader wants, not the first, and the file it produces carries this
-          same source line in its preamble. */}
+      {note && (
+        <p className="text-caption mt-2" style={{ color: 'var(--text-secondary)' }}>{note}</p>
+      )}
+      {/* The source line, the date and the export, on one row. A download
+          belongs beside the attribution rather than beside the title: it is
+          the last thing a reader wants, not the first, and the file it
+          produces carries this same source line in its preamble.
+
+          The date sits here rather than in the header because it qualifies
+          every figure on the card, including the ones in the legend — and
+          because a reader looking for provenance is already reading this line.
+          Nothing renders when no label parses: a chart that cannot say when it
+          is from must not imply that it is from now. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
-        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Source: {data.source}</p>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+          Source: {data.source}
+          {coverage && (
+            <>
+              {' · '}
+              {coverage.label}
+              {freshness && `, ${coverage.spans ? 'oldest ' : ''}${freshness.label}`}
+            </>
+          )}
+        </p>
         {!compact && <DownloadMenu data={exportPayload} />}
       </div>
+      {/* A source in arrears is normal and is stated above; a source that has
+          stopped is a different message and gets a different weight. The
+          thresholds are per-cadence, so a semi-annual price eight months
+          behind stays quiet while a weekly series three months behind does
+          not. */}
+      {freshness?.stale && (
+        <p className="text-caption mt-1" style={{ color: 'var(--data-warning)' }}>
+          This series has published nothing newer than {formatPeriod(freshness.period)}.
+        </p>
+      )}
     </div>
   );
 }

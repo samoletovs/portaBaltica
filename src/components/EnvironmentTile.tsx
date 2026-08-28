@@ -1,7 +1,44 @@
 import type { EnvironmentData } from '../types';
 import { useCountry } from '../CountryContext';
+import { BalticCompareChart } from './BalticCompareChart';
 import { TileHeader } from './TileHeader';
 import { fixed, list } from '../utils/payload';
+
+/**
+ * Demography, and why it is drawn without a verdict.
+ *
+ * `demo_r_mwk_ts` is the only weekly series on the site. Every other Eurostat
+ * table here is monthly or slower, so this is the one place a reader can watch
+ * something at a tempo a person lives at — a flu wave is visible in it and is
+ * invisible in a monthly series. That is its value, and it is worth the space
+ * even though the newest observation is about seven weeks old: fifty-two
+ * observations a year is a different instrument from twelve, however far
+ * behind both of them run.
+ *
+ * Three deliberate refusals, because a death count is the series on this
+ * dashboard most easily turned into a claim nobody measured.
+ *
+ *   - **No sentiment colour.** `BalticCompareChart` draws flag colours and
+ *     applies no polarity at all, and `weekly_deaths` is absent from
+ *     `POLARITY`, so nothing here is coloured by whether a number went the way
+ *     someone would prefer. A rise in deaths is bad news, unambiguously — but
+ *     the reason to keep colour out is that most of what this chart shows is
+ *     seasonality, and painting January red every year would be a verdict on
+ *     winter.
+ *   - **No rate.** Eurostat publishes the count; a per-100 000 figure would
+ *     have to be computed here against a population from a different table
+ *     with a different vintage, which is a derived statistic with no
+ *     provenance. The count is what the source says.
+ *   - **So the levels are not comparable, and the card says so.** Lithuania's
+ *     line sits above Latvia's because Lithuania is larger. A reader comparing
+ *     heights learns about population and believes they learned about
+ *     mortality, and no amount of colour or axis work fixes that — only a
+ *     sentence does.
+ */
+const WEEKLY_DEATHS_NOTE =
+  'Counts, not rates: Lithuania sits highest because its population is largest, ' +
+  'so the shapes are comparable and the levels are not. Mortality is strongly ' +
+  'seasonal — every winter is a peak.';
 
 interface EnvironmentTileProps {
   data: EnvironmentData | null;
@@ -71,7 +108,18 @@ const WEATHER_ICONS: Record<string, string> = {
 export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
   const { countryLabel, flag, country, timezone } = useCountry();
   if (loading) return <TileSkeleton />;
-  if (!data) return null;
+
+  // Weekly deaths are Eurostat and cover all three countries, so they do not
+  // depend on the Open-Meteo payload arriving. Returning `null` for the whole
+  // tile took a working Baltic-wide series down with a weather API.
+  if (!data) {
+    return (
+      <section>
+        <TileHeader title="Environment" />
+        <WeeklyDeaths />
+      </section>
+    );
+  }
 
   // `AQI_STYLES.good` was the fallback for an unknown status, so a failed
   // reading was painted in the same green as clean air. An unavailable
@@ -221,7 +269,22 @@ export function EnvironmentTile({ data, loading }: EnvironmentTileProps) {
           </div>
         </div>
       </div>
+
+      <WeeklyDeaths />
     </section>
+  );
+}
+
+function WeeklyDeaths() {
+  return (
+    <div className="mt-4">
+      <BalticCompareChart
+        indicator="weekly_deaths"
+        title="Deaths per week"
+        note={WEEKLY_DEATHS_NOTE}
+        compact
+      />
+    </div>
   );
 }
 
