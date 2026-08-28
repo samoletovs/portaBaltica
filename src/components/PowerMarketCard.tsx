@@ -3,7 +3,7 @@ import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
 import { fetchPowerPrices, type PowerPriceData, type PowerPricePoint, type PowerPriceZone } from '../api';
-import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
+import { chartTick, chartTooltip, tickInterval, CHART_TICK_SIZE } from '../utils/chartType';
 import { list } from '../utils/payload';
 import { hourFormatter, dayFormatter, firstDayChange } from '../utils/marketClock';
 import { SeriesSwatch } from './SeriesSwatch';
@@ -169,13 +169,19 @@ export function PowerMarketCard() {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+            {/* Eight labels rather than the shared default of six: this axis has
+                a 40px YAxis beside it and was measured clean at 402px with
+                eight, so the count is kept and only the arithmetic is shared.
+                `tickInterval` computes exactly what the inline expression here
+                used to — the point of routing through it is that `EconomyTile`
+                cannot drift away from it again. */}
             <XAxis
               dataKey="time"
               tickFormatter={formatHour}
               tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
-              interval={Math.max(0, Math.floor(chartData.length / 8))}
+              interval={tickInterval(chartData.length, 8)}
             />
             <YAxis
               tick={chartTick(chartColors.axis)}

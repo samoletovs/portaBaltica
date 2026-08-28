@@ -35,6 +35,46 @@ export function chartTooltip(background: string, border: string) {
 }
 
 /**
+ * How many labels an axis should carry when nothing says otherwise.
+ *
+ * DESIGN.md §3.4 asks for 5-8. Six is the figure that still fits the narrowest
+ * card this site draws: at 320px an unaxised chart is 254px wide, and six
+ * `03:00` labels at `CHART_TICK_SIZE` measure about 144px of that.
+ */
+export const TARGET_AXIS_LABELS = 6;
+
+/**
+ * The recharts `interval` that leaves roughly `targetLabels` ticks on an axis.
+ *
+ * recharts counts `interval` as the number of ticks *skipped* between the ones
+ * it draws, so the label count it produces is `points / (interval + 1)` — which
+ * makes a hardcoded interval a claim about how many points the series carries.
+ * `EconomyTile` made exactly that claim, in a comment: "six ticks across a
+ * 24-hour day", beside `interval={3}`. Elering then moved the day-ahead feed to
+ * 15-minute resolution. The live payload is **88 quarter-hours rather than 24
+ * hours**, so `interval={3}` drew 22 labels, and measured at 402px **20 of the
+ * 21 visible ones overlapped**, worst by 9px — an unreadable smear on every
+ * phone. At 1440 there was room for all 22 and it was clean, which is why it
+ * survived: the defect only existed at widths nothing measured.
+ *
+ * `PowerMarketCard` had the right shape all along, one component away, deriving
+ * its interval from `chartData.length`. That is the sibling that conceals the
+ * broken one: anyone checking whether this codebase knew the answer would have
+ * found that it did. One function, called by both, because two derivations of
+ * the same rule can disagree and a shared one cannot.
+ *
+ * A count rather than a width, deliberately. Recharts also drops colliding
+ * labels on its own if asked, but silently — an axis that quietly loses its
+ * labels on a phone is the same class of thing as the smear, only harder to
+ * notice.
+ */
+export function tickInterval(pointCount: number, targetLabels: number = TARGET_AXIS_LABELS): number {
+  if (!Number.isFinite(pointCount) || pointCount <= 0) return 0;
+  if (!Number.isFinite(targetLabels) || targetLabels < 1) return 0;
+  return Math.max(0, Math.floor(pointCount / targetLabels));
+}
+
+/**
  * The share of its own level a series has to move before a zero-based fill can
  * show the movement at all. Below this the fill is a flat bar and the shape is
  * pure noise.

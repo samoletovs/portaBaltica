@@ -1115,6 +1115,41 @@ work rather than here.
 - Density is compact by default: this is a terminal, and Carbon's condensed
   row heights (32–40px) are the model.
 
+### 4.4 A phone is not a small desktop
+
+Three rules, each written from a measurement taken on a real phone viewport
+rather than from a narrowed desktop window.
+
+**An affordance measured in percent is not an affordance on a phone.** The fade
+on a sideways-scrolling strip was `3%`, which is 43px at 1440 and **12px at
+402** — so it shrank to nothing on exactly the devices where those strips
+overflow. Measured on an iPhone 17 Pro, the ticker's leading item read as a
+crisp cut rather than a fade: `R/USD` for EUR/USD, and `0.8574` with its label
+gone entirely. The fade is `--edge-fade`, a length, because the thing it has to
+soften is a character and a character is a length.
+
+**A tick interval is a claim about how many points the series carries, and it
+will stop being true.** `EconomyTile` set `interval={3}` under a comment reading
+"six ticks across a 24-hour day". Elering then moved the day-ahead feed to
+15-minute resolution: 88 quarter-hours rather than 24 hours, so it drew 22
+labels, and at 402px **20 of the 21 visible ones overlapped**. It was clean at
+1440, which is why it survived — the defect existed only at widths nothing
+measured. Derive the interval from the data (`tickInterval`), never write one.
+
+**What costs a tenth of a laptop can cost a third of a phone.** The guided tour
+is a 223px panel pinned to the bottom edge: about a tenth of a 900px desktop
+viewport, and **26% of an iPhone 17 Pro, 33% of an iPhone SE** — over the part
+of the screen a thumb already occupies, uninvited, on a first visit. It was also
+explaining the section tabs while covering them. It no longer opens itself below
+`sm`; the trigger stays, so the feature is deferred rather than removed, and the
+completion flag is deliberately not written, because a reader who was never
+offered the tour has not declined it.
+
+The corollary for the 44px rule in §5: `target-inline` is the opt-out, reserved
+for a chip inside a larger target. Every control in that panel carried it, so on
+the one surface operated exclusively by thumb, every control was under the
+minimum — Skip 64×26, Back 49×34, Next 50×34.
+
 ---
 
 ## 5. What the tests enforce
