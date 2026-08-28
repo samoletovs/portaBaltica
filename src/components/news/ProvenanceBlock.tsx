@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ContextFact, Provenance, ValidatorCheckName } from '../../news-types';
+import { analystLabel } from '../../news-types';
 import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
 
 /**
@@ -279,23 +280,26 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               </h3>
               <p className="news-muted text-ui">
                 {hypotheses.consulted.length === 1
-                  ? '1 specialist was'
-                  : `${hypotheses.consulted.length} specialists were`}{' '}
+                  ? '1 AI analyst was'
+                  : `${hypotheses.consulted.length} AI analysts were`}{' '}
                 consulted separately and asked what drove this:{' '}
-                {hypotheses.consulted.join(', ')}. Their answers are proposals, not
-                findings — nothing in this article establishes any of them.
+                {hypotheses.consulted.map(analystLabel).join(', ')}. These are software,
+                not people, and their answers are proposals, not findings — nothing in
+                this article establishes any of them.
               </p>
               {hypotheses.hypotheses.length > 0 ? (
                 <ul className="news-subtle mt-2 space-y-2 text-caption">
                   {hypotheses.hypotheses.map((hypothesis) => (
                     <li key={hypothesis.claim}>
                       {hypothesis.claim} — {hypothesis.strength === 'likely' ? 'likely' : 'possible'},
-                      held by {hypothesis.attribution}, {hypothesis.discipline}
+                      proposed by {analystLabel(hypothesis.attribution)}
                       {hypothesis.informed_by
-                        ? `, who had read ${hypothesis.informed_by}. The claim is theirs, not that publisher's`
-                        : ', from their own expertise rather than from this data'}
+                        ? `, which had read ${hypothesis.informed_by}. The claim is ours, not that publisher's`
+                        : ', from its own domain knowledge rather than from this data'}
                       {hypothesis.corroborated_by && hypothesis.corroborated_by.length > 0
-                        ? `. Reached independently by ${hypothesis.corroborated_by.join(', ')}`
+                        ? `. Reached independently by ${hypothesis.corroborated_by
+                            .map(analystLabel)
+                            .join(', ')}`
                         : ''}
                       {hypothesis.testable_with
                         ? `. What would settle it: ${hypothesis.testable_with}`
@@ -306,7 +310,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
               ) : (
                 <p className="news-subtle mt-2 text-caption">
                   No explanation survived the panel's own checks, so the article offers
-                  none. Specialists looked and found nothing they could stand behind,
+                    none. Analysts looked and found nothing they could stand behind,
                   which is not the same as nobody asking.
                 </p>
               )}

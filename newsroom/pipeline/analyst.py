@@ -312,6 +312,17 @@ def expert_for(section: str) -> Expert:
     return EXPERTS.get(section, _FALLBACK_EXPERT)
 
 
+def _plural(count: int) -> str:
+    """"1 was" rather than "1 were".
+
+    A trivial-looking fix in a string only a model ever reads, which is exactly
+    why it is worth doing: the brief spends its whole length telling a writer to
+    be precise, and an agreement error in the instruction is the one flaw in it
+    the reader of that instruction is certain to notice.
+    """
+    return f"{count} was" if count == 1 else f"{count} were"
+
+
 @dataclass(frozen=True, slots=True)
 class Mechanism:
     """A candidate explanation, and the verified fields that license it."""
@@ -431,31 +442,50 @@ class AnalystBrief:
             # mechanism was looked for and not found -- downstream, "no
             # mechanism" and "nobody checked" are the same silence.
             lines.append("")
-            lines.append("MECHANISMS: none. There is no cause available to you.")
-            if self.discarded:
-                lines.append(
-                    f"  {len(self.discarded)} were proposed and every one was "
-                    f"dropped for resting on nothing the figures establish."
-                )
             if panel_has_hypotheses:
-                # The panel found something, so the silence is no longer the
-                # whole answer. What stays true is the part this branch was
-                # actually protecting: no cause may be asserted on the
-                # *figures'* authority, because the figures do not carry one.
-                # What changes is that the alternative is now a hypothesis
-                # somebody is named for, rather than an early ending.
+                # The header used to read "MECHANISMS: none. There is no cause
+                # available to you." unconditionally, and the panel branch then
+                # said three lines later that causes HAD been filed. A flat
+                # contradiction, and it published: measured on the live article
+                # of 2026-08-28, a piece whose panel returned FOUR admissible
+                # hypotheses still closed "The data does not show what drove the
+                # change in home energy inflation, and no specific causes can be
+                # confirmed."
+                #
+                # Read an emphatic absolute first and a qualification after it,
+                # and the absolute is what gets followed. So it is no longer
+                # written when it is untrue: the section now states what is
+                # actually missing -- a relationship the FIGURES establish --
+                # rather than something broader that the next line withdraws.
+                #
+                # Same shape as the faults this repo keeps finding, one layer
+                # up: the correct sentence was present and the contradicting one
+                # was read instead.
                 lines.append(
-                    "  So do not explain this movement on the figures' authority — there "
-                    "is no wording that makes an ungrounded cause publishable, and a "
-                    "draft that asserts one is rejected rather than revised."
+                    "MECHANISMS: none. The figures here establish no relationship "
+                    "between two series, so there is no cause you may state on THEIR "
+                    "authority."
                 )
+                if self.discarded:
+                    lines.append(
+                        f"  {_plural(len(self.discarded))} proposed and dropped for "
+                        f"resting on nothing the figures establish."
+                    )
                 lines.append(
-                    "  The causal panel HAS filed candidate causes for this finding, "
-                    "listed further down. Those are attributable and you should use "
-                    "one, under the rules given there: name who holds it, and say in "
-                    "the same paragraph that this data cannot confirm it."
+                    "  That is a limit on the FIGURES, not on the article. The causal "
+                    "panel has filed candidate causes for this finding, listed further "
+                    "down, and you SHOULD use one: name the analyst exactly as written "
+                    "there, and say in the same paragraph that this data cannot confirm "
+                    "it. Do NOT write that nothing is known about what drove this -- "
+                    "something is, and it is attributable."
                 )
             else:
+                lines.append("MECHANISMS: none. There is no cause available to you.")
+                if self.discarded:
+                    lines.append(
+                        f"  {_plural(len(self.discarded))} proposed and every one was "
+                        f"dropped for resting on nothing the figures establish."
+                    )
                 lines.append(
                     "  Do NOT write a paragraph explaining why this happened. There "
                     "is no wording that makes an ungrounded cause publishable, and a "

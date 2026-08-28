@@ -155,20 +155,45 @@ def test_with_no_mechanism_and_no_panel_the_writer_is_still_told_to_stop():
 def test_with_no_mechanism_but_a_panel_the_writer_is_pointed_at_it():
     section = _NO_MECHANISM.prompt_section(panel_has_hypotheses=True)
     assert "Do NOT write a paragraph explaining why this happened" not in section
-    assert "causal panel HAS filed candidate causes" in section
-    assert "cannot confirm it" in section
+    assert "causal panel has filed candidate causes" in section
+    assert "cannot confirm" in section
+
+
+def test_the_brief_does_not_contradict_itself_when_the_panel_found_something():
+    """The self-contradiction that reached readers, as a regression test.
+
+    The header used to read "MECHANISMS: none. There is no cause available to
+    you." whatever the panel had found, and the panel branch then said three
+    lines later that causes HAD been filed. Measured on the live article of
+    2026-08-28, a piece whose panel returned four admissible hypotheses closed:
+
+        "The data does not show what drove the change in home energy
+         inflation, and no specific causes can be confirmed."
+
+    An emphatic absolute followed by a qualification gets read as the absolute.
+    So the absolute must not be written when it is false.
+    """
+    section = _NO_MECHANISM.prompt_section(panel_has_hypotheses=True)
+    assert "There is no cause available to you" not in section, (
+        "the brief asserts no cause exists while listing causes further down"
+    )
+    assert "no relationship between two series" in section, (
+        "it must still say what IS missing, which is a mechanism the figures establish"
+    )
+    assert "Do NOT write that nothing is known" in section
 
 
 def test_the_figures_authority_rule_survives_either_way():
     """What lifts is the gag, not the grounding rule.
 
     A cause may now be reported; it may still never be asserted as something
-    the figures establish. If that sentence ever goes missing from the panel
+    the figures establish. If that distinction ever goes missing from the panel
     branch, the brief is telling the writer it may explain the movement with
     nothing said about whose authority it does so on.
     """
     section = _NO_MECHANISM.prompt_section(panel_has_hypotheses=True)
-    assert "do not explain this movement on the figures' authority" in section.lower()
+    assert "no cause you may state on THEIR authority" in section
+    assert "limit on the FIGURES, not on the article" in section
 
 
 def test_the_flag_is_inert_when_the_desk_did_file_mechanisms():
@@ -227,16 +252,18 @@ def _verdict(text: str, *, panellists: tuple[str, ...] = (), informed_by: str = 
     )
 
 
-def test_a_hedged_attributed_desk_hypothesis_passes():
+DEMOGRAPHER = "the newsroom's AI demographer"
+
+
+def test_a_hedged_disclosed_desk_hypothesis_passes():
     assert _verdict(
-        "Dr Liina Sarapuu, the newsroom's demographer, says the fall is likely "
-        "driven by the small cohort born in the 1990s now reaching childbearing "
-        "age. This data cannot confirm it."
+        f"{DEMOGRAPHER} says the fall is likely driven by the small cohort born "
+        f"in the 1990s now reaching childbearing age. This data cannot confirm it."
     ).passed
 
 
 def test_an_unhedged_desk_cause_still_fails():
-    """The half of the conjunction that keeps the promise.
+    """The clause that keeps the "not a finding" promise.
 
     Note the sentence contains "says", which ``_ATTRIBUTED_TO_A_SOURCE`` matches
     on its own. That is exactly why the desk branch is tested first: if the
@@ -244,29 +271,167 @@ def test_an_unhedged_desk_cause_still_fails():
     requirement would be a branch nothing ever reaches.
     """
     verdict = _verdict(
-        "The newsroom's demographer says the fall is driven by the small cohort "
-        "born in the 1990s now reaching childbearing age."
+        f"{DEMOGRAPHER} says the fall is driven by the small cohort born in the "
+        f"1990s now reaching childbearing age."
     )
     assert not verdict.passed
     assert "unconfirmed" in verdict.detail
 
 
+def test_a_desk_cause_that_hides_the_ai_disclosure_fails():
+    """The clause that keeps the "not a person" promise.
+
+    Attributed and hedged and still wrong: with the word AI dropped, "the
+    newsroom's demographer" reads as a colleague on the staff. The published
+    failure was one step further — an invented name with a doctorate — and both
+    are the same lie about what the reader is being told by.
+    """
+    verdict = _verdict(
+        "The newsroom's demographer says the fall may be driven by the small "
+        "cohort born in the 1990s, though this data cannot confirm it."
+    )
+    assert not verdict.passed
+    assert "analyst is AI" in verdict.detail
+
+
+def test_an_invented_expert_cannot_carry_a_cause():
+    """The exact sentence that published, as a regression test.
+
+        "Dr. Ineta Zvirbule suggests this is a likely explanation, but the data
+         cannot confirm it."
+
+    Attributed, hedged, figure-free — and describing a person who does not
+    exist, has no bio page, and is on no roster. It reads as a correspondent
+    relaying an economist they consulted.
+    """
+    verdict = _verdict(
+        "Dr. Ineta Zvirbule suggests the decline is driven by weaker demand, but "
+        "the data cannot confirm it.",
+        panellists=(DEMOGRAPHER,),
+    )
+    assert not verdict.passed
+    assert "named person's mouth" in verdict.detail
+
+
+def test_no_exemption_rescues_an_invented_expert():
+    """Each of the three exemptions was found, in turn, to wave this through.
+
+    A conjunction is only as strong as the branch that runs first, and every
+    one of these passed on review of the first attempt:
+
+    * the denial clause matches "cannot", so a hedge read as a denial;
+    * the source clause matches a bare "said", so the guard covered exactly
+      the one verb the live failure happened to use;
+    * the desk branch returned early on success, so the shape the brief now
+      *teaches* — putting "the newsroom's AI demographer" in the sentence — was
+      the shape that skipped the check for a hallucinated name beside it.
+
+    That last one is the sharpest: the fix for one defect became the carrier
+    for another.
+    """
+    cases = (
+        # rescued by the denial clause
+        "Dr. Ineta Zvirbule suggests the fall is driven by weaker demand, but "
+        "the data cannot confirm it.",
+        # rescued by the source clause, on one verb
+        "Dr. Ineta Zvirbule said the fall is driven by weaker demand.",
+        "Dr. Ineta Zvirbule says the fall is driven by weaker demand.",
+        # rescued by the desk branch returning early
+        "Dr. Ineta Zvirbule, the newsroom's AI household economist, says the "
+        "fall is likely driven by weaker demand, though this data cannot confirm it.",
+    )
+    for text in cases:
+        assert not _verdict(text, panellists=(DEMOGRAPHER,)).passed, text
+
+
+def test_an_invented_expert_is_caught_in_every_baltic_alphabet():
+    """A character class written from one alphabet exempts the other two.
+
+    The first version was ``[A-ZĀČĒĢĪĶĻŅŠŪŽ]`` — Latvian — on a newsroom whose
+    beat is Latvia, Estonia and Lithuania, so an Estonian or Lithuanian
+    invented name passed on the diacritic alone.
+    """
+    for name in ("Ineta Zvirbule", "Ülo Kaasik", "Ąžuolas Petraitis", "Õnne Sarapuu"):
+        assert not _verdict(
+            f"Dr. {name} suggests the fall is driven by weaker demand.",
+            panellists=(DEMOGRAPHER,),
+        ).passed, name
+
+
+def test_an_institution_is_not_a_person():
+    """The control. Institutions carry no honorific, so reporting is untouched."""
+    assert _verdict(
+        "According to Latvijas Banka, the fall is driven by weaker demand."
+    ).passed
+    assert _verdict(
+        "The central bank said the fall is driven by weaker external demand."
+    ).passed
+
+
+def test_a_typographic_apostrophe_does_not_escape_the_desk_rule():
+    """A disclosure guarantee must not turn on a character nobody can see.
+
+    Both routes into the desk branch keyed on U+0027 — the regex needs
+    "newsroom's", and every ``Lens.title`` begins with it — so they failed
+    together on U+2019, and the paragraph fell through to the laxer external
+    exemption with no hedge and no disclosure required.
+    """
+    curly = "\u2019"
+    assert not _verdict(
+        f"The newsroom{curly}s AI demographer says the fall is driven by the 1990s cohort."
+    ).passed
+    assert _verdict(
+        f"The newsroom{curly}s AI demographer says the fall may be driven by that "
+        f"cohort, though this data cannot confirm it."
+    ).passed
+
+
+def test_a_real_named_official_properly_attributed_still_passes():
+    """The cost of the honorific rule, stated rather than assumed.
+
+    A named person may not author an explanation in our prose at all — this
+    wire has interviewed nobody, and ``personas.yaml`` already forbids
+    "attributing opinion or intent to a named living person", which nothing
+    enforced until now. So this is not a false positive; it is that rule
+    finally having a gate.
+
+    An earlier version tried to exempt "X said" as legitimate reporting. That
+    exemption was the hole: an invented expert reaches print saying "said" just
+    as readily as a real one, and it is the invented one this exists to catch.
+    """
+    assert not _verdict(
+        "Dr. Martins Kazaks said the fall is driven by weaker external demand."
+    ).passed
+    assert not _verdict(
+        "Dr. Martins Kazaks warned the fall is driven by weaker demand."
+    ).passed
+    # The institution is the right attribution, and it passes.
+    assert _verdict(
+        "According to Latvijas Banka, the fall is driven by weaker external demand."
+    ).passed
+
+
+def test_a_plain_denial_is_untouched_by_the_honorific_rule():
+    """It names nobody, so it never reaches that branch."""
+    assert _verdict("The data does not show what drove the change.").passed
+
+
 def test_a_panellist_named_without_the_possessive_is_still_our_analyst():
     """The reason the names come off the artefact rather than out of a regex.
 
-    "Dr Liina Sarapuu says X is driven by Y" is the same claim on the same
-    authority as the sentence above, and a pattern looking for "the newsroom's"
-    sees nothing in it. The panel's own provenance knows the name.
+    A title is the string the brief hands over, but a draft may quote only part
+    of it. The panel's own provenance knows what it spoke as, so a paragraph
+    naming it is recognised as ours whatever the surrounding grammar — and then
+    held to the desk rule rather than the laxer external one.
     """
-    unhedged = (
-        "Dr Liina Sarapuu says the fall is driven by the small cohort born in "
-        "the 1990s now reaching childbearing age."
-    )
-    assert not _verdict(unhedged, panellists=("Dr Liina Sarapuu",)).passed
+    assert not _verdict(
+        "Our AI demographer says the fall is driven by the 1990s cohort.",
+        panellists=("Our AI demographer",),
+    ).passed
     assert _verdict(
-        "Dr Liina Sarapuu says the fall may be driven by that cohort, though "
+        "Our AI demographer says the fall may be driven by that cohort, though "
         "this data cannot confirm it.",
-        panellists=("Dr Liina Sarapuu",),
+        panellists=("Our AI demographer",),
     ).passed
 
 
@@ -348,12 +513,30 @@ def test_a_hedge_without_attribution_still_fails():
     assert not verdict.passed
 
 
-def test_the_conjunction_is_not_satisfied_by_either_half_alone():
-    """Stated directly against the helper, so the rule cannot drift silently."""
-    assert not _is_hedged_desk_hypothesis("the newsroom's demographer states it is so")
+def test_the_conjunction_is_not_satisfied_by_any_clause_alone():
+    """Stated directly against the helper, so the rule cannot drift silently.
+
+    Three clauses, and dropping any one must fail. Written as the full cross
+    rather than one example each, because a conjunction whose clauses are only
+    ever tested together passes just as well when one of them is unreachable.
+    """
+    disclosed_hedged = "the newsroom's AI demographer says it may be a cohort effect"
+
+    assert _is_hedged_desk_hypothesis(disclosed_hedged)
+    # attribution missing
+    assert not _is_hedged_desk_hypothesis("an AI analyst says it may be a cohort effect")
+    # hedge missing
+    assert not _is_hedged_desk_hypothesis("the newsroom's AI demographer states it is so")
+    # AI disclosure missing
+    assert not _is_hedged_desk_hypothesis("the newsroom's demographer says it may be so")
+    # everything missing
     assert not _is_hedged_desk_hypothesis("it may possibly be a cohort effect")
-    assert _is_hedged_desk_hypothesis(
-        "the newsroom's demographer says it may be a cohort effect"
+
+
+def test_ai_is_matched_as_a_word_not_a_substring():
+    """"said", "maintain" and "Ukraine" all contain the letters a-i."""
+    assert not _is_hedged_desk_hypothesis(
+        "the newsroom's demographer said it may maintain the trend"
     )
 
 
