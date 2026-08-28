@@ -333,6 +333,15 @@ def build_run_report(
         # And the individual verdicts, so a suspicious cluster can be read
         # rather than guessed at. Truncated like the slug lists above; the
         # aggregate is the complete statement.
+        #
+        # NO CODE READS EITHER OF THESE, AND THAT IS THE INTENT. Grepping the
+        # fields a producer writes against the names its consumers read is how
+        # the defect this section fixed was found, so both will show up on that
+        # sweep as answers nobody uses. They are not: the consumer is a person
+        # reading `runs/latest.json` after a bad afternoon, which is the only
+        # reader that can tell a correct rejection from a broken check. Said
+        # here so the next sweep gets its answer from the code rather than
+        # having to reconstruct it.
         "rejections": reasons[:50],
         "errors": [str(e) for e in (getattr(report, "errors", ()) or ())][:20],
     }
