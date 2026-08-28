@@ -1604,9 +1604,37 @@ misremembered* is not a second state anyone enumerates, which is exactly the
 limit that section states about itself.
 
 Verifying *this* entry hit the neighbouring rule and nearly retracted a true
-finding. The second instance did not reproduce against master, because a later
-commit had added the phrase — a different tree from the one it was measured on.
-It reproduces exactly at `30d4ac7`, with controls. **State the SHA.**
+finding — and **the diagnosis committed here was itself wrong**, which is the
+better half of the story.
+
+I wrote that the second instance failed to reproduce *because a later commit had
+added the phrase* — a different tree. Another session hit the same wall, and
+measuring the two axes separately settles it:
+
+```
+                  section only    whole file
+30d4ac7             False           True
+master              False           True
+```
+
+**Scope explains it entirely; the SHA explains nothing.** The phrase is absent
+from the section and present in the file at *both* commits. I had widened the
+search from *the section* to *the whole file* and, finding a plausible culprit in
+a commit I knew I had made, attributed the discrepancy to the tree. The wrong
+axis, chosen because it was the one I had a story for.
+
+So the drift is not only in the remembered *phrase*. It is in the remembered
+**scope** — "search the section" recalled as "search the file" — and it has the
+same signature and the same blindness to a positive control, because the control
+passes in either scope. Two instances, one each way, on the same evening.
+
+The remedy is the one above, applied to the qualifier: **copy the scope out of
+the claim you are checking rather than recalling it.** And when two things changed
+between a working reading and a failing one, vary them **one at a time** — the
+2×2 above took one command and would have caught it immediately.
+
+It reproduces exactly at `30d4ac7`, in the section, with controls. State the SHA
+*and* the scope; a finding is only as reproducible as its narrowest qualifier.
 
 A session measuring page height under a simulated outage read `6574px` and
 concluded the page got *taller* — because it compared against a ~5000px figure
