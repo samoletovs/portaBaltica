@@ -204,7 +204,52 @@ def test_it_catches_an_id_that_is_registered_but_never_fetched() -> None:
         )
 
 
-def test_every_correspondent_still_names_at_least_one_dataset() -> None:
+def test_a_computed_source_id_fails_rather_than_being_skipped() -> None:
+    """The parser's own anti-vacuity guard, exercised.
+
+    ``declared_source_ids`` can only read a quoted literal. A computed id would
+    simply not match, and the set would come back smaller with no indication —
+    absence resolving to success, inside the guard written to prevent it. The
+    literal count is compared against the declaration count for that reason.
+
+    A mutation control found this untested: disabling the comparison left the
+    suite green, because every id in the real file *is* a literal, so nothing
+    exercised the branch. This is the missing case, and it is synthetic on
+    purpose — the point is the parser's behaviour, not the file's content.
+    """
+    import pytest
+
+    computed = """
+      datasets: [
+        { sourceId: 'eurostat', label: 'fine' },
+        { sourceId: SOME_CONSTANT, label: 'invisible to a literal scan' },
+      ],
+    """
+
+    with pytest.raises(AssertionError, match="quoted literals"):
+        declared_source_ids(computed)
+
+    # The control: the same shape with both ids literal must parse cleanly, so
+    # the failure above is attributable to the computed id and not to the
+    # fixture being malformed.
+    literal = computed.replace("SOME_CONSTANT", "'elering'")
+    assert declared_source_ids(literal) == {"eurostat", "elering"}
+
+
+def test_the_parser_reads_the_entries_and_not_the_type_declaration() -> None:
+    """`datasets: { sourceId: string; label: string }[]` is not an entry.
+
+    The first version of this parser scanned the whole file and counted the
+    interface as a tenth declaration, which tripped the literal check and
+    stopped the suite. Scoping to `datasets: [...]` blocks is what fixed it, and
+    this pins that the interface line stays excluded.
+    """
+    text = CORRESPONDENTS_TS.read_text(encoding="utf-8")
+    assert "sourceId: string" in text, "the interface no longer declares sourceId as a string"
+    assert "string" not in declared_source_ids(text)
+
+
+
     """Removing an untrue claim must not leave the page claiming nothing.
 
     An empty list would render the heading "Works only from these datasets"
