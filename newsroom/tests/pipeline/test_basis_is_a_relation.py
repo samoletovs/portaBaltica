@@ -107,7 +107,7 @@ STATES_A_BASIS = [
      "The gap widened between 52.8% and 61.2%."),
     ("an origin without a destination",
      "Hourly labour cost rose to 21.1 EUR per hour, up from 20.4."),
-    ("a period label as the reference",
+    ("a period label beside a from/to",
      "Output grew from 52.8% in 2024 to a new high."),
     ("cross-sectional, joined by 'while'",
      "Lithuania's road freight level stood at 2,435 thousand tonnes, while "
@@ -137,7 +137,37 @@ ADVERSARIAL = [
     ("a level and its own delta",
      "Latvian day-ahead electricity settled at 142.5 euros per megawatt-hour, "
      "12.0% higher."),
+    # A period label says WHEN a reading was taken, never what it is measured
+    # against. A clause treating one as a basis was written for this change and
+    # removed after measuring it: it was load-bearing for nothing true and
+    # admitted all three of these.
+    ("a bare year", "Output rose 12% in 2024."),
+    ("a month and a year", "Electricity prices rose 12% in June 2026."),
+    ("a year with 'during'", "Prices increased 8.1% during 2025."),
 ]
+
+
+class TestAPeriodLabelIsNotABasis:
+    """The clause I wrote, and then deleted on measurement.
+
+    Dropping it changed no test — which is what an untested clause looks like,
+    and is how a planted fault found it. Checking what it was actually doing
+    showed it was admitting exactly the class this check exists to refuse.
+    """
+
+    def test_the_sentence_it_was_written_for_needs_something_else(self):
+        # "grew from 52.8% in 2024 to a new high" is caught by `from … to`, so
+        # the clause was never required for it.
+        from newsroom.validator import _BASIS_PATTERNS
+
+        text = "Output grew from 52.8% in 2024 to a new high."
+
+        assert any(p.search(text) for p in _BASIS_PATTERNS)
+
+    def test_no_period_clause_survives(self):
+        import newsroom.validator as validator
+
+        assert not hasattr(validator, "_PERIOD_LABEL")
 
 
 class TestItAcceptsABasisAReaderWouldAccept:

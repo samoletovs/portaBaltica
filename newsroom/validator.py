@@ -749,13 +749,22 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
 )
 
 
-#: A period label is a reference point even though ``numeric_scan`` masks it.
-#: "grew from 52.8% in 2024" names WHEN the other reading was taken, which is
-#: what a basis is; the year carries no magnitude and so never reaches the
-#: token list the vocabulary patterns are checked against.
-_PERIOD_LABEL: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:19|20)\d{2}(?:-(?:Q[1-4]|S[12]|W?\d{1,2}))?\b"
-)
+#: There is deliberately no "a period label is a basis" clause.
+#:
+#: It was written, and removed after measuring it. "grew from 52.8% in 2024 to
+#: a new high" looked like it needed one — but that sentence is already caught
+#: by ``from … to``, so the clause was load-bearing for nothing true, while it
+#: admitted this:
+#:
+#:     "Output rose 12% in 2024."       accepted
+#:     "Prices increased 8.1% during 2025."   accepted
+#:
+#: Twelve per cent higher than *what*? A period label says WHEN a reading was
+#: taken, never what it is measured against, and treating it as a basis turns
+#: this check's 8 false positives into false negatives of exactly the kind it
+#: exists to prevent. Found by planting a fault: dropping the clause changed no
+#: test, which is what an untested clause looks like.
+_SENTENCE_SPLIT: Final[re.Pattern[str]] = re.compile(r"(?<=[.!?])\s+")
 
 #: A numeral immediately followed by a period word says HOW LONG, not HOW MUCH.
 #: "a significant increase, sustained over 22 consecutive quarters" carries one
@@ -782,8 +791,6 @@ _COMPARATIVE: Final[re.Pattern[str]] = re.compile(
     r"ahead\s+of|behind|as\s+against|up\s+from|down\s+from)\b",
     re.IGNORECASE,
 )
-
-_SENTENCE_SPLIT: Final[re.Pattern[str]] = re.compile(r"(?<=[.!?])\s+")
 
 
 def _magnitudes(text: str) -> list[str]:
@@ -826,18 +833,19 @@ def _states_a_cross_sectional_basis(text: str) -> bool:
 def _states_a_basis(text: str) -> bool:
     """Does this text name what its change is measured against?
 
-    Three sufficient forms, and the first is the only one that was here before:
+    Two sufficient forms, and the first is the only one that was here before:
 
     1. a basis PHRASE — "compared with", "than", "a year earlier";
     2. a CROSS-SECTIONAL comparison, two magnitudes and a comparative in one
-       sentence, which has no phrase to match on;
-    3. a PERIOD LABEL, which names when the other reading was taken.
+       sentence, which has no phrase to match on and is the form that proved
+       the shape was wrong rather than merely incomplete.
+
+    A third — treating a period label as a reference point — was written and
+    then removed on measurement. See the note above ``_SENTENCE_SPLIT``.
     """
     if any(pattern.search(text) for pattern in _BASIS_PATTERNS):
         return True
-    if _states_a_cross_sectional_basis(text):
-        return True
-    return _PERIOD_LABEL.search(text) is not None
+    return _states_a_cross_sectional_basis(text)
 
 
 def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
