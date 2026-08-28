@@ -248,8 +248,20 @@ const handler = async function (context, req) {
             // No characterisation. "Below seasonal average" named a statistic
             // this endpoint never computed, and "within normal Baltic market
             // range" was asserted against nothing at all — it was the `else`.
+            //
+            // "of daily peaks" is load-bearing and was missing. The other
+            // branch quotes the same threshold as "the highest tenth of daily
+            // peaks"; this one said "the highest tenth of the last 31
+            // preceding days", which names no quantity. A reader then has
+            // three prices in one sentence — a current €26, a day average €57
+            // and a threshold €259 — and no way to know the third is a
+            // percentile of *peaks* rather than something comparable to the
+            // first two. Two branches quoting one number must describe it
+            // identically, or the number means different things depending on
+            // which day you read it.
             description: range + (threshold !== null
-              ? ' Highest tenth of the last ' + basis + ' begins at €' + threshold.toFixed(0) + '.'
+              ? ' Highest tenth of daily peaks over the last ' + basis
+                + ' begins at €' + threshold.toFixed(0) + '.'
               : ''),
             level: 'routine', category: 'economy', timestamp: now.toISOString(),
           });

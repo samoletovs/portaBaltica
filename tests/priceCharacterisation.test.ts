@@ -134,6 +134,31 @@ describe('the words are ones the data supports', () => {
     expect(code).toMatch(/day average/);
     expect(code).toMatch(/Range €/);
   });
+
+  it('describes the threshold the same way in both branches that quote it', () => {
+    // Both branches print the same number -- the 90th percentile of *daily
+    // peaks* over the trailing window -- and they described it differently.
+    // The routine branch said "the highest tenth of the last 31 preceding
+    // days", naming no quantity at all, so a reader saw three prices in one
+    // sentence (current €26, day average €57, threshold €259) with nothing to
+    // say the third is a percentile of peaks rather than something comparable
+    // to the first two. Measured live on 2026-08-28: €259 sat above that
+    // day's own maximum of €171, which is only coherent once you know it is
+    // a peak threshold.
+    //
+    // Asserted as a count rather than by reading either branch, so the rule
+    // holds whichever branch is edited: every place that quotes the threshold
+    // must name what it is a threshold OF.
+    const quotes = code.match(/[Hh]ighest tenth/g) ?? [];
+    expect(quotes.length, 'no branch quotes the threshold any more').toBeGreaterThan(1);
+
+    const named = code.match(/[Hh]ighest tenth of daily peaks/g) ?? [];
+    expect(
+      named.length,
+      'a branch quotes the "highest tenth" without saying it is a tenth of daily peaks, ' +
+        'which leaves a percentile of peaks sitting beside a current price and a day average',
+    ).toBe(quotes.length);
+  });
 });
 
 describe('an extreme day is still called extreme', () => {
