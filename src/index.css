@@ -192,6 +192,16 @@
   --corner-control: 0.5rem; /* 8px — buttons, inputs, tooltips, inner panels */
   --corner-card: 0.75rem; /* 12px — cards and top-level panels */
 
+  /* How far a horizontally scrolling strip fades at its cut edge. A length
+     rather than a percentage, so it does not shrink on the phones where those
+     strips actually overflow; see the `.edge-fade-*` rules. 32px is about two
+     characters at `--text-caption`, which is enough to read as a fade instead
+     of as a clip, and it is `--space-xl`, so it is a step on the scale rather
+     than a number chosen here. Same reason as the radius steps above for living
+     in `:root`: hand-written CSS reads it with `var()`, and `@theme` entries are
+     tree-shaken. */
+  --edge-fade: 2rem;
+
   --bg-page: #0a0f1a;
   --bg-card: #121b2e;
   --bg-raised: #1c2740;
@@ -784,19 +794,31 @@ button,
    `.edge-fade-x` fades both ends unconditionally and is for something that
    always scrolls, which is the ticker and only the ticker. Everything else
    uses `useOverflowFade`, because a permanent fade on a row that fits dims its
-   first and last item to solve a problem that is not there. */
+   first and last item to solve a problem that is not there.
+
+   The fade length is a fixed distance, not a share of the strip. It was `3%`,
+   which made the fade shrink with the viewport — 43px at 1440 and **12px at
+   402** — so the affordance was weakest at exactly the widths where these
+   strips actually overflow. Measured on a phone, the ticker's leading item read
+   as a crisp cut rather than as a fade: "R/USD" for EUR/USD, and "0.8574" with
+   its label gone entirely. That is the appearance the mask exists to prevent,
+   surviving in the one place it matters.
+
+   `--edge-fade` lives in `:root` rather than `@theme` because it is read by
+   `var()` from hand-written CSS, and `@theme` entries are tree-shaken when no
+   utility references them. */
 .edge-fade-x,
 .edge-fade-start.edge-fade-end {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
-  mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--edge-fade), #000 calc(100% - var(--edge-fade)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--edge-fade), #000 calc(100% - var(--edge-fade)), transparent);
 }
 .edge-fade-start {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%);
-  mask-image: linear-gradient(to right, transparent, #000 3%);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--edge-fade));
+  mask-image: linear-gradient(to right, transparent, #000 var(--edge-fade));
 }
 .edge-fade-end {
-  -webkit-mask-image: linear-gradient(to right, #000 97%, transparent);
-  mask-image: linear-gradient(to right, #000 97%, transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--edge-fade)), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--edge-fade)), transparent);
 }
 
 /* Scrollbar styling */

@@ -8,7 +8,7 @@ import { finite, fixed, list } from '../utils/payload';
 import { useTheme } from '../ThemeContext';
 
 import { useCountry } from '../CountryContext';
-import { chartTick, chartTooltip } from '../utils/chartType';
+import { chartTick, chartTooltip, tickInterval } from '../utils/chartType';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -104,9 +104,14 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                       hour: `${hourIn.format(new Date(p.timestamp))}:00`,
                       price: p.price,
                     }))}>
-                      {/* Six ticks across a 24-hour day — four-hourly, evenly
-                          spaced, and inside the 5–8 DESIGN.md §3.4 asks for. */}
-                      <XAxis dataKey="hour" tick={chartTick(chartColors.axis)} tickLine={false} axisLine={false} interval={3} />
+                      {/* The tick count is derived from the series, not from an
+                          assumption about it. `interval={3}` sat here with a
+                          comment claiming "six ticks across a 24-hour day",
+                          which was true when the feed was hourly and stopped
+                          being true when Elering moved to 15-minute
+                          resolution — 88 quarter-hours, 22 labels, 20 of them
+                          overlapping at 402px. See `tickInterval`. */}
+                      <XAxis dataKey="hour" tick={chartTick(chartColors.axis)} tickLine={false} axisLine={false} interval={tickInterval(prices.length)} />
                       <Tooltip
                         contentStyle={chartTooltip(chartColors.tooltipBg, chartColors.tooltipBorder)}
                         formatter={(v) => [`€${(v as number).toFixed(2)} /MWh`, 'Price']}

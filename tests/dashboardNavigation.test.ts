@@ -101,6 +101,31 @@ describe('a horizontally scrolling strip', () => {
     const ticker = readFileSync(resolve('src/components/DataTicker.tsx'), 'utf8');
     expect(ticker).toContain('edge-fade-x');
   });
+
+  it('fades by a fixed distance rather than a share of the strip', () => {
+    // The fade was `3%`, which made it shrink with the viewport: 43px at 1440
+    // and **12px at 402**. So the affordance was weakest at exactly the widths
+    // where these strips overflow. Measured on a phone, the ticker's leading
+    // item read as a crisp cut rather than a fade — "R/USD" for EUR/USD, and
+    // "0.8574" with its label gone. A percentage cannot be right here, because
+    // the thing being masked is a character and a character is a length.
+    const fadeRules = css.match(/mask-image: linear-gradient\(to right[^;]*;/g) ?? [];
+    expect(fadeRules.length, 'the edge-fade rules are not where this test thought they were')
+      .toBeGreaterThanOrEqual(6);
+
+    for (const rule of fadeRules) {
+      expect(rule, `a percentage stop shrinks the fade on a phone: ${rule}`)
+        .not.toMatch(/#000 \d+%/);
+      expect(rule, `the fade must come from the token: ${rule}`).toContain('var(--edge-fade)');
+    }
+
+    // `:root`, not `@theme` — Tailwind tree-shakes theme entries no utility
+    // references, and these rules read the token with `var()`. A token that
+    // never reaches the stylesheet resolves to nothing and the mask silently
+    // stops masking, in production only.
+    expect(css, '--edge-fade must be declared in :root so it always ships')
+      .toMatch(/:root\s*\{[\s\S]*?--edge-fade:\s*[^;]+;/);
+  });
 });
 
 describe('brand metadata', () => {
