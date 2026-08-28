@@ -97,14 +97,14 @@ jobs:
 
       - name: Build the rehearsal payload
         id: rehearsal
-        if: inputs.rehearse != 'no' || github.event_name == 'push'  # TEMPORARY: push clause reverted after the proof
+        if: inputs.rehearse != 'no' && inputs.rehearse != ''
         run: |
           set -euo pipefail
 
           # Rehearsals run the real notification path against a broken payload,
           # rather than a mock of it. A notification path that has never
           # delivered is not a notification path.
-          case "${{ inputs.rehearse || 'stale-required' }}" in
+          case "${{ inputs.rehearse }}" in
             stale-required)
               cat > rehearsal.json <<'JSON'
           {
