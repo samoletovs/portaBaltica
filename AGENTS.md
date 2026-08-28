@@ -1370,6 +1370,39 @@ correct ones, because a correct brief only produces the work already imagined,
 while a wrong one produces a measurement of something nobody had reason to
 measure.
 
+### Why the handoff works, and why more care would not
+
+**The measurement defines the shape of the fix.** Having proved a defect, you
+fix the thing you proved — and what your measurement did not reach is invisible
+precisely because it is what you were not measuring.
+
+Two instances, one session, both verified:
+
+- It demonstrated that an anti-vacuity guard passes on **zero** tests, then
+  proposed `assert tests` — which closes the zero case and leaves a file split
+  unguarded, because the retained half has a non-zero count.
+- It measured branch reachability, concluded a pull request was not its own, and
+  **named the author**. `git branch -r --contains` on a squash commit cannot
+  return the originating branch — it excludes the true answer by construction
+  and reports branches cut from master afterwards.
+
+The second is the sharper one, and the reason is uncomfortable: **its conclusion
+was correct.** The PR genuinely was not theirs. And that is what stopped the
+re-examination — in their words, *a correct conclusion is the strongest
+anaesthetic against re-examining the instrument that produced it.*
+
+A wrong answer eventually collides with something. **A right answer reached by
+a broken instrument collides with nothing, ever.** The one-liner had the same
+property: it worked, on the case that had been measured.
+
+So this is not "the measurer should be more careful". Care is aimed at
+correctness, and correctness is not the failing property — being right is what
+removes the only signal that would have made you check the *shape*. That is why
+the remedy is structural: **whoever proved the defect states it; someone else
+chooses the fix**, or at minimum reviews the fix's reach rather than its
+result. Every instance in this file that was caught was caught by someone who
+had not done the measuring.
+
 ## One generation is not a measurement
 
 The writer, the analyst and the desk are stochastic. Sampling one of them once
