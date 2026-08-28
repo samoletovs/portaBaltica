@@ -46,18 +46,18 @@ generation and the editorial gates where they earn their keep.
 
 ---
 
-## Starting state (every line verified 2026-08-28T16:29Z)
+## Starting state (every line verified 2026-08-28T16:57Z)
 
 ```
-master        f5b4432 · working tree clean
+master        d762f88 · working tree clean
 site          healthy · 8/8 required sources · 0 stale
 newsroom      deployed at master head; the 14:00Z timer edition published
               2 tier A originals at provenance.revision = that day's master head
 articles      81 published
-throughput    49 PRs merged · 3.0 PR/h over a 16.4 h span · doc ratio 1 : 4
+throughput    49 PRs merged · 13 direct commits · 3.0 PR/h · doc ratio 1 : 4
 ```
 
-This run merged **49 PRs** and made **11 direct commits to master**, with eight
+This run merged **49 PRs** and made **13 direct commits to master**, with eight
 implementation sessions running concurrently and zero merge conflicts. The
 previous run merged 117 and then found thirteen further defects after declaring
 itself complete. Treat "complete" as a measurement with a timestamp, not a
@@ -527,7 +527,32 @@ records a decline, and each was two turns of measurement that saved a session.
    sampled failure used *capacity*, *efficiency* or *resilience*, which is
    exactly what makes such a list look sufficient.
 
-4. **`building_permits` polarity.** `polarity.ts` admits an indicator only if
+4. **Choose the reader-facing staleness threshold. The measurement is done; the
+   decision is not.** A full sweep of 71 indicators × 3 countries, judged by the
+   repo's own `es.isSeriesStale` with a two-way control, found **0 of 213 stale**
+   — and that number is a trap. `MAX_AGE_MONTHS` is a **failover** threshold
+   ("is this feed dead?"), deliberately about twice the worst real publication
+   lag. *"Should a reader see a date?"* is a different question, and nothing
+   comes close to the failover line: the worst is `consumer_confidence/EE` at
+   67% of its allowance.
+
+   Meanwhile **nine series are 20 months old and rendered as current**
+   (`life_expectancy`, `rd_spending`, `hotel_occupancy` × LV/EE/LT). Normalised
+   to publication cadence:
+
+   ```
+   more than 1   period behind   43 of 71 indicators
+   more than 1.5 periods         40
+   more than 2   periods          8      <- the sweep's recommendation
+   more than 3   periods          3
+   ```
+
+   **It is 0, 8, 40 or 43 depending entirely on which line is adopted, and that
+   choice is the whole design decision.** One period behind is normal lag for
+   nearly every series here. `#215` already dates every figure regardless, which
+   is the half that helps daily; this is only about which ones get a warning.
+
+5. **`building_permits` polarity.** `polarity.ts` admits an indicator only if
    "a finance ministry, a trade union and a central bank would all agree on the
    sign". `#212`/`#226` closed the balance family by **deriving** taint from
    `stk_flow` — `BAL(x) = CRE(x) − DEB(x)` — across every family in the
