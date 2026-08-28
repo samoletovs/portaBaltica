@@ -75,12 +75,6 @@ jobs:
       message: ${{ steps.judge.outputs.message }}
 
     steps:
-      - name: TEMPORARY crash, to prove a dead check job still notifies
-        # Removed in the next commit. This kills the check job before it can
-        # write any output, which is the state that used to skip notification
-        # entirely and leave a red, silent run.
-        run: exit 1
-
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
@@ -111,14 +105,14 @@ jobs:
 
       - name: Build the rehearsal reading
         id: rehearsal
-        if: inputs.rehearse != 'no' || github.event_name == 'push'  # TEMPORARY
+        if: inputs.rehearse != 'no' && inputs.rehearse != ''
         run: |
           set -euo pipefail
 
           # Rehearsals drive the real notification path with a broken reading
           # rather than a mock of it. A notification path that has never
           # delivered is not a notification path.
-          case "${{ inputs.rehearse || 'dead-feed' }}" in
+          case "${{ inputs.rehearse }}" in
             dead-feed)
               cat > rehearsal.json <<'JSON'
           {
