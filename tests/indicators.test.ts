@@ -27,6 +27,7 @@ type IndicatorDef = {
   title: string;
   unit: string;
   sanity: [number, number];
+  euAggregation: 'average' | 'sum';
 };
 
 const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
@@ -114,6 +115,47 @@ describe('indicator registry', () => {
     expect(def.sanity[0]).toBeLessThan(def.sanity[1]);
     expect(Number.isFinite(def.sanity[0])).toBe(true);
     expect(Number.isFinite(def.sanity[1])).toBe(true);
+  });
+
+  /**
+   * What the EU27 figure on this cube *is*, which decides whether it can be
+   * drawn beside the three.
+   *
+   * For an intensive statistic it is a weighted average of the members and
+   * lands in the same numeric range as Latvia, Estonia and Lithuania. For an
+   * extensive total it is a sum containing them, one to two orders of magnitude
+   * larger — EU27 population is ~449M against Latvia's ~1.85M — and plotting it
+   * on the shared linear axis flattens all three into a line along the bottom.
+   */
+  it.each(entries)('%s says what its EU27 figure is', (_id, def) => {
+    expect(['average', 'sum']).toContain(def.euAggregation);
+  });
+
+  it('states the totals as a list, so adding one is a decision rather than a default', () => {
+    // Written as an equality against the full set rather than as a filter: a
+    // new extensive indicator that forgets to declare itself changes this list,
+    // and the only way to make it green again is to look at it. A subtraction
+    // would silently match nothing the day it stopped being true.
+    const totals = entries.filter(([, def]) => def.euAggregation === 'sum').map(([id]) => id);
+    expect(totals.sort()).toEqual([
+      'air_passengers', 'current_account', 'elec_production', 'elec_renewable_gen',
+      'exports', 'financial_services', 'ghg_emissions', 'goods_balance', 'gov_deficit',
+      'gov_revenue', 'ict_services', 'imports', 'other_business_services', 'population',
+      'rail_freight', 'rail_passengers', 'road_freight', 'road_freight_tkm',
+      'services_balance', 'tourism', 'tourism_foreign', 'trade_balance',
+      'transport_services',
+    ]);
+  });
+
+  it('never calls a relative statistic a total', () => {
+    // A one-directional corroboration, not the rule itself: a percentage, an
+    // index, a price or a per-head figure is an average across the EU by
+    // construction, so declaring one a sum is a typo rather than a judgement.
+    const relative = /%|index|per 1000|EUR\/|years|balance$/;
+    const wrong = entries
+      .filter(([, def]) => def.euAggregation === 'sum' && relative.test(def.unit))
+      .map(([id, def]) => `${id} (${def.unit})`);
+    expect(wrong, 'a relative unit cannot be an EU-wide sum').toEqual([]);
   });
 
   it.each(entries)('%s states the same frequency in freq and params', (_id, def) => {

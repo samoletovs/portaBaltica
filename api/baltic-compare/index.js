@@ -23,8 +23,31 @@ const GEOS = ['LV', 'EE', 'LT'];
  * fault: ten are `bop_c6_q`, where an EU aggregate balance of payments against
  * itself is close to meaningless because intra-EU flows cancel, and
  * `minimum_wage` has no EU figure because not every member state has one.
+ *
+ * It is also only asked for where it *means* something on a shared axis — see
+ * `referenceIsComparable` below.
  */
 const REFERENCE_GEO = 'EU27_2020';
+
+/**
+ * Whether the EU27 figure on this cube is a benchmark at all.
+ *
+ * It is one only where the statistic is intensive — a rate, a share, a price,
+ * an index, a per-capita figure — because there the EU value is a weighted
+ * average of its members and sits in the same numeric range as the three.
+ *
+ * For an extensive total it is a **sum containing the three**, not an average
+ * beside them, and it is one to two orders of magnitude larger: EU27 population
+ * is ~449M against Latvia's ~1.85M. Drawn on the shared linear axis of
+ * `BalticCompareChart` that prices the axis in EU units and flattens Latvia,
+ * Estonia and Lithuania into a single line along the bottom — so the benchmark
+ * destroys the comparison the chart exists to make. `euAggregation` in the
+ * registry records which kind each indicator is, and is mandatory there so that
+ * a new indicator cannot acquire a distorting benchmark by saying nothing.
+ */
+function referenceIsComparable(def) {
+  return Boolean(def) && def.euAggregation === 'average';
+}
 
 /**
  * The reference series, or `null` when this cube does not carry one.
@@ -103,9 +126,14 @@ const handler = async function (context, req) {
   const years = parseInt(query.years, 10) || 5;
 
   try {
-    const url = es.buildUrl(def, years, GEOS.concat([REFERENCE_GEO]));
+    // The denominator is asked for only where it is one. For a `sum` indicator
+    // it is not merely unusable on the chart, it is a slice of cube we have no
+    // use for, so it is left out of the request rather than fetched and dropped.
+    const wantReference = referenceIsComparable(def);
+    const geos = wantReference ? GEOS.concat([REFERENCE_GEO]) : GEOS.slice();
+    const url = es.buildUrl(def, years, geos);
     const data = await es.httpJson(url, { deadlineMs: 20000 });
-    const parsed = es.parseJsonStat(data, GEOS.concat([REFERENCE_GEO]));
+    const parsed = es.parseJsonStat(data, geos);
 
     // Split the reference out before anything else sees `countries`, so a
     // fourth series cannot leak into a Baltic comparison by accident.
@@ -113,7 +141,7 @@ const handler = async function (context, req) {
     GEOS.forEach(function (geo) {
       if (parsed.countries[geo]) countries[geo] = parsed.countries[geo];
     });
-    const reference = buildReference(parsed.countries[REFERENCE_GEO]);
+    const reference = wantReference ? buildReference(parsed.countries[REFERENCE_GEO]) : null;
 
     context.res = {
       status: 200,
@@ -156,3 +184,4 @@ module.exports = withSecurity(withCache(handler, {
 module.exports.GEOS = GEOS;
 module.exports.REFERENCE_GEO = REFERENCE_GEO;
 module.exports.buildReference = buildReference;
+module.exports.referenceIsComparable = referenceIsComparable;
