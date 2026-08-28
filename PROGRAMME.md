@@ -586,8 +586,15 @@ So the rule is absolute and checkable at the moment of the decision:
 
 If you are still finding things worth writing down — and you will be, because the
 meta-work is genuinely interesting and that is exactly why it is hard to
-stop — they belong in the `journal` table. It costs nothing and the next run reads
-it anyway.
+stop — they belong in the `journal` table.
+
+**But know what that table is and is not.** It is **per-run**: measured just now,
+this run's DB holds 186 entries with the earliest at `2026-08-28T10:20Z`, and none
+of the previous run's 48. **A successor does not read it.** The journal is raw
+material for *this* document, not a channel to the next session — so anything that
+must actually reach a successor goes in the brief, and the one commit is where it
+goes. An earlier draft of this rule said the next run reads the journal anyway;
+that was false and would have sent findings somewhere they quietly vanish.
 
 The uncomfortable part, stated plainly because it is the reason a softer rule
 fails: **the documentation this run produced is good.** The corrections are real,
@@ -930,6 +937,28 @@ records a decline, and each was two turns of measurement that saved a session.
 
 ---
 
+## Accessibility: what is measured, still open, and the harness traps
+
+Carried from the session that did the audit, because it is engineering work on a
+named gap rather than a note about method:
+
+- **No real screen reader has been used.** Everything so far is DOM assertions.
+- **Errors are announced on first render, not on update** — a value that goes
+  stale while the page is open says nothing.
+- **400% reflow and forced-colours mode are untested.**
+- **`/weekly` renders but is unpopulated.**
+- **Five components still expose unnamed `role="application"` surfaces.**
+  `IndicatorCard` alone accounts for **16 of the 19 tab stops** on
+  `/data/economy`, which is the whole keyboard experience of that page.
+
+Two harness traps that cost a session each, so the next one does not rediscover
+them:
+
+- **jsdom gives `ResponsiveContainer` no size**, so recharts draws nothing and
+  every query against it returns zero — including the controls. See the section in
+  `AGENTS.md` on confirming a probe can see anything.
+- **A stale detached preview server serves an old `dist`.** Make it name the build
+  it is serving, or you will measure yesterday's bundle and believe it.
 ## Housekeeping: 140 stale local branches, and the wrong tool for them
 
 A session flagged this on its way out and correctly declined to act on it. I
