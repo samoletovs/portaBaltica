@@ -23,7 +23,7 @@ const es = require_('../api/shared/eurostat.js');
 type IndicatorDef = {
   dataset: string;
   params: string;
-  freq: 'A' | 'S' | 'Q' | 'M';
+  freq: 'A' | 'S' | 'Q' | 'M' | 'W';
   title: string;
   unit: string;
   sanity: [number, number];
@@ -106,7 +106,12 @@ describe('indicator registry', () => {
     expect(def.params.length).toBeGreaterThan(0);
     expect(def.title.length).toBeGreaterThan(0);
     expect(def.unit.length).toBeGreaterThan(0);
-    expect(['A', 'S', 'Q', 'M']).toContain(def.freq);
+    // Read from the registry rather than restated. This was a fourth copy of
+    // the frequency vocabulary — a literal `['A', 'S', 'Q', 'M']` sitting
+    // twenty lines above a test that already checks `def.freq` against
+    // `es.FREQUENCIES` — and it is the copy that failed when `W` was added.
+    // Two lists that must agree, with nothing making them.
+    expect(es.FREQUENCIES).toContain(def.freq);
   });
 
   it.each(entries)('%s declares a usable sanity band', (_id, def) => {
@@ -143,7 +148,7 @@ describe('indicator registry', () => {
       'gov_revenue', 'ict_services', 'imports', 'other_business_services', 'population',
       'rail_freight', 'rail_passengers', 'road_freight', 'road_freight_tkm',
       'services_balance', 'tourism', 'tourism_foreign', 'trade_balance',
-      'transport_services',
+      'transport_services', 'weekly_deaths',
     ]);
   });
 
@@ -161,8 +166,20 @@ describe('indicator registry', () => {
   it.each(entries)('%s states the same frequency in freq and params', (_id, def) => {
     // sincePeriod() is driven by `freq`; a mismatch sends a quarterly bound to
     // an annual dataset.
-    const inParams = def.params.match(/freq=([ASQM])/);
+    //
+    // The character class here used to be `[ASQM]`, a fifth copy of the
+    // vocabulary — and one that fails *open*: a `freq=W` in the query string
+    // simply did not match, so the check skipped rather than failing, and the
+    // one indicator whose frequency was new was the one it stopped covering.
+    const inParams = def.params.match(/freq=([A-Z]+)/);
     if (inParams) expect(inParams[1]).toBe(def.freq);
+  });
+
+  it('actually compares the frequency for nearly every indicator', () => {
+    // The companion to the case above, which skips when it finds no `freq=`.
+    // A parametrised test that skips everything passes while checking nothing.
+    const compared = entries.filter(([, def]) => /freq=[A-Z]+/.test(def.params));
+    expect(compared.length).toBeGreaterThan(entries.length - 5);
   });
 
   it('does not use codes Eurostat has retired', () => {

@@ -63,6 +63,7 @@ _ORDINALS = ("first", "second", "third", "fourth")
 #: What one observation is, per frequency, singular and plural.
 _READING_WORDS = {
     "daily": ("daily reading", "daily readings"),
+    "weekly": ("week", "weeks"),
     "monthly": ("month", "months"),
     "quarterly": ("quarter", "quarters"),
     "annual": ("year", "years"),

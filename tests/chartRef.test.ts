@@ -114,10 +114,21 @@ describe('chart vocabulary matches the indicator registry', () => {
     }
   });
 
-  it('declines the legacy ids that have no real counterpart', () => {
-    // building_permits and biz_confidence were never served by anything. The
-    // honest answer is no chart, not the nearest-looking one.
-    expect(resolveChartRef('building_permits')).toBeUndefined();
+  it('now serves building_permits, which it used to decline', () => {
+    // This assertion has changed sides, and the comment above it changed with
+    // it. `building_permits` was in this set naming nothing — the whole defect
+    // this file records — so it was moved out to `resolveChartRef` returning
+    // undefined, on the grounds that no chart beats a wrong one. It is now a
+    // real indicator (sts_cobp_q), so declining it would silently strip the
+    // chart from every article that cites it.
+    expect(resolveChartRef('building_permits')).toBe('building_permits');
+  });
+
+  it('declines the legacy id that still has no real counterpart', () => {
+    // `biz_confidence` was never served by anything. The honest answer is no
+    // chart, not the nearest-looking one. It is a one-member list, which is
+    // the point: when it acquires a counterpart this assertion has to be
+    // looked at rather than quietly matching nothing.
     expect(resolveChartRef('biz_confidence')).toBeUndefined();
   });
 });

@@ -60,6 +60,7 @@ log = logging.getLogger(__name__)
 #: lookup miss that fails open.
 _CADENCE_STEP: dict[str, tuple[str, int]] = {
     "daily": ("day", 1),
+    "weekly": ("week", 1),
     "monthly": ("month", 1),
     "quarterly": ("month", 3),
     "semi-annual": ("month", 6),
@@ -74,6 +75,8 @@ _PERIOD_MONTHS = (
 )
 
 _PERIOD_DAY = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+_PERIOD_WEEK = re.compile(r"^(\d{4})-?[Ww](\d{1,2})$")
 
 
 def _period_months(period: str) -> int | None:
@@ -95,8 +98,33 @@ def _period_days(period: str) -> int | None:
     return None
 
 
+def _period_weeks(period: str) -> int | None:
+    """An ISO week label as an absolute week ordinal, or None.
+
+    Counting real weeks rather than parsing the ``-Www`` suffix as a number is
+    the whole point: ``2026-W01`` follows ``2025-W52``, and subtracting the
+    suffixes gives -51, so a run crossing new year would read as a hole and
+    every streak spanning it would be silently dropped. A 53-week year has the
+    same shape one week earlier.
+    """
+    match = _PERIOD_WEEK.match(str(period).strip())
+    if not match:
+        return None
+    year, week = int(match[1]), int(match[2])
+    if not 1 <= week <= 53:
+        return None
+    # 4 January is in ISO week 1 by definition, whatever weekday it falls on.
+    jan4 = date(year, 1, 4)
+    week1_monday = jan4.toordinal() - (jan4.isoweekday() - 1)
+    return (week1_monday + (week - 1) * 7) // 7
+
+
 def _position(period: str, scale: str) -> int | None:
-    return _period_days(period) if scale == "day" else _period_months(period)
+    if scale == "day":
+        return _period_days(period)
+    if scale == "week":
+        return _period_weeks(period)
+    return _period_months(period)
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:

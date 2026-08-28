@@ -185,6 +185,71 @@ const INDICATORS = {
     euAggregation: 'average',
     sanity: [-40, 40],
   },
+
+  // Building permits, the one leading indicator on this page.
+  //
+  // Construction output above is what is being built now; a permit is what
+  // someone has decided to build later, so the two move months apart and the
+  // gap between them is the story. Three definitions rather than one because
+  // the cube carries a composition — residential plus non-residential make up
+  // the total — which lets an article ask *which* segment moved rather than
+  // adding a fourth line to a chart of national aggregates.
+  //
+  // Two traps, both measured against the live cube on 2026-08-28 rather than
+  // read from a table:
+  //
+  //   - `indic_bt=PSQM` is the obvious guess and it is empty. It answers HTTP
+  //     200 and returns 0 of 42 quarters for all three countries, which is
+  //     indistinguishable from a working query on a quiet cube. BPRM_SQM is
+  //     the code that carries data: 106 of 106 quarters, 100%, LV, EE and LT
+  //     alike, from 2000-Q1 to 2026-Q2 with no interior holes.
+  //   - `indic_bt` says "m2 of useful floor area" but `unit` is an index. The
+  //     figure is not square metres and the label must not imply it is, which
+  //     is the same mistake as calling a consumption band a total.
+  //
+  // `s_adj=SCA` because permits are strongly seasonal in the Baltics and an
+  // unadjusted series produces a "record low" every winter. Same pin as
+  // `construction` above and as the business demography pair below.
+  //
+  // The band is the plausible range for an index rebased to 2021=100 in a
+  // construction cycle, not the observed range: across the full 106 quarters
+  // these run 15.5 to 370.7, spanning the 2006 boom and the 2009 collapse. A
+  // reading below 5 or above 700 is a definition pointing somewhere else — a
+  // raw floor-area count would be six figures, a percentage change would
+  // usually be negative in a downturn and fail the floor.
+  building_permits: {
+    dataset: 'sts_cobp_q',
+    params: 'freq=Q&indic_bt=BPRM_SQM&cpa2_1=CPA_F41001_41002&s_adj=SCA&unit=I21',
+    freq: 'Q',
+    title: 'Building permits',
+    unit: 'index (2021=100)',
+    euAggregation: 'average',
+    sanity: [5, 700],
+  },
+  building_permits_residential: {
+    dataset: 'sts_cobp_q',
+    params: 'freq=Q&indic_bt=BPRM_SQM&cpa2_1=CPA_F41001&s_adj=SCA&unit=I21',
+    freq: 'Q',
+    title: 'Building permits (residential)',
+    unit: 'index (2021=100)',
+    euAggregation: 'average',
+    sanity: [5, 700],
+  },
+  building_permits_non_residential: {
+    dataset: 'sts_cobp_q',
+    params: 'freq=Q&indic_bt=BPRM_SQM&cpa2_1=CPA_F41002&s_adj=SCA&unit=I21',
+    freq: 'Q',
+    title: 'Building permits (non-residential)',
+    unit: 'index (2021=100)',
+    euAggregation: 'average',
+    sanity: [5, 700],
+  },
+  // Office permits (`cpa2_1=CPA_F410023`) are published for all three and were
+  // deliberately not added. Measured over the same 106 quarters the series
+  // reaches **0** in Latvia and Estonia and 618.8 in Lithuania, so a sanity
+  // band wide enough to be true is too wide to catch anything, and a segment
+  // that legitimately spends quarters at zero produces a record extreme most
+  // times it moves. Left out on the measurement, not by oversight.
   house_prices: {
     dataset: 'prc_hpi_q',
     params: 'purchase=TOTAL&unit=RCH_A&freq=Q',
@@ -353,6 +418,41 @@ const INDICATORS = {
     unit: '% of population',
     euAggregation: 'average',
     sanity: [5, 45],
+  },
+  // Weekly deaths — the only series on this page that moves faster than a
+  // month, and the reason it is here.
+  //
+  // Every other indicator in this registry is monthly or slower, which means a
+  // daily pipeline reads each new release once and then has nothing to say
+  // until the next one lands. Mining more monthly cubes cannot fix that; only
+  // a faster cadence can. `demo_r_mwk_ts` publishes 52 observations a year and
+  // has done since 2000-W01.
+  //
+  // Measured live on 2026-08-28: 1384 points for Latvia and 1383 each for
+  // Estonia and Lithuania out of 1388 weeks, 99.7% / 99.6% / 99.6%, no
+  // interior holes. `freq=W&sex=T&unit=NR` leaves the parser nothing to
+  // choose — `unit` carries only NR today, and pinning it means a second code
+  // appearing later is an explicit change here rather than a silent
+  // assumption in the response.
+  //
+  // **Latvia runs a week ahead.** LV's newest observation was 2026-W28 while
+  // EE and LT were at 2026-W27, so anything reading a shared newest period
+  // will drop Latvia's most recent week or invent a null for the other two.
+  // Per-country `latest` is the only correct read.
+  //
+  // The band is what a Baltic weekly death count means, not what the API
+  // returned: across the full 26 years these run 230 (EE) to 1395 (LT),
+  // including the 2021 COVID peaks. A per-100 000 rate would read about 20
+  // and fail the floor; an annual total would read about 28 000 and fail the
+  // ceiling.
+  weekly_deaths: {
+    dataset: 'demo_r_mwk_ts',
+    params: 'freq=W&sex=T&unit=NR',
+    freq: 'W',
+    title: 'Deaths per week',
+    unit: 'deaths/week',
+    euAggregation: 'sum',
+    sanity: [50, 2000],
   },
   life_expectancy: {
     // age=Y1 is life expectancy *at age 1*; at birth is Y_LT1.
@@ -635,6 +735,31 @@ const INDICATORS = {
     euAggregation: 'average',
     // Observed 0.0834 to 0.3294 EUR/kWh for this band across the same window.
     sanity: [0.02, 1],
+  },
+  gas_price_household: {
+    dataset: 'nrg_pc_202',
+    // The same trap as nrg_pc_205 above, in a different cube, and this one is
+    // worse. Measured across the twenty half-years to 2025-S2, `TOT_GJ` — the
+    // aggregate, the code anyone would reach for — carries **LV=1, EE=1,
+    // LT=3** observations, and its newest is 2024-S1. All three real
+    // consumption bands carry 20/20/20 and reach 2025-S2. So the total is not
+    // merely the emptiest code here, it is also eighteen months more stale
+    // than the bands, and a definition using it would have drawn a Baltic
+    // comparison from a single point per country.
+    //
+    // GJ20-199 is Eurostat's band D2, the medium household consumer it uses
+    // for its own headline household gas price. The band is named in the
+    // title for the same reason it is on the electricity series: a band is
+    // not a total.
+    params: 'freq=S&nrg_cons=GJ20-199&tax=I_TAX&currency=EUR&unit=KWH&siec=G3000',
+    freq: 'S',
+    title: 'Gas price (households, 20\u2013200 GJ)',
+    unit: 'EUR/kWh',
+    euAggregation: 'average',
+    // Gas is cheaper per kWh than electricity and the band reflects that:
+    // 0.0826 EUR/kWh for Latvia at 2025-S2. The floor is low enough to survive
+    // a pre-2021 price and the ceiling high enough to survive another 2022.
+    sanity: [0.01, 0.5],
   },
   vehicles: {
     dataset: 'road_eqs_carhab',

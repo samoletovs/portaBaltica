@@ -304,6 +304,13 @@ function sincePeriod(freq, years) {
   if (freq === 'M') return since + '-01';
   if (freq === 'Q') return since + '-Q1';
   if (freq === 'S') return since + '-S1';
+  // Eurostat's own spelling, hyphen included. Measured against demo_r_mwk_ts:
+  // `2000-W01` answers HTTP 200, `2000W01` answers HTTP 400. A bare year also
+  // works and returns the same 1388 periods, which is exactly why this branch
+  // is worth having — the fallback below happened to be accepted, so a weekly
+  // dataset would have looked correctly bounded while the granularity of the
+  // bound was never stated.
+  if (freq === 'W') return since + '-W01';
   return String(since);
 }
 
@@ -314,11 +321,76 @@ function buildUrl(def, years, geos) {
     '&sinceTimePeriod=' + sincePeriod(def.freq, years);
 }
 
+/** One average month, in milliseconds. The single definition of it. */
+const AVG_MONTH_MS = 2629746e3;
+
+/** One week, in milliseconds. Exact, unlike a month. */
+const WEEK_MS = 604800e3;
+
+const ISO_WEEK = /^(\d{4})-?W(\d{1,2})$/;
+
+/**
+ * Milliseconds at the end of the Sunday closing ISO week `week` of `year`.
+ *
+ * ISO 8601 anchors on 4 January, which is in week 1 by definition whatever
+ * weekday it falls on. Everything else follows from the Monday of that week.
+ */
+function isoWeekEndMs(year, week) {
+  const jan4 = Date.UTC(year, 0, 4);
+  const isoDow = ((new Date(jan4).getUTCDay() + 6) % 7) + 1; // Mon=1 … Sun=7
+  const week1Monday = jan4 - (isoDow - 1) * 86400e3;
+  const monday = week1Monday + (week - 1) * WEEK_MS;
+  return monday + WEEK_MS - 1;
+}
+
+/**
+ * Absolute week ordinal for a weekly period label, or null for anything else.
+ *
+ * Consecutive ISO weeks differ by exactly one here, across a year boundary and
+ * across a 53-week year, because it counts real weeks rather than parsing the
+ * `-Www` suffix as a number. `2026-W01` follows `2025-W52`; subtracting the
+ * suffixes would give -51.
+ */
+function periodToWeekIndex(period) {
+  if (typeof period !== 'string') return null;
+  const m = ISO_WEEK.exec(period.trim());
+  if (!m) return null;
+  return Math.round((isoWeekEndMs(+m[1], +m[2]) + 1) / WEEK_MS) - 1;
+}
+
+/**
+ * The last instant of a period *finer* than a month, or null.
+ *
+ * A month index cannot locate a week: every week of August shares one index,
+ * so an age derived from it is out by up to a month — which for a weekly
+ * series is more than four cadence units. Measured on 2026-08-28 against
+ * `demo_r_mwk_ts`, whose newest Latvian observation is `2026-W28`: the month
+ * path gives 1 month (≈4.3 weeks) and the true age is 6.7 weeks.
+ *
+ * Month-grid labels deliberately return null and keep the month arithmetic
+ * they have always used. That path is not merely adequate for them, it is what
+ * `tests/freshness.test.ts` and `tests/indicators.test.ts` pin — `2025-Q4` is
+ * exactly 8 months old in August 2026 — and swapping it for exact milliseconds
+ * would move every existing verdict slightly, in the loosening direction, for
+ * no gain.
+ */
+function periodEndMs(period) {
+  if (typeof period !== 'string') return null;
+  const m = ISO_WEEK.exec(period.trim());
+  return m ? isoWeekEndMs(+m[1], +m[2]) : null;
+}
+
 /**
  * Absolute month index for a period label, used to compare periods of different
  * granularity on one axis. It resolves to the *last* month the period covers —
- * 2026-Q1 is March 2026, 2025 is December 2025 — because that is when the
- * observation is complete and the clock on publishing it starts.
+ * 2026-Q1 is March 2026, 2025 is December 2025, 2026-W28 is July 2026 — because
+ * that is when the observation is complete and the clock on publishing it
+ * starts.
+ *
+ * A week is the one granularity this cannot express faithfully: four or five of
+ * them share a month. It is still resolved, because ordering and cadence
+ * detection need a single axis, but anything measuring an *age* must use
+ * `periodEndMs` — see `monthsSincePeriod` immediately below.
  *
  * Two vocabularies, because the dashboard reads two providers. Eurostat writes
  * `2026-07`, `2026-Q1`, `2025-S2`; CSP PxWeb writes `2026M07`, `2026Q1`,
@@ -336,6 +408,10 @@ function periodToMonthIndex(period) {
   if ((m = /^(\d{4})M(\d{2})$/.exec(period))) return +m[1] * 12 + +m[2];
   if ((m = /^(\d{4})-?Q([1-4])$/.exec(period))) return +m[1] * 12 + +m[2] * 3;
   if ((m = /^(\d{4})-?[SH]([1-2])$/.exec(period))) return +m[1] * 12 + +m[2] * 6;
+  if ((m = ISO_WEEK.exec(period))) {
+    const end = new Date(isoWeekEndMs(+m[1], +m[2]));
+    return end.getUTCFullYear() * 12 + end.getUTCMonth() + 1;
+  }
   if ((m = /^(\d{4})$/.exec(period))) return +m[1] * 12 + 12;
   return null;
 }
@@ -349,6 +425,11 @@ function periodCadence(period) {
   if (/^(\d{4})(-\d{2}|M\d{2})$/.test(period)) return 'M';
   if (/^(\d{4})-?Q[1-4]$/.test(period)) return 'Q';
   if (/^(\d{4})-?[SH][1-2]$/.test(period)) return 'S';
+  // Before the monthly branch would ever see it: `2026-W28` does not match
+  // `\d{4}-\d{2}`, but a future loosening of that pattern would swallow it and
+  // report a weekly series as monthly, which is the direction that hides a
+  // freeze rather than inventing one.
+  if (ISO_WEEK.test(period)) return 'W';
   if (/^(\d{4})$/.test(period)) return 'A';
   return null;
 }
@@ -379,11 +460,23 @@ function isSeriesStale(series, now) {
   return { period: newest, age: age, cadence: cadence, allowed: MAX_AGE_MONTHS[cadence], stale: age > MAX_AGE_MONTHS[cadence] };
 }
 
-/** Age of an observation in whole months. Negative while the period is open. */
+/**
+ * Age of an observation in months. Negative while the period is still open.
+ *
+ * Whole months for the calendar grid, where a month index locates the period
+ * exactly. **Fractional for a week**, where it cannot: `2026-W28` and
+ * `2026-W31` share July, so a month index reports the same age for
+ * observations three weeks apart, and a weekly allowance built on it would be
+ * quantised to four-and-a-third cadence units. The unit stays months so there
+ * is one age function and one allowance table — `MAX_AGE_MONTHS` — rather than
+ * a second vocabulary that can disagree with the first.
+ */
 function monthsSincePeriod(period, now) {
+  const d = now || new Date();
+  const end = periodEndMs(period);
+  if (end !== null) return (d.getTime() - end) / AVG_MONTH_MS;
   const idx = periodToMonthIndex(period);
   if (idx === null) return null;
-  const d = now || new Date();
   return (d.getUTCFullYear() * 12 + d.getUTCMonth() + 1) - idx;
 }
 
@@ -401,8 +494,22 @@ function monthsSincePeriod(period, now) {
  *
  * An indicator whose upstream is legitimately slower may override with
  * `maxAgeMonths`, which is a declaration a reviewer can weigh.
+ *
+ * `W` is measured rather than reasoned. `demo_r_mwk_ts` is provisional weekly
+ * mortality and each statistics office files at its own pace: on 2026-08-28
+ * Latvia's newest observation was `2026-W28` and Estonia's and Lithuania's
+ * `2026-W27`, ages of 1.53 and 1.77 months, while the cube already carried
+ * time coordinates out to `2026-W32`. Twice the slower of those is 3.5, so 3
+ * is slightly tighter than the policy above rather than looser — and it is a
+ * real bound, not the `|| 30` annual fallback a missing rung would have given
+ * a weekly series.
+ *
+ * Note the trap in that measurement, because the survey this work came from
+ * fell into it: the newest *coordinate* was 19 days old and the newest
+ * *observation* was 47. Reading the time dimension rather than the values
+ * understates the lag of a lagging feed by a factor of two and a half.
  */
-const MAX_AGE_MONTHS = { M: 6, Q: 12, S: 18, A: 30 };
+const MAX_AGE_MONTHS = { W: 3, M: 6, Q: 12, S: 18, A: 30 };
 
 /**
  * The frequencies a definition may declare, and the single place they are
@@ -420,8 +527,15 @@ const MAX_AGE_MONTHS = { M: 6, Q: 12, S: 18, A: 30 };
  * allowance — so a new weekly or daily series would be allowed to sit thirty
  * months stale before the freshness gate said anything, which is the exact
  * failure `MAX_AGE_MONTHS` exists to prevent.
+ *
+ * That paragraph was written before a weekly series existed and named the case
+ * exactly. `W` is now here, and the same list is what stopped the addition
+ * being half-done: `tests/indicators.test.ts` compares this against
+ * `MAX_AGE_MONTHS` in both directions, and the live contract's `EXPECTED_STEP`
+ * is keyed on the union so a missing member is a compile error rather than an
+ * `undefined` lookup.
  */
-const FREQUENCIES = Object.freeze(['M', 'Q', 'S', 'A']);
+const FREQUENCIES = Object.freeze(['W', 'M', 'Q', 'S', 'A']);
 
 function maxAgeMonths(def) {
   if (def && typeof def.maxAgeMonths === 'number') return def.maxAgeMonths;
@@ -438,10 +552,14 @@ module.exports = {
   sincePeriod: sincePeriod,
   buildUrl: buildUrl,
   periodToMonthIndex: periodToMonthIndex,
+  periodToWeekIndex: periodToWeekIndex,
+  periodEndMs: periodEndMs,
   periodCadence: periodCadence,
   monthsSincePeriod: monthsSincePeriod,
   isSeriesStale: isSeriesStale,
   maxAgeMonths: maxAgeMonths,
   MAX_AGE_MONTHS: MAX_AGE_MONTHS,
   FREQUENCIES: FREQUENCIES,
+  AVG_MONTH_MS: AVG_MONTH_MS,
+  WEEK_MS: WEEK_MS,
 };
