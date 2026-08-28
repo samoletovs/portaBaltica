@@ -655,6 +655,31 @@ that loses that will not notice it has.** Fewer sessions, or sessions that do
 not read each other's closing messages, removes the mechanism silently. It costs
 one message per session at a point where the work is already done.
 
+**And one correction to that, from the session it credits — because crediting a
+person for what a mechanism did is the error this whole document is about.** I
+had written that they caught a bad figure "by checking before reporting". They
+did not:
+
+> I checked because the numbers **disagreed**. Had your table been internally
+> consistent and merely answering the wrong question, I would have read past it.
+> **The discrepancy did the work, not the discipline** — and the difference
+> matters because only one of the two is available when nothing looks wrong.
+
+Same asymmetry as the absurd reading that defends itself while the plausible one
+does not, arriving one layer out in the coordination channel.
+
+**Which gives this document its stopping rule, and you should know it before you
+trust anything here.** It was corrected roughly a dozen times on its final
+evening, every correction from a second reader. So the errors that remain in it
+are, *by construction*, the ones that look fine — a further pass by the same
+readers cannot find them, because those readers already read past them once.
+
+A reader with a different question can. **That is you.** Treat the figures here
+as claims with windows attached rather than as facts: each states the range it
+was measured over precisely so you can re-derive it, and re-deriving one is worth
+more than reading ten. If you find a figure that does not reconcile, that is the
+discrepancy doing its work — follow it.
+
 ---
 
 ## Run a journal in SQLite, not in markdown
