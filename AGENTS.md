@@ -1537,6 +1537,35 @@ instrument recommended for detecting exactly that.
 **And the table assumes you have something correct to compare against, which is
 its own failure point: a recollection is not a control.**
 
+**And a recollection is not a query, either.** Checking whether a file says
+something, by grepping *your own memory of what it says*, guarantees a false
+absent the moment your recall drifts by one word. It drifted twice in one hour,
+for two people, against the same section:
+
+```
+"an alternative you had not imagined"       False    <- recalled
+"an alternative you had not conceived of"   True     <- the text
+
+"read the artefact"                         False    <- recalled
+"reading the artefact"                      True     <- the text
+```
+
+Both read as *the thing is missing*. Neither was. The tell is that a positive
+control does not save you here — the control passes, because the instrument is
+fine; it is the **query** that is wrong, and no amount of checking the probe
+inspects its input. What settles it is reading the paragraph, which takes seconds.
+
+So when verifying a quotation, search a **short distinctive fragment** you are
+copying rather than recalling, or read the passage. And note this is the one
+place the question at the head of this file is no help: *my own quote is
+misremembered* is not a second state anyone enumerates, which is exactly the
+limit that section states about itself.
+
+Verifying *this* entry hit the neighbouring rule and nearly retracted a true
+finding. The second instance did not reproduce against master, because a later
+commit had added the phrase — a different tree from the one it was measured on.
+It reproduces exactly at `30d4ac7`, with controls. **State the SHA.**
+
 A session measuring page height under a simulated outage read `6574px` and
 concluded the page got *taller* — because it compared against a ~5000px figure
 half-remembered from an audit days earlier, on a different build. Measuring the
