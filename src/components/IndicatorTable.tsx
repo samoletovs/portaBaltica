@@ -8,6 +8,7 @@ import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { freshnessOf, formatPeriod } from '../dataFreshness';
 import { DownloadMenu } from './DownloadMenu';
 
 const EUROSTAT_MAP: Record<string, string> = {
@@ -24,6 +25,23 @@ interface IndicatorRow {
   source?: string;
   series: { period: string; value: number | null }[];
   summary: { latest: number | null; previous: number | null; change: number | null };
+}
+
+/**
+ * How old this row's newest reading is.
+ *
+ * Computed where the row is rendered rather than where it is fetched, because
+ * there are two fetch branches — Eurostat and Latvian PxWeb — and a field set
+ * in one of them is a field the other silently omits. One code path cannot be
+ * half-applied.
+ *
+ * Judged per row rather than per table: these eight indicators run at three
+ * cadences, quarterly, monthly and annual, so a single table-level "as of"
+ * would date seven of them to a period they never reached.
+ */
+function rowFreshness(series: { period: string; value: number | null }[]) {
+  const periods = (series ?? []).filter((s) => s && s.value !== null).map((s) => s.period);
+  return periods.length > 0 ? freshnessOf(periods[periods.length - 1]) : null;
 }
 
 const INDICATORS = ['gdp', 'salary', 'cpi', 'unemployment', 'house_prices', 'retail_sales', 'industrial', 'population'];
@@ -137,11 +155,16 @@ export function IndicatorTable() {
         const change = row.summary.change;
         const isRise = change !== null && change > 0;
         const sentiment = sentimentOf(row.id, change);
+        const freshness = rowFreshness(row.series);
         // The trend line follows the same rule as the delta beside it, so a
         // row reads as one statement. It used to be coloured by raw direction,
         // which drew a decade of falling unemployment in red.
+        //
+        // A stale row drops to neutral: the change is still true of the last
+        // two readings, but "favourable" is a present-tense claim and the
+        // series has stopped.
         const lineColor =
-          sentiment === 'none'
+          sentiment === 'none' || freshness?.stale
             ? chartColors.seriesDefault
             : sentiment === 'positive'
               ? chartColors.positive
@@ -183,19 +206,55 @@ export function IndicatorTable() {
             </div>
             <span className="text-caption sm:text-ui text-right dash-fg font-mono self-center">
               {formatValue(row.summary.latest, row.unit)}
+              {/* The period, under the value rather than in a column of its own.
+                  A fourth track is not available: the row has 254px inside its
+                  padding at 320px, three tracks already resolve the title column
+                  to 98px, and an explicitly-declared track occupies its width
+                  whether or not anything is in it — which is the measured defect
+                  the three-track base exists to fix.
+
+                  A single date in the panel header was the other candidate and
+                  it would be a lie: these eight indicators run at three
+                  different cadences (Q, A and M, read from
+                  `api/shared/indicators.js`), so one "as of" would date seven
+                  rows to a period they never reached. `periodCoverage` exists
+                  for exactly that trap, one level up.
+
+                  Warning-coloured when the series has stopped, which is the
+                  whole notice a row has room for. The sentence itself is spoken
+                  rather than printed. */}
+              {freshness && (
+                <span
+                  className="block text-caption font-mono"
+                  style={{ color: freshness.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+                >
+                  {formatPeriod(freshness.period)}
+                  {freshness.stale && (
+                    <span className="sr-only">
+                      {' '}
+                      — this series has published nothing newer.
+                    </span>
+                  )}
+                </span>
+              )}
             </span>
             <span className="hidden sm:block text-ui text-right dash-muted font-mono self-center">
               {formatValue(row.summary.previous, row.unit)}
             </span>
             <span
               className="text-caption sm:text-ui text-right font-mono self-center"
-              style={{ color: change === null || change === 0 ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
+              style={{ color: change === null || change === 0 || freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
             >
               {change !== null && change !== 0 ? (
                 <>
                   <span aria-hidden="true">{isRise ? '▲' : '▼'} </span>
                   {signed(formatValue(Math.abs(change), row.unit), change)}
-                  <span className="sr-only"> {changeDescription(row.id, change)}</span>
+                  <span className="sr-only">
+                    {' '}
+                    {freshness?.stale
+                      ? `${isRise ? 'up' : 'down'} as of ${formatPeriod(freshness.period)}, the last reading published`
+                      : changeDescription(row.id, change)}
+                  </span>
                 </>
               ) : (
                 '—'

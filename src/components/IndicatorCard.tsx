@@ -11,6 +11,7 @@ import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed, t
 import { describeSeries } from '../utils/chartAccessibility';
 import { list } from '../utils/payload';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { freshnessOf, formatPeriod as formatPeriodLabel } from '../dataFreshness';
 import { DownloadMenu } from './DownloadMenu';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
@@ -78,6 +79,47 @@ interface IndicatorData {
   fetchedAt?: string;
   series: TimeSeriesPoint[];
   summary: IndicatorSummary;
+}
+
+/**
+ * How old the newest reading is, and how to say so.
+ *
+ * **A computed answer was being discarded here.** `/api/historical-data` runs
+ * `es.isSeriesStale` and ships the verdict in its payload; this component read
+ * the series and dropped the field. Measured against a series whose newest
+ * observation was `2022-Q1`, with the server reporting `stale: true, age: 54`:
+ * the card rendered `2.2%` under the heading **Latest** with a green
+ * `▲ +0.3% up, which is favourable for this indicator`, and said nothing else.
+ * That is the eight months `prc_hicp_manr` spent frozen behind HTTP 200,
+ * rendered as news.
+ *
+ * The verdict is recomputed here rather than read from the payload, because
+ * only one of the two upstreams sends one — `/api/baltic-compare` does not —
+ * and a rule that applies to Latvia and not to Estonia is worse than no rule.
+ * `freshnessOf` reads the cadence off the period label's own shape, so it needs
+ * nothing declared, and `tests/dashboardCadence.test.tsx` asserts
+ * `STALE_AFTER_MONTHS` equals the API's `MAX_AGE_MONTHS` — so the client
+ * verdict is the server's verdict, not a second opinion.
+ */
+function freshnessOfSeries(series: TimeSeriesPoint[]) {
+  const periods = series.filter((p) => p.value !== null).map((p) => p.period);
+  return periods.length > 0 ? freshnessOf(periods[periods.length - 1]) : null;
+}
+
+/**
+ * The one sentence the site uses for a series that has stopped.
+ *
+ * Byte-identical to `BalticCompareChart.tsx`, deliberately. Two surfaces
+ * inventing two vocabularies for one condition is how a design system dies, and
+ * a reader who meets "nothing newer than" on a chart and "out of date" on a
+ * card has to work out whether those are the same claim.
+ */
+function StaleNotice({ period, className = '' }: { period: string; className?: string }) {
+  return (
+    <p className={`text-caption ${className}`.trim()} style={{ color: 'var(--data-warning)' }}>
+      This series has published nothing newer than {formatPeriodLabel(period)}.
+    </p>
+  );
 }
 
 export function IndicatorCard({ id, title, unit, loading: externalLoading }: IndicatorCardProps) {
@@ -207,7 +249,13 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null).slice(-20);
   const isRise = summary.change !== null && summary.change > 0;
   const sentiment = sentimentOf(id, summary.change);
-  const changeColor = sentimentColor(sentiment);
+  const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
+  // A dead series has no sentiment. The delta is still a true statement about
+  // the last two readings, so it is kept — but the *colour* is a present-tense
+  // judgement ("this is favourable"), and applying it to a change that stopped
+  // years ago is the same fault as colouring by raw direction, which
+  // `polarity.ts` exists to prevent. See the note on the delta below.
+  const changeColor = freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment);
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
   const note = polarityNote(id);
@@ -219,8 +267,12 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   // It used to be coloured by the raw *direction* of the final data point,
   // which is why a decade of falling unemployment was drawn in red. It follows
   // meaning now: on the twelve `lower-better` series the colours flip.
+  //
+  // A stale series drops to the neutral colour with the delta, for the same
+  // reason and to keep the card one object: a green sparkline beside a grey
+  // delta would be two answers to one question.
   const areaColor =
-    sentiment === 'none'
+    sentiment === 'none' || freshness?.stale
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -257,6 +309,18 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         <span className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
           {fmt(summary.latest)}
         </span>
+        {/* The period the value describes, beside the value itself.
+            This is the half of the fix that helps every series rather than only
+            a frozen one: a figure with no date asks to be trusted rather than
+            read, and the card previously carried its periods only as the two
+            axis endpoints under the sparkline — which read as a range, not as
+            "this number is from here". A reader can now catch a freeze we have
+            not detected. */}
+        {freshness && (
+          <span className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
+            {formatPeriodLabel(freshness.period)}
+          </span>
+        )}
         {summary.change !== null && summary.change !== 0 && (
           <span className="text-caption font-mono" style={{ color: changeColor }}>
             {/* A hair of space between the glyph and the number. Set flush they
@@ -265,7 +329,19 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
                 to see at a glance. */}
             <span aria-hidden="true" className="mr-0.5">{isRise ? '▲' : '▼'}</span>
             {signed(fmt(Math.abs(summary.change)), summary.change)}
-            <span className="sr-only"> {changeDescription(id, summary.change)}</span>
+            {/* Kept when the series is stale, but said differently.
+                The change is a true statement about the last two readings; what
+                it is not is news. `changeDescription` asserts favourability in
+                the present tense, so a stale series gets direction and date
+                instead — otherwise the card goes grey for a sighted reader and
+                still says "favourable" to a screen reader, which is one claim
+                with two answers. */}
+            <span className="sr-only">
+              {' '}
+              {freshness?.stale
+                ? `${isRise ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
+                : changeDescription(id, summary.change)}
+            </span>
           </span>
         )}
       </div>
@@ -334,6 +410,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
           Axis cropped to {fmt(Math.min(...values))}–{fmt(Math.max(...values))}
         </p>
       )}
+
+      {freshness?.stale && <StaleNotice period={freshness.period} className="mt-1" />}
     </button>
   );
 }
@@ -483,8 +561,9 @@ export function IndicatorChart({
   const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null);
   const { summary } = data;
   const sentiment = sentimentOf(id, summary.change);
+  const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
   const color =
-    sentiment === 'none'
+    sentiment === 'none' || freshness?.stale
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -578,7 +657,11 @@ export function IndicatorChart({
 
       {/* Summary stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <StatBox label="Latest" value={fmt(summary.latest)} />
+        <StatBox
+          label="Latest"
+          value={fmt(summary.latest)}
+          sublabel={freshness ? formatPeriodLabel(freshness.period) : undefined}
+        />
         <StatBox label="Previous" value={fmt(summary.previous)} />
         <StatBox
           label="Change"
@@ -589,7 +672,7 @@ export function IndicatorChart({
                 ? '0.00'
                 : 'N/A'
           }
-          sentiment={sentiment}
+          sentiment={freshness?.stale ? 'none' : sentiment}
         />
         <StatBox label="Min" value={fmt(summary.min)} />
         <StatBox label="Max" value={fmt(summary.max)} />
@@ -601,11 +684,21 @@ export function IndicatorChart({
           and pushed the chart down by 52px measured. A download is the last
           thing a reader wants, not the first, and the file it produces carries
           this source line in its preamble. */}
+      {/* Above the source line rather than below it, so the caveat reaches the
+          reader before the attribution that would otherwise reassure them. */}
+      {freshness?.stale && <StaleNotice period={freshness.period} className="mt-3" />}
+
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
           Source: {data.source} · {summary.count} data points
           {summary.change !== null && summary.change !== 0 && (
-            <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
+            <span className="sr-only">
+              . Latest change is{' '}
+              {freshness?.stale
+                ? `${summary.change > 0 ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
+                : changeDescription(id, summary.change)}
+              .
+            </span>
           )}
         </p>
         <DownloadMenu data={exportPayload} />
@@ -614,13 +707,19 @@ export function IndicatorChart({
   );
 }
 
-function StatBox({ label, value, sentiment }: { label: string; value: string; sentiment?: Sentiment }) {
+function StatBox({ label, value, sentiment, sublabel }: { label: string; value: string; sentiment?: Sentiment; sublabel?: string }) {
   return (
     <div className="rounded-lg p-3 text-center" style={{ background: 'var(--bg-raised)' }}>
       <p className="text-ui font-semibold font-mono" style={{ color: sentiment && sentiment !== 'none' ? sentimentColor(sentiment) : 'var(--text-primary)' }}>
         {value}
       </p>
       <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      {/* The period the figure describes. "Latest" is a claim about recency and
+          it was carrying no date at all, which is exactly what let a 2022
+          reading read as today's. */}
+      {sublabel && (
+        <p className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>{sublabel}</p>
+      )}
     </div>
   );
 }
