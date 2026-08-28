@@ -16,6 +16,17 @@
       "route": "/api/*",
       "allowedRoles": ["anonymous"]
     },
+    { "route": "/", "rewrite": "/api/page-shell" },
+    { "route": "/data", "rewrite": "/api/page-shell" },
+    { "route": "/data/*", "rewrite": "/api/page-shell" },
+    { "route": "/indicator/*", "rewrite": "/api/page-shell" },
+    { "route": "/newsroom", "rewrite": "/api/page-shell" },
+    { "route": "/newsroom/*", "rewrite": "/api/page-shell" },
+    { "route": "/follow", "rewrite": "/api/page-shell" },
+    { "route": "/weekly", "rewrite": "/api/page-shell" },
+    { "route": "/corrections", "rewrite": "/api/page-shell" },
+    { "route": "/about/ai", "rewrite": "/api/page-shell" },
+    { "route": "/api-docs", "rewrite": "/api/page-shell" },
     {
       "route": "/*",
       "allowedRoles": ["anonymous"]

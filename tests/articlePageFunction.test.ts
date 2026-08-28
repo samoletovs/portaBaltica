@@ -114,9 +114,26 @@ function stubNetwork() {
   }) as unknown;
 }
 
-/** A fresh handler, so the in-process shell and article caches start empty. */
+/**
+ * A fresh handler, so the in-process shell and article caches start empty.
+ *
+ * The article cache lives in the handler module, so dropping that from
+ * `require.cache` clears it. The SHELL cache no longer does: it moved to
+ * `api/shared/appShell.js` when `/api/page-shell` needed the same fetching,
+ * conditional-GET and refuse-what-is-not-our-shell logic, and two copies of
+ * that on one host would expire independently — so two routes could serve HTML
+ * naming two different asset sets within the same second.
+ *
+ * A shared module survives the handler being reloaded, which is the whole point
+ * of it and is also why it has to be reset explicitly here. Without this line
+ * three cases in this file pass for the wrong reason: they set up an
+ * unreachable origin and then get a 200, because the shell from the previous
+ * case was still in memory.
+ */
 function loadHandler() {
   delete require.cache[HANDLER_PATH];
+  (require(resolve(ROOT, 'api/shared/appShell.js')) as { _resetShellCache: () => void })
+    ._resetShellCache();
   return require(HANDLER_PATH) as (context: unknown, req: unknown) => Promise<void>;
 }
 
