@@ -48,9 +48,15 @@ export type Cadence = 'W' | 'M' | 'Q' | 'S' | 'A';
  *
  * These mirror `MAX_AGE_MONTHS` in `api/shared/eurostat.js` — the same
  * judgement, made about the same series, on the other side of the wire.
- * `tests/dataFreshness.test.ts` asserts the two agree rather than trusting
+ * `tests/dashboardCadence.test.tsx` asserts the two agree rather than trusting
  * this sentence, because a threshold in two places is a threshold that will
  * drift.
+ *
+ * That pointer named `tests/dataFreshness.test.ts` until it was checked: the
+ * assertion is real, and it is in the other file. A note that answers the
+ * question a reader was about to ask, with an answer about a different thing,
+ * closes the enquiry as effectively as a correct one — so the wrong filename
+ * was worse than no filename.
  */
 export const STALE_AFTER_MONTHS: Record<Cadence, number> = {
   W: 3, M: 6, Q: PORT_DATA_STALE_AFTER_MONTHS, S: 18, A: 30,
