@@ -509,28 +509,23 @@ export function IndicatorChart({
 
   return (
     <div>
-      {/* The toolbar: a time range on the left, the export on the right.
-          Two separate controls rather than one — the download is not a time
-          range, so it must not sit inside a group labelled as one. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-4">
-        <div className="flex items-center gap-2" role="group" aria-label="Time range">
-          {[1, 3, 5, 10, 0].map((y) => (
-            <button
-              key={y}
-              onClick={() => setYears(y)}
-              aria-pressed={years === y}
-              className="px-3 py-1 text-caption rounded-lg transition-colors"
-              style={{
-                background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
-                border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
-                color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
-              }}
-            >
-              {y === 0 ? 'MAX' : `${y}Y`}
-            </button>
-          ))}
-        </div>
-        <DownloadMenu data={exportPayload} />
+      {/* Time range selector */}
+      <div className="flex items-center gap-2 mb-4" role="group" aria-label="Time range">
+        {[1, 3, 5, 10, 0].map((y) => (
+          <button
+            key={y}
+            onClick={() => setYears(y)}
+            aria-pressed={years === y}
+            className="px-3 py-1 text-caption rounded-lg transition-colors"
+            style={{
+              background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
+              border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
+              color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
+            }}
+          >
+            {y === 0 ? 'MAX' : `${y}Y`}
+          </button>
+        ))}
       </div>
 
       {/* Main chart */}
@@ -600,12 +595,21 @@ export function IndicatorChart({
         <StatBox label="Max" value={fmt(summary.max)} />
       </div>
 
-      <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>
-        Source: {data.source} · {summary.count} data points
-        {summary.change !== null && summary.change !== 0 && (
-          <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
-        )}
-      </p>
+      {/* The source line and the export, on one row — the same arrangement as
+          the comparison chart below it, and for the same reason. It began in
+          the toolbar at the top, where at 320px it wrapped onto a second row
+          and pushed the chart down by 52px measured. A download is the last
+          thing a reader wants, not the first, and the file it produces carries
+          this source line in its preamble. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+          Source: {data.source} · {summary.count} data points
+          {summary.change !== null && summary.change !== 0 && (
+            <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
+          )}
+        </p>
+        <DownloadMenu data={exportPayload} />
+      </div>
     </div>
   );
 }
