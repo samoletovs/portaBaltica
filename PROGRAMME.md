@@ -899,12 +899,15 @@ A session flagged this on its way out and correctly declined to act on it. I
 measured it, and **its stated mechanism is wrong in the dangerous direction**:
 
 ```
-local branches                 140
-remote branches                133
-local AND remote               129
-LOCAL ONLY -- lost if deleted   11   = 140 - 129
-remote only                      4   = 133 - 129
+ALL local branches             265
+  samoletovs-*                 140
+  pb-*                          54
+  everything else               71
+LOCAL ONLY -- lost if deleted  135   <- across all prefixes
 checked out in live worktrees   15
+
+the samoletovs-* slice alone, which is what a prefix filter shows you:
+  local 140   remote 133   both 129   local-only 11   remote-only 4
 
 claimed:  "git branch -d refuses them by design"
 actual:   git branch -d SUCCEEDS
@@ -947,12 +950,24 @@ is the documented squash signature and proves nothing:
 | `surface-family` — *"WIP … parked"* | deliberate, 34h old, author's call |
 
 So cleanup is safe today — **but only because someone resolved each one against
-master's content.** The list is a snapshot; re-derive it before acting:
+master's content.** **This note was itself under-enumerated, by 12×, and it is worth knowing why.**
+It was written from `samoletovs-*` because that is the prefix the sessions use —
+and it reported 11 branches at risk when the true figure across every prefix is
+**135 of 265**. The subject was *stale local branches*; the population measured
+was one prefix of them. That is the smaller-population rule from `AGENTS.md`, in
+a note whose entire topic is a population, found only because a final tidy-up
+matched a different prefix and returned a number that looked wrong.
+
+So enumerate without the filter. The list is a snapshot; re-derive it before acting:
 
 ```powershell
-$local  = git branch --list 'samoletovs-*' --format='%(refname:short)'
-$remote = (git ls-remote --heads origin 'samoletovs-*' | %{ ($_ -split "`t")[1] -replace '^refs/heads/','' })
+$local  = git branch --format='%(refname:short)'          # no prefix filter
+$remote = (git ls-remote --heads origin | %{ ($_ -split "`t")[1] -replace '^refs/heads/','' })
 $local | Where-Object { $_ -notin $remote }   # these exist nowhere else
+
+Run from a scratch branch of your own and the answer is one higher, because the
+branch you are standing on is also local-only. The figures above were taken from
+`master` with no scratch branch checked out.
 ```
 
 And note what the whole situation is an instance of: **a local branch looks
