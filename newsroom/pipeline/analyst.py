@@ -57,6 +57,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
 from newsroom.pipeline import units
+from newsroom.pipeline import field_meanings
 from newsroom.pipeline.context import COUNTRY_NAMES, ContextPack
 from newsroom.pipeline.house_style import closing_problems
 from newsroom.pipeline.models import Signal
@@ -563,7 +564,7 @@ period: {period}
 unit: {unit}
 what the detector found: {detector}
 measured against: {comparison_basis}
-
+{quantity_note}
 VERIFIED FIGURES — the complete set of field names you may ground a mechanism in.
 Any name not on this list will be rejected:
 {figures}
@@ -580,14 +581,52 @@ These are true and you may build on them directly:
 Give the correspondent their brief."""
 
 
+def _quantity_note(signal: Signal) -> str:
+    """Say plainly when the finding is a distance rather than a reading.
+
+    "metric: consumer confidence / unit: balance of responses" describes the
+    *series*, and for a spread detector the finding is not a reading of that
+    series at all — it is how far apart two countries are. Nothing said so, and
+    a published brief duly reported "a consumer confidence reading of 29.6 ...
+    reflecting a stronger sentiment" for three countries whose readings were
+    -15.6, -32.5 and -2.9. Every figure was real; the subject had changed.
+
+    Deterministic, and the endpoints are read from the detector's own context
+    rather than inferred by comparing numbers — the same article named Latvia
+    and Estonia as its endpoints when Latvia sat in the middle.
+    """
+    if not field_meanings.is_spread_finding(signal):
+        return ""
+
+    high, low = field_meanings.endpoints(signal)
+    between = f"{high} and {low}" if high and low else "two countries"
+    return f"""
+THIS FINDING IS A DISTANCE, NOT A READING. The headline figure is how far apart
+{between} are — a difference between two series, measured in the same unit as
+the series but not a value the indicator ever took. So:
+
+  - It cannot be described as the indicator rising, falling, improving or
+    worsening. Every country's own reading may be falling while this widens.
+  - It carries no sentiment. A wider gap is not good news or bad news; saying
+    which would be an argument, and you do not have the figures for it.
+  - The endpoints are {between}. Any other country in the set is BETWEEN them,
+    and naming a different pair as the extremes is simply wrong.
+  - A threshold you propose must be stated on the distance, not on one
+    country's level.
+"""
+
+
 def _figure_table(signal: Signal) -> str:
-    lines = []
-    for name, value in signal.fields.items():
-        if name in units.INTERNAL_ONLY_FIELDS:
-            continue
-        shown = units.display_value(name, float(value))
-        label = units.label_for_field(name, signal.unit, overrides=signal.field_units)
-        lines.append(f"  - {name} = {shown}   ({label})")
+    # The same rendering the correspondent gets, from the same registry. It
+    # used to be a name, a value and a unit — so a spread between two countries
+    # arrived here as "latest_gap = 27.15 (balance of responses)", which is
+    # indistinguishable from a reading of the indicator itself. This desk then
+    # described "a consumer confidence reading of 29.6 ... reflecting stronger
+    # sentiment" for three countries that were all deeply negative, and the
+    # correspondent quotes this desk almost verbatim.
+    lines = field_meanings.figure_table(
+        signal, internal_only=units.INTERNAL_ONLY_FIELDS
+    )
     return "\n".join(lines) or "  (none)"
 
 
@@ -759,6 +798,7 @@ def analyse(
         unit=signal.unit,
         detector=signal.detector,
         comparison_basis=signal.comparison_basis,
+        quantity_note=_quantity_note(signal),
         figures=_figure_table(signal),
         context_section=_context_section(pack, signal),
         observations=observations or "  (none)",
