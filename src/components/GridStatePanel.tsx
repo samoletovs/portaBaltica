@@ -183,6 +183,20 @@ export function GridStatePanel() {
               { label: 'Demand, forecast', points: rows.map((r) => ({ period: r.label, value: r.planned })) },
             ],
             (v: number | null) => (v === null ? 'no reading' : `${Math.round(v)} megawatts`),
+            // `describeComparison` reports each series' last observation and
+            // calls it a latest reading. Two of the three series here run
+            // past `meteredTo` into the operator's forecast, so without this
+            // the label announced a *predicted* demand as a reading — the
+            // same fault that gave a screen reader Finland at EUR 1.83
+            // against an actual EUR 27.45 on the price chart.
+            //
+            // The labels are unique here (a clock over one boundary, not a
+            // wrapping day-ahead curve), so the helper's structural refusal
+            // does not fire and only naming the period closes it. `asAt` is
+            // indexed on the series' own labels, and these are built by the
+            // same `formatClock`, so the boundary resolves exactly.
+            (p) => p,
+            boundary ? { asAt: formatClock(boundary) } : {},
           ) +
           (boundary
             ? ` Measured to ${formatClock(boundary)} UTC; the dashed trace after that is ${data.operator}'s own forecast.`

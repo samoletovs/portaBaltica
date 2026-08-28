@@ -220,6 +220,25 @@ describe('GridStatePanel', () => {
     // is that the information is reachable, not which element carries it.
     expect(label, 'the label should describe what is plotted').toMatch(/generation against demand/i);
     expect(label, 'and where measurement stops').toMatch(/Measured to .*forecast/i);
+
+    // Two of the three series run past `meteredTo` into the operator's
+    // forecast, and `describeComparison` otherwise reports each series' own
+    // *last* observation — so "Demand, forecast" was announced at the end of
+    // the forecast horizon rather than at the boundary. Same fault that told
+    // a screen reader Finland was at EUR 1.83 while the panel showed 27.45.
+    //
+    // Passing `asAt` pins every series to the metered boundary. Asserted as a
+    // relation rather than against fixture values: all three clauses must
+    // name the same period, and it must be the one the panel calls measured.
+    const at = [...label.matchAll(/\bat (\d{2}:\d{2})\b/g)].map((m) => m[1]);
+    const measuredTo = label.match(/Measured to (\d{2}:\d{2})/)?.[1];
+
+    expect(at.length, 'each plotted series should be reported at a named period').toBe(3);
+    expect(new Set(at).size, 'all three series must be read at one period, not each at its own end').toBe(1);
+    expect(at[0], 'and that period is where measurement stops, not where the forecast ends')
+      .toBe(measuredTo);
+    expect(label, 'a series that runs past the boundary must say so')
+      .toMatch(/continues to \d{2}:\d{2}/i);
     expect(label, 'renewable share is not plotted, so the chart must not claim it')
       .not.toMatch(/per cent|renewable/i);
 
