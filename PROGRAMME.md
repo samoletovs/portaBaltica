@@ -833,6 +833,53 @@ records a decline, and each was two turns of measurement that saved a session.
 
 ---
 
+## Housekeeping: 140 stale local branches, and the wrong tool for them
+
+A session flagged this on its way out and correctly declined to act on it. I
+measured it, and **its stated mechanism is wrong in the dangerous direction**:
+
+```
+local samoletovs-* branches            140
+checked out in live worktrees           15
+present on origin                      133
+LOCAL-ONLY -- gone for good if deleted   11
+
+claimed:  "git branch -d refuses them by design"
+actual:   git branch -d SUCCEEDS
+          "warning: deleting branch X that has been merged to <upstream>"
+```
+
+Squash merging means a branch head is never an ancestor of master, so the
+intuition that `-d` will refuse is reasonable — and false. These branches have
+upstream tracking, and `-d` compares against **the upstream, not master**. It
+deletes them, with a warning that reads like an error.
+
+That matters because someone told `-d` refuses will reach for **`-D`**, which
+skips every safety check, on a set where 11 branches exist nowhere else.
+
+Settled by content rather than by reachability, since `ahead 1 / not an ancestor`
+is the documented squash signature and proves nothing:
+
+| local-only, ahead of master | verdict |
+|---|---|
+| `live-guard-reach` — the `#178` wiring reach | substance is on master |
+| `programme-run-2` — the `/api-docs` claim | stale figure gone from master; guard present |
+| `surface-family` — *"WIP … parked"* | deliberate, 34h old, author's call |
+
+So cleanup is safe today — **but only because someone resolved each one against
+master's content.** The list is a snapshot; re-derive it before acting:
+
+```powershell
+$local  = git branch --list 'samoletovs-*' --format='%(refname:short)'
+$remote = (git ls-remote --heads origin 'samoletovs-*' | %{ ($_ -split "`t")[1] -replace '^refs/heads/','' })
+$local | Where-Object { $_ -notin $remote }   # these exist nowhere else
+```
+
+And note what the whole situation is an instance of: **a local branch looks
+identical whether it is a merged-and-pushed leftover or unpushed work.** One
+symbol, two facts — the collapse `AGENTS.md` opens with. `git branch -d`'s
+warning is the artefact that cannot distinguish them, which is why the answer
+had to come from the file contents instead.
 ## Final deliverable: the successor prompt
 
 Before you stop, write the next one. It must:
