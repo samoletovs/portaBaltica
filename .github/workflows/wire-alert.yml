@@ -49,7 +49,7 @@ on:
   # commit that caused it rather than at the next scheduled run. `sources.yaml`
   # is included because adding a feed is the most likely way to add a dead one.
   push:
-    branches: [master]
+    branches: [master, samoletovs-wire-probe]  # TEMPORARY: reverted after the end-to-end proof
     paths:
       - '.github/workflows/wire-alert.yml'
       - '.github/workflows/alert-notify.yml'
@@ -91,14 +91,14 @@ jobs:
 
       - name: Build the rehearsal reading
         id: rehearsal
-        if: inputs.rehearse != 'no' && inputs.rehearse != ''
+        if: inputs.rehearse != 'no' || github.event_name == 'push'  # TEMPORARY
         run: |
           set -euo pipefail
 
           # Rehearsals drive the real notification path with a broken reading
           # rather than a mock of it. A notification path that has never
           # delivered is not a notification path.
-          case "${{ inputs.rehearse }}" in
+          case "${{ inputs.rehearse || 'dead-feed' }}" in
             dead-feed)
               cat > rehearsal.json <<'JSON'
           {
