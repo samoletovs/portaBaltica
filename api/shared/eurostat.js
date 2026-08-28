@@ -445,12 +445,29 @@ function isSeriesStale(series, now) {
   if (!Array.isArray(series) || series.length === 0) return null;
   let newest = null;
   let newestIdx = -Infinity;
+  // A month index cannot order weeks. `2026-W27`, `2026-W28` and `2026-W30` all
+  // land in July and share the index 24319, so a strict `>` keeps whichever the
+  // array happened to list first: measured on the live LV `weekly_deaths`
+  // series, whose newest observation is `2026-W28`, this reported `2026-W27`.
+  // Reversing the same two elements changed the answer, which is the tell.
+  //
+  // `periodToWeekIndex` orders them exactly (2948, 2949, 2951) and is exported
+  // three hundred lines above — the correct sibling was already here, and
+  // `monthsSincePeriod`'s docstring below explains this very collision as its
+  // reason for being fractional. It is used only as a tiebreaker within one
+  // month index, so a series of any other cadence compares on one scale and
+  // keeps its existing behaviour.
+  let newestSub = -Infinity;
   for (let i = 0; i < series.length; i++) {
     const p = series[i];
     if (!p || p.value === null || p.value === undefined) continue;
     const idx = periodToMonthIndex(p.period);
     if (idx === null) continue;
-    if (idx > newestIdx) { newestIdx = idx; newest = p.period; }
+    const week = periodToWeekIndex(p.period);
+    const sub = week === null ? -Infinity : week;
+    if (idx > newestIdx || (idx === newestIdx && sub > newestSub)) {
+      newestIdx = idx; newestSub = sub; newest = p.period;
+    }
   }
   if (newest === null) return null;
   const cadence = periodCadence(newest);

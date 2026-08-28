@@ -430,6 +430,38 @@ describe('period freshness', () => {
     expect(es.isSeriesStale(padded, now)).toMatchObject({ period: '2026M06', stale: false });
   });
 
+  it('picks the newest week, whichever order the series arrives in', () => {
+    // Every test above this used monthly periods, and monthly is the one
+    // cadence whose month indices cannot collide — so the suite could not see
+    // this. `2026-W27`, `W28` and `W30` all share the July index 24319, and a
+    // strict `>` kept whichever element came first. Measured on the live LV
+    // `weekly_deaths` series, whose newest observation is `2026-W28`, the
+    // verdict reported `2026-W27`; reversing two elements changed the answer.
+    //
+    // Order-dependence is what makes it a defect rather than a rounding
+    // choice, so both orders are asserted. The verdict's `period` is the date
+    // a reader would be shown, so a wrong one is shown as fact.
+    const now = new Date('2026-08-28T00:00:00Z');
+    const w = (p: string) => ({ period: p, value: 7 });
+
+    expect(es.isSeriesStale([w('2026-W27'), w('2026-W28')], now)).toMatchObject({
+      period: '2026-W28', cadence: 'W',
+    });
+    expect(es.isSeriesStale([w('2026-W28'), w('2026-W27')], now)).toMatchObject({
+      period: '2026-W28', cadence: 'W',
+    });
+    expect(es.isSeriesStale([w('2026-W30'), w('2026-W27'), w('2026-W28')], now)).toMatchObject({
+      period: '2026-W30', cadence: 'W',
+    });
+
+    // The control: the tiebreaker must not disturb any other cadence, and
+    // `periodToWeekIndex` returns null for all of them.
+    expect(es.isSeriesStale([{ period: '2026M05', value: 1 }, { period: '2026M06', value: 2 }], now))
+      .toMatchObject({ period: '2026M06', cadence: 'M' });
+    expect(es.isSeriesStale([{ period: '2026-Q1', value: 1 }, { period: '2025-Q4', value: 2 }], now))
+      .toMatchObject({ period: '2026-Q1', cadence: 'Q' });
+  });
+
   it('says "cannot tell" rather than guessing on unusable input', () => {
     // null must not read as stale (needless failover) or as fresh (hidden freeze).
     const now = new Date('2026-08-25T00:00:00Z');
