@@ -106,14 +106,14 @@ jobs:
 
       - name: Build the rehearsal reading
         id: rehearsal
-        if: inputs.rehearse != 'no' || github.event_name == 'push'  # TEMPORARY
+        if: inputs.rehearse != 'no' && inputs.rehearse != ''
         run: |
           set -euo pipefail
 
           # Rehearsals drive the real notification path with a broken reading
           # rather than a mock of it. A notification path that has never
           # delivered is not a notification path.
-          case "${{ inputs.rehearse || 'drought' }}" in
+          case "${{ inputs.rehearse }}" in
             dead-feed)
               cat > rehearsal.json <<'JSON'
           {
