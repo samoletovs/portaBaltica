@@ -46,6 +46,27 @@
  * Eurostat every run — *"reconciles goods and services against the trade
  * balance"*. This reads a relationship the repo already verifies numerically.
  *
+ * ## The population, and the defect that was in this file itself
+ *
+ * The rule above is general. The first version of this file enforced it with
+ * `.filter(([, def]) => def.dataset === 'bop_c6_q')` — **one dataset**, while
+ * the registry carries seven families where a part/whole relation exists. Six
+ * were ungoverned while looking covered, which is the shape `AGENTS.md` records
+ * three prior instances of, arriving here in the guard written to close the
+ * third.
+ *
+ * Widening it found a second instance of the original defect. `gov_revenue` is
+ * declined — *"receipts are not by themselves good or bad news"* — and
+ * `gov_deficit` is revenue minus expenditure, so grading the deficit would
+ * grade receipts through the arithmetic. Nobody had graded it, so nothing was
+ * wrong on the page; but nothing was stopping it either.
+ *
+ * So the containment stays declared data, per the trap above, and the
+ * **population** is derived: `compositionCapable()` asks the registry which
+ * datasets could possibly hold a part/whole relation, and an equality requires
+ * each to be placed in `FAMILIES` or in `NO_PART_WHOLE` with a reason. An
+ * eighth family fails until someone decides which it is.
+ *
  * ## Why this is a test and not a runtime module
  *
  * It reads `api/shared/indicators.js`, a CommonJS file the browser bundle does
@@ -71,68 +92,152 @@ function param(params: string, name: string): string | null {
 }
 
 /**
- * Which `bop_item` contains which, as a fact about the vocabulary rather than
- * about these particular indicators.
+ * Which code contains which, per family, as a fact about each vocabulary rather
+ * than about these particular indicators.
  *
- * Written down because it cannot be read off the codes without a false
- * positive — see the header. Every entry is BPM6's own hierarchy:
+ * Written down because it cannot be read off the codes without a false positive
+ * — see the header, and note the trap is not confined to `bop_item`.
+ * `TOT_X_NRG_FOOD` is the HICP total *excluding* energy and food, so any
+ * name-parsing shortcut would read it as containing the two things it is
+ * defined by removing.
  *
- *   GS  goods and services            = G + S
- *   S   services                      ⊃ SC transport, SG financial,
- *                                       SI telecom/computer/information,
- *                                       SJ other business
- *   CA  current account               ⊃ GS, plus primary and secondary income
- *                                       which this registry does not carry
- *
- * `CA` is deliberately included even though the registry holds only one of its
- * components: a partial composition is still a real dependency. A current
- * account balance moves with the trade balance, so it inherits the same
- * problem, and being unable to see the other components is a reason to be more
- * cautious rather than less.
+ * A `flow` entry names a dimension that *is* the arithmetic, so that family's
+ * relation is read from the registry rather than declared. Only balance of
+ * payments has one.
  */
-const CONTAINS: Record<string, readonly string[]> = {
-  GS: ['G', 'S'],
-  S: ['SC', 'SG', 'SI', 'SJ'],
-  CA: ['GS'],
+interface Family {
+  readonly dataset: string;
+  readonly dimension: string;
+  readonly contains: Record<string, readonly string[]>;
+  readonly flow?: { readonly dimension: string; readonly balance: string; readonly sides: readonly string[] };
+}
+
+const FAMILIES: readonly Family[] = [
+  {
+    // GS  goods and services  = G + S
+    // S   services            ⊃ SC transport, SG financial,
+    //                           SI telecom/computer/information, SJ other business
+    // CA  current account     ⊃ GS, plus primary and secondary income which this
+    //                           registry does not carry. A partial composition is
+    //                           still a real dependency, and being unable to see
+    //                           the other components is a reason to be more
+    //                           cautious rather than less.
+    dataset: 'bop_c6_q',
+    dimension: 'bop_item',
+    contains: { GS: ['G', 'S'], S: ['SC', 'SG', 'SI', 'SJ'], CA: ['GS'] },
+    flow: { dimension: 'stk_flow', balance: 'BAL', sides: ['CRE', 'DEB'] },
+  },
+  {
+    // The all-items HICP moves with each of its components. `TOT_X_NRG_FOOD` is
+    // a component of the total in exactly the sense that matters here — it is
+    // most of it — even though it is defined by subtraction.
+    dataset: 'prc_hicp_minr',
+    dimension: 'coicop18',
+    contains: { TOTAL: ['NRG', 'FOOD', 'TOT_X_NRG_FOOD', 'SERV', 'GD', 'AP', 'ELC_GAS'] },
+  },
+  {
+    dataset: 'sts_cobp_q',
+    dimension: 'cpa2_1',
+    contains: { CPA_F41001_41002: ['CPA_F41001', 'CPA_F41002'] },
+  },
+  {
+    dataset: 'tour_occ_nim',
+    dimension: 'c_resid',
+    contains: { TOTAL: ['FOR'] },
+  },
+  {
+    dataset: 'nrg_cb_pem',
+    dimension: 'siec',
+    contains: { TOTAL: ['RA000'] },
+  },
+  {
+    // Net lending/borrowing is revenue minus expenditure. Expenditure is not in
+    // this registry, so like `CA` this is a partial composition.
+    dataset: 'gov_10q_ggnfa',
+    dimension: 'na_item',
+    contains: { B9: ['TR'] },
+  },
+  {
+    // A youth unemployment rate is not an addend of the total rate. It is
+    // containment of population rather than of arithmetic — and it belongs here
+    // anyway, because the rule is about **sign inheritance**, not about
+    // addition. If reasonable parties disagreed on the sign of youth
+    // unemployment, an aggregate that moves with it could not be graded either.
+    dataset: 'une_rt_m',
+    dimension: 'age',
+    contains: { TOTAL: ['Y_LT25'] },
+  },
+];
+
+/**
+ * Datasets whose several definitions are **siblings**, not parts of one another.
+ *
+ * Declared rather than left out, because "not a family" and "nobody looked" are
+ * the same silence otherwise. Each carries the reason, and the equality below
+ * means a new multi-definition dataset lands in one list or the other rather
+ * than in neither.
+ */
+const NO_PART_WHOLE: Record<string, string> = {
+  lc_lci_r2_q: 'NACE C and J are two sectors, and the registry carries no total',
+  demo_gind: 'net migration rate and birth rate are two components of population change, not parts of each other',
+  sts_rb_q: 'registrations and bankruptcies are opposite events, not a decomposition',
+  road_go_tq_tott: 'tonnes and tonne-kilometres are the same activity in two units — a restatement, not a part',
 };
 
 interface Series {
   id: string;
-  item: string;
+  dataset: string;
+  code: string;
   flow: string;
 }
 
-/** Every balance-of-payments definition, with the two dimensions that matter. */
-const bop: Series[] = entries
-  .filter(([, def]) => def.dataset === 'bop_c6_q')
-  .map(([id, def]) => ({
-    id,
-    item: param(def.params, 'bop_item') ?? '',
-    flow: param(def.params, 'stk_flow') ?? '',
-  }))
-  .filter((s) => s.item !== '' && s.flow !== '');
+const familyOf = (dataset: string): Family | undefined =>
+  FAMILIES.find((f) => f.dataset === dataset);
 
-const byItemFlow = new Map(bop.map((s) => [`${s.item}/${s.flow}`, s.id]));
+/** Every definition that belongs to a declared family, with the dimensions that matter. */
+const series: Series[] = entries
+  .flatMap(([id, def]) => {
+    const family = familyOf(def.dataset);
+    if (!family) return [];
+    const code = param(def.params, family.dimension);
+    if (code === null) return [];
+    return [{
+      id,
+      dataset: def.dataset,
+      code,
+      flow: family.flow ? (param(def.params, family.flow.dimension) ?? '') : '',
+    }];
+  });
+
+/** Kept under its old name: every assertion about balance of payments reads it. */
+const bop = series.filter((s) => s.dataset === 'bop_c6_q' && s.flow !== '');
+
+/** The balance-of-payments containment table, still addressable by name. */
+const CONTAINS = familyOf('bop_c6_q')!.contains;
+
+const byKey = new Map(series.map((s) => [`${s.dataset}/${s.code}/${s.flow}`, s.id]));
 
 /**
- * The ids whose value is arithmetically determined by `id`.
+ * The ids whose value determines `series`.
  *
- * One step, both rules. `inputsOf` is the inverse — what determines this one.
+ * Both rules, one step. `ancestorsOf` walks it transitively.
  */
-function inputsOf(series: Series): string[] {
+function inputsOf(s: Series): string[] {
+  const family = familyOf(s.dataset);
+  if (!family) return [];
   const found: string[] = [];
 
-  // Rule 1, derived: BAL(x) = CRE(x) − DEB(x).
-  if (series.flow === 'BAL') {
-    for (const side of ['CRE', 'DEB']) {
-      const id = byItemFlow.get(`${series.item}/${side}`);
+  // Rule 1, derived: a dimension that *is* the arithmetic. BAL(x) = CRE(x) − DEB(x).
+  if (family.flow && s.flow === family.flow.balance) {
+    for (const side of family.flow.sides) {
+      const id = byKey.get(`${s.dataset}/${s.code}/${side}`);
       if (id) found.push(id);
     }
   }
 
-  // Rule 2, declared: a composite item is the sum of its parts at the same flow.
-  for (const part of CONTAINS[series.item] ?? []) {
-    const id = byItemFlow.get(`${part}/${series.flow}`);
+  // Rule 2, declared: a composite code is made of its parts at the same flow.
+  for (const part of family.contains[s.code] ?? []) {
+    const id = byKey.get(`${s.dataset}/${part}/${s.flow}`);
     if (id) found.push(id);
   }
 
@@ -145,9 +250,9 @@ function ancestorsOf(id: string): Set<string> {
   const queue = [id];
   while (queue.length > 0) {
     const current = queue.pop()!;
-    const series = bop.find((s) => s.id === current);
-    if (!series) continue;
-    for (const input of inputsOf(series)) {
+    const found = series.find((s) => s.id === current);
+    if (!found) continue;
+    for (const input of inputsOf(found)) {
       if (seen.has(input)) continue;
       seen.add(input);
       queue.push(input);
@@ -157,20 +262,112 @@ function ancestorsOf(id: string): Set<string> {
 }
 
 /**
- * Definitions whose `bop_item` the graph cannot place.
+ * Definitions whose code the graph cannot place, within their own family.
  *
  * Extracted as a function of a series list rather than written inline, so a
  * test can hand it a synthetic series and prove it detects one. Inline, the
  * assertion below could be weakened to `.filter(() => false)` and nothing
  * would notice — measured, by planting exactly that: it went green.
  */
-function unplacedIn(series: Series[]): string[] {
-  const placed = new Set([...Object.keys(CONTAINS), ...Object.values(CONTAINS).flat()]);
-  return series
-    .filter((s) => !placed.has(s.item) && inputsOf(s).length === 0)
-    .map((s) => `${s.id} (${s.item}/${s.flow})`)
+function unplacedIn(list: Series[]): string[] {
+  return list
+    .filter((s) => {
+      const family = familyOf(s.dataset);
+      if (!family) return true;
+      const placed = new Set([
+        ...Object.keys(family.contains),
+        ...Object.values(family.contains).flat(),
+      ]);
+      return !placed.has(s.code) && inputsOf(s).length === 0;
+    })
+    .map((s) => `${s.id} (${s.code}${s.flow ? `/${s.flow}` : ''})`)
     .sort();
 }
+
+/**
+ * Every dataset in the registry where a part/whole relation between two
+ * definitions is even **possible** — more than one definition, differing on
+ * something other than geography or time.
+ *
+ * Derived, not listed. This is the population the rule applies to, and the
+ * reason it is computed is that the first version of this file filtered to
+ * `dataset === 'bop_c6_q'` and so enumerated **one of seven** families while
+ * stating a general rule. That is the shape `AGENTS.md` records three prior
+ * instances of, arriving in the guard written to close the third.
+ */
+function compositionCapable(): string[] {
+  const IRRELEVANT = new Set(['format', 'lang', 'sinceTimePeriod', 'geo', 'time', 'freq']);
+  const byDataset = new Map<string, { id: string; params: string }[]>();
+  for (const [id, def] of entries) {
+    if (!def?.dataset) continue;
+    if (!byDataset.has(def.dataset)) byDataset.set(def.dataset, []);
+    byDataset.get(def.dataset)!.push({ id, params: def.params ?? '' });
+  }
+
+  return [...byDataset]
+    .filter(([, defs]) => {
+      if (defs.length < 2) return false;
+      const seen = new Map<string, Set<string>>();
+      for (const { params } of defs) {
+        for (const [k, v] of new URLSearchParams(params)) {
+          if (IRRELEVANT.has(k)) continue;
+          if (!seen.has(k)) seen.set(k, new Set());
+          seen.get(k)!.add(v);
+        }
+      }
+      return [...seen.values()].some((vals) => vals.size > 1);
+    })
+    .map(([dataset]) => dataset)
+    .sort();
+}
+
+describe('the rule covers every family the registry has, not the one it was found in', () => {
+  it('names every dataset where a part/whole relation is possible, as an equality', () => {
+    // The population check, and it is an equality rather than a subtraction so
+    // that a *seventh* family forces a decision instead of passing silently.
+    // A new multi-definition dataset must land in FAMILIES with its containment
+    // or in NO_PART_WHOLE with a reason. Landing in neither is what this file
+    // exists to make impossible.
+    expect(
+      compositionCapable(),
+      'this dataset has several definitions differing on a real dimension, so one of them ' +
+        'may be part of another. Add it to FAMILIES with its containment, or to ' +
+        'NO_PART_WHOLE with the reason its definitions are siblings.',
+    ).toEqual([...FAMILIES.map((f) => f.dataset), ...Object.keys(NO_PART_WHOLE)].sort());
+  });
+
+  it('is looking at a real population, so the equality above is not vacuous', () => {
+    // The companion. If `compositionCapable()` returned nothing — a renamed
+    // field, a changed param shape — the equality would only pass with both
+    // lists empty, but a *future* edit emptying the lists to match would then
+    // sail through. This pins that the registry really does carry families.
+    const found = compositionCapable();
+    expect(found.length).toBeGreaterThanOrEqual(10);
+    expect(found).toContain('bop_c6_q');
+    expect(found).toContain('prc_hicp_minr');
+  });
+
+  it('builds a graph for every family, not just the one with the flow dimension', () => {
+    // `bop_c6_q` is the only family whose arithmetic is readable off a
+    // dimension. If the graph silently covered only that one — the original
+    // defect — every other family would have zero series and every assertion
+    // about them would pass over nothing.
+    for (const family of FAMILIES) {
+      const members = series.filter((s) => s.dataset === family.dataset);
+      expect(members.length, `no series parsed for ${family.dataset}`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('places every code in every family, so a new one cannot slip past', () => {
+    // The equality the header promises, now over all seven families rather
+    // than over balance of payments alone.
+    expect(
+      unplacedIn(series),
+      'these definitions use a code their family containment table does not mention, so ' +
+        'the graph cannot tell what they are made of or what they are part of.',
+    ).toEqual([]);
+  });
+});
 
 describe('the derivation graph, before anything is asserted with it', () => {
   it('found the balance family at all', () => {
@@ -215,13 +412,21 @@ describe('the derivation graph, before anything is asserted with it', () => {
     // than imagined: weakening the filter above to `.filter(() => false)` left
     // the whole file green. An empty offender list is the same reading for
     // "everything is placed" and "the detector is switched off".
-    const synthetic: Series[] = [{ id: 'a_new_balance', item: 'ZZ', flow: 'BAL' }];
+    const synthetic: Series[] = [{ id: 'a_new_balance', dataset: 'bop_c6_q', code: 'ZZ', flow: 'BAL' }];
 
     expect(unplacedIn(synthetic)).toEqual(['a_new_balance (ZZ/BAL)']);
 
     // And the other direction: a series whose item *is* placed must not be
     // reported, or the detector fires on everything and says nothing.
-    expect(unplacedIn([{ id: 'a_known_balance', item: 'SC', flow: 'BAL' }])).toEqual([]);
+    expect(unplacedIn([{ id: 'a_known_balance', dataset: 'bop_c6_q', code: 'SC', flow: 'BAL' }])).toEqual([]);
+
+    // And once more in a family with no flow dimension, because the detector
+    // now spans seven vocabularies and passing in one proves nothing about the
+    // other six.
+    expect(unplacedIn([{ id: 'a_new_permit', dataset: 'sts_cobp_q', code: 'ZZ', flow: '' }]))
+      .toEqual(['a_new_permit (ZZ)']);
+    expect(unplacedIn([{ id: 'a_known_permit', dataset: 'sts_cobp_q', code: 'CPA_F41001', flow: '' }]))
+      .toEqual([]);
   });
 
   it('resolves the chain the whole ruling turns on', () => {
@@ -256,8 +461,16 @@ describe('the derivation graph, before anything is asserted with it', () => {
 });
 
 describe('a declined input taints everything computed from it', () => {
-  /** Ids that inherit an abstention, whatever anyone would like to say about them. */
-  const tainted = bop
+  /**
+   * Ids that inherit an abstention, whatever anyone would like to say about
+   * them.
+   *
+   * Computed over **every** family rather than over balance of payments alone.
+   * That is the correction this file needed: the rule it states is general and
+   * its first implementation filtered to one dataset, so six families were
+   * ungoverned while looking covered.
+   */
+  const tainted = series
     .filter((s) => [...ancestorsOf(s.id)].some((a) => DELIBERATELY_NEUTRAL.has(a)))
     .map((s) => s.id)
     .sort();
@@ -266,9 +479,29 @@ describe('a declined input taints everything computed from it', () => {
     // Not an exemption list. Each of these is here because the graph says a
     // declined series determines its value, and the day `imports` is graded
     // they all leave on their own.
+    //
+    // Two names arrived when the graph widened from one family to seven, and
+    // they are different in kind.
+    //
+    // `building_permits` is already declined on its own account, so the taint
+    // now says the same thing about it twice, from two directions. That is the
+    // correct reading rather than a redundancy to trim: if the total were ever
+    // re-graded while the two component permit series stayed declined, the
+    // arithmetic would still refuse it.
+    //
+    // **`gov_deficit` is the find.** `gov_revenue` is declined with a written
+    // reason — *"receipts are not by themselves good or bad news"* — and net
+    // lending/borrowing is revenue minus expenditure, so grading the deficit
+    // would grade receipts after all, in whichever direction the arithmetic
+    // carried. That is `trade_balance`/`imports` exactly, in a second family,
+    // and the bop-scoped version of this file could not see it. It is not a
+    // live fault: `gov_deficit` is ungraded today. It is now ungraded *by
+    // rule* rather than by nobody having asked.
     expect(tainted).toEqual([
+      'building_permits',
       'current_account',
       'goods_balance',
+      'gov_deficit',
       'trade_balance',
     ]);
   });
@@ -279,6 +512,15 @@ describe('a declined input taints everything computed from it', () => {
     // everything.
     expect(tainted.length).toBeGreaterThan(0);
     expect(DELIBERATELY_NEUTRAL.has('imports'), 'the declined input this rests on').toBe(true);
+  });
+
+  it('reaches beyond the family the rule was found in', () => {
+    // The assertion that would have failed before this change and passes now,
+    // stated on its own so the widening cannot be quietly undone. If the graph
+    // narrowed back to `bop_c6_q`, every name here would still be produced —
+    // except this one.
+    expect(tainted.some((id) => !bop.some((s) => s.id === id)), 'the taint is bop-only again')
+      .toBe(true);
   });
 
   it('grades none of them', () => {
