@@ -456,6 +456,20 @@ class StyleReport:
         return not self.violations
 
 
+def speculative_impact_phrase(text: str) -> str | None:
+    """The consequence-speculating construction in ``text``, if any.
+
+    One implementation, used both to report the fault and to cut it. Two would
+    be free to disagree about what the fault is, and the cut would then remove
+    a paragraph the report did not name, or leave one it did.
+    """
+    for pattern in SPECULATIVE_IMPACT:
+        found = pattern.search(text)
+        if found:
+            return found.group(0).strip()
+    return None
+
+
 def check_prose(text: str, *, where: str = "body") -> list[str]:
     """Style violations in a run of prose. Deterministic, case-insensitive."""
     problems: list[str] = []
@@ -491,16 +505,14 @@ def check_prose(text: str, *, where: str = "body") -> list[str]:
                 "reading that would change the conclusion, or end a paragraph earlier"
             )
 
-    for pattern in SPECULATIVE_IMPACT:
-        found = pattern.search(text)
-        if found:
-            problems.append(
-                f"{where}: speculates about consequences, "
-                f"'{found.group(0).strip()}' — the data does not establish who "
-                "this lands on or what they will do. Say what the number IS "
-                "ABOUT, or cut the sentence"
-            )
-            break
+    phrase = speculative_impact_phrase(text)
+    if phrase:
+        problems.append(
+            f"{where}: speculates about consequences, "
+            f"'{phrase}' — the data does not establish who "
+            "this lands on or what they will do. Say what the number IS "
+            "ABOUT, or cut the sentence"
+        )
 
     return problems
 
@@ -523,7 +535,12 @@ def review_headline(headline: str) -> tuple[str, list[str], list[str]]:
     return fixed, violations, corrections
 
 
-def apply_house_style(article, *, cut_empty_closings: bool = False) -> StyleReport:
+def apply_house_style(
+    article,
+    *,
+    cut_empty_closings: bool = False,
+    cut_speculative_impact: bool = False,
+) -> StyleReport:
     """Copy-edit an article in place and report what is left.
 
     Corrections are applied; violations are recorded and returned separately,
@@ -549,6 +566,13 @@ def apply_house_style(article, *, cut_empty_closings: bool = False) -> StyleRepo
 
     if article.dek:
         report.violations.extend(check_prose(article.dek, where="dek"))
+
+    # BEFORE the per-block scan below, not after, so a paragraph that is cut is
+    # not also reported as a violation the desk should act on. The desk would
+    # otherwise be handed a note naming prose that no longer exists — the same
+    # dishonest artefact ``_revalidate`` was written to prevent one layer out.
+    if cut_speculative_impact:
+        _cut_speculative_impact(article, report)
 
     for index, block in enumerate(article.body or []):
         if block.text:
@@ -593,6 +617,85 @@ def apply_house_style(article, *, cut_empty_closings: bool = False) -> StyleRepo
 #: A cut can expose another empty closing beneath it. Bounded so that a body of
 #: nothing but formula cannot loop, and so an article is never reduced to none.
 _MAX_CLOSING_CUTS = 3
+
+#: The same bound, for the same reason. Measured over the 25 published tier A
+#: originals, no article carried more than one of these.
+_MAX_IMPACT_CUTS = 2
+
+
+def _cut_speculative_impact(article, report: StyleReport) -> None:
+    """Delete paragraphs that assert a consequence the data does not establish.
+
+    ASK FIRST, THEN CUT — the shape ``_cut_empty_closings`` already uses, and
+    for the reason stated there: *a check the model can outlast is bounded by
+    the retry budget rather than by its own correctness*. That sentence was
+    written about the closing and is true of this fault too, which is the
+    larger one. It was simply never applied here.
+
+    What that cost, measured over all 25 published tier A originals:
+
+    - **13 of 25** carry a paragraph this module's own ``SPECULATIVE_IMPACT``
+      matches — "impacts logistics companies", "directly impacts consumers",
+      "impacts employers" — and every one of them published.
+    - The desk caught all of them by hand. **17 of 17** of its "ran as filed"
+      approvals name this paragraph, and ``desk.py`` instructs it to say *"A
+      speculative impact paragraph is a CUT, not a rewrite"* and approve with
+      that note. **Nothing anywhere performed the cut.** The desk asked 17
+      times and was never once obeyed.
+    - So the fault spent the generator's retry budget AND the desk's single
+      revision, and published regardless.
+
+    The prompt is not the gap. It already tells the writer, in capitals, that
+    "THIS PARAGRAPH SHOULD NOT EXIST — write the piece without it", and the
+    plan it belongs to already says to skip any paragraph "for which you were
+    given nothing". A fourth restatement would be the strategy this module's
+    own comment records failing three times.
+
+    THE CUT IS DELIBERATELY NARROW, and the boundary is measured rather than
+    chosen. Of the 14 offending paragraphs:
+
+    ================================  =====  ==========================
+    where                             n      cut?
+    ================================  =====  ==========================
+    figure-free, not the lead         12     yes — withdraws no claim
+    carries a figure                   2     no — would delete real work
+    the lead paragraph                 0     never eligible
+    ================================  =====  ==========================
+
+    A figure-free paragraph makes no numeric claim, so removing it can only
+    withdraw prose. The two that carry a figure are left for the desk, which is
+    the right place for a judgement about whether the sentence or the figure is
+    the point.
+    """
+    for _ in range(_MAX_IMPACT_CUTS):
+        prose = [
+            (index, block)
+            for index, block in enumerate(article.body or [])
+            if getattr(block, "type", None) == "paragraph" and block.text
+        ]
+        # Never the last surviving paragraph, and never the lead: an article
+        # reduced to nothing is a generation failure and must reach the
+        # validator looking like one.
+        if len(prose) <= 1:
+            return
+
+        for index, block in prose[1:]:
+            if getattr(block, "figures", None):
+                continue
+            phrase = speculative_impact_phrase(block.text)
+            if phrase is None:
+                continue
+            del article.body[index]
+            report.cuts.append(
+                f"body[{index}]: cut a paragraph asserting a consequence the "
+                f"data does not establish — {phrase!r} in {block.text[:80]!r}"
+            )
+            report.corrections.append(
+                "removed a paragraph that speculated about who the figure lands on"
+            )
+            break
+        else:
+            return
 
 
 def _cut_empty_closings(article, report: StyleReport) -> None:
