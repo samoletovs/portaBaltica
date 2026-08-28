@@ -581,6 +581,34 @@ behind a stale `verified:` note, and two indicator registries sharing an id
 space where nine ids name different statistics. **Read the artefact.** It is
 the habit that found the most this run and it cannot be delegated.
 
+**Make the closing exchange part of the process, not politeness.** When a
+session finishes, send it what you merged and what you wrote down about it, and
+read what it sends back. This run's final hour produced **four corrections to
+me**, every one from a session reading the brief rather than from me re-reading
+it, and every one landed in the handover:
+
+```
+a false example I had written about a session's own work   -> retracted
+a throughput number I was incrementing rather than counting -> exposed a window
+                                                               error inflating
+                                                               the headline 42 -> 49
+an overclaim that ownership "enforces" the measure/remedy split -> weakened to
+                                                               what the evidence
+                                                               supports
+a false illustration whose fix reached one of three copies  -> all three fixed
+```
+
+**The method found faults in itself, in its own artefacts, using its own rules** —
+an incremented tally that nobody could audit is precisely `runs/latest.json`
+before `#217`, one layer out in the coordination channel.
+
+**And the caveat is the important half**, in the words of the session that drew
+it: all four were caught by *a second reader*, not by the author and not by any
+check. **The method self-corrects only where it has a second reader — and a run
+that loses that will not notice it has.** Fewer sessions, or sessions that do
+not read each other's closing messages, removes the mechanism silently. It costs
+one message per session at a point where the work is already done.
+
 ---
 
 ## Run a journal in SQLite, not in markdown
