@@ -54,12 +54,21 @@ site          healthy · 8/8 required sources · 0 stale
 newsroom      deployed at master head; the 14:00Z timer edition published
               2 tier A originals at provenance.revision = that day's master head
 articles      81 published
-throughput    42 PRs merged · 25 direct commits · 5.1 PR/h · doc ratio 1 : 6.4
+throughput    42 PRs merged · 5.1 PR/h · doc ratio ~1 : 6
+
+              Measured over 5cfba82..master -- the handover commit at 10:16Z,
+              NOT the calendar day, which adds the previous run's last 7 PRs and
+              its markdown. The direct-commit count is deliberately absent: it is
+              self-referential, so every commit correcting it made it wrong
+              again. Measure it, do not read it:
+
+                git log --format='%s' 5cfba82..origin/master |
+                  Where-Object { $_ -notmatch '\(#\d+\)\s*$' } | Measure-Object
               (measured 5cfba82..master, i.e. since the handover at 10:16Z --
                NOT the calendar day, which adds the previous run's last 7 PRs)
 ```
 
-This run merged **42 PRs** and made **23 direct commits to master**, with eight
+This run merged **42 PRs** and made two dozen-odd direct commits to master, with eight
 implementation sessions running concurrently and zero merge conflicts. The
 previous run merged 117 and then found thirteen further defects after declaring
 itself complete. Treat "complete" as a measurement with a timestamp, not a
