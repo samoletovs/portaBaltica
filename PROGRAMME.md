@@ -899,12 +899,17 @@ A session flagged this on its way out and correctly declined to act on it. I
 measured it, and **its stated mechanism is wrong in the dangerous direction**:
 
 ```
-ALL local branches             265
-  samoletovs-*                 140
-  pb-*                          54
-  everything else               71
-LOCAL ONLY -- lost if deleted  135   <- across all prefixes
-checked out in live worktrees   15
+measured 2026-08-28T19:40Z, before this run's own cleanup:
+  ALL local branches             265
+    samoletovs-*                 140
+    pb-*                          54
+    everything else               71
+  LOCAL ONLY -- lost if deleted  135   <- across all prefixes
+  checked out in live worktrees   15
+
+measured 2026-08-28T19:55Z, after it:
+  ALL local branches             217        (48 pb-* scratch branches removed)
+  LOCAL ONLY -- lost if deleted   87
 
 the samoletovs-* slice alone, which is what a prefix filter shows you:
   local 140   remote 133   both 129   local-only 11   remote-only 4
@@ -930,6 +935,25 @@ Read it as a reader does. `warning:` trains you to stop; *"but not yet merged to
 HEAD"* reads as the reason for a refusal; and **the opening clause is past tense
 reporting a deletion that already happened.** The word `Deleted` is on the next
 line. Someone who stops at the warning takes away the opposite of the fact.
+
+**Two ways this bit the manager who wrote this note, within the hour.**
+
+Scratch branches were being cleaned up all evening with `git checkout master
+2>$null; git branch -D $b 2>$null`. In a worktree, `git checkout master` fails —
+*"already used by worktree at ..."* — so the delete then failed too, on the branch
+still checked out. `2>$null` hid both. **54 branches accumulated while the cleanup
+reported nothing, and nothing is what success looks like.** Detach first
+(`git checkout --detach`), and do not silence the stream that tells you it did not
+work.
+
+Then the bulk delete that followed removed five branches this note had just
+promised to preserve. They were recoverable **only because their SHAs had been
+captured earlier for an unrelated check** — luck, not design. Before any bulk
+delete, print the SHAs you are about to drop:
+
+```powershell
+git branch --format='%(objectname:short) %(refname:short)' | Where-Object { $_ -like '* pb-*' }
+```
 
 Reproduce a destructive probe on something disposable. The first measurement here
 ran `-d` on a real branch and **destroyed its own subject** — the reading was
@@ -961,7 +985,8 @@ matched a different prefix and returned a number that looked wrong.
 So enumerate without the filter. The list is a snapshot; re-derive it before acting:
 
 ```powershell
-$local  = git branch --format='%(refname:short)'          # no prefix filter
+$local  = git branch --format='%(refname:short)' |
+            Where-Object { $_ -notlike '(*' }        # drop the detached-HEAD pseudo-entry
 $remote = (git ls-remote --heads origin | %{ ($_ -split "`t")[1] -replace '^refs/heads/','' })
 $local | Where-Object { $_ -notin $remote }   # these exist nowhere else
 
