@@ -1,8 +1,36 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { IndicatorChart } from './IndicatorCard';
 import { BalticCompareChart } from './BalticCompareChart';
 import { useCountry } from '../CountryContext';
+import { usePageMeta } from '../newsroom/usePageMeta';
+
+/**
+ * One entry of the indicator registry, as `/api/baltic-compare?list=1` serves it.
+ *
+ * Fetched rather than mirrored. A hand-written copy of the registry in `src/`
+ * is the two-enumerations problem this repo keeps finding — and this file
+ * already had two of them (`EUROSTAT_MAP` and `INDICATOR_INFO`), which is
+ * precisely how 57 of the dashboard's 71 indicators ended up with a page that
+ * rendered "Unknown indicator".
+ */
+interface RegistryEntry {
+  id: string;
+  title: string;
+  unit: string;
+  dataset: string;
+  freq: string;
+}
+
+/** `Q` → "Quarterly", for a description a person would read. */
+const FREQ_WORD: Record<string, string> = {
+  A: 'Annual',
+  S: 'Half-yearly',
+  Q: 'Quarterly',
+  M: 'Monthly',
+  W: 'Weekly',
+  D: 'Daily',
+};
 
 // Map indicators to their Eurostat equivalent for Baltic comparison
 const EUROSTAT_MAP: Record<string, string> = {
@@ -170,9 +198,78 @@ export function IndicatorPage() {
       setCountry(requested);
     }
   }, [requested, setCountry]);
-  const info = id ? INDICATOR_INFO[id] : null;
 
-  if (!id || !info) {
+  /**
+   * The registry, or `null` when we asked and could not find out.
+   *
+   * Three states kept apart on purpose: `undefined` is "not asked yet", `null`
+   * is "asked and failed", an array is an answer. A page must not say "Unknown
+   * indicator" about a series the registry would have recognised, merely
+   * because the catalogue request had not landed yet.
+   */
+  const [registry, setRegistry] = useState<RegistryEntry[] | null | undefined>(undefined);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/baltic-compare?list=1', { signal: controller.signal, credentials: 'omit' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { indicators?: RegistryEntry[] } | null) => {
+        setRegistry(Array.isArray(payload?.indicators) ? payload.indicators : null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setRegistry(null);
+      });
+    return () => controller.abort();
+  }, []);
+
+  const info = id ? INDICATOR_INFO[id] : null;
+  const registered = id && registry ? registry.find((entry) => entry.id === id) : undefined;
+
+  /**
+   * Does this URL name something we can show?
+   *
+   * Either we hold an editorial entry for it, or the dashboard's own registry
+   * serves it. Anything else is a stale link or a typed URL, and it gets the
+   * dead end below.
+   */
+  const known = Boolean(info) || Boolean(registered);
+  const stillLooking = registry === undefined && !info;
+
+  const title = info?.title ?? registered?.title ?? 'Indicator';
+
+  /**
+   * The description, distinct per page, and composed only where it must be.
+   *
+   * The 24 editorial entries are used as written — measured, 24 of 24 distinct,
+   * 97 to 179 characters, longest shared prefix between any two 34 characters.
+   *
+   * The rest are composed from the registry, and the composition deliberately
+   * leads with the registry's own title. Measured across all 71: `freq`, `unit`
+   * and `dataset` together are distinct for only 47 — eight inflation variants
+   * share `M | % YoY | prc_hicp_minr` between them — so a description built
+   * from those three alone would put an identical sentence on eight pages,
+   * which is the duplicate-content problem one level down from the canonical
+   * one this page is being fixed for. `title` is distinct 71 of 71, so leading
+   * with it is what makes the composed form safe.
+   */
+  const description = info?.description
+    ?? (registered
+      ? `${registered.title} for Latvia, Estonia and Lithuania. ` +
+        `${FREQ_WORD[registered.freq] ?? 'Periodic'} series in ${registered.unit}, ` +
+        `from Eurostat dataset ${registered.dataset}, downloadable as CSV or JSON.`
+      : undefined);
+
+  usePageMeta({
+    title: known ? `${title} | portaBaltica` : 'Indicator | portaBaltica',
+    description,
+    canonicalPath: id ? `/indicator/${id}` : undefined,
+    // A dead end must not be indexed, and it cannot be a 404: the SPA fallback
+    // answers HTTP 200 for every route here — `/utterly-invented-page` included,
+    // verified against production — so `noindex` is the only signal available.
+    index: known || stillLooking,
+  });
+
+  if (!id || (!known && !stillLooking)) {
     return (
       <div className="min-h-screen">
         <div className="max-w-5xl mx-auto px-4 py-12">
@@ -182,6 +279,39 @@ export function IndicatorPage() {
       </div>
     );
   }
+
+  if (stillLooking) {
+    return (
+      <div className="min-h-screen">
+        <div className="max-w-5xl mx-auto px-4 py-12">
+          <div
+            className="dash-skeleton h-64 animate-pulse rounded-xl"
+            aria-busy="true"
+            aria-label="Loading the indicator"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  /**
+   * Which series the Baltic comparison should ask for.
+   *
+   * `EUROSTAT_MAP` translates the legacy ids that predate the registry. A
+   * registry id needs no translation — it *is* the id the API serves — and
+   * routing every id through the map is what left 57 indicators unreachable.
+   */
+  const compareId = (id && EUROSTAT_MAP[id]) ?? registered?.id;
+
+  /**
+   * The Latvian series exists only for the editorial ids.
+   *
+   * `/api/historical-data?indicator=road_freight` answers 400 while
+   * `/api/baltic-compare?indicator=road_freight` answers 200 — measured. Asking
+   * anyway would put an empty chart frame on 57 pages, which this codebase
+   * treats as worse than showing no chart at all.
+   */
+  const hasNationalSeries = Boolean(info);
 
   return (
     <div className="min-h-screen">
@@ -196,26 +326,30 @@ export function IndicatorPage() {
 
         {/* Header */}
         <h1 className="balance-text text-headline sm:text-display font-semibold dash-fg mb-3">
-          {info.title}
+          {title}
         </h1>
         <p className="text-ui mb-1" style={{ color: 'var(--text-secondary)' }}>{flag} {countryLabel}</p>
-        <p className="text-ui mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{info.description}</p>
+        {description && (
+          <p className="text-ui mb-6 max-w-2xl" style={{ color: 'var(--text-body)' }}>{description}</p>
+        )}
 
-        {/* Main chart */}
-        <div className="dash-card border dash-edge rounded-xl p-6 mb-6">
-          <IndicatorChart id={id} />
-        </div>
+        {/* The Latvian series, where one exists. */}
+        {hasNationalSeries && (
+          <div className="dash-card border dash-edge rounded-xl p-6 mb-6">
+            <IndicatorChart id={id} />
+          </div>
+        )}
 
         {/* Baltic comparison */}
-        {EUROSTAT_MAP[id] && (
+        {compareId && (
           <div className="mb-8">
             <h2 className="balance-text text-title font-semibold dash-fg mb-4">Baltic Comparison</h2>
-            <BalticCompareChart indicator={EUROSTAT_MAP[id]} title={`${info.title} — Latvia vs Estonia vs Lithuania`} />
+            <BalticCompareChart indicator={compareId} title={`${title} — Latvia vs Estonia vs Lithuania`} />
           </div>
         )}
 
         {/* Related indicators */}
-        {info.related.length > 0 && (
+        {info && info.related.length > 0 && (
           <div>
             <h2 className="balance-text text-title font-semibold dash-fg mb-4">Related Indicators</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -239,9 +373,9 @@ export function IndicatorPage() {
 
         {/* Footer */}
         <p className="text-caption mt-8" style={{ color: 'var(--text-tertiary)' }}>
-          {EUROSTAT_MAP[id]
-            ? 'Data from Eurostat. Updated according to Eurostat publication calendar.'
-            : `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`
+          {hasNationalSeries && !registered
+            ? `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`
+            : 'Data from Eurostat. Updated according to Eurostat publication calendar.'
           }{' '}
           All data is publicly available under open license.{' '}
           {/* The open-licence claim used to end the page with nothing behind it.

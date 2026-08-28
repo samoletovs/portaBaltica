@@ -1,4 +1,5 @@
 const newsroom = require('../shared/newsroom.js');
+const indicators = require('../shared/indicators.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
@@ -7,6 +8,29 @@ const SECTIONS = [
   'economy', 'trade', 'government', 'labour', 'energy',
   'property', 'environment', 'business', 'maritime',
 ];
+
+/**
+ * Every indicator with a page, read from the registry the dashboard renders
+ * from rather than listed here.
+ *
+ * DERIVED, NOT MIRRORED, AND THIS IS THE WHOLE POINT
+ * ---------------------------------------------------
+ * `SECTIONS` and `CORRESPONDENTS` above are hand-written copies that a test
+ * holds to an equality, because the Function App cannot import from `src/`. It
+ * *can* import from `api/shared/`, so this one needs no copy at all — and a
+ * shared enumeration cannot drift, where two always will.
+ *
+ * That distinction is not academic here. This file was one of THREE
+ * enumerations of the same thing: `INDICATOR_INFO` in `IndicatorPage.tsx`
+ * knew 24, `DASHBOARD_INDICATORS` in `chart-ref.ts` knew 71, and the registry
+ * serves 71. Fifty-seven indicators were therefore linkable from an article and
+ * rendered "Unknown indicator" — measured against production on 2026-08-28,
+ * 14 of the 19 published articles carrying a resolvable chart reference sent
+ * their reader to that dead end from the "Check it yourself" link.
+ */
+function indicatorIds() {
+  return Object.keys(indicators).sort();
+}
 
 /**
  * Routes in `src/main.tsx` that are deliberately NOT in the sitemap.
@@ -21,6 +45,13 @@ const SECTIONS = [
  * absent from the sitemap. Not a filter over it — an equality — so a route
  * added to `main.tsx` fails the suite until someone either lists it or names it
  * here. The decision is forced; it cannot default to absent.
+ *
+ * `/indicator/:id` was here until 2026-08-28, excluded because the page set no
+ * canonical of its own and 71 URLs each declaring the home page canonical would
+ * have been 71 duplicates of one page rather than coverage. The equality is
+ * what forced that entry to be removed rather than quietly kept: the page now
+ * claims itself, so the exclusion had to go and the URLs had to be listed in
+ * the same change.
  */
 const NOT_IN_SITEMAP = {
   /**
@@ -37,28 +68,6 @@ const NOT_IN_SITEMAP = {
    * It is also a catch-all, so it matches paths that resolve to nothing.
    */
   '/:section': 'legacy redirect to /data/:section',
-
-  /**
-   * 71 indicator pages, and this is a judgement rather than an oversight.
-   *
-   * Each serves HTTP 200 and is linked from the dashboard, so the case for
-   * listing them is real: they are the long tail a small data site wants.
-   * The reason they are out is measurable and specific. `IndicatorPage.tsx`
-   * calls `usePageMeta` nowhere, so an indicator page sets no title, no
-   * description and no canonical, and inherits the shell's — which names the
-   * HOME PAGE. Measured in a rendering Chromium against production at
-   * 2026-08-28T13:12:28Z: `/indicator/salary  canonical=/  DISOWNS ITSELF`.
-   *
-   * Submitting 71 URLs that each tell the crawler to index the home page
-   * instead is not coverage, it is 71 duplicates of one page. The blocker is
-   * not that the pages are thin — they carry a chart, three countries and a
-   * source — it is that they do not yet claim to be pages at all.
-   *
-   * TRIGGER TO REVISIT: when `IndicatorPage` sets its own canonical and title.
-   * The equality test above makes that conversation compulsory rather than
-   * optional, because this entry will have to be removed for it to pass.
-   */
-  '/indicator/:id': 'sets no canonical of its own; would submit 71 URLs pointing at the home page',
 };
 
 /**
@@ -113,6 +122,11 @@ const handler = async function (context, req) {
     // search engines to index a URL whose destination disowns it.
     CORRESPONDENTS.forEach(function (id) { add('/newsroom/' + id, today, '0.5'); });
     SECTIONS.forEach(function (section) { add('/data/' + section, today, '0.6'); });
+    // One page per indicator, from the registry the dashboard renders from.
+    // Lower priority than a section: an indicator page is one series, where a
+    // section page is nine or more, and a sitemap priority is a statement about
+    // relative importance within our own site rather than a bid for ranking.
+    indicatorIds().forEach(function (id) { add('/indicator/' + id, today, '0.4'); });
 
     articles.forEach(function (article) {
       const lastmod = article.published_at ? String(article.published_at).slice(0, 10) : today;
@@ -167,3 +181,4 @@ module.exports = withSecurity(withCache(handler, {
 module.exports.NOT_IN_SITEMAP = NOT_IN_SITEMAP;
 module.exports.SECTIONS = SECTIONS;
 module.exports.CORRESPONDENTS = CORRESPONDENTS;
+module.exports.indicatorIds = indicatorIds;

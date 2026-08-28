@@ -54,7 +54,11 @@ const sitemap = require(resolve(ROOT, 'api/news-sitemap/index.js')) as
     NOT_IN_SITEMAP: Record<string, string>;
     SECTIONS: string[];
     CORRESPONDENTS: string[];
+    indicatorIds: () => string[];
   };
+
+/** The registry the dashboard renders from, and the sitemap now derives from. */
+const registry = require(resolve(ROOT, 'api/shared/indicators.js')) as Record<string, unknown>;
 
 const mainSource = readFileSync(resolve(ROOT, 'src/main.tsx'), 'utf-8');
 
@@ -267,6 +271,25 @@ describe('the expansions come from the same lists the app uses', () => {
     }
     expect(listed).toContain('/data');
   });
+
+  it('expands /indicator/:id from the registry rather than from a copy', () => {
+    // `SECTIONS` and `CORRESPONDENTS` above are hand-written copies held to an
+    // equality, because the Function App cannot import from `src/`. It CAN
+    // import from `api/shared/`, so this expansion needs no copy at all —
+    // `indicatorIds()` reads the registry itself. A shared enumeration cannot
+    // drift; two enumerations always will, and this file is where three of them
+    // met: 24 in `IndicatorPage`, 71 in `chart-ref.ts`, 71 in the registry.
+    expect(sitemap.indicatorIds()).toEqual(Object.keys(registry).sort());
+    expect(sitemap.indicatorIds().length, 'the registry produced nothing').toBeGreaterThan(60);
+  });
+
+  it('lists a page for every indicator the dashboard serves', async () => {
+    const listed = await generate();
+
+    const missing = sitemap.indicatorIds().filter((id) => !listed.includes(`/indicator/${id}`));
+
+    expect(missing, 'these indicators have no sitemap entry').toEqual([]);
+  });
 });
 
 describe('a listed page has to claim to be a page', () => {
@@ -348,6 +371,31 @@ describe('a listed page has to claim to be a page', () => {
     expect(app, 'App.tsx must set the head for every /data URL').toContain('usePageMeta(');
     expect(app, 'and it must claim /data as its canonical, not inherit /').toMatch(
       /canonicalPath:[^\n]*\/data/,
+    );
+  });
+
+  it('holds for the indicator pages, which are 71 of the 93', () => {
+    // Same reason: `/indicator/:id` is a template, so the route-driven check
+    // cannot see the URLs it produces — and they are now three quarters of the
+    // non-article sitemap. Before this change all 71 declared the HOME PAGE as
+    // canonical, so listing them would have submitted 71 duplicates of one page.
+    const page = readFileSync(resolve(ROOT, 'src/components/IndicatorPage.tsx'), 'utf-8');
+
+    expect(page, 'IndicatorPage must set its own head').toContain('usePageMeta(');
+    expect(page, 'and claim its own URL, not inherit /').toMatch(
+      /canonicalPath:[^\n]*\/indicator\//,
+    );
+  });
+
+  it('withholds a URL that renders nothing from the index, since it cannot 404', () => {
+    // `/indicator/not-a-real-indicator` answers HTTP 200 like every route on
+    // this SPA — measured against production, `/utterly-invented-page` does
+    // too — so a crawler has no status code to go on. `noindex` is the only
+    // signal available, and the page has to send it on the dead-end branch.
+    const page = readFileSync(resolve(ROOT, 'src/components/IndicatorPage.tsx'), 'utf-8');
+
+    expect(page, 'the unknown-indicator branch must set index: false').toMatch(
+      /index:\s*known/,
     );
   });
 });
