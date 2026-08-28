@@ -17,7 +17,7 @@ from newsroom.persona_rules import (
 def _document(**overrides: Any) -> dict[str, Any]:
     document: dict[str, Any] = {
         "version": 1,
-        "shared": {"accountable_editor": "Sam Samoletovs", "byline_suffix": AI_DISCLOSURE},
+        "shared": {"accountable_editor": "Andre Kõpu", "byline_suffix": AI_DISCLOSURE},
         "personas": [
             {
                 "id": "nida",
@@ -207,6 +207,6 @@ def test_should_raise_when_validating_output_for_a_fabricated_correspondent(
 def test_should_expose_the_declared_shared_constraints(
     personas: PersonaRegistry,
 ) -> None:
-    assert personas.accountable_editor == "Sam Samoletovs"
+    assert personas.accountable_editor == "Andre Kõpu"
     assert personas.forbidden_claims
     assert personas.required_behaviour

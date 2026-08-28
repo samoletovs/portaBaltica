@@ -116,7 +116,7 @@ def _tier_a_article() -> dict[str, Any]:
             "model": "gpt-4o-mini@2024-07-18",
             "prompt_version": "v1",
             "generated_at": "2026-08-24T13:06:00Z",
-            "accountable_editor": "Sam Samoletovs",
+            "accountable_editor": "Andre Kõpu",
             "validator": {"passed": False, "checked_at": "", "checks": []},
         },
         "created_at": "2026-08-24T13:06:00Z",
@@ -175,7 +175,7 @@ def _tier_c_article() -> dict[str, Any]:
                 }
             ],
             "generated_at": "2026-08-24T09:05:00Z",
-            "accountable_editor": "Sam Samoletovs",
+            "accountable_editor": "Andre Kõpu",
             "validator": {"passed": False, "checked_at": "", "checks": []},
         },
         "created_at": "2026-08-24T09:05:00Z",
@@ -208,7 +208,7 @@ def _tier_b_article() -> dict[str, Any]:
                 }
             ],
             "generated_at": "2026-08-24T10:35:00Z",
-            "accountable_editor": "Sam Samoletovs",
+            "accountable_editor": "Andre Kõpu",
             "validator": {"passed": False, "checked_at": "", "checks": []},
         },
         "created_at": "2026-08-24T10:35:00Z",

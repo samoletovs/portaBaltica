@@ -3,7 +3,7 @@
 The editor is a judgement layer, not a validator bypass. These tests are
 negative-first where the guard matters: a failing validator verdict must not be
 laundered into approval, and an escalation channel that cannot report failure
-must stop the stage rather than pretending Sam was notified.
+must stop the stage rather than pretending Andre was notified.
 """
 
 from __future__ import annotations
@@ -170,7 +170,7 @@ def test_content_filter_refusal_should_withhold_without_paging():
 
     This asserted the opposite until a production run settled it: of 129
     editor decisions, 26 were content-filter refusals. Every one would have
-    sent Sam a Telegram message, and none of them was a judgement about our
+    sent Andre a Telegram message, and none of them was a judgement about our
     content — Azure's prompt shield fires routinely on the war coverage a
     Baltic wire carries daily.
 
@@ -197,7 +197,7 @@ def test_a_model_judgement_of_danger_still_pages():
     """The counterpart. Narrowing the content-filter path must not narrow this.
 
     Escalation keeps exactly one meaning: the model read the item and judged it
-    dangerous, harmful or inappropriate. That is the case Sam asked to see.
+    dangerous, harmful or inappropriate. That is the case Andre asked to see.
     """
     card = tier_c_card()
     notifier = RecordingNotifier()

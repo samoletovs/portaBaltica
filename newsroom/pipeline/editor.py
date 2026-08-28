@@ -1,10 +1,10 @@
 """Stage 6½ — editor judgement for tier B/C material.
 
-The old queue made Sam the editor for every syndicated item. That does not
+The old queue made Andre the editor for every syndicated item. That does not
 scale, and it also trains the system to treat human attention as a cheap
 background resource. The editor agent here is deliberately narrower: it may
 approve or reject routine material after the validator has passed, and it may
-interrupt Sam only for the one class of item where a human should see it —
+interrupt Andre only for the one class of item where a human should see it —
 dangerous, harmful or inappropriate content.
 """
 
@@ -85,7 +85,7 @@ class TelegramEscalationNotifier:
     """Send an escalation to Telegram and fail loudly when Telegram refuses it.
 
     A silent notification channel is worse than no channel: the pipeline would
-    believe Sam had seen a dangerous item while the only copy sat in logs. This
+    believe Andre had seen a dangerous item while the only copy sat in logs. This
     class therefore treats missing configuration, HTTP errors and Telegram's own
     ``ok: false`` response as editor-stage failures.
     """
@@ -140,7 +140,7 @@ def edit_syndicated_articles(
             outcomes.append(review_syndicated_article(article, writer, notifier=notifier, now=now))
         except EditorError:
             # Escalation delivery failures are not per-item editorial failures:
-            # they mean the one channel allowed to interrupt Sam is broken. Let
+            # they mean the one channel allowed to interrupt Andre is broken. Let
             # that surface loudly rather than recording a false "handled" result.
             raise
         except Exception as exc:  # noqa: BLE001
@@ -226,7 +226,7 @@ def _technical_failure_outcome(
 
     This is deliberately *not* used for Telegram failures. A model or parsing
     failure says "this item could not be reviewed"; a broken escalation channel
-    says "Sam was not told when we said he must be", and must remain visible at
+    says "Andre was not told when we said he must be", and must remain visible at
     the run level.
     """
 
@@ -278,7 +278,7 @@ def _system_prompt() -> str:
             "Decision rules:",
             "- approve: suitable, relevant Baltic/EU public-interest material.",
             "- reject: routine not-newsworthy, stale, duplicate, off-scope or uncertain.",
-            "- escalate: dangerous, harmful or inappropriate content that Sam must see.",
+            "- escalate: dangerous, harmful or inappropriate content that Andre must see.",
             "",
             "Escalate only for material involving violence, self-harm, sexual exploitation,",
             "hateful/dehumanising content, instructions for wrongdoing, graphic harm,",
@@ -360,7 +360,7 @@ def _content_filter_outcome(
     This used to escalate, on the reasoning that a card the model will not look
     at is exactly the card a human should see. One production run disproved it:
     of 129 decisions, 26 were content-filter refusals, and every one of them
-    would have paged Sam. They were not findings about our content — Azure's
+    would have paged Andre. They were not findings about our content — Azure's
     prompt shield fires routinely on war coverage, which a Baltic wire carries
     every day.
 
@@ -449,7 +449,7 @@ def _apply_outcome(article: Article, outcome: EditorOutcome) -> None:
 
 
 def render_escalation_message(article: Article, outcome: EditorOutcome) -> str:
-    """Build the one message that is allowed to interrupt Sam."""
+    """Build the one message that is allowed to interrupt Andre."""
 
     syndicated = article.syndicated or {}
     lines = [
