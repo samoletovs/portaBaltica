@@ -449,35 +449,42 @@ people, and the grep's output is a list to measure, not a list to fix.
 
 ---
 
-## Exclusive file ownership does more than prevent conflicts
+## Exclusive file ownership, and the one property worth preserving
 
 Give each session a file set it alone may write, and re-clear files explicitly
 when work moves. I imposed this across eight concurrent sessions to stop merge
-conflicts, and it produced zero — but that is not the reason to keep it.
+conflicts, and it produced zero. It also produced a second effect I did not
+design — and the session it happened to insisted on the caveat before letting me
+write it down, which is why the honest version is here.
 
-**It enforces the separation of measurement from remedy structurally, without
-anyone having to remember the rule.** `AGENTS.md` argues that whoever proves a
-defect should state it and someone else should choose the fix, because a
-measurement defines the shape of the repair and you cannot see what your own
-measurement did not reach. That is a discipline, and disciplines lapse.
-
-The clearest instance: a session published the rejection reasons the pipeline
-had been discarding, executed the failing check's own regexes against the four
+**It separated measurement from remedy — but by luck, not by construction.**
+`AGENTS.md` argues that whoever proves a defect should state it and someone else
+should choose the fix. A session published the rejection reasons the pipeline had
+been discarding, executed the failing check's own regexes against the four
 paragraphs it refused, and handed the result over **because `validator.py` was
-not in its set**. Their words afterwards, and they are the correct account:
+not in its set**. The session that received it found four defects, only one of
+them vocabulary; the largest was a regex reading a decimal point as a full stop,
+whose repaired form already sat in two sibling files. The likely alternative was
+a 25th pattern from someone who had not measured.
 
-> I did not know the check was broken — I knew I could not tell whether it was…
-> It happened to be enforced here by ownership boundaries rather than by
-> discipline, and it produced the better outcome regardless.
+**Their correction, which the rule must carry:**
 
-Had they been able to patch it, the likely fix was a 25th pattern added by
-someone who had not measured. The session that did receive it found **four**
-defects, only one of which was vocabulary — the largest being a regex reading a
-decimal point as a full stop, whose repaired form already sat in two sibling
-files.
+> It worked because the measurement and the remedy happened to fall in different
+> files. Had `comparison_basis_stated` been defined in `runreport.py`, the same
+> boundary would have handed me both roles and enforced nothing.
 
-**A structural constraint that produces good behaviour without anyone
-remembering the rule is worth more than the rule.**
+So the claim is *a boundary drawn for one reason produced a second, better effect
+where the files happened to divide along the measure/remedy line* — **not**
+*ownership enforces the split*. The generalisable half is the cheaper one anyway:
+**when you prove a defect, say so and stop**, and let the boundary help when it
+happens to.
+
+**The property that does not depend on luck is where the boundary is drawn.** It
+stopped them *writing*, not *reading* — so they could still measure `validator.py`
+and report what they found. A boundary that had blocked the measurement would
+have produced silence, and **silence from a session that found something is
+indistinguishable from a session that found nothing**, which is the failure this
+entire run has been about. If ownership is ever formalised: draw it at the write.
 
 ---
 
