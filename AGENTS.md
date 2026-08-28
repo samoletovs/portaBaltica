@@ -1389,6 +1389,34 @@ content is on master rather than trusting the merge — `git show
 origin/master:path | Select-String <the thing>` takes seconds and answers the
 question the pull request's own status cannot.
 
+**And the inverse is a trap of its own: a branch head missing from master is
+not evidence that a pull request is unmerged.** With squash merging it is
+*guaranteed* missing — the merge creates a new commit and the branch head never
+becomes an ancestor of anything.
+
+```
+git branch -r --contains 39e7251   ->  origin/samoletovs-...  (only the branch)
+678f5e5 ancestor of origin/master  ->  True                   (the squash commit)
+content at L77, L390, L418         ->  present on master
+```
+
+All three are true simultaneously, and only the first looks like "not merged".
+This has misled twice: an audit of 89 branches that appeared to hold unmerged
+commits — the squash artifact, every one — and a session that read
+`--contains <branch head>` as proof a merged pull request was still open, then
+correctly invoked *an absent result is a claim about the instrument* while
+pointing it at the wrong instrument.
+
+So settle merge state on the **squash commit** or, better, on the **content**:
+
+```powershell
+gh api repos/<owner>/<repo>/pulls/<n> --jq '.merged'
+git show origin/master:<path> | Select-String <the thing>
+```
+
+The content check is the only one no cache, mirror or stale view can fake, and
+it is the one that answers what you actually wanted to know.
+
 ## Measuring the newsroom after a change
 
 **A green deploy job means the package was uploaded, not that the app is
