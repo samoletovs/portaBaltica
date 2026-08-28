@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Probe the newsroom's wire, because nothing else does.
+"""Probe the newsroom's wire and its output, because nothing else does.
 
 WHY THIS EXISTS
 ---------------
 `/api/system-status` watches the twelve *dashboard* sources, and `#188` gave
-that detection a way to reach a human. The newsroom's wire had neither: no
-probe, no notification, nothing.
+that detection a way to reach a human. The newsroom had neither: no probe on
+the feeds it reads, and nothing at all watching whether it still publishes
+journalism of its own.
 
 Two feeds were found dead by reading Application Insights traces by hand, and
 both had been failing in every run since at least 2026-08-27:
@@ -17,6 +18,19 @@ Both failed soft. Both still carried ``verified: "2026-08-24 - HTTP 200"`` in
 the registry — a stale verification, which is worse than none, because the next
 reader concludes the feed is fine and stops looking. Disabling those two fixed
 two instances and left the class wide open. This closes the class.
+
+THE TWO QUESTIONS, AND WHY ONE MONITOR ASKS BOTH
+------------------------------------------------
+This file asks about the newsroom's **inputs** — do its feeds deliver — and
+about its **output** — is it still publishing original journalism. They fail
+independently, and the second failure is invisible from the first: every feed
+can be perfectly healthy while the portal publishes nothing of its own and
+fills the front page with syndicated link-out cards.
+
+They live together because to a reader they are the same failure — no news —
+and because splitting them would mean a second issue, a second label and a
+second stream of notification competing for the same attention. See
+``judge_drought`` for what the existing checks do and do not cover.
 
 WHY ``response.ok`` IS NOT THE TEST
 -----------------------------------
@@ -68,8 +82,9 @@ sources fail **soft** by design, and that is correct: one dead feed must not
 take an edition down. The consequence is that the pipeline keeps running, keeps
 publishing, and keeps saying nothing. This probe is the only thing that will
 ever make a dead feed visible — so a probe that itself fails soft is worthless.
-A transport error, an unreadable registry, an empty wire, or a body that yields
-no items is an alert here, never a pass.
+A transport error, an unreadable registry, an empty wire, a body that yields no
+items, or a run report that cannot say when the newsroom last published are all
+alerts here, never passes.
 """
 
 from __future__ import annotations
@@ -84,7 +99,7 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -98,6 +113,43 @@ from newsroom.pipeline.safety import registry  # noqa: E402
 #: generous: an old date on a *working* feed is untidy, not urgent, and a daily
 #: alert about untidiness is how an alert channel becomes wallpaper.
 STALE_VERIFICATION_DAYS = 45
+
+#: How long the newsroom may go without publishing an original article before
+#: that is worth waking somebody for.
+#:
+#: WHERE THIS NUMBER COMES FROM, because a wrong one here is worse than none.
+#: The pipeline is *designed* to have quiet days — a run that finds nothing
+#: worth writing about says so and stops — so alerting on one would be crying
+#: wolf, and `AGENTS.md` is explicit that a gate people learn to route around is
+#: worse than no gate at all.
+#:
+#: Measured against the live article index on 2026-08-28 (25 tier A articles,
+#: 2026-08-24T19:59Z → 2026-08-27T17:10Z):
+#:
+#:     history span            69.2 hours (2.88 days)
+#:     days with 0 originals   0 of 4
+#:     gap between originals   p50 0.2h,  p90 15.3h,  max 26.2h
+#:
+#: **The record contains no drought at all**, so this budget is not a percentile
+#: of observed droughts — there is no such distribution to take one from, and
+#: inventing a number from a four-day sample of an unusually busy period would
+#: be false precision. It is derived from the schedule instead.
+#:
+#: `SCHEDULE` is `0 0 14 * * *`, one timer run a day. So a single quiet day puts
+#: at most ~48h between originals: publish at 14:05, nothing the next day,
+#: publish again at 14:05 the day after. A 48-hour budget would therefore fire
+#: on exactly the behaviour the pipeline is built to have. 72 hours is three
+#: consecutive scheduled runs producing nothing, which no single quiet day can
+#: reach, and it sits 2.7× above the worst gap ever observed.
+#:
+#: Revisit it when there is a real distribution to revisit it against.
+MAX_HOURS_WITHOUT_ORIGINAL = 72
+
+#: The newsroom's own run report. Public, no credential — the same blob base
+#: `api/shared/newsroom.js` reads finished articles from.
+RUN_REPORT_URL = (
+    "https://stportabalticabpmff5so.blob.core.windows.net/articles/runs/latest.json"
+)
 
 #: The registry's `verified:` values begin with an ISO date, then an em-dash and
 #: a human note: `2026-08-24 — HTTP 200, RSS 2.0`. Only the date is parsed.
@@ -278,10 +330,142 @@ def judge_source(source: Any, fetched: dict[str, Any], *, today: date) -> dict[s
 BROKEN_STATES = frozenset({"unreachable", "http_error", "empty_body", "no_items", "misconfigured"})
 
 
+# ── the newsroom's output ───────────────────────────────────────────────────
+
+
+def fetch_run_report(
+    url: str = RUN_REPORT_URL, *, timeout: float = 20.0, opener: Any = None
+) -> dict[str, Any]:
+    """Read the newsroom's run report. Never raises; every failure is data."""
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": config.USER_AGENT, "Accept": "application/json"},
+    )
+    try:
+        open_url = opener or urllib.request.urlopen
+        with open_url(request, timeout=timeout) as response:
+            return {"body": json.loads(response.read().decode("utf-8")), "error": None}
+    except Exception as exc:  # noqa: BLE001 - a report we cannot read is a question we cannot answer
+        return {"body": None, "error": f"{exc.__class__.__name__}: {exc}"}
+
+
+def judge_drought(fetched: Mapping[str, Any], *, now: datetime) -> dict[str, Any]:
+    """Has the newsroom published an original article recently enough?
+
+    WHY THIS ASKS A DIFFERENT QUESTION FROM /api/system-status
+    ----------------------------------------------------------
+    That endpoint already probes this exact blob, and probes it well: its
+    ``newsroom-run`` check reads ``finished_at``, judges it against the report's
+    own ``stale_after_hours``, and — a detail worth crediting — marks the
+    pipeline *stale* when it generated originals and published none of them.
+
+    What no existing check covers is the run that **did not try**. Read from
+    ``api/system-status/index.js``, the rule is::
+
+        generated > 0 and publishable == 0   ->  stale
+
+    so a run reporting ``generated: 0`` — the quiet day, "0 selected" — fails
+    the first clause and stays green. ``finished_at`` advances on every run
+    whatever came out of it, and the wire keeps syndicated cards flowing, so the
+    portal can go indefinitely without original journalism while every monitor
+    on it is green. That is the gap this closes.
+
+    WHY ELAPSED TIME AND NOT ``runs_without_originals``
+    ---------------------------------------------------
+    The report carries a ready-made counter and it is the wrong instrument.
+    ``runreport.py`` increments it once per **run** and resets it to zero the
+    moment any run publishes an original, with no regard to what triggered the
+    run. Measured over 2026-08-24→27: 4 timer runs against 52 manual ones. So
+    the counter mixes two populations at 13:1 — an afternoon of manual
+    experimentation crosses any run-count threshold, and a single manual run
+    resets a genuine multi-day timer drought to zero.
+
+    ``AGENTS.md`` already names this mistake in this codebase: the newsroom's
+    own streak detector "walked the deltas between *readings* and stated the
+    result as a claim about *periods*", and the ruling was **count the periods,
+    not the observations**. A drought is a claim about elapsed time, so it is
+    measured in elapsed time. The counter is still reported as context, and
+    decides nothing.
+    """
+    body = fetched.get("body")
+
+    if fetched.get("error") or not isinstance(body, Mapping):
+        return {
+            "state": "unreadable",
+            "detail": (
+                "the newsroom run report could not be read "
+                f"({fetched.get('error') or 'it was not a JSON object'}), so whether the "
+                "newsroom is still publishing original journalism is unknown"
+            ),
+            "last_original_at": None,
+            "hours": None,
+            "runs_without_originals": None,
+        }
+
+    liveness = body.get("liveness")
+    liveness = liveness if isinstance(liveness, Mapping) else {}
+    runs_without = liveness.get("runs_without_originals")
+    last_at = liveness.get("last_original_at")
+
+    result: dict[str, Any] = {
+        "state": "ok",
+        "detail": None,
+        "last_original_at": last_at if isinstance(last_at, str) else None,
+        "hours": None,
+        # Reported, never decisive. See the docstring.
+        "runs_without_originals": runs_without if isinstance(runs_without, int) else None,
+    }
+
+    if not isinstance(last_at, str) or not last_at:
+        # Absence resolves to an alert. A report that cannot say when it last
+        # produced original journalism is not evidence that it recently did.
+        result["state"] = "unknown"
+        result["detail"] = (
+            "the run report carries no liveness.last_original_at, so nothing records when "
+            "the newsroom last published an original article"
+        )
+        return result
+
+    try:
+        stamp = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
+    except ValueError:
+        result["state"] = "unknown"
+        result["detail"] = f"liveness.last_original_at is not a readable timestamp: {last_at!r}"
+        return result
+
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+
+    hours = (now - stamp).total_seconds() / 3600.0
+    result["hours"] = round(hours, 1)
+
+    if hours > MAX_HOURS_WITHOUT_ORIGINAL:
+        result["state"] = "drought"
+        result["detail"] = (
+            f"no original article has been published for {hours:.1f} hours "
+            f"(budget {MAX_HOURS_WITHOUT_ORIGINAL}h, which is three scheduled runs). The wire "
+            "may still be full of syndicated cards, and every other check stays green through "
+            "this"
+        )
+
+    return result
+
+
+#: Drought states that alert. `ok` is the only one that does not, so a state
+#: this file has never heard of cannot resolve to silence.
+DROUGHT_PROBLEM_STATES = frozenset({"unreadable", "unknown", "drought"})
+
+
 # ── the whole wire ──────────────────────────────────────────────────────────
 
 
-def evaluate(results: Sequence[dict[str, Any]], uncovered: Iterable[Any], *, now: datetime) -> dict[str, Any]:
+def evaluate(
+    results: Sequence[dict[str, Any]],
+    uncovered: Iterable[Any],
+    *,
+    now: datetime,
+    drought: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Decide whether this reading is worth waking somebody for.
 
     Alerting:
@@ -302,6 +486,7 @@ def evaluate(results: Sequence[dict[str, Any]], uncovered: Iterable[Any], *, now
     """
     problems: list[str] = []
     notes: list[str] = []
+    feed_problems = 0
 
     if not results:
         problems.append(
@@ -321,6 +506,7 @@ def evaluate(results: Sequence[dict[str, Any]], uncovered: Iterable[Any], *, now
                     "as well as the feed, or the next reader will conclude it is fine."
                 )
             problems.append(line)
+            feed_problems += 1
             continue
 
         age = result["verified_age_days"]
@@ -345,18 +531,44 @@ def evaluate(results: Sequence[dict[str, Any]], uncovered: Iterable[Any], *, now
             "makes no claim about whether anything else covers them."
         )
 
+    # The newsroom's output, which is a different question from its inputs and
+    # fails in a way none of the feed checks above can see: every feed can be
+    # delivering perfectly while the portal publishes no journalism of its own.
+    if drought is not None:
+        if drought["state"] in DROUGHT_PROBLEM_STATES:
+            problems.append(f"Original journalism: {drought['detail']}.")
+        else:
+            hours = drought["hours"]
+            runs = drought["runs_without_originals"]
+            notes.append(
+                f"Last original article {hours}h ago, inside the {MAX_HOURS_WITHOUT_ORIGINAL}h "
+                f"budget (runs_without_originals={runs}, reported for context only — it counts "
+                "runs of any trigger, so it is not what the budget is measured against)."
+            )
+
     healthy = sum(1 for r in results if r["state"] == "ok")
     total_items = sum(r["items"] for r in results)
     alert = bool(problems)
+    drought_problem = drought is not None and drought["state"] in DROUGHT_PROBLEM_STATES
 
+    # The headline names what is actually wrong. Counting `problems` and calling
+    # the total "wire sources in trouble" would report a drought with seven
+    # healthy feeds as "1 wire source in trouble" -- a sentence a reader would
+    # believe, describing something that did not happen. That is the same error
+    # an empty wire produced before it was fixed, arriving from a second
+    # direction, which is why the count is now built from the specific thing
+    # rather than from the length of a mixed list.
     if not results and problems:
-        # Counting problems would say "1 wire source in trouble" when there are
-        # no wire sources at all -- a plausible sentence that means something
-        # else, which is the class of error this project keeps writing up.
         headline = "the wire is empty"
+    elif feed_problems and drought_problem:
+        headline = (
+            f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} in trouble, "
+            "and no original journalism"
+        )
+    elif drought_problem:
+        headline = "the wire is fine and no original journalism is being published"
     elif alert:
-        count = len(problems)
-        headline = f"{count} wire source{'' if count == 1 else 's'} in trouble"
+        headline = f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} in trouble"
     else:
         headline = f"all {healthy} wire sources delivering ({total_items} items)"
 
@@ -373,6 +585,7 @@ def evaluate(results: Sequence[dict[str, Any]], uncovered: Iterable[Any], *, now
             "uncovered": len(uncovered),
         },
         "results": results,
+        "drought": dict(drought) if drought is not None else None,
         "source": "newsroom/sources.yaml",
         "checkedAt": now.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
@@ -398,6 +611,20 @@ def render_text(verdict: dict[str, Any]) -> str:
         f"{s['healthy']}/{s['probed']} wire sources delivering, {s['items']} items, "
         f"{s['uncovered']} enabled source(s) outside this probe"
     )
+
+    # The output line, always printed, so a reader sees the newsroom's own
+    # journalism reported beside the feeds that supply it rather than having to
+    # infer it from their health.
+    d = verdict.get("drought")
+    if d is not None:
+        if d["hours"] is None:
+            lines.append(f"original journalism: UNKNOWN — {d['detail']}")
+        else:
+            flag = "DROUGHT" if d["state"] == "drought" else "ok"
+            lines.append(
+                f"original journalism: {flag} — last original {d['hours']}h ago "
+                f"(budget {MAX_HOURS_WITHOUT_ORIGINAL}h, at {d['last_original_at']})"
+            )
 
     if verdict["results"]:
         lines.append("")
@@ -425,7 +652,7 @@ def render_text(verdict: dict[str, Any]) -> str:
 
 
 def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> dict[str, Any]:
-    """Load the registry, probe the wire, and judge it.
+    """Load the registry, probe the wire and the newsroom's output, and judge both.
 
     A registry that will not load is an alert rather than an exception: this is
     the only thing watching, and it must report its own failure rather than
@@ -445,6 +672,7 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
             "notes": [],
             "summary": {"probed": 0, "healthy": 0, "broken": 0, "items": 0, "uncovered": 0},
             "results": [],
+            "drought": None,
             "source": "newsroom/sources.yaml",
             "checkedAt": moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         }
@@ -459,7 +687,9 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
         )
         results.append(judge_source(source, fetched, today=today))
 
-    return evaluate(results, uncovered, now=moment)
+    drought = judge_drought(fetch_run_report(timeout=timeout, opener=opener), now=moment)
+
+    return evaluate(results, uncovered, now=moment, drought=drought)
 
 
 def main(argv: Sequence[str]) -> int:
@@ -483,7 +713,16 @@ def main(argv: Sequence[str]) -> int:
         # must not be the one route in this file where failure means silence.
         try:
             recorded = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
-            verdict = evaluate(recorded["results"], [], now=datetime.now(timezone.utc))
+            verdict = evaluate(
+                recorded["results"],
+                [],
+                now=datetime.now(timezone.utc),
+                # A fixture may rehearse the drought path too. Omitting the key
+                # leaves the drought unreported rather than reported as healthy:
+                # `evaluate` prints nothing for `None`, so a fixture cannot
+                # accidentally certify output it said nothing about.
+                drought=recorded.get("drought"),
+            )
             verdict["source"] = f"fixture:{args.fixture}"
         except Exception as exc:  # noqa: BLE001
             verdict = {
@@ -493,6 +732,7 @@ def main(argv: Sequence[str]) -> int:
                 "notes": [],
                 "summary": {"probed": 0, "healthy": 0, "broken": 0, "items": 0, "uncovered": 0},
                 "results": [],
+                "drought": None,
                 "source": f"fixture:{args.fixture}",
                 "checkedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             }

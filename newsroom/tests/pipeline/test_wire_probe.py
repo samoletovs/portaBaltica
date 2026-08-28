@@ -32,7 +32,7 @@ import asyncio
 import importlib.util
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -366,6 +366,192 @@ def test_a_missing_verified_note_is_reported_rather_than_assumed_fine() -> None:
 )
 def test_verified_age_days(verified: Any, expected: Any) -> None:
     assert wire_check.verified_age_days(verified, today=date(2026, 8, 28)) == expected
+
+
+# ── the newsroom's output ───────────────────────────────────────────────────
+
+
+def _report(last_original_at: Any = "2026-08-27T17:13:00Z", runs: Any = 0) -> dict[str, Any]:
+    return {"body": {"liveness": {"last_original_at": last_original_at, "runs_without_originals": runs}}, "error": None}
+
+
+def test_a_recent_original_is_not_a_drought() -> None:
+    d = wire_check.judge_drought(_report("2026-08-28T06:00:00Z"), now=_NOW)
+    assert d["state"] == "ok"
+    assert d["hours"] == 0.3
+
+
+def test_the_budget_tolerates_a_designed_quiet_day() -> None:
+    """The pipeline is built to have quiet days, so one must not alert.
+
+    A single quiet day puts at most ~48h between originals on a daily schedule:
+    publish at 14:05, nothing the next day, publish again at 14:05 the day
+    after. A budget that fired at 48h would fire on intended behaviour, and
+    `AGENTS.md` is explicit that a gate people route around is worse than none.
+    """
+    quiet_day = _NOW - timedelta(hours=47)
+    d = wire_check.judge_drought(_report(quiet_day.isoformat().replace("+00:00", "Z")), now=_NOW)
+    assert d["state"] == "ok", "one quiet day must not alert"
+
+    two_quiet_days = _NOW - timedelta(hours=71)
+    d = wire_check.judge_drought(_report(two_quiet_days.isoformat().replace("+00:00", "Z")), now=_NOW)
+    assert d["state"] == "ok", "two consecutive quiet days must not alert either"
+
+
+def test_three_scheduled_runs_without_an_original_is_a_drought() -> None:
+    drought = _NOW - timedelta(hours=73)
+    d = wire_check.judge_drought(_report(drought.isoformat().replace("+00:00", "Z")), now=_NOW)
+    assert d["state"] == "drought"
+    assert "72h" in d["detail"]
+
+
+def test_the_budget_is_above_every_gap_ever_observed() -> None:
+    """Measured on the live index, 2026-08-28: the worst gap between originals
+    was 26.2 hours across 25 articles. A budget below that would have fired on
+    a period in which the newsroom was working normally.
+    """
+    assert wire_check.MAX_HOURS_WITHOUT_ORIGINAL > 26.2
+
+
+def test_an_unreadable_run_report_alerts() -> None:
+    """This is the only thing asking, so 'I could not tell' is not 'fine'."""
+    d = wire_check.judge_drought({"body": None, "error": "HTTPError: 404"}, now=_NOW)
+    assert d["state"] == "unreadable"
+    assert d["state"] in wire_check.DROUGHT_PROBLEM_STATES
+
+
+@pytest.mark.parametrize(
+    "liveness",
+    [
+        {},
+        {"runs_without_originals": 0},
+        {"last_original_at": None},
+        {"last_original_at": ""},
+        {"last_original_at": "not a timestamp"},
+        {"last_original_at": 17},
+    ],
+)
+def test_a_report_that_cannot_say_when_alerts(liveness: dict[str, Any]) -> None:
+    """A report with no usable watermark is not evidence that it published recently."""
+    d = wire_check.judge_drought({"body": {"liveness": liveness}, "error": None}, now=_NOW)
+    assert d["state"] in wire_check.DROUGHT_PROBLEM_STATES
+
+
+def test_a_report_with_no_liveness_block_at_all_alerts() -> None:
+    d = wire_check.judge_drought({"body": {"finished_at": "2026-08-28T06:00:00Z"}, "error": None}, now=_NOW)
+    assert d["state"] == "unknown"
+
+
+def test_the_counter_is_reported_but_never_decides() -> None:
+    """`runs_without_originals` counts runs of any trigger, so it cannot be the gate.
+
+    `runreport.py` increments it once per run and resets it to zero the moment
+    any run publishes an original, regardless of trigger. Measured over
+    2026-08-24→27 there were 4 timer runs against 52 manual ones, so an
+    afternoon of manual experimentation crosses any run-count threshold and a
+    single manual run resets a genuine multi-day timer drought.
+
+    This pins the separation directly: a huge counter with a recent original is
+    fine, and a zero counter with an ancient original is a drought. If anyone
+    ever wires the counter into the verdict, one of these two goes red.
+    """
+    old = (_NOW - timedelta(hours=200)).isoformat().replace("+00:00", "Z")
+    recent = (_NOW - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+
+    noisy_but_producing = wire_check.judge_drought(_report(recent, runs=999), now=_NOW)
+    assert noisy_but_producing["state"] == "ok", "a big run counter must not alert on its own"
+    assert noisy_but_producing["runs_without_originals"] == 999, "but it must still be reported"
+
+    quiet_but_reset = wire_check.judge_drought(_report(old, runs=0), now=_NOW)
+    assert quiet_but_reset["state"] == "drought", "a zeroed counter must not suppress a real drought"
+
+
+def test_the_gap_this_closes_is_the_run_that_did_not_try() -> None:
+    """Pins what `/api/system-status` covers, so this check's reason to exist is testable.
+
+    Read from `api/system-status/index.js`, its newsroom rule is::
+
+        generated > 0 and publishable == 0   ->  stale
+
+    Reproduced here as the *subject under description*, not as a second
+    implementation of it: nothing imports this, and it exists only so the
+    boundary is written down as executable fact rather than as a claim in a
+    comment. The row that matters is the last one.
+    """
+
+    def existing_check_says_stale(generated: int, publishable: int) -> bool:
+        return generated > 0 and publishable == 0
+
+    assert existing_check_says_stale(8, 0), "wrote articles, published none -> already caught"
+    assert not existing_check_says_stale(8, 2), "produced -> correctly green"
+    assert not existing_check_says_stale(0, 0), (
+        "THE GAP: a run that generated nothing at all stays green, for ever, "
+        "because it fails the first clause. That is the quiet day, and a "
+        "sequence of them is a drought no existing check can see."
+    )
+
+
+def test_a_drought_with_healthy_feeds_does_not_claim_a_source_is_in_trouble() -> None:
+    """The headline must name what is actually wrong.
+
+    Counting `problems` would report a drought behind seven perfect feeds as
+    "1 wire source in trouble" -- a sentence a reader would believe, describing
+    something that did not happen. Same class as the empty-wire headline that
+    was fixed before it shipped, arriving from a second direction.
+    """
+    drought = wire_check.judge_drought(
+        _report((_NOW - timedelta(hours=100)).isoformat().replace("+00:00", "Z")), now=_NOW
+    )
+    verdict = wire_check.evaluate([_ok_result("lsm_en")], [], now=_NOW, drought=drought)
+    text = wire_check.render_text(verdict)
+
+    assert verdict["alert"]
+    assert "wire source" not in verdict["headline"], verdict["headline"]
+    assert verdict["headline"] == "the wire is fine and no original journalism is being published"
+    assert "DROUGHT" in text
+
+
+def test_a_drought_and_a_dead_feed_are_both_named() -> None:
+    drought = wire_check.judge_drought(
+        _report((_NOW - timedelta(hours=100)).isoformat().replace("+00:00", "Z")), now=_NOW
+    )
+    verdict = wire_check.evaluate(
+        [_ok_result("good"), _broken_result("bad", verified=None)], [], now=_NOW, drought=drought
+    )
+    assert verdict["alert"]
+    assert len(verdict["problems"]) == 2
+    assert "1 wire source in trouble, and no original journalism" == verdict["headline"]
+
+
+def test_the_drought_line_is_printed_even_when_healthy() -> None:
+    """Reported on every run, not only when it is bad.
+
+    A figure that appears only on failure cannot be watched trending towards
+    failure, and a reader has no way to tell 'healthy' from 'not measured'.
+    """
+    verdict = wire_check.evaluate([_ok_result()], [], now=_NOW, drought=wire_check.judge_drought(_report(), now=_NOW))
+    assert "original journalism:" in wire_check.render_text(verdict)
+
+
+def test_an_omitted_drought_is_not_reported_as_healthy() -> None:
+    """Absence must not certify. `drought=None` means 'not measured', and the
+    report says nothing rather than printing a reassuring line."""
+    verdict = wire_check.evaluate([_ok_result()], [], now=_NOW)
+    assert verdict["drought"] is None
+    assert "original journalism:" not in wire_check.render_text(verdict)
+
+
+def test_fetch_run_report_turns_every_failure_into_data() -> None:
+    def exploding(*_: Any, **__: Any) -> Any:
+        raise OSError("connection reset by peer")
+
+    fetched = wire_check.fetch_run_report(timeout=1, opener=exploding)
+    assert fetched["body"] is None
+    assert "connection reset" in fetched["error"]
+    assert wire_check.judge_drought(fetched, now=_NOW)["state"] == "unreadable"
+
+
+
 
 
 # ── the network boundary ────────────────────────────────────────────────────

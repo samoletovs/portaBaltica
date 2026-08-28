@@ -116,6 +116,31 @@ sources:
     rewrite_allowed: true
     requires_human_approval: false
     cache_ttl_minutes: 1440
+    # Registered and fetched by nothing. Measured 2026-08-28 across the whole
+    # repository: the only references are this entry, two display-name maps in
+    # `src/` and a correspondent's dataset list. `opendata.py` collects from
+    # `eurostat` and `elering` only.
+    #
+    # NOT marked `enabled: false`, deliberately, and the reason is worth
+    # stating because the flag looks like it would retire this. It would not:
+    # `enabled` is read in exactly two places — `run.py:197`, which filters to
+    # tier B and C, and `scripts/wire_check.py`. `opendata.py` calls
+    # `registry().get(...)` directly and never consults it. So for a tier A
+    # source the flag gates nothing, and setting it here would have one real
+    # effect: dropping this id from the "not probed by this check" list that
+    # `wire_check.py` prints on every run. That would make the *only* standing
+    # mention of this problem disappear while the problem remained — hiding the
+    # finding rather than recording it.
+    #
+    # The live defect is in `src/newsroom/correspondents.ts`, which tells
+    # readers that Ilze Nida works from this dataset. That is a public claim
+    # about a source nothing reads, and fixing it means editing `src/`.
+    notes: >
+      Registered but fetched by nothing (measured 2026-08-28, repository-wide).
+      Kept for its licence and attribution. `enabled` is not a retirement switch
+      for tier A -- it is only consulted for tiers B and C -- so this is recorded
+      here rather than flipped. src/newsroom/correspondents.ts publicly lists
+      this as a dataset a correspondent works from, which is currently untrue.
 
   - id: datagovlt
     name: "data.gov.lt"
@@ -128,6 +153,13 @@ sources:
     rewrite_allowed: true
     requires_human_approval: false
     cache_ttl_minutes: 1440
+    # Same measurement and the same reasoning as `statee` above.
+    notes: >
+      Registered but fetched by nothing (measured 2026-08-28, repository-wide).
+      Kept for its licence and attribution. `enabled` is not a retirement switch
+      for tier A -- it is only consulted for tiers B and C -- so this is recorded
+      here rather than flipped. src/newsroom/correspondents.ts publicly lists
+      this as a dataset a correspondent works from, which is currently untrue.
 
   - id: openmeteo
     name: "Open-Meteo"
