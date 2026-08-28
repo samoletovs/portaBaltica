@@ -1291,6 +1291,27 @@ mechanism that made a reload counter report 84 further down this file. **A statu
 code cannot distinguish "this route exists" from "nothing matched, have the
 app"** — so the row named a shipped endpoint that was only ever a local preview
 instrument. Fixed to describe the property rather than a URL.
+
+**Two limits, from the session that wrote the sentence, and they belong beside it
+because its position at the head of this file overstates it.**
+
+It is a **reformulation, not a discovery.** It could only be written because the
+sections below had already collected the instances and praised each one; noticing
+they rhymed is cheap next to finding them. The question summarises two runs of
+people reading artefacts and writing down what they saw — it does not replace that
+labour, and **asked of a system you have not looked at it yields nothing.** It
+aims attention; it supplies no evidence.
+
+And it is answerable **only where you can enumerate the second state.** Every row
+in the table above is a case where someone already knew what the alternative was:
+a broken check, a failed fetch, a forecast, a tally. The failure it cannot reach
+is the one where you **cannot imagine the second state** — which is precisely the
+class *reading the artefact* exists for, because an artefact shows you an
+alternative you had not conceived of rather than confirming one you had.
+
+So the two are complements and the newer does not supersede the older. Use the
+question to audit a mechanism you understand; use the artefact to find out that
+you did not understand it.
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:
