@@ -138,8 +138,58 @@ export interface AnalysisProvenance {
   mechanisms_discarded?: number;
 }
 
-export type EditorDecision = 'approve' | 'revise' | 'reject' | 'escalate';
+/**
+ * A candidate cause, and who is on the record for it.
+ *
+ * Deliberately a different type from `AnalysisMechanism`, because it is a
+ * different kind of claim. A mechanism relates two verified series and is
+ * published as reporting; a hypothesis comes from outside the figures and is
+ * published attributed and marked unconfirmed. `claim` never contains a
+ * quantity — the pipeline deletes any that does, since a number it did not
+ * verify is not publishable however it is framed.
+ */
+export interface Hypothesis {
+  claim: string;
+  /** The analytical perspective that proposed it. */
+  lens: string;
+  analyst: string;
+  discipline: string;
+  /** What it rests on. `official_document` means a source we retrieved informed
+   *  the analyst's reading — not that the source made the claim. */
+  basis: 'domain_knowledge' | 'official_document';
+  /** Who the article attributes it to. Always the panellist, never a publisher. */
+  attribution: string;
+  /**
+   * The official release the analyst was reading, where there was one.
+   *
+   * Deliberately separate from `attribution`. The pipeline can check that a
+   * named document was retrieved for this article; it cannot check that the
+   * document says what the claim says. Attributing the claim to the publisher
+   * would publish the second answer having only asked the first.
+   */
+  informed_by?: string;
+  /** Never `established`: a hypothesis is a proposal, not a finding. */
+  strength: 'likely' | 'possible';
+  testable_with?: string;
+  /** Other panellists who reached the same cause in a separate consultation. */
+  corroborated_by?: string[];
+}
 
+/**
+ * The causal panel. Present whenever the panel was consulted — including when
+ * it proposed nothing, which is the case worth publishing: an article admitting
+ * no cause is a different artefact when two specialists looked and found
+ * nothing than when nobody was asked.
+ */
+export interface HypothesesProvenance {
+  prompt_version: string;
+  consulted: string[];
+  hypotheses: Hypothesis[];
+  /** Candidates the admissibility guard threw away. */
+  discarded?: number;
+}
+
+export type EditorDecision = 'approve' | 'revise' | 'reject' | 'escalate';
 export interface EditorProvenance {
   prompt_version: string;
   decision: EditorDecision;
@@ -165,6 +215,7 @@ export interface Provenance {
   research?: ResearchProvenance;
   context?: ContextProvenance;
   analysis?: AnalysisProvenance;
+  hypotheses?: HypothesesProvenance;
   generated_at: string;
   approved_by?: string;
   approved_at?: string;

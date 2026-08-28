@@ -150,3 +150,79 @@ class TestTheRevisionPromise:
             '"published", so setting "corrected" would delete the article from the '
             "site at the moment it was corrected"
         )
+
+
+class TestTheHypothesisPromise:
+    """The newest promise, and the one with the most to lose if it drifts.
+
+    The policy now tells readers that a suggested cause is always attributed,
+    always marked unconfirmed, and never carries a figure. That is the whole
+    licence for a model to use knowledge of its own on this site, and it is
+    worth exactly as much as the code behind it.
+    """
+
+    def test_the_policy_discloses_that_a_model_uses_its_own_knowledge(
+        self, policy_text: str
+    ) -> None:
+        assert "knowledge of its own" in policy_text, (
+            "the causal panel is the single point where anything here draws on "
+            "something other than a retrieved figure; a site whose proposition "
+            "is precise disclosure has to say so"
+        )
+
+    def test_the_policy_promises_attribution_and_a_hedge(self, policy_text: str) -> None:
+        assert "It is attributed." in policy_text
+        assert "It is marked unconfirmed." in policy_text
+        assert "It carries no figure." in policy_text
+
+    def test_the_validator_keeps_the_attribution_and_hedge_promise(self) -> None:
+        from newsroom.validator import check_no_unsupported_mechanism
+
+        source = inspect.getsource(check_no_unsupported_mechanism)
+        speaks_at = source.find("_speaks_for_the_newsroom(")
+        general_at = source.find("_ATTRIBUTED_TO_A_SOURCE.search(")
+
+        assert speaks_at != -1, "the desk-hypothesis branch is gone from the gate"
+        assert general_at != -1
+        assert speaks_at < general_at, (
+            "the policy promises our own analysts are held to a STRICTER rule than "
+            "an outside institution. _ATTRIBUTED_TO_A_SOURCE matches any sentence "
+            "containing 'says', so if it is tested first the hedge requirement is "
+            "a branch nothing reaches and the promise is unkept"
+        )
+
+    def test_the_panel_keeps_the_no_figure_promise(self) -> None:
+        from newsroom.pipeline.hypothesis import LENSES, _admissible
+
+        kept, discarded = _admissible(
+            [{"claim": "Housing costs rose 12% and deterred families",
+              "basis": "domain_knowledge"}],
+            LENSES["demography"],
+            None,
+        )
+
+        assert kept == [] and discarded, (
+            "the policy tells readers a hypothesis carrying a number is deleted "
+            "before the correspondent sees it"
+        )
+
+    def test_the_panel_is_separately_consulted_as_the_policy_says(
+        self, policy_text: str
+    ) -> None:
+        """The claim that a convergence means something rests on this.
+
+        "consulted separately rather than together, so where two of them
+        independently land on the same explanation, that is worth something" is
+        only true if they are separate model calls. One call asking for several
+        views produces one view wearing several hats, and the corroboration we
+        would then print to a reader would be an artefact of ordering.
+        """
+        from newsroom.pipeline.hypothesis import consult_panel
+
+        assert "consulted separately" in policy_text
+        source = inspect.getsource(consult_panel)
+        assert "for lens in lenses:" in source
+        assert source.count("writer.complete_json(") == 1, (
+            "one call site inside the per-lens loop is what makes the calls "
+            "independent; a single call outside it would make the policy false"
+        )

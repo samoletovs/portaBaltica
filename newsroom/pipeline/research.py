@@ -267,7 +267,33 @@ class ResearchContext:
 
 
 def _topic_terms(signal: Signal) -> set[str]:
-    return set(_SECTION_TERMS.get(signal.section, {signal.section})) - _STOP_WORDS
+    """What this finding is *about*, asked of the finding rather than its shelf.
+
+    This used to be the section vocabulary alone, and a section is a shelf in
+    the newsroom, not a subject. Lithuania's crude birth rate is filed under
+    ``environment`` because that is the beat its correspondent covers, so the
+    only terms available to match against were ``climate``, ``environment`` and
+    ``weather``. Measured on the published article, the five items retrieved for
+    it were Estonian farm subsidies, a crane migration count, Greece's Social
+    Climate Plan, Latvijas Banka's climate disclosures and a Commission daily
+    digest. Nothing about demographics, and the piece went out saying the data
+    did not show what drove the change.
+
+    The section list was not wrong, it was *narrow*, and widening it is the
+    trap: adding "birth" and "fertility" to ``environment`` fixes this one
+    finding and leaves the next one — a section vocabulary can only ever
+    enumerate the subjects somebody already thought of.
+
+    So the metric's own label is asked as well. ``metric_label`` is the one
+    field that always describes the subject, it is set per indicator rather
+    than per shelf, and a metric added tomorrow brings its own vocabulary with
+    it. The section terms stay because they carry synonyms a label does not:
+    ``energy`` reaches "electricity" and "grid", which "Day-ahead wholesale
+    electricity price" would only half supply.
+    """
+    section_terms = set(_SECTION_TERMS.get(signal.section, {signal.section}))
+    metric_terms = {word.lower() for word in _WORD.findall(signal.metric_label or "")}
+    return (section_terms | metric_terms) - _STOP_WORDS
 
 
 def _score(signal: Signal, item: FeedItem) -> int:

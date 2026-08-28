@@ -21,6 +21,12 @@ asking for trust it has not earned.
   came from.
 - **The AI never chooses what counts as news, and never supplies a number.** Both
   come from deterministic code that we can inspect and test.
+- **Where we suggest a cause, we say whose idea it is and that we cannot confirm
+  it.** A statistic tells you what changed, not why. Rather than always answering
+  "the data does not show what drove this", we ask specialist AI analysts for
+  candidate explanations — and every one is published with a name attached and
+  marked as unconfirmed. They are proposals, not findings, and they never carry a
+  figure.
 - **We do not rewrite other outlets' journalism.** Where we point you at another
   publication, you get their headline, the summary they published themselves, and
   a link. Nothing is reworded.
@@ -51,11 +57,52 @@ The list of permitted sources is a published file in our source code
 (`newsroom/sources.yaml`). Content from a source that is not on that list is
 discarded. Adding a source is a code change, reviewed by the accountable editor.
 
+### The one place a model uses knowledge of its own
+
+There is a single exception to all of the above, and it is worth stating
+plainly because it is the only point at which anything here draws on something
+other than a retrieved figure.
+
+A statistic says what changed. It almost never says why, and for a long time
+this site answered that question by refusing it — "the data does not show what
+drove the change" appeared in article after article. That sentence is honest,
+and it is also an admission that nobody looked.
+
+So after the figures are verified, two AI specialists are consulted separately
+and asked what a demographer, a political economist, an industry analyst, a
+geopolitical analyst or a household economist would say drove this. They are
+permitted to use what they know about the region — its policy history, its
+industries, its corridors, its population structure. They are consulted
+separately rather than together, so where two of them independently land on the
+same explanation, that is worth something and we say so.
+
+**What they produce is a hypothesis, and it is published as one.** Three rules
+are enforced in code rather than asked for in a prompt:
+
+- **It is attributed.** Either to the analyst who proposed it, by name and
+  discipline, or to an official document we actually retrieved and read. A cause
+  we cannot put a name to is not published.
+- **It is marked unconfirmed.** The article says, in the same paragraph, that
+  this data cannot establish it. Our validator rejects the piece otherwise, and
+  it applies that rule to our own analysts *more* strictly than to an outside
+  institution — a central bank is on the record independently and answerable for
+  what it said; our analyst is a model we prompted.
+- **It carries no figure.** A hypothesis containing a number is deleted before
+  the correspondent sees it, because a number we did not verify is not
+  publishable however it is framed.
+
+These explanations may be wrong. That is the nature of a hypothesis, and it is
+why they are labelled as such rather than folded into the reporting. We think an
+attributed, falsifiable, clearly-marked attempt at "why" serves you better than a
+refusal — but only if it is impossible to mistake for a finding, which is what
+the three rules above are for.
+
 ## 2. What the AI may do, and what it may not
 
 **Permitted:** writing prose around figures the pipeline has already verified;
 proposing a headline; organising an explanation; choosing which comparison makes
-a trend legible.
+a trend legible; offering a candidate cause, where it is attributed by name and
+marked as unconfirmed (see section 1).
 
 **Forbidden, and blocked in code rather than merely discouraged:**
 

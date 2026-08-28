@@ -259,6 +259,48 @@
             "mechanisms_discarded": { "type": "integer", "minimum": 0 }
           }
         },
+        "hypotheses": {
+          "type": "object",
+          "description": "The causal panel's candidate causes. Distinct from analysis.mechanisms in kind, not just in degree: a mechanism relates two verified series and is published as reporting, whereas a hypothesis is a proposed cause from outside the figures and is published attributed and marked unconfirmed. Recorded whenever the panel was consulted, including when it proposed nothing admissible — an article admitting no cause is a different artefact depending on whether specialists looked and found nothing or nobody was asked.",
+          "required": ["prompt_version", "consulted", "hypotheses"],
+          "additionalProperties": false,
+          "properties": {
+            "prompt_version": { "type": "string" },
+            "consulted": {
+              "type": "array",
+              "description": "The panellists who answered, by name and discipline.",
+              "items": { "type": "string" }
+            },
+            "hypotheses": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["claim", "lens", "analyst", "discipline", "basis", "attribution", "strength"],
+                "additionalProperties": false,
+                "properties": {
+                  "claim": { "type": "string", "description": "The proposed cause. Carries no quantity by construction: hypothesis._admissible discards any claim numeric_scan finds a figure in, because a causal claim resting on an unverified number is a numeric claim wearing a causal one's clothes." },
+                  "lens": { "type": "string", "description": "Which analytical perspective proposed it." },
+                  "analyst": { "type": "string" },
+                  "discipline": { "type": "string" },
+                  "basis": {
+                    "enum": ["domain_knowledge", "official_document"],
+                    "description": "What the cause rests on. official_document is admitted only when the named source is in this article's research context; the check is in code, not in the prompt."
+                  },
+                  "attribution": { "type": "string", "description": "Who the article attributes the claim to. Always the panellist, including when they were reading a document — see informed_by. Assigned from the panel table rather than read from the model, so a guess cannot be laundered into a weightier institution's mouth." },
+                  "informed_by": { "type": "string", "description": "The official source whose release informed this reading, when there was one. Never who the claim is attributed to: the guard can establish that a named document was retrieved for this article, and nothing establishes that it says what the claim says. Publishing the panellist's reading under the publisher's name would answer the second question having only asked the first." },
+                  "strength": { "enum": ["likely", "possible"] },
+                  "testable_with": { "type": "string", "description": "The reading that would confirm or kill it. Unverified quantities are redacted rather than rejected here, because unlike a claim this field is supposed to name a future threshold." },
+                  "corroborated_by": {
+                    "type": "array",
+                    "description": "Other panellists who reached the same cause independently. The panel makes separate model calls per lens precisely so this means something.",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "discarded": { "type": "integer", "minimum": 0, "description": "Candidates the admissibility guard threw away. A rising count is the signal that the panel prompt needs work." }
+          }
+        },
         "generated_at": { "type": "string", "format": "date-time" },
         "approved_by": { "type": "string", "description": "Set for tier B and C after Telegram approval." },
         "approved_at": { "type": "string", "format": "date-time" },

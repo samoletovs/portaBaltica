@@ -26,6 +26,7 @@ from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline import config
 from newsroom.pipeline.context import ContextPack
 from newsroom.pipeline.house_style import StyleReport, apply_house_style
+from newsroom.pipeline.hypothesis import HypothesisPanel
 from newsroom.pipeline.models import Article, Block, Figure, Signal, isoformat, utcnow
 from newsroom.pipeline.rank import finding_key
 from newsroom.pipeline.research import ResearchContext
@@ -160,6 +161,7 @@ def generate_article(
     research: ResearchContext | None = None,
     pack: ContextPack | None = None,
     brief: AnalystBrief | None = None,
+    panel: HypothesisPanel | None = None,
     max_attempts: int = MAX_ATTEMPTS,
     editor_notes: Sequence[str] = (),
 ) -> GenerationResult:
@@ -180,6 +182,12 @@ def generate_article(
     and face the validator exactly as the detector's own do. ``pack`` and
     ``brief`` add the *explanation* of those figures to the prompt; neither
     introduces a number.
+
+    ``panel`` is the causal panel's candidate causes. It is the one input here
+    that carries a claim about the world rather than about the figures, and it
+    introduces no number either: ``hypothesis._admissible`` discards any claim
+    carrying a quantity before this function ever sees it, so the numeric gates
+    downstream have nothing new to catch.
     """
     created_at = now or isoformat(utcnow())
 
@@ -193,7 +201,9 @@ def generate_article(
     persona = persona_for_section(signal.section)
     length = paragraphs if paragraphs is not None else paragraphs_for(pack, brief)
     system = build_system_prompt(signal, persona, paragraphs=length)
-    user = build_user_prompt(signal, research=research, pack=pack, brief=brief)
+    user = build_user_prompt(
+        signal, research=research, pack=pack, brief=brief, panel=panel
+    )
 
     # A rewrite the editor asked for starts from the editor's notes, not from a
     # blank draft. Without this the desk's "revise" was a decision with no
@@ -223,6 +233,7 @@ def generate_article(
             research=research,
             pack=pack,
             brief=brief,
+            panel=panel,
             attempts=attempt,
         )
 
@@ -341,6 +352,7 @@ def _article_from_payload(
     attempts: int,
     pack: ContextPack | None = None,
     brief: AnalystBrief | None = None,
+    panel: HypothesisPanel | None = None,
 ) -> GenerationResult:
     """Build an article from one model response and run it through the gate."""
     headline = str(payload.get("headline") or "").strip()
@@ -423,6 +435,18 @@ def _article_from_payload(
             # resting on nothing.
             **({"context": pack.to_provenance()} if pack is not None and pack else {}),
             **({"analysis": brief.to_provenance()} if brief is not None and brief else {}),
+            # The panel is recorded whenever it was consulted, including when
+            # it proposed nothing admissible. That is the case worth keeping:
+            # an article saying the data does not establish a cause is a
+            # different artefact depending on whether two specialists looked
+            # and found nothing, or nobody was asked. Without this the two are
+            # the same silence, which is the state that made these articles
+            # shallow in the first place.
+            **(
+                {"hypotheses": panel.to_provenance()}
+                if panel is not None and panel.consulted
+                else {}
+            ),
         },
     )
 

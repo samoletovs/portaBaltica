@@ -360,7 +360,7 @@ class AnalystBrief:
             "mechanisms_discarded": len(self.discarded),
         }
 
-    def prompt_section(self) -> str:
+    def prompt_section(self, *, panel_has_hypotheses: bool = False) -> str:
         """The brief as the writer sees it, with the confidence rules attached.
 
         Rendered as content, not as a trust claim: ``prompts._analyst_section``
@@ -368,6 +368,15 @@ class AnalystBrief:
         analyst reads fetched third-party page text and its prose is therefore
         downstream of untrusted input. ``_ground`` checks the field names a
         mechanism cites; it never inspects the words.
+
+        ``panel_has_hypotheses`` says whether
+        :mod:`newsroom.pipeline.hypothesis` filed anything admissible for this
+        finding. It only ever matters in the no-mechanism branch below, and
+        there it matters a great deal: that branch's instruction is *"Do NOT
+        write a paragraph explaining why this happened"*, which was correct
+        when the brief was the last word on causes and is a gag order now that
+        it is not. The analyst runs before the panel and cannot know the
+        answer, so it is passed in at prompt-build time rather than stored.
         """
         lines = [
             f"Filed by {self.expert}, {self.discipline}, who read this finding first.",
@@ -428,19 +437,38 @@ class AnalystBrief:
                     f"  {len(self.discarded)} were proposed and every one was "
                     f"dropped for resting on nothing the figures establish."
                 )
-            lines.append(
-                "  Do NOT write a paragraph explaining why this happened. There "
-                "is no wording that makes an ungrounded cause publishable, and a "
-                "draft that attempts one is rejected rather than revised."
-            )
-            lines.append(
-                "  Say the data does not show what drove it, once, and spend the "
-                "space on what it DOES show: how large against its own history, "
-                "who it lands on, how it compares with the neighbours, what the "
-                "next release would have to show. If none of those is worth a "
-                "paragraph, END THE PIECE EARLIER -- that is the right outcome "
-                "and not a failure."
-            )
+            if panel_has_hypotheses:
+                # The panel found something, so the silence is no longer the
+                # whole answer. What stays true is the part this branch was
+                # actually protecting: no cause may be asserted on the
+                # *figures'* authority, because the figures do not carry one.
+                # What changes is that the alternative is now a hypothesis
+                # somebody is named for, rather than an early ending.
+                lines.append(
+                    "  So do not explain this movement on the figures' authority — there "
+                    "is no wording that makes an ungrounded cause publishable, and a "
+                    "draft that asserts one is rejected rather than revised."
+                )
+                lines.append(
+                    "  The causal panel HAS filed candidate causes for this finding, "
+                    "listed further down. Those are attributable and you should use "
+                    "one, under the rules given there: name who holds it, and say in "
+                    "the same paragraph that this data cannot confirm it."
+                )
+            else:
+                lines.append(
+                    "  Do NOT write a paragraph explaining why this happened. There "
+                    "is no wording that makes an ungrounded cause publishable, and a "
+                    "draft that attempts one is rejected rather than revised."
+                )
+                lines.append(
+                    "  Say the data does not show what drove it, once, and spend the "
+                    "space on what it DOES show: how large against its own history, "
+                    "who it lands on, how it compares with the neighbours, what the "
+                    "next release would have to show. If none of those is worth a "
+                    "paragraph, END THE PIECE EARLIER -- that is the right outcome "
+                    "and not a failure."
+                )
         if self.affected:
             lines.append("")
             lines.append("WHO THIS LANDS ON: " + "; ".join(self.affected))

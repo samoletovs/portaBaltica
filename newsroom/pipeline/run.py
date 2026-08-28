@@ -38,6 +38,7 @@ from newsroom.pipeline.detect import Threshold, detect_all
 from newsroom.pipeline.decisions import DecisionLedger
 from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
 from newsroom.pipeline import house_style
+from newsroom.pipeline.hypothesis import HypothesisPanel, consult_panel
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, FeedItem, Signal
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
@@ -93,6 +94,10 @@ class RunReport:
     context: dict[str, ContextPack] = field(default_factory=dict)
     #: The specialist desk's brief for each selected signal, by signal id.
     analysis: dict[str, AnalystBrief] = field(default_factory=dict)
+    #: The causal panel's candidate causes for each selected signal, by signal
+    #: id. Distinct from ``analysis``: a brief holds relationships between
+    #: verified series, a panel holds proposed causes from outside them.
+    panels: dict[str, HypothesisPanel] = field(default_factory=dict)
     #: Signals after the context pack was merged in, by signal id. The writer
     #: and the validator both see these, not the bare detector output.
     enriched: dict[str, Signal] = field(default_factory=dict)
@@ -260,6 +265,7 @@ def _revision_for(
                 research=report.research.get(generated.signal.id),
                 pack=report.context.get(generated.signal.id),
                 brief=report.analysis.get(generated.signal.id),
+                panel=report.panels.get(generated.signal.id),
                 editor_notes=tuple(notes),
             )
         except Exception as exc:  # noqa: BLE001
@@ -400,6 +406,25 @@ async def run_once(
                 log.exception("analysis failed for %s", signal.id)
                 report.errors.append(f"analyse {signal.id}: {exc}")
 
+        # --- 6b. the causal panel ------------------------------------------
+        # Several specialists propose *why*, which is the one question the
+        # figures cannot answer and the analyst is forbidden to guess at. Every
+        # hypothesis arrives attributed and carrying no quantity —
+        # `hypothesis._admissible` enforces both in code — so this stage can
+        # deepen an article and cannot put an unverified number in one.
+        for signal in report.ranking.selected:
+            try:
+                report.panels[signal.id] = consult_panel(
+                    report.enriched.get(signal.id, signal),
+                    writer,
+                    pack=report.context.get(signal.id),
+                    research=report.research.get(signal.id),
+                    brief=report.analysis.get(signal.id),
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.exception("causal panel failed for %s", signal.id)
+                report.errors.append(f"panel {signal.id}: {exc}")
+
         # --- 7/8. write and validate -------------------------------------
         for signal in report.ranking.selected:
             try:
@@ -410,6 +435,7 @@ async def run_once(
                         research=report.research.get(signal.id),
                         pack=report.context.get(signal.id),
                         brief=report.analysis.get(signal.id),
+                        panel=report.panels.get(signal.id),
                     )
                 )
             except GenerationRefused as exc:
