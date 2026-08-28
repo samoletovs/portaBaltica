@@ -75,6 +75,12 @@ jobs:
       message: ${{ steps.judge.outputs.message }}
 
     steps:
+      - name: TEMPORARY crash, to prove a dead check job still notifies
+        # Removed in the next commit. This kills the check job before it can
+        # write any output, which is the state that used to skip notification
+        # entirely and leave a red, silent run.
+        run: exit 1
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
