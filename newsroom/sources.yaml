@@ -169,7 +169,7 @@ sources:
     publisher: "European Parliament"
     tier: B
     endpoint: "https://www.europarl.europa.eu/rss/doc/top-stories/en.xml"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 202 with a zero-byte body. Dead."
     auth: none
     licence: "EU Decision 2011/833/EU — free reuse with attribution"
     attribution: "Source: European Parliament"
@@ -179,7 +179,23 @@ sources:
     research_language: en
     research_summary_allowed: true
     document_fetch_allowed: true
+    enabled: false
     cache_ttl_minutes: 120
+    notes: >-
+      Disabled 2026-08-28. Every run since at least 08-27 logged
+      "ep_news: feed did not parse (no element found: line 1, column 0)",
+      because the endpoint answers HTTP 202 Accepted with a ZERO-BYTE body —
+      a status that reads as success to anything checking `response.ok`.
+      Measured from an ordinary connection, off Azure, so this is not the
+      egress problem that makes Riga Open Data look dead: 5 sequential
+      attempts, 3 different europarl.europa.eu RSS paths (top-stories,
+      press-releases, /news/en/rss) and 2 user agents, all 202/0 bytes.
+      Whatever replaced it is not at these URLs. In the same probe LSM and ERR
+      returned 200 with 50 items each, which is the control proving the
+      instrument worked. Official EU statements are still covered by
+      `ec_presscorner`, which returned 200 with 10 items in the same sweep.
+      Re-enable if the European Parliament publishes a feed again; the Council
+      is not a substitute, consilium.europa.eu answers 403.
 
   # ECB press releases. All three Baltic states are in the euro area, so the
   # ECB's own commentary is primary source material for every inflation, rate
@@ -279,7 +295,7 @@ sources:
     country: "Baltic"
     tier: C
     endpoint: "https://www.baltictimes.com/rss/"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 403. Dead."
     auth: none
     licence: "Copyright. No open licence located. RSS snippet + link only."
     attribution: "The Baltic Times"
@@ -288,7 +304,19 @@ sources:
     research_role: prior_coverage
     research_language: en
     max_snippet_source: "rss_description_verbatim"
+    enabled: false
     cache_ttl_minutes: 60
+    notes: >-
+      Disabled 2026-08-28. Every run since at least 08-27 logged
+      "baltictimes: HTTP 403, not retryable". Measured from an ordinary
+      connection, off Azure, so this is a block rather than the egress problem
+      that makes Riga Open Data look dead: 403 on /rss/, /rss and /feed/, with
+      a browser user agent, twice each. LSM and ERR returned 200 with 50 items
+      in the same sweep, which is the control proving the instrument worked.
+      The licence was already "copyright, no open licence located", so this
+      was a link-only tier C card and nothing downstream depended on it.
+      Re-enable only if they stop refusing us; do not work around a 403 by
+      disguising the client, because the 403 IS their answer.
 
   - id: emerging_europe
     name: "Emerging Europe"
