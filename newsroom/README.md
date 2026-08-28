@@ -121,7 +121,9 @@ convention.
                       already published, against the vintage it was published
                       on. A restated figure appends a public correction to the
                       live article and to corrections.json. This is the only
-                      stage that acts on articles already out.
+                      stage that acts on articles already out — alongside 13,
+                      which files corrections that were OUR error rather than
+                      the source's. Neither rewrites a word of the prose.
 ```
 
 ### Why the depth stages exist
@@ -441,6 +443,68 @@ Three rules that are load-bearing rather than stylistic:
    is still an unpublish.
 3. **A source revision is not our error, and the wording says which it is.**
    Conflating them trains readers to discount both.
+
+### Three remedies, and the one that was missing
+
+The published policy names two, and rule 3 above is the seam between them:
+
+| | what it is | what it does |
+|---|---|---|
+| `revisions.py` | **the source** restated a figure | note; article stands |
+| `corrections.py` | **we** got something wrong | note; article stands |
+| `retract.py` | the story should not have run | withdrawn; page stays up |
+
+The middle row was missing until it was needed. `revisions.py` *looks* like the
+policy's "Correction — a factual error", and is not: its public sentence ends
+*"this is a restatement by the source, not a reporting error"*, which is true
+there and a lie about anything we got wrong ourselves. So a factual error of our
+own had only retraction available — and retraction withdraws the article, which
+would have destroyed correct journalism to fix a label.
+
+The case that found the gap: one article credited an explanation to *"Dr. Ineta
+Zvirbule"*, who does not exist. Her figures, comparison basis, finding and the
+substance of the hypothesis were all sound. Nothing to retract; one sentence to
+correct.
+
+**The list lives in code**, in `corrections.PENDING`, because an editorial
+correction cannot be *detected* — that is exactly what separates it from the
+revision watch, which computes its own subject every run. Somebody has to decide
+a published sentence was wrong. Declaring it means the decision is reviewed like
+any other change and leaves a diff; the alternative is an operator editing a
+blob, which is unreviewable and unrepeatable. It is applied idempotently on every
+edition, so it appends once and then does nothing.
+
+### Why the prose is not repaired at render time
+
+`analystLabel` already repairs the *provenance* block — a legacy record naming
+"Dr Ineta Zvirbule" renders with the disclosure appended, the way `renderByline`
+repairs a drifted correspondent name on the way to the screen. Extending that to
+body prose is the obvious next step and it is wrong, for three reasons worth
+writing down because the next reader will have the same idea:
+
+1. The provenance block is the site's own chrome *describing* its data; the body
+   is the article. Relabelling the first explains a record, relabelling the
+   second edits one.
+2. **A correction and a silent rewrite are incompatible, not complementary.** A
+   note saying "we credited Dr Zvirbule" beside a paragraph that no longer says
+   it describes a state the reader cannot check. A correction that cannot be
+   verified against the page it corrects is worse than none, because it asks for
+   trust while removing the evidence.
+3. It is already promised. The retraction notice says *"The page remains here,
+   unchanged, so the record of what we published is public"*, and a site whose
+   argument is disclosure does not edit an embarrassment out of its own archive.
+
+What makes the note sufficient is **ordering**, and that was measured rather than
+assumed: `ArticleView` renders the corrections panel *above* the body, so a
+reader meets the correction before the sentence it is about. `correctedArticle.test.tsx`
+pins that ordering, and pins that the paragraph is rendered unaltered — the
+second is there because a future change is more likely to "helpfully" repair the
+prose than to move the panel.
+
+The line between the two mechanisms generalises: **render-time repair for the
+chrome, a correction for the prose.** It also decided the population. The same
+invented name is in the provenance of a second article and that one needs no
+correction, because nothing false reaches a reader there.
 
 `corrections.json` is a **bare JSON array**, because `fetchCorrections` in
 `src/news-api.ts` does `if (!Array.isArray(raw)) return []`. Wrapping it the way
@@ -892,6 +956,7 @@ newsroom/
 ├── numeric_scan.py            # numeric tokenising for no_invented_numbers
 ├── validator.py               # the gate: every check in the schema enum
 ├── pipeline/research.py       # bounded context from cached registered feeds
+├── pipeline/corrections.py    # our own error, noted; article stands
 ├── pipeline/hypothesis.py     # the causal panel: attributed, quantity-free why
 ├── pipeline/significance.py   # the measurement floor: is the move resolvable?
 ├── pipeline/vintage.py        # ledger of published figures and their vintages
