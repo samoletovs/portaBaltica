@@ -34,6 +34,21 @@ export interface BalticCompareData {
     latestPeriod: string;
   } | null;
   source: string;
+  /**
+   * The upstream cube code on its own, e.g. `une_rt_m`.
+   *
+   * `source` already contains it, as `Eurostat (une_rt_m)`, but only as prose.
+   * A consumer that wants the code has to parse the parenthesis out, which is
+   * a second place the truth lives. The API has sent this field since
+   * `api/baltic-compare/index.js:157`; it was simply never declared, so every
+   * caller had to reach for it through a cast or re-derive it from `source`.
+   */
+  dataset?: string;
+  /** When the API read this from Eurostat. Sent by the API and, until now,
+   *  undeclared — so an export could not say when the figures were retrieved
+   *  without asserting the download time was the retrieval time, which is a
+   *  different and quietly wrong claim. */
+  fetchedAt?: string;
   /** Dimensions the indicator definition failed to pin. Always empty for a
    *  correctly specified indicator — a non-empty value means the API had to
    *  guess which slice of the Eurostat cube to read. */

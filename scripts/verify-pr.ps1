@@ -141,6 +141,7 @@ Write-Host "  head  $($pr.headRefName) $($headSha.Substring(0,8))"
 
 $wt = Join-Path ([System.IO.Path]::GetTempPath()) "pb-verify-$Number-$(Get-Random)"
 $merged = $false
+$linkedModules = $null
 try {
   git worktree add --detach $wt $baseSha
   if ($LASTEXITCODE -ne 0) { throw "could not create worktree at $wt" }
@@ -181,9 +182,28 @@ try {
       if (-not $SkipTests) {
         # A fresh worktree has no node_modules. Reuse the repo's rather than
         # reinstalling: this is the same commit range and the same lockfile.
+        #
+        # The junction MUST be torn down before `git worktree remove --force`,
+        # and this is not a tidiness point -- it is the difference between a
+        # link and its target. Measured directly rather than assumed, because
+        # the first hypothesis was wrong:
+        #
+        #   Remove-Item -Recurse -Force over a dir holding a junction
+        #                                       -> target SURVIVED (3 of 3 files)
+        #   git worktree remove --force         -> target DESTROYED (0 of 3)
+        #
+        # So it is git that walks through the reparse point, not PowerShell.
+        # This script did exactly that to this repository: after a verification
+        # run the repo's own node_modules held one entry, no .bin, no
+        # typescript and no vitest, and `npm run build` then failed with
+        # "'tsc' is not recognized" -- which reads as a broken toolchain rather
+        # than as something the tool had just done to itself.
+        # `cmd /c rmdir` removes the reparse point only and never follows it.
         $srcModules = Join-Path $repoRoot 'node_modules'
+        $linkPath = Join-Path $wt 'node_modules'
         if (Test-Path $srcModules) {
-          cmd /c mklink /J (Join-Path $wt 'node_modules') $srcModules
+          cmd /c mklink /J "$linkPath" "$srcModules" | Out-Host
+          $linkedModules = $linkPath
         } else {
           Write-Host '  no node_modules to reuse; installing' -ForegroundColor Yellow
           npm ci
@@ -212,6 +232,18 @@ try {
     Pop-Location
   }
 } finally {
+  # Order matters and is load-bearing: drop the junction FIRST, then remove the
+  # worktree. Reversed, `git worktree remove --force` walks through the link
+  # and empties the repository's real node_modules -- measured, 3 files to 0.
+  # See the comment where the junction is created.
+  if ($linkedModules -and (Test-Path $linkedModules)) {
+    cmd /c rmdir "$linkedModules" | Out-Host
+    if (Test-Path (Join-Path $linkedModules 'vitest')) {
+      Write-Host "  WARNING: $linkedModules still resolves; not removing the worktree." -ForegroundColor Red
+      Write-Host '  Delete it by hand rather than risk the repository node_modules.' -ForegroundColor Red
+      exit 1
+    }
+  }
   git worktree remove --force $wt 2>&1 | Out-Host
 }
 

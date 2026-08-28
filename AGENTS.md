@@ -10,7 +10,8 @@ Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard
 - **Backend:** Azure Static Web App managed functions (JavaScript)
 - **Data sources:** Eurostat dissemination API (JSON-stat 2.0), data.gov.lv CKAN API v3, Open-Meteo, Elering (NordPool), ECB, CSP PxWeb
 - **Hosting:** Azure Static Web Apps (free tier) at portabaltica.naurolabs.com
-- **Theme:** Dark ocean theme with custom `ocean-*` color palette
+- **Theme:** Light and dark themes driven by CSS custom properties in
+  `src/index.css`; components use the named `dash-*` / `news-*` classes
 
 ### Known-dead sources
 
@@ -367,7 +368,18 @@ visible.
 ## Conventions
 
 - Follow NauroLabs TypeScript + React conventions (see .github/instructions/)
-- Use the existing `ocean-*` Tailwind color palette for all new components
+- Colour comes from the named classes and custom properties in `src/index.css`
+  — `dash-*` on the dashboard, `news-*` in the newsroom — and `DESIGN.md` is
+  authoritative. **Not `ocean-*`.** That instruction stood here for months
+  after it stopped being true: measured 2026-08-28, `ocean-` appears in exactly
+  two files, `src/index.css` (11 `@theme` definitions) and this one, and in
+  **zero** components. The control that makes that reading trustworthy is
+  `dash-`, which the same grep finds in eight components and counting. A
+  session briefed with this line dutifully ignored it and used the real system,
+  which is the good outcome; the bad one is a session that obeys it and
+  hand-rolls a palette the contrast tests cannot see, because
+  `design-system.test.ts` computes ratios against the declared custom
+  properties and an undeclared class is invisible to it.
 - All API data goes through SWA managed functions (CORS proxy)
 - Cache aggressively: data.gov.lv datasets update daily/biweekly, not per-request
 - No hardcoded text — but i18n is not required yet (English only for now)
