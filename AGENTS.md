@@ -1508,7 +1508,31 @@ The join yielded `mutually   exclusive`. In `PROGRAMME.md` the second probe
 failed on a `> ` **marker**; here it failed on **leading whitespace** with no
 marker at all — so even the *same* remedy fails for different reasons in
 different files, which is the section's own claim one level deeper than it was
-written. Strip the markup **and** trim, then join.
+written.
+
+**And a third cause, found by using that remedy on the clause two sections up.**
+It reported the clause *absent* — from a phrase plainly present:
+
+```
+                                            strip+trim+join   +emphasis stripped
+SUBJECT  "...same way, **on the same object**."     False            True
+CONTROL  "**an absent result is a claim ... code.**" True            True
+```
+
+Emphasis **around** a phrase is harmless; emphasis **inside** it is fatal, because
+the `**` lands in the middle of the span. So the family runs to three, and each
+step is the previous step's remedy:
+
+| Probe | Defeated by |
+|---|---|
+| per-line grep | the **newline** |
+| naive join | the line-leading `> ` **marker** |
+| strip-markup join | **inline `**`** inside the phrase |
+
+Strip line-leading markup, trim, **and strip inline emphasis**, then join. And
+note what the reading itself is: `False` is produced both by *the phrase is
+absent* and by *the phrase contains emphasis* — two states, one artefact, in the
+instrument recommended for detecting exactly that.
 
 **And the table assumes you have something correct to compare against, which is
 its own failure point: a recollection is not a control.**
