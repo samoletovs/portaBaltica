@@ -114,6 +114,29 @@ export async function fetchArticleIndex(signal?: AbortSignal): Promise<ArticleIn
 }
 
 /**
+ * The weekly reviews, newest first.
+ *
+ * `format` answers what KIND of piece this is, as against what it is about,
+ * and the newsroom writes it onto the summary precisely so a feed can find a
+ * digest without reading the body. Selecting on it is therefore reading a
+ * declared field, not inferring one — which is the difference between this and
+ * matching the headline or the section, both of which the first weekly wrap
+ * proved cannot tell a cross-beat digest from an ordinary maritime report.
+ *
+ * Returns an empty array when there is no wrap, and the caller must render that
+ * as nothing rather than as an empty shell. Today it is the live state: the one
+ * wrap ever published was retracted, so there is no current weekly review at
+ * all, and a page that filled that hole with a placeholder would be inventing
+ * an artefact we do not have.
+ */
+export function weeklyWraps(articles: readonly ArticleSummary[]): ArticleSummary[] {
+  return articles
+    .filter((article) => article.format === 'weekly_wrap')
+    .slice()
+    .sort((a, b) => (b.published_at ?? '').localeCompare(a.published_at ?? ''));
+}
+
+/**
  * One entry in the public corrections log.
  *
  * Flattened from `Article.corrections` by the pipeline into an append-only

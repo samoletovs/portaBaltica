@@ -128,6 +128,48 @@ function ourArticles(articles) {
   });
 }
 
+/**
+ * Who a feed item is credited to.
+ *
+ * One implementation, because two feeds now ask this question and the article
+ * page already answers it a third way — and the three disagreed.
+ *
+ * Tier A always discloses. `persona.byline` contains "AI correspondent" by
+ * schema; the fallback rebuilds the suffix rather than dropping to a bare name,
+ * because a feed reader shows the author and never shows our masthead, so the
+ * disclosure travels here or it does not travel at all.
+ *
+ * Tier B is the case that was wrong. It is somebody else's release, reproduced
+ * verbatim under a licence that permits it, and `ArticleView` says so on the
+ * page: "No portaBaltica byline: we did not write this." /rss.xml credited it
+ * to `portaBaltica` anyway — the site contradicting its own stated rule on the
+ * one surface where the contradiction leaves the site and is read by people who
+ * will never see the page that corrects it.
+ *
+ * The order matters and is not arbitrary: a persona means we wrote it, so it
+ * wins; `syndicated.attribution` is consulted only when there is no byline of
+ * ours to give.
+ */
+function bylineFor(article) {
+  if (!article || typeof article !== 'object') return 'portaBaltica';
+
+  const persona = article.persona;
+  if (persona && typeof persona === 'object') {
+    if (typeof persona.byline === 'string' && persona.byline) return persona.byline;
+    if (typeof persona.name === 'string' && persona.name) {
+      return persona.name + ' \u00b7 AI correspondent';
+    }
+  }
+
+  const syndicated = article.syndicated;
+  if (syndicated && typeof syndicated === 'object' &&
+      typeof syndicated.attribution === 'string' && syndicated.attribution) {
+    return syndicated.attribution;
+  }
+
+  return 'portaBaltica';
+}
+
 function escapeXml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -137,4 +179,13 @@ function escapeXml(value) {
     .replace(/'/g, '&apos;');
 }
 
-module.exports = { SITE_URL, ARTICLES_BASE_URL, jsonGet, fetchIndex, parseIndex, ourArticles, escapeXml };
+module.exports = {
+  SITE_URL,
+  ARTICLES_BASE_URL,
+  jsonGet,
+  fetchIndex,
+  parseIndex,
+  ourArticles,
+  bylineFor,
+  escapeXml,
+};

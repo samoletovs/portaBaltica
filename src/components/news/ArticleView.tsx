@@ -196,6 +196,43 @@ function checkItHref(article: Article, chartRef?: string): string {
   return country ? `/indicator/${resolved}?country=${country}` : `/indicator/${resolved}`;
 }
 
+/**
+ * The path back.
+ *
+ * A reader who has just finished an article is the one person on the site most
+ * likely to want another, and until this existed there was nowhere for them to
+ * go: the only follow affordance anywhere was the word "RSS" in the footer.
+ *
+ * Deliberately quiet, and deliberately not a promise. It says how we publish —
+ * irregularly, when a series moves — because setting the expectation here is
+ * what stops a subscriber concluding we died during a quiet fortnight.
+ */
+function KeepUp({ isWeekly }: { isWeekly: boolean }) {
+  return (
+    <p className="news-border news-muted mt-8 border-t pt-4 text-ui">
+      {isWeekly ? (
+        <>
+          This is our weekly review, written when the week produced enough to review.{' '}
+          <Link to="/weekly" className="news-link underline underline-offset-4">
+            Earlier reviews
+          </Link>
+          {' · '}
+          <Link to="/follow" className="news-link underline underline-offset-4">
+            How to follow us
+          </Link>
+        </>
+      ) : (
+        <>
+          We publish when the data warrants it, which is not every day.{' '}
+          <Link to="/follow" className="news-link underline underline-offset-4">
+            Follow by RSS or JSON Feed →
+          </Link>
+        </>
+      )}
+    </p>
+  );
+}
+
 export function ArticleView({ article }: { article: Article }) {
   // ─── The gate ───
   // Applied before anything about this article reaches the DOM. Do not move it
@@ -333,6 +370,8 @@ export function ArticleView({ article }: { article: Article }) {
           </Link>
         </p>
       )}
+
+      <KeepUp isWeekly={article.format === 'weekly_wrap'} />
 
       <ProvenanceBlock provenance={article.provenance} />
     </article>

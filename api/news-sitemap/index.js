@@ -35,6 +35,13 @@ const handler = async function (context, req) {
 
     add('/', today, '1.0');
     add('/data', today, '0.8');
+    // How to keep up, and the stable address for the latest weekly review.
+    // `/weekly` is listed even when no review is currently published: the page
+    // is a real page that answers the question either way, and de-listing it on
+    // the quiet weeks would drop it from search exactly when a reader is most
+    // likely to be wondering where the wrap went.
+    add('/follow', today, '0.7');
+    add('/weekly', today, '0.7');
     add('/about/ai', today, '0.6');
     add('/corrections', today, '0.5');
     // Canonical URLs only. `/correspondents/:id` still resolves, but `main.tsx`

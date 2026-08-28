@@ -4,6 +4,7 @@
     { "route": "/.auth/login/twitter", "statusCode": 404 },
     { "route": "/.auth/login/aad", "statusCode": 404 },
     { "route": "/rss.xml", "rewrite": "/api/news-rss" },
+    { "route": "/feed.json", "rewrite": "/api/news-jsonfeed" },
     { "route": "/sitemap.xml", "rewrite": "/api/news-sitemap" },
     { "route": "/article/*", "rewrite": "/api/article-page" },
     {

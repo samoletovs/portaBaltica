@@ -50,7 +50,22 @@
     <meta name="twitter:image:alt" content="portaBaltica — Baltic open data, reported" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
-    <link rel="alternate" type="application/rss+xml" title="portaBaltica" href="/rss.xml" />
+    <!--
+      Feed autodiscovery, for both feeds and in the head rather than only in a
+      link on the page.
+
+      This is what a browser extension and a feed reader look at, and it is what
+      they look at *without running JavaScript* — so it belongs in the served
+      bytes rather than in `usePageMeta`. The alternates are site-wide, not
+      per-route: adding them client-side would also duplicate them on every
+      navigation, since the head persists across a route change in a SPA.
+
+      `application/feed+json` is the type JSON Feed 1.1 specifies. A reader that
+      does not know it ignores the line; one that does now has a machine-
+      readable feed it could not previously find.
+    -->
+    <link rel="alternate" type="application/rss+xml" title="portaBaltica — RSS" href="/rss.xml" />
+    <link rel="alternate" type="application/feed+json" title="portaBaltica — JSON Feed" href="/feed.json" />
     <!--
       No webfonts at all, which is deliberate rather than an omission.
 
