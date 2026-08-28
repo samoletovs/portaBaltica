@@ -64,7 +64,7 @@ on:
   # is only ever exercised on a schedule is one whose breakage is discovered by
   # the outage it failed to report.
   push:
-    branches: [master, samoletovs-source-alerting]  # TEMPORARY: branch reverted after the end-to-end proof
+    branches: [master]
     paths:
       - '.github/workflows/source-alert.yml'
       - 'scripts/source-alert.mjs'
