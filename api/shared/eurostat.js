@@ -481,8 +481,8 @@ function isSeriesStale(series, now) {
  * Age of an observation in months. Negative while the period is still open.
  *
  * Whole months for the calendar grid, where a month index locates the period
- * exactly. **Fractional for a week**, where it cannot: `2026-W28` and
- * `2026-W31` share July, so a month index reports the same age for
+ * exactly. **Fractional for a week**, where it cannot: `2026-W27` and
+ * `2026-W30` share July, so a month index reports the same age for
  * observations three weeks apart, and a weekly allowance built on it would be
  * quantised to four-and-a-third cadence units. The unit stays months so there
  * is one age function and one allowance table — `MAX_AGE_MONTHS` — rather than

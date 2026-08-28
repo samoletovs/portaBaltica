@@ -1063,6 +1063,58 @@ comparable"* while meaning *"compared elsewhere"*, and nowhere else compared it.
 that both sides reached independently: **when you audit the consumers, audit the
 input they share.**
 
+### The sibling need not be someone else's, and need not be old
+
+The sharpest instance measured so far is one where the concealing sibling was
+written **by the same author, in the same commit, three lines away**.
+
+`2a60e8b` added the weekly cadence. It edited `isSeriesStale` — the hunk header
+says so — and in the same diff added a docstring immediately below the function
+naming the exact collision:
+
+> *"**Fractional for a week**, where it cannot: … share July, so a month index
+> reports the same age for observations three weeks apart"*
+
+The collision was therefore written down, in prose, by the person editing the
+loop, in the change that created the case. It was applied to **age** and not to
+**ordering**, which kept `periodToMonthIndex` and a strict `>` — so the newest
+observation of a weekly series was whichever the array happened to list first.
+Live: LV's `weekly_deaths` newest reading is `2026-W28` and the verdict reported
+`2026-W27`; reversing two elements changed the answer.
+
+Their own account of why, and it is the part to keep:
+
+> **Having articulated a fact is what made it feel discharged.** I had *dealt
+> with* the week/month collision, so the enclosing function read as handled.
+
+**And the example in that docstring was itself wrong**, which is this file's
+*"an example in guidance is a claim about behaviour — execute it"* rule
+collecting on the very sentence that describes the defect. It originally read
+*"`2026-W28` and `2026-W31` share July"*. Measured:
+
+```
+2026-W27  24319    2026-W29  24319    2026-W31  24320   <- August
+2026-W28  24319    2026-W30  24319    2026-W32  24320
+```
+
+Four weeks do share July's index, so the phenomenon is real and the fractional
+age is right. The pair chosen to illustrate it was not, and nothing checked a
+claim sitting three lines from the loop it was about. It now names `W27` and
+`W30`, which is executable and true.
+
+**And the population rule has a form specific to this.** When you add a member
+to a vocabulary — a fifth cadence, a sixth tier, a new status — the population
+is *every consumer of that vocabulary*, and the dangerous ones are the consumers
+you do **not** change: they were written when the new case did not exist and are
+correct for every case that did. `isSeriesStale`'s `>` was right for M, Q, S and
+A. It became wrong the moment `W` existed, and nothing about it changed.
+
+So the sweep to run is not *"does the new member work?"* — that is a test of the
+feature. It is *"which existing code branches on this vocabulary, and does each
+still hold with one more label in play?"* Only the second finds this. In the
+author's words: **the tests enumerated the functions I edited, not the
+invariants I disturbed.**
+
 ## The answer was already computed, and the seam dropped it
 
 Three faults found on 2026-08-28 were the same shape, and it is not one any
