@@ -138,6 +138,26 @@ describe('RankedComparison dates and judges its reading', () => {
     expect(header?.textContent, container.textContent ?? '').toMatch(/Q3 \d{4}/);
   });
 
+  it('formats the per-row period, which only renders when the periods differ', async () => {
+    // A separate assertion from the one above, and it has to be: the per-row
+    // label is a different element on a different code path, and the header
+    // dateline is present either way. A plant that restored the raw `{row.period}`
+    // left every other test in this file green, which is how this gap was found.
+    fetchBalticCompare.mockResolvedValue(
+      raggedData({ LV: `${FRESH}-Q1`, EE: `${FRESH - 1}-Q3`, LT: `${FRESH}-Q1` }),
+    );
+    const { container } = renderRanked();
+    await settle();
+
+    const rowLabels = [...container.querySelectorAll('p.font-mono')].map((n) => n.textContent);
+    expect(rowLabels.length, `rows: ${JSON.stringify(rowLabels)}`).toBeGreaterThan(0);
+    // No raw ISO reaches a reader on any row.
+    for (const label of rowLabels) {
+      expect(label).not.toMatch(/^\d{4}-/);
+      expect(label).toMatch(/^Q\d \d{4}$/);
+    }
+  });
+
   it('says so when the ranking has published nothing recent', async () => {
     fetchBalticCompare.mockResolvedValue(compareData('2016-Q1', { LV: 5, EE: 4, LT: 3 }));
     const { container } = renderRanked();
