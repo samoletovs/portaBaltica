@@ -64,6 +64,30 @@ function eleringPayload(opts: { includeCurrentHour: boolean; price?: number | nu
 }
 
 async function callEconomy(eleringBody: string | null) {
+  // Both entry points, and the second one is why this suite used to be flaky.
+  //
+  // Only `https.get` was stubbed. `api/economy-data/index.js:149` reaches CSP
+  // PxWeb through `https.request`, so four real POSTs went to
+  // `data.stat.gov.lv` on every one of these cases — a host `AGENTS.md` records
+  // as taking 1–12s per table, under a 5000ms test timeout, from an
+  // Azure-hosted runner. Measured with a socket probe before this was fixed: 28
+  // escaping requests from this file alone.
+  vi.spyOn(https, 'request').mockImplementation((() => {
+    const req = new EventEmitter() as EventEmitter & {
+      destroy: () => void;
+      end: () => void;
+      write: () => void;
+    };
+    req.destroy = () => {};
+    req.end = () => {};
+    req.write = () => {};
+    // PxWeb is not what this suite is about; the handler logs the failure and
+    // carries on, which is the branch these cases already exercised by
+    // accident. It does it in a microtask now instead of over the internet.
+    process.nextTick(() => req.emit('error', new Error('PxWeb disabled for this test')));
+    return req;
+  }) as never);
+
   vi.spyOn(https, 'get').mockImplementation(((url: string, _o: unknown, cb: (r: unknown) => void) => {
     const req = new EventEmitter() as EventEmitter & { destroy: () => void };
     req.destroy = () => {};

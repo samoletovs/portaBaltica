@@ -92,23 +92,49 @@ function request(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const https = require('node:https') as { get: unknown };
-const http = require('node:http') as { get: unknown };
+const https = require('node:https') as { get: unknown; request: unknown };
+const http = require('node:http') as { get: unknown; request: unknown };
 const realHttpsGet = https.get;
+const realHttpsRequest = https.request;
 const realHttpGet = http.get;
+const realHttpRequest = http.request;
 const realFetch = globalThis.fetch;
 
-/** Every outbound call fails immediately, so each handler takes its own catch. */
+/**
+ * Every outbound call fails immediately, so each handler takes its own catch.
+ *
+ * `request` is patched as well as `get`, and that omission is the whole reason
+ * this file used to be flaky. Two handlers reach CSP PxWeb through
+ * `https.request` — `api/economy-data/index.js:149` and
+ * `api/historical-data/index.js:15` — so the two tests named after those
+ * handlers made real calls to `data.stat.gov.lv` while this function claimed
+ * the network was off. PxWeb answers in 1–12s and a test gets 5000ms, so
+ * whether CI was green depended on the weather at a statistics office.
+ *
+ * `tests/noNetwork.ts` now refuses the connection underneath this as well. Both
+ * exist on purpose: the guard makes the failure impossible for every file, and
+ * this makes this file's own stated claim true rather than accidentally rescued
+ * by something two directories away.
+ */
 function breakTheNetwork() {
   const failing = () => {
-    const request = new EventEmitter() as EventEmitter & { destroy: () => void; end: () => void };
+    const request = new EventEmitter() as EventEmitter & {
+      destroy: () => void;
+      end: () => void;
+      write: () => void;
+    };
     request.destroy = () => {};
     request.end = () => {};
+    // A `request` caller writes a body before ending; a `get` caller does not.
+    // Without this the POST path throws where it should error.
+    request.write = () => {};
     process.nextTick(() => request.emit('error', new Error('network disabled for this test')));
     return request;
   };
   https.get = failing as unknown;
+  https.request = failing as unknown;
   http.get = failing as unknown;
+  http.request = failing as unknown;
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled for this test'))) as typeof fetch;
 }
@@ -117,7 +143,9 @@ beforeAll(() => breakTheNetwork());
 
 afterAll(() => {
   https.get = realHttpsGet;
+  https.request = realHttpsRequest;
   http.get = realHttpGet;
+  http.request = realHttpRequest;
   globalThis.fetch = realFetch;
 });
 

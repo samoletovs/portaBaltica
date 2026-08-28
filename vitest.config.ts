@@ -18,6 +18,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // No unit test may open a socket to the internet. Two files believed they
+    // had stubbed the network and had not, which made roughly two of every five
+    // pushes to master go red on an unrelated 5000ms timeout. See
+    // `tests/noNetwork.ts` for the measurement and why this is not a raised
+    // timeout. Deliberately absent from `vitest.live.config.ts`.
+    setupFiles: ['./tests/noNetwork.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     exclude: ['tests/**/*.live.test.{ts,tsx}', '**/node_modules/**', '**/dist/**'],
   },
