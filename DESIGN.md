@@ -1166,8 +1166,8 @@ that were wrong.
   header controls        Header             231px    yes
   site section tabs      Header             647px    yes
   dashboard rail         SectionRail        453px    yes
-  newsroom masthead nav  NewsroomLayout      83px    NO
-  insights row           InsightsBanner    1061px    NO
+  newsroom masthead nav  NewsroomLayout      83px    NO  -> fixed
+  insights row           InsightsBanner    1061px    NO  -> fixed
 ```
 
 The newsroom nav cut its **active** tab: "How we use AI" rendered as `Hc`
@@ -1219,6 +1219,48 @@ route — measured **83×26 at every width**. It is not in a `<nav>`, so nothing
 touched it. It carries `min-h-11` now; the row is already `h-14`, so the target
 grew and nothing moved. When a rule is expressed as a selector, the question is
 always what the selector does *not* select.
+
+### 4.6 At a phone's width, a column is not a column
+
+The two published policy documents render markdown tables, and a policy table is
+prose in cells with a short label column. Measured on master at 320px, with
+characters per line as the readability number §4.2 already uses:
+
+```
+                  columns          chars/line   tallest cell   scrolls
+  /corrections    108 / 115 / 110      8.5        13 lines     46px, no affordance
+  /about/ai       114 / 172           11.5         7 lines     no
+```
+
+§4.2 puts a comfortable measure at 45–75 characters and WCAG SC 1.4.8 caps a
+block of text at 80. **Eight** is failing the site's own reading rule by a
+factor of five, on the two pages a sceptical reader goes to. Widening the
+columns was not available: the viewport is the constraint, and three columns of
+prose do not fit 288px however they are arranged.
+
+So below `sm` each row becomes a labelled block at the full column width, and
+the header row is hidden because every cell carries its own label:
+
+```
+                  chars/line       tallest cell   height
+  /corrections    8.5 -> 29        13 -> 3        717 -> 647px
+  /about/ai      11.5 -> 28.5       7 -> 4        814 -> 914px
+  both @768       unchanged         unchanged     unchanged
+```
+
+`/corrections` is both **3.4× the measure and 70px shorter**, because prose at
+its natural width wraps more efficiently than prose in a 108px column.
+`/about/ai` costs 100px of height for 2.5× the measure, and that is the right
+trade here in a way it was not for the section filter above: **this is the
+content, not a control standing in front of it.**
+
+Two things that look like details. The label is a real element rather than
+`content: attr(data-label)`, because generated content cannot be selected,
+copied or reliably read. And `display: block` on table elements is widely said
+to destroy the accessibility tree — measured here with an ARIA snapshot, it does
+not: at 320px Chromium still reports `table` → `rowgroup` → 3 × `row` → 9 ×
+`cell`, and each cell announces its own label, so the header association is
+replaced rather than lost.
 
 ---
 
@@ -1279,9 +1321,13 @@ always what the selector does *not* select.
 a browser can answer, in one pass over every derived route at nine widths: no
 route scrolls sideways, and **every strip that does scroll carries a mask**. The
 second is a live check rather than a source check on purpose — the insights row
-in §4.5 reads as correct in source and renders with no fade. Its two current
-offenders are named in an equality, not filtered out, so fixing either turns the
-test red and forces the list to be pruned.
+in §4.5 read as correct in source and rendered with no fade.
+
+Its exemption list is now **empty, and it emptied itself**. It named two strips;
+both were fixed, and because the list is asserted as an *equality* rather than
+subtracted with a filter, fixing them turned the test red and forced the list to
+be pruned. Written the other way it would still name two strips that no longer
+offend, matching nothing and reporting success indefinitely.
 
 Contrast and colour separation are **computed**, not eyeballed. If you change a
 colour, the test tells you the ratio — or the ΔE — you actually shipped.

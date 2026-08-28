@@ -480,35 +480,61 @@ describe('every page', () => {
     // tile satisfies this by rendering a conforming `h2` itself *or* by using
     // that component — and the component is then held to the same rule, so the
     // indirection cannot be used to escape it.
-    const tiles = [
-      'EconomyTile',
-      'EnergyTile',
-      'GovernmentTile',
-      'LabourTile',
-      'TradeTile',
-      'EnvironmentTile',
-      'PropertyTile',
-      'BusinessTile',
-      'MaritimeTile',
-    ];
+    //
+    // The nine used to be written out here. They were *correct* — they matched
+    // the filesystem and `App.tsx` exactly — and that is the trap: a list is
+    // right until the tenth tile is added, and nothing tells you the day it
+    // stops being right. `InsightsBanner` was already in the gap for a
+    // different reason (it is a dashboard section that is not a tile) and sat
+    // at 16px among nine 28px peers for as long as anyone had been looking.
+    //
+    // So the tiles derive from the filesystem, and the derivation is checked
+    // against what the page actually renders. Two enumerations that must agree
+    // cannot silently cover different sets — which is the whole failure this
+    // list had queued up.
+    const app = readFileSync(resolve('src/App.tsx'), 'utf8');
+
+    const onDisk = readdirSync(resolve('src/components'))
+      .filter((name) => /Tile\.tsx$/.test(name))
+      .map((name) => name.replace(/\.tsx$/, ''))
+      .sort();
+
+    const rendered = [...new Set([...app.matchAll(/<(\w+Tile)[\s/>]/g)].map((m) => m[1]))].sort();
+
+    expect(onDisk.length, 'no tile components found — the derivation is broken').toBeGreaterThan(0);
+    expect(
+      rendered,
+      'a tile file exists that the dashboard does not render, or vice versa',
+    ).toEqual(onDisk);
+
+    // A dashboard section that is not a tile, named because there is no
+    // pattern to derive it from. It heads the insights row, which sits beside
+    // the nine tiles as a peer, and it was the reason this rule needed
+    // widening at all.
+    const sections = [...onDisk, 'InsightsBanner'];
 
     const shared = readFileSync(resolve('src/components/TileHeader.tsx'), 'utf8');
     const sharedHeading = shared.match(/<h2[^>]*className="([^"]+)"/);
     expect(sharedHeading, 'TileHeader has no h2').not.toBeNull();
     expect(sharedHeading![1], 'TileHeader section heading').toContain('text-title');
 
-    for (const tile of tiles) {
-      const text = readFileSync(resolve(`src/components/${tile}.tsx`), 'utf8');
+    for (const section of sections) {
+      const text = readFileSync(resolve(`src/components/${section}.tsx`), 'utf8');
       if (text.includes('<TileHeader')) {
         // Delegating is only allowed if it delegates *everything* — a tile that
         // uses the shared header and also hand-rolls an h2 has two section
         // headings, which is the drift this rule exists to stop.
-        expect(text.match(/<h2[^>]*className="([^"]+)"/), `${tile} has both a TileHeader and its own h2`).toBeNull();
+        expect(text.match(/<h2[^>]*className="([^"]+)"/), `${section} has both a TileHeader and its own h2`).toBeNull();
         continue;
       }
-      const heading = text.match(/<h2[^>]*className="([^"]+)"/);
-      expect(heading, `${tile} has no h2`).not.toBeNull();
-      expect(heading![1], `${tile} section heading`).toContain('text-title');
+      // Every `h2` in the file, not just the first: `InsightsBanner` heads its
+      // loading state and its loaded state separately, and reading only one of
+      // them would leave the other free to drift.
+      const headings = [...text.matchAll(/<h2[^>]*className="([^"]+)"/g)];
+      expect(headings.length, `${section} has no h2`).toBeGreaterThan(0);
+      for (const [, classes] of headings) {
+        expect(classes, `${section} section heading`).toContain('text-title');
+      }
     }
   });
 });
