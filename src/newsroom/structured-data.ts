@@ -78,7 +78,27 @@ export function newsArticleJsonLd(article: Article): Record<string, unknown> | n
       url: source.url,
       publisher: { '@type': 'Organization', name: source.source_name },
     })) ?? [];
-  const citations = [...dataCitations, ...researchCitations];
+  // One entry per distinct source, not one per series read. `sources` carries
+  // an entry for every series the signal touched, and a structural_divergence
+  // signal reads three series out of ONE cube -- measured on production
+  // 2026-08-28, 3 of the newest 10 tier A articles published three identical
+  // Dataset entries. A human reads the provenance panel and sees one source;
+  // an answer engine parses this and counts three. Deduped on the identifying
+  // triple rather than the URL alone, because two readings at different
+  // vintages are genuinely two citations. Mirrored in api/shared/articleMeta.js
+  // and asserted equal by tests/articleMetaParity.test.ts.
+  const seen = new Set<string>();
+  const citations = [...dataCitations, ...researchCitations].filter((entry) => {
+    const key = JSON.stringify([
+      entry['@type'],
+      entry.name,
+      entry.url,
+      'version' in entry ? entry.version : undefined,
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return {
     '@context': 'https://schema.org',

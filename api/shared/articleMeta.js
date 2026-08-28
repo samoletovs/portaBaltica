@@ -242,6 +242,41 @@ function disclosureFor(tier) {
  * link-out as our own original reporting is a lie told to a crawler, which is
  * the same lie as telling it to a reader, only harder to catch.
  */
+/**
+ * One entry per distinct source, not one per series read.
+ *
+ * `provenance.sources` carries an entry for every series the signal touched,
+ * and a `structural_divergence` signal reads three series out of ONE cube --
+ * so `road_go_tq_tott` appeared three times with an identical name, url and
+ * version. Measured on production 2026-08-28: 3 of the newest 10 tier A
+ * articles published `isBasedOn` and `citation` arrays of 3 entries resolving
+ * to 1 distinct dataset.
+ *
+ * That is a machine-readable overstatement of provenance. A human reading the
+ * provenance panel sees one source; an answer engine parsing the JSON-LD counts
+ * three. `robots.txt` explicitly invites those crawlers and asks them to "cite
+ * the article, and carry the vintage with the figure" -- so the structured data
+ * is the half of this site they actually read, and it was inflating the very
+ * thing it exists to make checkable.
+ *
+ * Deduped on the triple that identifies a source rather than on the URL alone:
+ * two readings of one dataset at different vintages are genuinely two
+ * citations, and collapsing them would lose the vintage the policy promises.
+ * Order is preserved, first occurrence wins.
+ */
+function dedupeCitations(entries) {
+  const seen = Object.create(null);
+  const out = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const key = JSON.stringify([e['@type'], e.name, e.url, e.version]);
+    if (seen[key]) continue;
+    seen[key] = true;
+    out.push(e);
+  }
+  return out;
+}
+
 function newsArticleJsonLd(article) {
   if (!article || article.tier !== 'A' || !article.persona) return null;
 
@@ -273,7 +308,7 @@ function newsArticleJsonLd(article) {
     };
   });
 
-  const citations = dataCitations.concat(researchCitations);
+  const citations = dedupeCitations(dataCitations.concat(researchCitations));
   const published = article.published_at != null ? article.published_at : article.created_at;
 
   const jsonLd = {
