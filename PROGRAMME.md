@@ -319,6 +319,27 @@ PR record. **The correct sibling was sitting beside my hand-rolled check and I
 trusted mine** — which is the same shape as every other instance of that pattern
 in `AGENTS.md`, arriving in the tooling rather than in the code.
 
+**Make the instrument say what it measured, rather than remembering.** This is
+the mechanical form of the rule above, and it is the one to actually implement,
+because three separate instrument failures this run were the same shape: a
+reading that was correct when taken and silently stopped being correct, with
+nothing about holding it to say so.
+
+```
+a detached `vite preview` still answering on 4321 all afternoon, serving
+  whatever build it was started with
+a flake control measured on a tree that acquired the fix an hour later
+a branch ref resolved from session metadata instead of the pull request
+```
+
+The fix that worked was a `/__which` endpoint on the local preview server: it
+names the `dist` it is serving, so **every reading carries its own provenance and
+a stale instrument identifies itself instead of being remembered as fresh**. The
+same move is available almost everywhere — state the SHA beside the measurement,
+print the resolved path beside the file count, name the endpoint beside the
+field. A remembered fact about your instrument is exactly as unreliable as a
+remembered fact about the code.
+
 **A control has a timestamp, and it decays.** This is new and it is not in
 `AGENTS.md`. A session measured a flake rate on clean master, correctly and
 rigorously, and reported it in `#204`. It reused that control in `#211` — by
