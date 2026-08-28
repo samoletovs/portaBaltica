@@ -1401,6 +1401,39 @@ vocabulary wherever its assumption holds, and prove it holds by reading the
 rendered label against the page.** Both defects above are invisible in a diff
 and obvious the moment the label is compared with the figures beside it.
 
+**And a shared helper must not leave that as the caller's problem.**
+`describeComparison` now takes an optional `asAt` — the period the caller
+declares is current — and reports the reading *there*, noting when the series
+continues past it. That is the guarantee. Underneath it sits a structural
+refusal: **when a period label occurs twice it cannot identify a point**, so no
+clause of the form "X in \<period\>" is well-defined, and the helper stops
+claiming one and reports each series' range instead.
+
+That check is structural rather than a date parser, and the measurement is why.
+Across the three real call sites the helper receives period *labels*, and they
+are display strings:
+
+```
+  PowerMarketCard   184 points   "00:45"     88 duplicate labels
+  GridStatePanel     48 points   "18:00"      0 duplicates
+  an indicator       22 points   "2026-Q2"    0 duplicates
+```
+
+The day-ahead labels carry **no date at all**, and 88 of 184 repeat because the
+clock wraps at midnight — so "00:45" names two different points and nothing in
+the input distinguishes them. `GridStatePanel` knows where measurement stops
+only because its payload carries `meteredTo`, which never reaches the helper.
+Recency is caller knowledge; a parser would only ever handle the formats its
+author imagined and fail silently on the next, in the direction that reports
+success.
+
+**The residual is stated rather than hidden:** a forward curve whose labels
+happen to be unique still gets "Latest readings" for a point that may be a
+forecast. `GridStatePanel` is exactly that case — its clause is unambiguous and
+true as drawn, and it is not current. Only `asAt` closes it. Measured across 105
+rendered chart labels, the rework changes **none** of them, so the safety is
+new and the existing wording is untouched.
+
 **The guard derives its population.** `design-system.test.ts` asserted the rule
 against a hand-written list of **two** files while **six** components rendered a
 chart, so four were unguarded while looking covered — the fourth instance of
