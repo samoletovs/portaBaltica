@@ -216,12 +216,47 @@ try {
         )) {
           Write-Host "`n--- npm run $($step.Name) (on the merged tree) ---" -ForegroundColor Cyan
           # Output is deliberately NOT suppressed: a failure you cannot read is
-          # a failure you will explain away.
-          & $step.Cmd
+          # a failure you will explain away. It is also teed, because a failing
+          # suite you did not capture is one whose failures you cannot name --
+          # and naming them is what tells a misleading red from a real one.
+          $log = Join-Path ([System.IO.Path]::GetTempPath()) "pb-verify-$Number-$($step.Name).log"
+          & $step.Cmd 2>&1 | Tee-Object -FilePath $log | Out-Host
           if ($LASTEXITCODE -eq 0) {
             Add-Finding $step.Name 'PASS' "npm run $($step.Name) exited 0 on merged tree."
           } else {
-            Add-Finding $step.Name 'FAIL' "npm run $($step.Name) exited $LASTEXITCODE on merged tree."
+            # Which files failed, and did this PR touch any of them?
+            #
+            # Measured on #199: the harness reported `test FAIL` for a
+            # newsroom-only Python change, because two FRONTEND files timed out
+            # at 5100ms and 5958ms against a 5000ms budget while six other
+            # sessions were running their own suites -- 72 node processes on 16
+            # logical CPUs. CI was green on the same head across twelve runs,
+            # and both files passed in isolation on the merged tree.
+            #
+            # A timeout also leaves the DOM behind, so the NEXT test in the
+            # file fails with "Found multiple elements" -- which reads as a
+            # deterministic assertion bug and is collateral.
+            #
+            # So the verdict stays FAIL, because a PR genuinely can break a file
+            # it does not touch. But the detail says whether the failures land
+            # inside the change set, which is the difference between "look at
+            # this" and "re-run it somewhere quieter".
+            $failedFiles = @(
+              Select-String -Path $log -Pattern '^\s*(?:\e\[[0-9;]*m)*\s*FAIL\s+(\S+)' -AllMatches |
+                ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value } |
+                ForEach-Object { ($_ -replace '\\', '/') } | Sort-Object -Unique
+            )
+            $touched = @($failedFiles | Where-Object { $f = $_; $changed | Where-Object { $f -like "*$_" -or $_ -like "*$f" } })
+            $where = if ($failedFiles.Count -eq 0) {
+              'could not identify the failing files from the log'
+            } elseif ($touched.Count -eq 0) {
+              "NONE of the failing files are in this PR's diff ($($failedFiles -join ', ')). " +
+              'Re-run them in isolation and check CI before treating this as the PR''s fault; ' +
+              'concurrent sessions on this machine cause 5000ms timeouts.'
+            } else {
+              "failing files inside the diff: $($touched -join ', ')"
+            }
+            Add-Finding $step.Name 'FAIL' "npm run $($step.Name) exited $LASTEXITCODE on merged tree. $where"
           }
         }
       } else {
