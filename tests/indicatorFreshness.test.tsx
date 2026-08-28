@@ -123,13 +123,28 @@ describe('the compact indicator card', () => {
     return view.container;
   }
 
+  /** The baseline row that carries the headline value, its date and its delta. */
+  function valueRow(container: HTMLElement): HTMLElement | undefined {
+    return [...container.querySelectorAll<HTMLElement>('div.flex.items-baseline')][0];
+  }
+
   it('dates its value, fresh or stale', async () => {
     // The load-bearing assertion. A figure with no date asks to be trusted
     // rather than read, and this is the half that helps every series.
-    expect((await card(NOW_QUARTER)).textContent).toContain(
+    //
+    // Scoped to the row holding the value, not to the card. The card also draws
+    // the two axis endpoints under its sparkline, which carry the same period —
+    // so a page-wide `toContain` would pass with the date removed from the
+    // value entirely. A planted fault proved exactly that on the sibling test
+    // for the detail chart.
+    const stale = valueRow(await card('2022-Q1'));
+    expect(stale, 'no value row').toBeTruthy();
+    expect(stale!.textContent, 'the headline value carries no period').toContain('Q1 2022');
+
+    const fresh = valueRow(await card(NOW_QUARTER));
+    expect(fresh!.textContent).toContain(
       `Q${Number(NOW_QUARTER.slice(-1))} ${NOW_QUARTER.slice(0, 4)}`,
     );
-    expect((await card('2022-Q1')).textContent).toContain('Q1 2022');
   }, 30_000);
 
   it('says so when the series has stopped', async () => {
@@ -191,9 +206,35 @@ describe('the indicator detail chart', () => {
   it('dates the figure it labels "Latest"', async () => {
     // "Latest" is a claim about recency and it was carrying no date at all,
     // which is precisely what let a 2022 reading read as today's.
-    const text = (await chart('2022-Q1')).textContent ?? '';
-    expect(text).toContain('Latest');
-    expect(text).toContain('Q1 2022');
+    //
+    // Scoped to the stat box rather than to the page. The first version of this
+    // asserted the date appeared anywhere in the rendered text, and a planted
+    // fault proved that vacuous: deleting the date from "Latest" entirely left
+    // the test green, because the stale notice below carries the same period.
+    // The assertion has to name the element whose honesty is in question.
+    const container = await chart('2022-Q1');
+
+    const latestBox = [...container.querySelectorAll<HTMLElement>('div')].find((el) =>
+      /^2\.2%Latest/.test((el.textContent ?? '').trim()),
+    );
+
+    expect(latestBox, 'no stat box labelled Latest').toBeTruthy();
+    expect(latestBox!.textContent, 'the Latest figure carries no period').toContain('Q1 2022');
+  }, 30_000);
+
+  it('dates it on a current series too, not only a stale one', async () => {
+    // The date is the half that helps every series every day. A component that
+    // only dated a figure once it had already been judged stale would leave the
+    // undetected freeze exactly as invisible as before.
+    const container = await chart(NOW_QUARTER);
+    const expected = `Q${Number(NOW_QUARTER.slice(-1))} ${NOW_QUARTER.slice(0, 4)}`;
+
+    const latestBox = [...container.querySelectorAll<HTMLElement>('div')].find((el) =>
+      /^2\.2%Latest/.test((el.textContent ?? '').trim()),
+    );
+
+    expect(latestBox, 'no stat box labelled Latest').toBeTruthy();
+    expect(latestBox!.textContent).toContain(expected);
   }, 30_000);
 
   it('warns before the source line rather than after it', async () => {
