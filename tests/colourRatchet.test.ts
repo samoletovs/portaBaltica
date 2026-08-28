@@ -66,7 +66,25 @@ function instances(): Instance[] {
   return found;
 }
 
-/** Class selectors the compatibility layer declares, un-escaped. */
+/**
+ * Every hardcoded colour utility in `src/`, scanned once.
+ *
+ * This walks 90 files, reads each one and regex-scans it, and it used to be
+ * re-run at every call site — including six times inside a single `it`, once
+ * per class name in a loop. Ten full walks of the tree per run.
+ *
+ * That made this the slowest file in the suite and, under a loaded machine,
+ * a flaky one: measured across five full-suite runs with 24 busy node
+ * processes, it timed out once at **5266ms** against the default 5000ms
+ * budget. A test that fails because the machine was busy makes every red tick
+ * ambiguous, which is worse than a slow test.
+ *
+ * The fix is not a bigger budget. The scan is a pure function of the working
+ * tree and nothing here mutates it, so it is computed once — which is both
+ * faster and a truer statement of what it is.
+ */
+const ALL_INSTANCES: Instance[] = instances();
+
 const declared = new Set(
   [...css.matchAll(/\.((?:[a-z0-9-]|\\.)+?)(?=[\s,{:])/g)].map((m) => m[1].replace(/\\(.)/g, '$1')),
 );
@@ -96,7 +114,7 @@ const REMAINING: Record<string, number> = {};
 describe('the hardcoded-colour ratchet', () => {
   it('never grows', () => {
     const counted = new Map<string, number>();
-    for (const { file } of instances()) counted.set(file, (counted.get(file) ?? 0) + 1);
+    for (const { file } of ALL_INSTANCES) counted.set(file, (counted.get(file) ?? 0) + 1);
 
     const grown: string[] = [];
     for (const [file, n] of counted) {
@@ -115,7 +133,7 @@ describe('the hardcoded-colour ratchet', () => {
     // is now cleaner than its budget, the budget is wrong and should be lowered
     // in the same change that cleaned it.
     const counted = new Map<string, number>();
-    for (const { file } of instances()) counted.set(file, (counted.get(file) ?? 0) + 1);
+    for (const { file } of ALL_INSTANCES) counted.set(file, (counted.get(file) ?? 0) + 1);
 
     const stale = Object.entries(REMAINING)
       .filter(([file, budget]) => (counted.get(file) ?? 0) < budget)
@@ -132,7 +150,7 @@ describe('the compatibility layer', () => {
     // Both halves, because either alone rots: a dormant rule invites the class
     // back, and a class with no rule is the invisible state that started all
     // of this.
-    expect(instances(), 'a hardcoded Tailwind colour is back in a component').toEqual([]);
+    expect(ALL_INSTANCES, 'a hardcoded Tailwind colour is back in a component').toEqual([]);
 
     const survivors = [...cssCode.matchAll(/^\s*(?:\[[^\]]*\]\s*)?\.((?:[a-z0-9-]|\\.)+?)\s*[,{]/gm)]
       .map((m) => m[1].replace(/\\(.)/g, '$1'))
@@ -215,7 +233,7 @@ describe('the compatibility layer', () => {
       'text-slate-600',
     ]) {
       expect(
-        instances().filter((i) => i.className === className),
+        ALL_INSTANCES.filter((i) => i.className === className),
         `${className} is back in a component; use dash-fg/body/muted/subtle`,
       ).toEqual([]);
       expect(
@@ -248,7 +266,7 @@ describe('the compatibility layer', () => {
     // to measure it. Thirteen were in that state, at ratios from 1.66:1 to
     // 4.76:1, including a text placeholder below the SC 1.4.3 floor.
     const orphans = new Map<string, Set<string>>();
-    for (const { file, className } of instances()) {
+    for (const { file, className } of ALL_INSTANCES) {
       if (hasRule(className)) continue;
       if (!orphans.has(className)) orphans.set(className, new Set());
       orphans.get(className)!.add(file);

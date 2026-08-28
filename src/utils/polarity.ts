@@ -21,6 +21,28 @@
  * to colour them. It was more defensible and less useful — a dashboard of grey
  * numbers cannot be scanned, and the whole reason to open it is to scan it.
  *
+ * **What a grade actually costs, measured rather than assumed.** That last
+ * paragraph is the standing argument for grading an indicator, and it applies
+ * to only one of the two grades. `sentimentOf` branches on `lower-better` and
+ * nothing else, so `higher-better` and `neutral` produce the *same* colour,
+ * the same arrow and the same absent note — measured across every entry in
+ * the map, a `higher-better` row is indistinguishable from a `neutral` one:
+ *
+ *     higher-better   rise → positive/green   fall → negative/red   note: —
+ *     neutral         rise → positive/green   fall → negative/red   note: —
+ *     lower-better    rise → negative/red     fall → positive/green note: "Lower is better"
+ *
+ * The single difference is the sentence a screen reader hears:
+ * `higher-better` says *"up, which is favourable for this indicator"* where
+ * `neutral` says *"up"*. So a `higher-better` entry buys no scanability at
+ * all — it buys one editorial claim, spoken to the readers least able to
+ * check it against the chart.
+ *
+ * That sets the admission bar for this half of the map, and it is a low-cost
+ * bar to fail: removing an entry costs a clause and changes nothing visible.
+ * `lower-better` is the expensive half and the one the argument above is
+ * really about, because it inverts the colour.
+ *
  * See DESIGN.md §3.5.
  */
 
@@ -46,16 +68,6 @@ const POLARITY: Record<string, Polarity> = {
   wages_it: 'higher-better',
   retail_sales: 'higher-better',
   industrial: 'higher-better',
-  construction_output: 'higher-better',
-  building_permits: 'higher-better',
-  // The two segments inherit the aggregate's classification above rather than
-  // getting one of their own. A composition whose parts were graded
-  // differently from their total would say something incoherent — residential
-  // rising is favourable, non-residential rising is not, and the sum of the
-  // two is favourable again — on a panel whose whole job is to compare them
-  // against each other.
-  building_permits_residential: 'higher-better',
-  building_permits_non_residential: 'higher-better',
   biz_confidence: 'higher-better',
   renewable_share: 'higher-better',
   exports: 'higher-better',
@@ -81,11 +93,18 @@ const POLARITY: Record<string, Polarity> = {
 
   // Deliberately absent, and therefore coloured by direction only. The list
   // below is the checked copy of this decision — see DELIBERATELY_NEUTRAL.
-  //   house_prices  — good if you own, bad if you are buying
-  //   population    — the Baltic depopulation story is not ours to grade
-  //   imports       — a rise is domestic demand or it is dependency
-  //   gov_revenue   — receipts are not by themselves good or bad news
-  //   new_vehicles  — more cars is not self-evidently progress
+  //   house_prices        — good if you own, bad if you are buying
+  //   population          — the Baltic depopulation story is not ours to grade
+  //   imports             — a rise is domestic demand or it is dependency
+  //   gov_revenue         — receipts are not by themselves good or bad news
+  //   new_vehicles        — more cars is not self-evidently progress
+  //   construction_output — building, or the credit cycle that took a quarter
+  //                         off Latvia's GDP after 2007
+  //   building_permits    — the same story one step earlier, and the leading
+  //   …_residential         indicator of it. A finance ministry reads a surge
+  //   …_non_residential     as investment and a union as jobs; a central bank
+  //                         in this region reads it as a warning, and the
+  //                         admission test above needs all three.
 };
 
 /**
@@ -114,6 +133,10 @@ export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
   'imports',
   'gov_revenue',
   'new_vehicles',
+  'construction_output',
+  'building_permits',
+  'building_permits_residential',
+  'building_permits_non_residential',
   'port_goods',
   'port_passengers',
   'port_vessels',

@@ -138,7 +138,16 @@ export function PowerMarketCard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      {/* Two columns on a phone, four from `sm`.
+          Four `text-center` columns inside a 320px card leave about 57px each,
+          and the widest label is a swatch, a flag and the word "Lithuania" —
+          which cannot shrink below its own min-content. Measured in Chromium
+          at 320px: the zone column and the label inside it each overflowed by
+          **4px**, so the flag was clipped against its neighbour. It did not
+          push the document, which is why nothing caught it; DESIGN.md §4.4 is
+          about exactly this class of defect, existing only at widths nothing
+          measured. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         {list<PowerPriceZone>(data.zones).map((z) => (
           <div key={z.id} className="text-center">
             <p className="text-caption flex items-center justify-center gap-1" style={{ color: 'var(--text-secondary)' }}>

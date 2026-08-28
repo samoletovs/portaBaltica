@@ -120,8 +120,10 @@ export function IndicatorTable() {
         <DownloadMenu data={exportPayload} />
       </div>
 
-      {/* Header row */}
-      <div className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-caption dash-muted border-b dash-edge">
+      {/* Header row. Its template must match the data rows below exactly, or
+          the columns stop lining up — so the three-track base applies here for
+          the same reason and with the same arithmetic. */}
+      <div className="grid grid-cols-[1fr_70px_70px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 text-caption dash-muted border-b dash-edge">
         <span>Indicator</span>
         <span className="text-right">Latest</span>
         <span className="hidden sm:block text-right">Previous</span>
@@ -145,11 +147,24 @@ export function IndicatorTable() {
               ? chartColors.positive
               : chartColors.negative;
 
+        // Three tracks on a phone, five from `sm`.
+        //
+        // Both the "previous" column and the sparkline are `hidden sm:block`,
+        // so below `sm` they are not grid items at all — but the base template
+        // declared four tracks regardless, and an explicitly-declared track
+        // occupies its width whether or not anything is in it. Measured in
+        // Chromium at 320px: the row has 254px inside its padding, the phantom
+        // fourth track and its gap took **80** of them, and the title column
+        // resolved to `18px` against 46px of content. So every row's title was
+        // truncated to nothing and its unit label overflowed the row — on the
+        // most prominent table on the site, at the width where it is least
+        // able to spare the room. With three tracks the title column resolves
+        // to 98px.
         return (
           <button
             key={row.id}
             onClick={() => navigate(`/indicator/${row.id}`)}
-            className="grid grid-cols-[1fr_70px_70px_72px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left dash-hover-raised transition-colors border-b dash-edge last:border-0 group"
+            className="grid grid-cols-[1fr_70px_70px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left dash-hover-raised transition-colors border-b dash-edge last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
             <div className="min-w-0 flex items-baseline gap-2 overflow-hidden">

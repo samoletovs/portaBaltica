@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -34,8 +34,9 @@ import {
   STALE_AFTER_MONTHS,
   PORT_DATA_STALE_AFTER_MONTHS,
 } from '../src/dataFreshness';
-import { polarityOf, sentimentOf } from '../src/utils/polarity';
+import { polarityOf, sentimentOf, DELIBERATELY_NEUTRAL } from '../src/utils/polarity';
 import { CHART_TICK_SIZE } from '../src/utils/chartType';
+import { PropertyTile } from '../src/components/PropertyTile';
 
 const require_ = createRequire(import.meta.url);
 const es = require_('../api/shared/eurostat.js');
@@ -237,8 +238,23 @@ vi.mock('../src/CountryContext', () => ({
   useCountry: () => ({ country: 'LV', countryLabel: 'Latvia', flag: '🇱🇻', timezone: 'Europe/Riga' }),
 }));
 
-const fetchBalticCompare = vi.fn();
-vi.mock('../src/api', () => ({ fetchBalticCompare: (...a: unknown[]) => fetchBalticCompare(...a) }));
+/**
+ * The mock is declared through `vi.hoisted` so the component can be imported
+ * statically at the top of this file.
+ *
+ * It used to be a plain `const` with a `vi.mock` factory closing over it,
+ * which forced every test to `await import('../src/components/PropertyTile')`
+ * in its own body — the factory runs at import time and the `const` would
+ * still be in its temporal dead zone.
+ *
+ * That import is not a wait, it is *work*: Vite transforming PropertyTile,
+ * BalticCompareChart and recharts. Billed to whichever test ran first, and
+ * measured against a 5000ms budget, it took **6522ms, 8083ms and 8472ms** in
+ * three of five full-suite runs on a loaded machine. Hoisted here it lands in
+ * the file's import phase, where it belongs and where nothing times it.
+ */
+const { fetchBalticCompare } = vi.hoisted(() => ({ fetchBalticCompare: vi.fn() }));
+vi.mock('../src/api', () => ({ fetchBalticCompare }));
 
 /** A quarterly index series ending at 2026-Q2, with the value a year earlier. */
 function permitSeries(latest: number, yearEarlier: number) {
@@ -269,6 +285,48 @@ describe('the permit composition', () => {
   });
 
   /**
+   * Let the mocked fetches settle, without waiting on a clock.
+   *
+   * These tests used `await screen.findByText(...)`, which polls against a
+   * 5000ms wall-clock budget — and a wall clock in a parallel suite measures
+   * how busy the machine is, not whether the code works. Measured on this
+   * branch across five full-suite runs with 24 busy node processes, the run
+   * exceeded the budget in **three of five**, at 5298ms, 6113ms and 6562ms,
+   * while the same file in isolation passed 27/27 every time.
+   *
+   * The remedy is not a bigger budget: a raised timeout hides the next real
+   * slowness, and `tests/noNetwork.ts` already refuses that trade for the
+   * network. Every mocked fetch here is an already-resolved promise, so
+   * nothing waits on elapsed time — but React's scheduler commits on a
+   * macrotask rather than a microtask, so draining microtasks alone is not
+   * enough. Measured: a microtask-only version of this helper reported "not
+   * rendered after 50 turns" on four of five tests, which is the helper being
+   * honest about its own limit rather than a fact about the component.
+   *
+   * So each turn drains the microtask queue and then yields one macrotask via
+   * `setImmediate` — the check phase, with no timer and therefore no duration
+   * to exceed. It stops as soon as the panel is on screen.
+   *
+   * The bound exists so a component that never settles fails here with this
+   * sentence rather than hanging. It is a turn count, not a duration.
+   */
+  async function settle(until: () => boolean, turns = 50): Promise<void> {
+    for (let i = 0; i < turns; i += 1) {
+      if (until()) return;
+      await act(async () => {
+        await new Promise<void>((resolve) => { setImmediate(resolve); });
+      });
+    }
+    throw new Error(
+      `the component had not rendered after ${turns} turns of the event loop; it is waiting ` +
+        'on something this helper cannot drain — a real timer, or a promise that never resolves',
+    );
+  }
+
+  /** Rendered, settled, and asserted to be there — with no clock involved. */
+  const permitPanel = () => screen.queryByText('Building permits by segment') !== null;
+
+  /**
    * The rendered bars, in source order, as their CSS width.
    *
    * Scoped to the permit card. The tile also draws a house-price chart, and
@@ -285,13 +343,12 @@ describe('the permit composition', () => {
   }
 
   async function renderPanel(values: [number, number][]) {
-    const { PropertyTile } = await import('../src/components/PropertyTile');
     fetchBalticCompare.mockImplementation((id: string) => {
       const i = ['building_permits', 'building_permits_residential', 'building_permits_non_residential'].indexOf(id);
       return Promise.resolve(i < 0 ? null : permitSeries(values[i][0], values[i][1]));
     });
     const view = render(<PropertyTile data={null} loading={false} />);
-    await screen.findByText('Building permits by segment');
+    await settle(permitPanel);
     return view;
   }
 
@@ -326,7 +383,6 @@ describe('the permit composition', () => {
   it('draws no bar at all when there is no year-earlier reading', async () => {
     // An empty track is indistinguishable from no change, which would be
     // inventing the number the panel is missing.
-    const { PropertyTile } = await import('../src/components/PropertyTile');
     fetchBalticCompare.mockImplementation(() =>
       Promise.resolve({
         indicator: 'x', title: 'x', unit: 'index', source: 'Eurostat (sts_cobp_q)',
@@ -334,7 +390,7 @@ describe('the permit composition', () => {
       }),
     );
     const { container } = render(<PropertyTile data={null} loading={false} />);
-    await screen.findByText('Building permits by segment');
+    await settle(permitPanel);
 
     expect(screen.getByText('All buildings')).toBeTruthy();
     expect(screen.getAllByText('104.6').length).toBeGreaterThanOrEqual(3);
@@ -348,26 +404,31 @@ describe('the permit composition', () => {
 
   it('survives a segment the API cannot serve', async () => {
     // Three requests, and one failing must not take the other two down.
-    const { PropertyTile } = await import('../src/components/PropertyTile');
     fetchBalticCompare.mockImplementation((id: string) =>
       id === 'building_permits_residential'
         ? Promise.reject(new Error('502'))
         : Promise.resolve(permitSeries(104.6, 147)),
     );
     render(<PropertyTile data={null} loading={false} />);
-    await screen.findByText('Building permits by segment');
+    await settle(permitPanel);
 
     expect(screen.getByText('All buildings')).toBeTruthy();
     expect(screen.queryByText('Residential')).toBeNull();
   });
 
-  it('has decided the polarity of every segment it colours', async () => {
+  it('has decided about every segment it colours, one way or the other', async () => {
     // `polarityOf` answers `neutral` for anything it does not recognise, so a
     // card added with an unregistered id is coloured by direction with nobody
-    // having decided anything. A composition whose parts were graded
-    // differently from their total would also say something incoherent.
+    // having decided anything. What matters here is that a decision exists —
+    // not which one. It was `higher-better` when this panel was built and is
+    // now a declared abstention, because a central bank in this region does
+    // not read a permit surge as good news and the admission test stated in
+    // `polarity.ts` needs all three parties to agree.
+    // `tests/polarityAdmission.test.ts` owns that reasoning, and the invariant
+    // that permits and construction output move together.
     for (const id of ['building_permits', 'building_permits_residential', 'building_permits_non_residential']) {
-      expect(polarityOf(id), `${id} polarity`).toBe('higher-better');
+      const decided = polarityOf(id) !== 'neutral' || DELIBERATELY_NEUTRAL.has(id);
+      expect(decided, `${id} is ungraded and nothing says why`).toBe(true);
     }
   });
 });
