@@ -80,6 +80,13 @@ venv/
 # the convention up front than to clean it up twice.
 scratch-*
 *.scratch.*
+# `.tmp.` as well as `.scratch.`, because the convention above is only
+# discoverable by reading this file. A session auditing mobile layout wrote
+# `mobile-audit.tmp.mjs` and `shots.tmp.mjs` — a reasonable name that matched
+# neither pattern, so two harnesses sat untracked and committable in a
+# checkout several agents share. Naming a convention in .gitignore does not
+# tell anyone it exists; covering both spellings does.
+*.tmp.*
 
 # Ad-hoc local preview config. The committed vite.config.ts is the real one;
 # this variant proxies /api and /articles at the live site so a built frontend
