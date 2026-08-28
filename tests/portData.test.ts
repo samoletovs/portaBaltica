@@ -232,3 +232,98 @@ describe('the port registry', () => {
     }
   });
 });
+
+/**
+ * The maritime series that share a Eurostat cube.
+ *
+ * `tests/cache.test.ts` asserts this for the 71 definitions in
+ * `api/shared/indicators.js`, and stops there. The maritime registry builds
+ * Eurostat requests through the same `cache.requestKey`, has the same shape —
+ * `AGENTS.md` names it: `mar_go_qm_{cc}` backs total throughput *and* the cargo
+ * mix — and was covered by nothing.
+ *
+ * That gap is the failure `AGENTS.md` describes three times over: **a guard
+ * must enumerate the same set as the thing it guards.** Covering a smaller
+ * population than the subject is the harder half to see, because the guard is
+ * correct about everything it looks at, and everything outside it is unguarded
+ * while looking covered.
+ *
+ * Measured when this was written: twelve series across three countries, twelve
+ * distinct keys, and six pairs that share a path and are separated by query
+ * parameters alone. Those six are the whole risk — the newsroom incident was a
+ * key that ignored the query string, and every figure it served was real,
+ * traceable, and attached to the wrong subject.
+ */
+describe('the maritime series that share a cube', () => {
+  const cache = require('../api/shared/cache.js');
+
+  /** Every series in the registry, as `LV.goods` paired with its url. */
+  function everySeries(): [string, string][] {
+    const found: [string, string][] = [];
+    for (const country of ports.COUNTRIES) {
+      for (const [kind, url] of Object.entries(ports.seriesUrls(country))) {
+        found.push([`${country}.${kind}`, String(url)]);
+      }
+    }
+    return found;
+  }
+
+  function pairs(): [string, string, string, string][] {
+    const series = everySeries();
+    const out: [string, string, string, string][] = [];
+    for (let i = 0; i < series.length; i += 1) {
+      for (let j = i + 1; j < series.length; j += 1) {
+        out.push([series[i][0], series[i][1], series[j][0], series[j][1]]);
+      }
+    }
+    return out;
+  }
+
+  const pathOf = (url: string) => new URL(url).pathname;
+
+  it('is a real population, not a hypothetical one', () => {
+    // Guard the guard. An empty registry, or one series per country, would make
+    // every assertion below pass while comparing nothing.
+    const series = everySeries();
+    expect(series.length, 'the maritime registry is empty or has stopped building urls')
+      .toBeGreaterThanOrEqual(8);
+    expect(new Set(series.map(([name]) => name.split('.')[1])).size).toBeGreaterThan(1);
+  });
+
+  it('has series that share a cube, which is what makes this necessary', () => {
+    // The companion that stops the check below passing for the boring reason.
+    // If no two series ever shared a path, distinct keys would be guaranteed by
+    // the dataset code alone and this whole describe would be theatre.
+    const samePath = pairs().filter(([, a, , b]) => pathOf(a) === pathOf(b));
+
+    expect(
+      samePath.length,
+      'no two maritime series share a cube any more, so this check has no subject',
+    ).toBeGreaterThan(0);
+  });
+
+  it('gives every pair a distinct cache key', () => {
+    const collisions = pairs()
+      .filter(([, a, , b]) => cache.requestKey('eurostat', a) === cache.requestKey('eurostat', b))
+      .map(([nameA, , nameB]) => `${nameA} and ${nameB}`);
+
+    expect(
+      collisions,
+      'these maritime series would be served each other\u2019s data: a cargo category ' +
+        'rendered as total throughput, or one country\u2019s vessels under another\u2019s name',
+    ).toEqual([]);
+  });
+
+  it('would flag a key that ignored the query string, which is the actual bug', () => {
+    // The same guard-the-guard `tests/cache.test.ts` makes for the indicators.
+    // `goods` and `cargoMix` read the same cube and are separated by parameters
+    // alone, so a path-only key collides — which proves the parameters are
+    // doing the work rather than the dataset code doing it for them.
+    const samePath = pairs().filter(([, a, , b]) => pathOf(a) === pathOf(b));
+    expect(samePath.length).toBeGreaterThan(0);
+
+    const [nameA, a, nameB, b] = samePath[0];
+    expect(pathOf(a), `${nameA} and ${nameB} should share a path`).toBe(pathOf(b));
+    expect(cache.requestKey('eurostat', a)).not.toBe(cache.requestKey('eurostat', b));
+  });
+});
