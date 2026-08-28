@@ -1606,12 +1606,31 @@ autolink                      NOT FOUND    "Read https example com spec before t
 The brackets and `<!--` are punctuation and vanish — leaving the URL, the alt text
 or the comment body sitting *inside* the reader's sentence.
 
-Measured, it does not bite here yet: 0.4–0.5% of prose sentences miss across the
-three books, and **all of those are sentence splitting rather than the
-normaliser.** But the books hold three inline links and every one breaks a
-quotation that spans it — including the one whose text and destination are
-identical, because normalisation then leaves the words *twice*. There is no immune
-form; there is only a quotation that happens to start after the link.
+Measured, it does not bite here at all: 0.4–0.5% of prose sentences miss across
+the three books, and **all of those are sentence splitting rather than the
+normaliser.** The books hold three inline links, and tested at four span positions
+each — the link alone, with the words after, with the words before, and spanning
+both — **all twelve readings are found.**
+
+An earlier version of this paragraph claimed the opposite, on a sentence the file
+does not contain. The failure needs a construct that **interrupts** a sentence,
+and these three do not, for two independent reasons that happen to hold together:
+
+- **Self-referential after normalisation.** `[`X`](../X)` looks like text ≠ dest,
+  but `../` and the backticks are punctuation and vanish, so both sides reduce to
+  the same words and the duplicate is a no-op.
+- **Line-initial**, so there are no preceding words for a span to start from.
+
+So the general rule is narrower and more useful than "links break it": **only a
+construct that interrupts a sentence conceals anything.** A block-level HTML
+comment costs nothing; an inline one does. A link on its own line costs nothing; a
+link mid-sentence with a different destination does.
+
+**And nothing checks that these three stay where they are.** The immunity is two
+accidents stacked, either of which lapses under ordinary editing — move a link
+into the middle of a sentence, or point one at a URL that does not match its text,
+and it bites. Stated so the next reader knows the vulnerability is real, the count
+is currently zero, and the reason is positional rather than structural.
 
 So: **total against constructs that are punctuation, blind to constructs that
 conceal alphanumerics.** Where those are common — ordinary `[text](url)` prose —
