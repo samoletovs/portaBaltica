@@ -198,6 +198,30 @@ to precisely the mismatch it existed to catch; and a mutation harness whose own
 "working tree restored: True" was computed from a broken instrument while ten
 mutations sat in the file.
 
+**A plant that passes may be telling you the state is unreachable.** The reflex
+is to strengthen the test until it fails; sometimes the correct response is to
+delete a sentence instead. Two instances, both mine, both on the last day:
+
+- I declined to build a guard requiring every tier A/B source to have a display
+  name, because tier C returns early in `ArticleView.tsx:250` and never reaches
+  `ProvenanceBlock` — the gap is real and cannot be reached. That is the
+  `#172` case, and `AGENTS.md` covers it: an instrument aimed at a fault that is
+  not there.
+- Then a plant swapping `items` for `shown` in `ElsewhereRail` **passed every
+  test**, because `useOutlets` derives the filter buttons from `items`, so no
+  reachable filter matches nothing. My comment claimed the guard preserved an
+  announcement for "a filter that matched nothing". That state does not exist.
+
+The second is the one `AGENTS.md` does not cover, and the distinction is worth
+carrying, in the words of the session that drew it:
+
+> A guard hardened against an unreachable state is the belt-and-braces the book
+> warns about; **a comment describing an unreachable state is a false claim
+> about the code that will be believed by the next reader.**
+
+So: when a plant survives, ask whether the state it targets can occur *before*
+hardening anything. If it cannot, the defect is in the prose.
+
 **Prove the plant applied by comparing file CONTENTS, not `git diff --stat`.**
 This check has now lied in **six distinct ways**, found by five different
 sessions and by me, and all failing in the direction that reports success:
