@@ -172,6 +172,17 @@ export default function NewsFeed() {
                   Go to the live dashboard →
                 </Link>
               </p>
+              {/*
+                A quiet day is exactly when a reader most needs to be told how
+                they will hear about a loud one. Without this, the page that
+                says "we publish only when the data warrants it" offers no way
+                to find out when it next does.
+              */}
+              <p className="mt-2 text-ui">
+                <Link to="/follow" className="news-link underline underline-offset-4">
+                  Get the next one by RSS or JSON Feed →
+                </Link>
+              </p>
             </div>
           ) : (
             <>
@@ -197,6 +208,33 @@ export default function NewsFeed() {
                 className="news-link underline underline-offset-4"
               >
                 Open the live dashboard →
+              </Link>
+            </p>
+          </section>
+
+          {/*
+            The path back.
+
+            Measured against production at 2026-08-28T12:25Z, before this
+            existed: the front page had NO link to /follow at all. The shortest
+            route was two clicks and ran through an article — so a reader who
+            landed here, read the headlines and left had passed no follow
+            affordance except the word "RSS" in the footer.
+
+            It says how we publish rather than promising a schedule, because a
+            subscriber who hears nothing for a fortnight should be able to tell
+            a quiet fortnight from a dead site.
+          */}
+          <section className="news-border news-panel mt-6 rounded-xl border px-6 py-4">
+            <h2 className="news-fg text-callout font-semibold">Keep up with this</h2>
+            <p className="news-muted mt-2 text-ui">
+              Some days carry several stories and some carry none, so a feed is the only reliable
+              way to catch the ones you want. There is no email list: we do not collect addresses,
+              so there is nothing to unsubscribe from.
+            </p>
+            <p className="mt-3 text-ui">
+              <Link to="/follow" className="news-link underline underline-offset-4">
+                RSS, JSON Feed and the weekly review →
               </Link>
             </p>
           </section>
