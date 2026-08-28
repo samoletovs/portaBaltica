@@ -19,10 +19,24 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     // No unit test may open a socket to the internet. Two files believed they
-    // had stubbed the network and had not, which made roughly two of every five
-    // pushes to master go red on an unrelated 5000ms timeout. See
-    // `tests/noNetwork.ts` for the measurement and why this is not a raised
-    // timeout. Deliberately absent from `vitest.live.config.ts`.
+    // had stubbed the network and had not: both stubbed `https.get`, while
+    // `api/economy-data` and `api/historical-data` reach CSP PxWeb through
+    // `https.request`, one function name away. Sampled over 17 completed push
+    // runs, two went red on an unrelated 5000ms timeout while PxWeb answered
+    // slowly -- and PxWeb is documented in AGENTS.md as taking 1-12s per
+    // table, so the pass/fail outcome was whether a statistics office replied
+    // inside five seconds.
+    //
+    // The rate is stated as sampled rather than as a round fraction because
+    // the first figure quoted here, "roughly two of every five", was mine and
+    // was wrong: I had counted a cancelled run as a failure. It was cancelled
+    // because I re-ran it myself, and `gh run rerun` REPLACES the conclusion
+    // in place, so a later read describes the newest attempt rather than the
+    // original. Read `attempt` before trusting `conclusion`.
+    //
+    // See `tests/noNetwork.ts` for the measurement and for why this is a
+    // refusal rather than a raised timeout. Deliberately absent from
+    // `vitest.live.config.ts`.
     setupFiles: ['./tests/noNetwork.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     exclude: ['tests/**/*.live.test.{ts,tsx}', '**/node_modules/**', '**/dist/**'],
