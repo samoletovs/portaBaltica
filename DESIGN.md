@@ -1357,7 +1357,60 @@ rendered DOM agree exactly on which are missing:
 
 The eight are 24px sparklines in a table whose row already carries the figure
 and its change, so `aria-hidden` may be the right answer there rather than a
-description — but *neither* is what they have.
+description — **and it was.** Read out of Chromium's own accessibility tree, one
+row announces:
+
+```
+  GDP Growth Rate % QoQ 0.6% Q1 2026 0.7% ▼ −0.1%
+  down, which is unfavourable for this indicator
+```
+
+Name, unit, latest value, **its period**, previous, change and the spoken
+polarity. Describing the trace repeats all of it, and WAI-ARIA calls a graphic
+that duplicates adjacent text decorative. The one thing a description would add
+— the span and the extremes — is on the indicator's own page, which the row is
+a link to.
+
+**And hiding it was only half the fix, which is the part worth remembering.**
+`aria-hidden` over a *focusable* element is an ARIA violation rather than a
+style preference: it hides a node a keyboard can still land on, which is worse
+than either state alone. Recharts 3 turns `accessibilityLayer` on by default,
+so every chart surface carries `role="application"` and `tabIndex={0}` — and
+each of these eight sat **inside the row's own `<button>`**, a nested
+interactive control. So the box is hidden *and* the chart leaves the tab order,
+and the guard in §5 requires both together.
+
+### 4.10 The library put 27 unnamed applications in the tab order
+
+Measured in Chromium against the real build, tabbing the dashboard:
+
+```
+                 tab stops   of which chart surfaces   unnamed
+  /data/economy         81                        27        16
+  /data/energy          56                        16         4
+```
+
+**A third of the tab stops on `/data/economy` were chart SVGs announcing as an
+unnamed "application".** `role="application"` is the heaviest role in ARIA: it
+tells a screen reader to stop its own browse-mode key handling and hand every
+keystroke to the page. Unnamed, it is a mode switch into nothing. Nothing in
+this repo asked for it — `accessibilityLayer` defaults to `true` in recharts 3
+and no component opts out.
+
+Two remedies exist and `tests/chartKeyboard.test.tsx` proves both against the
+library rather than describing them, because the mechanism was read out of
+`recharts/es6/container/RootSurface.js` and a source read is a hypothesis:
+
+- **name the surface in place** — `role="img"` and `aria-label` passed to the
+  chart element reach the SVG and override `application`, which is better than
+  this codebase's current wrapper, since it makes one node carry both the
+  graphic and its description rather than a named div containing an unnamed
+  focusable application;
+- **leave the tab order** — `accessibilityLayer={false}`, for a chart that is
+  decorative.
+
+`IndicatorTable` takes the second. The other five components are recorded in an
+equality in `design-system.test.ts` so the list cannot outlive the defect.
 
 ### 4.9 Describe the chart, not the panel around it
 
@@ -1492,11 +1545,15 @@ outlive its reason.
   disables an outline without replacing it;
 - controls have a 44px minimum target;
 - "back to the dashboard" goes to the dashboard;
-- every chart carries `role="img"` and a described label, and the decorative
-  ticker is `aria-hidden`. **The chart population is derived**, not listed: the
-  set is every component containing a `ResponsiveContainer`, with a count
-  assertion so an empty set cannot pass, and a single exclusion held as an
-  equality so it fails when it stops being true;
+- every chart carries `role="img"` and a described label **or is hidden and out
+  of the tab order**, and the decorative ticker is `aria-hidden`. The chart
+  population is derived, not listed: the set is every component containing a
+  `ResponsiveContainer`, with a count assertion so an empty set cannot pass. The
+  checks are **element-scoped**, tied to each chart rather than to the file —
+  a planted fault proved a file-scoped version green on an undescribed chart,
+  because the same file carried an unrelated `aria-hidden` span. A second
+  equality records every chart surface still left as an unnamed
+  `role="application"` by recharts' default accessibility layer;
 - `prefers-reduced-motion` is honoured, and nothing animates `all`;
 - charts do not hardcode a hex colour that a theme token already provides, and
   do not use `connectNulls`;

@@ -260,9 +260,33 @@ export function IndicatorTable() {
                 '—'
               )}
             </span>
-            <div className="hidden sm:block h-6 w-full self-center">
+            {/* Decorative, and both halves of that are load-bearing.
+                
+                **Hidden**, because the row already says everything the
+                sparkline could. Read out of the accessibility tree, one row
+                announces: *"GDP Growth Rate % QoQ 0.6% Q1 2026 0.7% ▼ −0.1%
+                down, which is unfavourable for this indicator"* — name, unit,
+                latest value, **its period** (added in #215), previous, change
+                and the spoken polarity. Describing a 24px trace of that same
+                series would make a screen reader read the same figures twice,
+                and WAI-ARIA calls a graphic duplicating adjacent text
+                decorative. The one thing a description would add — the span
+                and the extremes — belongs on the indicator's own page, which
+                this row is a link to and which carries a full `role="img"`
+                description already.
+                
+                **Not focusable**, because `aria-hidden` over a focusable
+                element is an ARIA violation, not a style preference: it hides
+                a node a keyboard can still land on, which is the worst of both.
+                Recharts 3 turns `accessibilityLayer` on by default, which
+                gives every chart `role="application"` and `tabIndex={0}` —
+                measured on `/data/economy`, **27 of 80 tab stops were chart
+                surfaces announcing as an unnamed "application"**, and each of
+                these eight sat *inside* this row's `<button>`, so a keyboard
+                user hit the row and then a nested control within it. */}
+            <div className="hidden sm:block h-6 w-full self-center" aria-hidden="true">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
+                <AreaChart data={chartData} accessibilityLayer={false}>
                   <defs>
                     <linearGradient id={`tbl-${row.id}`} x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
