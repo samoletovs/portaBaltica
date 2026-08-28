@@ -68,6 +68,15 @@ throughput    42 PRs merged · 5.1 PR/h · doc ratio ~1 : 6
               the commit recording the number lands after the range closes.
               Measured four minutes apart, the two forms already read 32 and 30.
 
+              Bounded, not eliminated: the run continued past the pin, including
+              the commit stating it, so 30 undercounts the run's close by however
+              many commits followed -- 3 when a session measured it, 4 an hour
+              later. That is unavoidable for any figure a repository states about
+              itself, and it is harmless only because the window sits beside the
+              number: `30 over 5cfba82..925c091` stays true for ever, and anyone
+              wanting the closing figure re-derives it in one command. A bare
+              number could have done neither.
+
               To measure YOUR run, substitute your own handover SHA and your own
               endpoint. Do not reuse this range -- an open end would hand you
               this run's commits plus your own, which is the day-versus-run error
