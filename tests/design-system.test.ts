@@ -915,17 +915,106 @@ describe('the country palette', () => {
 /**
  * Chart components deliberately left without an accessible name, and why.
  *
- * Named rather than filtered out, and asserted as an equality, so an entry
- * that stops being true fails instead of quietly matching nothing.
+ * **Empty, and the equality is what emptied it.** It carried one entry —
+ * `IndicatorTable.tsx`, eight 24px sparklines — deferred because another
+ * workstream was changing that file and the right answer depended on what its
+ * rows ended up saying. They now say everything: read out of Chromium's
+ * accessibility tree, one row announces *"GDP Growth Rate % QoQ 0.6% Q1 2026
+ * 0.7% ▼ −0.1% down, which is unfavourable for this indicator"* — name, unit,
+ * value, its period, previous, change and the spoken polarity. So the
+ * sparkline is decorative and is hidden, which the check below accepts as a
+ * complete answer rather than as an exception.
  *
- *   IndicatorTable.tsx — eight 24px sparklines, one per table row. Deferred
- *   rather than forgiven: the file is being changed by another workstream for
- *   an unrelated defect, and the right answer here depends on what its rows
- *   end up saying. See the equality test below for the recommendation.
+ * Written as an equality rather than a filter, this went red the moment the
+ * file was fixed and forced this comment to be rewritten. A filter would still
+ * be excusing a component that no longer needs it.
  */
-const EXCLUDED_FROM_CHART_DESCRIPTION = ['IndicatorTable.tsx'];
+const EXCLUDED_FROM_CHART_DESCRIPTION: string[] = [];
+
+/**
+ * Chart components whose surface is still an unnamed `role="application"`.
+ *
+ * Recharts 3 turns `accessibilityLayer` on by default, giving every chart
+ * `role="application"` and `tabIndex={0}`. Measured in Chromium against the
+ * real build, `/data/economy` had **80 tab stops, 27 of them chart surfaces**,
+ * every one announcing as an unnamed "application" — the heaviest role in
+ * ARIA, which tells a screen reader to hand it every keystroke.
+ *
+ * `IndicatorTable` is fixed and absent from this list. The rest are named here
+ * rather than filtered out, because they are in files this pass did not own.
+ * `tests/chartKeyboard.test.tsx` proves the two remedies against the library
+ * rather than describing them: a chart may pass `role="img"` and `aria-label`
+ * to name its surface in place, or `accessibilityLayer={false}` to leave the
+ * tab order entirely.
+ */
+const CHARTS_WITH_UNNAMED_APPLICATION_LAYER = [
+  'BalticCompareChart.tsx',
+  'EconomyTile.tsx',
+  'GridStatePanel.tsx',
+  'IndicatorCard.tsx',
+  'PowerMarketCard.tsx',
+];
+
+/**
+ * The markup between a chart's enclosing `<div` and the chart itself — which
+ * is that div's opening tag, comments and all.
+ *
+ * Chart checks need to know whether *this* chart is hidden, not whether the
+ * file contains an `aria-hidden` anywhere. A file-scoped regex conflates them,
+ * and a planted fault proved it: removing `aria-hidden` from
+ * `IndicatorTable`'s sparkline left the guard green, because the same file
+ * carries an unrelated `aria-hidden` span reading "↓ better".
+ *
+ * The first attempt at this scanned forward for the tag's closing `>`,
+ * tracking brace and quote depth. It returned an empty string for
+ * `PowerMarketCard` — every apostrophe in a JSX comment ("tomorrow's final
+ * slot") opened quote mode and swallowed the rest of the file. Taking the
+ * slice *up to* the chart needs no scanner at all and so cannot have that
+ * class of bug; comments are stripped afterwards so that prose mentioning an
+ * attribute cannot satisfy a check about one.
+ */
+function chartContext(text: string, index: number): string {
+  const start = text.slice(0, index).lastIndexOf('<div');
+  if (start === -1) return '';
+  return text
+    .slice(start, index)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+}
+
+/** Every chart in a file, as `{ enclosing markup, the chart element's own props }`. */
+function chartsIn(text: string): { enclosing: string; element: string }[] {
+  const found: { enclosing: string; element: string }[] = [];
+  for (const match of text.matchAll(/<ResponsiveContainer\b/g)) {
+    const index = match.index!;
+    // The chart element recharts renders into, which is where
+    // `accessibilityLayer` and an in-place `role` are written.
+    const after = text.slice(index, index + 600);
+    const element =
+      after.match(/<(?:Area|Line|Bar|Composed|Pie|Radar|Scatter|Radial)[A-Za-z]*Chart\b[\s\S]{0,300}?>/)?.[0] ?? '';
+    found.push({ enclosing: chartContext(text, index), element });
+  }
+  return found;
+}
 
 describe('operability', () => {
+  it('leaves no chart surface an unnamed application', () => {
+    // The equality is the point. `expect(offenders.filter(notKnown)).toEqual([])`
+    // passes today and goes on passing forever once a component is fixed,
+    // matching nothing and reporting success — so a fix would never prune the
+    // list. This way the list cannot outlive the defect it records.
+    const offenders = components()
+      .filter(({ text }) => /<ResponsiveContainer\b/.test(text))
+      .filter(({ text }) => !/accessibilityLayer=\{false\}/.test(text))
+      // Naming the surface in place also settles it: the role stops being
+      // `application` because recharts prefers an explicit `role` prop.
+      .filter(({ text }) => !/<(?:Area|Line|Bar|Composed|Pie|Radar|Scatter)Chart[^>]*\brole="img"/.test(text))
+      .map(({ file }) => file);
+
+    expect(offenders.sort(), 'a chart that is a focusable unnamed application')
+      .toEqual([...CHARTS_WITH_UNNAMED_APPLICATION_LAYER].sort());
+  });
+
   it('gives controls a real touch target', () => {
     // Measured across the dashboard, 43 of 43 interactive elements were under
     // 44px, with the country and range chips at 26px tall. WCAG 2.2 SC 2.5.8
@@ -973,8 +1062,8 @@ describe('operability', () => {
       'no chart components found — the derivation is broken, and an empty set passes everything',
     ).toBeGreaterThanOrEqual(5);
 
-    // A chart may satisfy this in one of two ways, and the distinction is the
-    // point rather than a convenience:
+    // A chart may satisfy this in one of three ways, and the distinctions are
+    // the point rather than a convenience:
     //
     //   * `describeSeries` / `describeComparison` — one vocabulary, from
     //     `chartAccessibility.ts`, for a chart whose content is a series;
@@ -983,18 +1072,35 @@ describe('operability', () => {
     //     `GridStatePanel` is the live example: its point is the *gap* between
     //     generation and demand and the direction of the resulting flow, which
     //     no per-series description states.
+    //   * `aria-hidden` — for a chart that is genuinely decorative, meaning
+    //     the text beside it already says everything the graphic could.
+    //     `IndicatorTable`'s sparklines are that: the row announces the
+    //     indicator, its value, that value's period, the change and the spoken
+    //     polarity, so describing the trace repeats all of it.
     //
-    // What is not permitted is a third way: a chart with no accessible name at
-    // all.
+    // What is not permitted is a fourth way: a chart that is neither named nor
+    // hidden. Note that hiding is only a complete answer when the chart is
+    // also out of the tab order — `aria-hidden` over a focusable node hides
+    // something a keyboard can still land on, which is worse than either. The
+    // application-layer check above is what enforces that half.
     const undescribed: string[] = [];
     for (const { file, text } of charts) {
       if (EXCLUDED_FROM_CHART_DESCRIPTION.includes(file)) continue;
-      if (!/role="img"/.test(text)) {
-        undescribed.push(`${file}: renders a chart with no role="img"`);
-        continue;
-      }
-      if (!/aria-label=/.test(text)) {
-        undescribed.push(`${file}: has role="img" but no aria-label`);
+      for (const { enclosing, element } of chartsIn(text)) {
+        // Element-scoped, not file-scoped. Both halves must be true of *this*
+        // chart: hidden from the tree, and out of the tab order.
+        const hidden = /aria-hidden="true"/.test(enclosing);
+        const unfocusable = /accessibilityLayer=\{false\}/.test(element);
+        if (hidden && unfocusable) continue;
+
+        const named = /role="img"/.test(enclosing) || /role="img"/.test(element);
+        if (!named) {
+          undescribed.push(`${file}: a chart that is neither named nor hidden`);
+          continue;
+        }
+        if (!/aria-label=/.test(enclosing) && !/aria-label=/.test(element)) {
+          undescribed.push(`${file}: has role="img" but no aria-label`);
+        }
       }
     }
 
@@ -1004,29 +1110,25 @@ describe('operability', () => {
 
   it('keeps the chart exclusions honest, as an equality', () => {
     // An equality rather than a filter, so an exclusion cannot outlive its
-    // reason. `expect(charts.filter(notExcluded))` would go on passing forever
-    // once the excluded file is fixed, matching nothing and reporting success.
-    //
-    // The one entry is deferred, not forgiven: `IndicatorTable` renders eight
-    // 24px sparklines with no accessible name, and it is being changed by
-    // another workstream for an unrelated defect. When that lands, this
-    // equality fails and forces the decision rather than letting it lapse.
-    //
-    // The recommendation, for whoever picks it up: `aria-hidden="true"` on the
-    // sparkline box, not a description. Each sparkline sits in a table row
-    // that already carries the indicator's name, its latest value and its
-    // change as text — so describing the sparkline makes a screen reader read
-    // the same number twice, and WAI-ARIA calls a graphic that duplicates
-    // adjacent text decorative. That is a judgement about what the row says,
-    // and the row is being edited, which is exactly why it is deferred rather
-    // than guessed at here.
+    // reason — and this is the run where that paid. The list held
+    // `IndicatorTable`, deferred because another workstream was editing the
+    // file and the right answer depended on what its rows ended up saying.
+    // They now say everything, the sparklines are hidden, and **this
+    // assertion went red and forced the list to be emptied**. A filter would
+    // still be silently excusing a component that no longer needs it.
     const charts = components()
       .filter(({ text }) => /<ResponsiveContainer\b/.test(text))
       .map(({ file }) => file);
 
-    const stillUndescribed = charts.filter(
-      (file) => !/role="img"/.test(components().find((c) => c.file === file)!.text),
-    );
+    const stillUndescribed = charts.filter((file) => {
+      const text = components().find((c) => c.file === file)!.text;
+      return chartsIn(text).some(({ enclosing, element }) => {
+        if (/aria-hidden="true"/.test(enclosing) && /accessibilityLayer=\{false\}/.test(element)) {
+          return false;
+        }
+        return !/role="img"/.test(enclosing) && !/role="img"/.test(element);
+      });
+    });
 
     expect(stillUndescribed.sort(), 'an exclusion that no longer matches anything must be deleted')
       .toEqual([...EXCLUDED_FROM_CHART_DESCRIPTION].sort());
