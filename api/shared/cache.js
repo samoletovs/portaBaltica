@@ -67,13 +67,20 @@ const MAX_ENTRIES = 512;
  * nothing was malformed — every value was a real value, correctly parsed, from
  * the wrong slice.
  *
- * That is not a hypothetical risk here. Thirty-four of the dashboard's
- * sixty-five indicators share a cube with at least one other: `bop_c6_q` alone
- * serves ten, `prc_hicp_minr` eight, and `road_freight` and `road_freight_tkm`
- * differ by nothing but `unit`. A params-blind key would make the freight modal
- * split read tonnes lifted instead of tonne-kilometres, which puts Latvia's
- * rail share at about 4% instead of 18.9% — a chart that looks entirely fine
- * and says the opposite.
+ * That is not a hypothetical risk here. Thirty-seven of the dashboard's
+ * seventy-one indicators share a cube with at least one other, across eleven
+ * cubes: `bop_c6_q` alone serves ten, `prc_hicp_minr` eight, and
+ * `road_freight` and `road_freight_tkm` differ by nothing but `unit`. A
+ * params-blind key would make the freight modal split read tonnes lifted
+ * instead of tonne-kilometres, which puts Latvia's rail share at about 4%
+ * instead of 18.9% — a chart that looks entirely fine and says the opposite.
+ *
+ * Those counts are prose and prose goes stale: they read "thirty-four of
+ * sixty-five" until 2026-08-28, when `#189` took the registry to seventy-one
+ * and nobody updated them. The number that matters is not maintained here —
+ * `tests/cache.test.ts` derives the population from `INDICATORS` itself and
+ * asserts a floor, so the guard scales with the registry whatever this
+ * paragraph happens to say.
  *
  * So the default is to include everything. `volatile` names the parameters
  * deliberately left out, which makes an omission a decision someone wrote down

@@ -218,7 +218,7 @@ describe('Eurostat indicator contracts (live)', () => {
     //
     // `freq` is the cube's *dimension code*, and everything downstream — the
     // allowance just above, the since-bound in `buildUrl` — reads it as a
-    // publication cadence. For sixty-five of sixty-six those are the same
+    // publication cadence. For seventy of seventy-one those are the same
     // thing. `sdg_04_70` says A and publishes every twenty-four months, with
     // no 2022 or 2024 coordinate in the cube at all.
     //

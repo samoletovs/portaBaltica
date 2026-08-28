@@ -338,10 +338,27 @@ describe('the indicators that share a Eurostat cube', () => {
   }
 
   it('is a real and large population, not a hypothetical one', () => {
-    // Thirty-four of sixty-five indicators share a cube with another:
-    // `bop_c6_q` serves ten, `prc_hicp_minr` eight.
+    // The count is DERIVED and reported, not written down. The comment here
+    // read "thirty-four of sixty-five" until 2026-08-28, when #189 took the
+    // registry to seventy-one and the prose stayed put — measured then at 37
+    // of 71 across 11 cubes, with `bop_c6_q` serving ten and `prc_hicp_minr`
+    // eight. A hardcoded figure in a comment is a claim nobody re-checks; the
+    // floor below is the part that has to stay true, and it scales because the
+    // population comes from INDICATORS itself.
     const pairs = sharedPairs();
-    expect(pairs.length).toBeGreaterThan(50);
+    // Ids only. `sharedPairs` yields [dataset, idA, idB] triples, so a flat
+    // set over them counts the eleven cube names as if they were indicators
+    // and reports 48 where the answer is 37 — which is exactly the class of
+    // wrong number this edit exists to remove, and it was in the first draft
+    // of this line.
+    const sharing = new Set(pairs.flatMap(([, a, b]) => [a, b])).size;
+    const cubes = new Set(pairs.map(([dataset]) => dataset)).size;
+    expect(
+      pairs.length,
+      `only ${pairs.length} same-cube pairs from ${sharing} indicators across ${cubes} cubes — ` +
+        'the population this guard exists for has shrunk, so check the registry ' +
+        'rather than lowering the floor',
+    ).toBeGreaterThan(50);
   });
 
   it('gives every such pair a distinct cache key', () => {
