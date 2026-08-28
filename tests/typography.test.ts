@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -40,20 +40,94 @@ function leading(): Record<string, number> {
 }
 
 /** Every component on the site, news and dashboard alike. */
-function allComponents(): { file: string; text: string }[] {
-  const found: { file: string; text: string }[] = [];
+function allComponents(): { file: string; path: string; text: string }[] {
+  const found: { file: string; path: string; text: string }[] = [];
 
   function walk(directory: string) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) walk(path);
       else if (entry.name.endsWith('.tsx')) {
-        found.push({ file: entry.name, text: readFileSync(path, 'utf8') });
+        found.push({ file: entry.name, path, text: readFileSync(path, 'utf8') });
       }
     }
   }
 
   walk(resolve('src'));
+  return found;
+}
+
+/**
+ * Every `<section>…</section>` in a file, respecting nesting.
+ *
+ * A regex cannot match balanced tags, and getting this wrong matters in both
+ * directions: a greedy match swallows the next section and reports its content
+ * against the wrong heading, while a lazy one stops at the first `</section>`
+ * and leaves the rest unexamined. So this counts depth.
+ */
+function sectionBlocks(text: string): string[] {
+  const blocks: string[] = [];
+  const opens = [...text.matchAll(/<section[\s>]/g)].map((m) => m.index!);
+
+  for (const start of opens) {
+    let depth = 0;
+    const tag = /<section[\s>]|<\/section>/g;
+    tag.lastIndex = start;
+    let match: RegExpExecArray | null;
+    while ((match = tag.exec(text)) !== null) {
+      depth += match[0].startsWith('</') ? -1 : 1;
+      if (depth === 0) {
+        blocks.push(text.slice(start, match.index + match[0].length));
+        break;
+      }
+    }
+  }
+  return blocks;
+}
+
+/** Read a component a file imports by relative path, or null when it is not a .tsx. */
+function resolveComponent(fromPath: string, specifier: string): string | null {
+  const base = resolve(dirname(fromPath), specifier);
+  for (const candidate of [`${base}.tsx`, join(base, 'index.tsx')]) {
+    try {
+      return readFileSync(candidate, 'utf8');
+    } catch {
+      /* not this one */
+    }
+  }
+  return null;
+}
+
+/**
+ * Every opening tag matching `pattern`, from `<tag` to its own closing `>`.
+ *
+ * A lazy `[^>]*?>` stops at the first `>` it meets, and a `className={…}`
+ * expression can contain one — so this tracks brace and quote depth instead.
+ * Getting it wrong truncates the className and silently drops the step, which
+ * is the same kind of quiet under-coverage this whole check exists to remove.
+ */
+function openingTags(text: string, pattern: RegExp): string[] {
+  const found: string[] = [];
+
+  for (const match of text.matchAll(pattern)) {
+    const start = match.index!;
+    let depth = 0;
+    let quote = '';
+    for (let i = start; i < text.length; i += 1) {
+      const c = text[i];
+      if (quote) {
+        if (c === quote) quote = '';
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') quote = c;
+      else if (c === '{') depth += 1;
+      else if (c === '}') depth -= 1;
+      else if (c === '>' && depth === 0) {
+        found.push(text.slice(start, i + 1));
+        break;
+      }
+    }
+  }
   return found;
 }
 
@@ -283,23 +357,117 @@ describe('every page', () => {
     expect(step(headings[3], 'mt')).toBeGreaterThan(step(headings[4], 'mt'));
   });
 
-  it('never makes an h2 a 12px label', () => {
-    // An `h2` introduces a section, and a section heading set smaller than the
-    // content beneath it stops reading as a heading. The dashboard headed its
-    // insights panel and its comparison grid with 12px uppercase labels — the
-    // same inversion the type pass fixed one level up and left here.
+  it('never sets an h2 smaller than the content of its own section', () => {
+    // This replaced a check that read `if (/\btext-caption\b/.test(match))`.
     //
-    // `text-caption` on an `h4`, or on a `<p>` label inside a card, is a
-    // different object and stays allowed: see markdown.tsx.
+    // That was a word list encoding one example rather than a structure
+    // encoding the rule, and it was beaten by the next step up the ramp:
+    // `text-callout` on an `h2` above `text-lead` content is the same
+    // inversion and matched no token, so `CorrespondentPage` shipped
+    // "Recent articles" at 16px over 22px article headlines — an `h2`
+    // introducing larger `h2`s — and "The beat" at 16px over 18px prose.
+    // Both were measured in a browser before this was written; neither was
+    // visible to the old form.
+    //
+    // So this resolves the step. For every `<section>`, it compares the
+    // section's `h2` against the largest step appearing beneath it, following
+    // one level of component indirection for *headings only* — without that,
+    // a section whose content is `<ArticleCard/>` looks empty and passes for
+    // the wrong reason, which is exactly the case that shipped.
+    //
+    // It is deliberately not a live browser check, even though the browser is
+    // where both defects were found. A live suite runs after a deploy; this
+    // has to be able to fail a pull request.
+    const sizes = scale();
     const offenders: string[] = [];
 
-    for (const { file, text } of allComponents()) {
-      for (const [match] of text.matchAll(/<h2[^>]*className="[^"]*"/g)) {
-        if (/\btext-caption\b/.test(match)) offenders.push(`${file}: ${match}`);
+    /** The base (unprefixed) step in a className, e.g. `sm:text-display` is not it. */
+    function step(classes: string): number {
+      const token = classes.match(/(?:^|\s)text-([a-z]+)\b/)?.[1];
+      return token ? sizes[token] ?? 0 : 0;
+    }
+
+    /**
+     * The step a referenced component's headings render at, for one level of
+     * indirection — the **smallest** of its variants, deliberately.
+     *
+     * `ArticleCard` heads a lead card at `text-headline` and a list item at
+     * `text-lead`, chosen by a prop this check cannot evaluate. Taking the
+     * larger asserts the section renders the lead variant; measured, that
+     * demanded "Recent articles" be 34px, larger than the page's own `h1`,
+     * which is a worse layout than the one being fixed. Taking the smaller
+     * makes the check conservative: it can miss a case, and it cannot invent
+     * one. Under-reporting is the right direction of failure for a rule whose
+     * over-fire would break a correct page.
+     */
+    function headingStepIn(text: string): number {
+      let smallest = 0;
+      for (const tag of openingTags(text, /<h[1-6]\b/g)) {
+        for (const [, token] of tag.matchAll(/(?:^|["'\s])text-([a-z]+)\b/g)) {
+          const value = sizes[token] ?? 0;
+          if (value > 0 && (smallest === 0 || value < smallest)) smallest = value;
+        }
+      }
+      return smallest;
+    }
+
+    for (const { file, path, text } of allComponents()) {
+      // Named, default and aliased imports in one pass. Reading the wrong
+      // capture group here is invisible — every lookup simply misses and the
+      // check quietly covers less than it claims — which is how the braced
+      // `className` above went unnoticed until a fault was planted.
+      const imports = new Map<string, string>();
+      for (const [, named, defaultName, from] of text.matchAll(
+        /import\s+(?:\{([^}]+)\}|(\w+))\s+from\s+'(\.[^']+)'/g,
+      )) {
+        if (defaultName) imports.set(defaultName, from);
+        for (const name of (named ?? '').split(',')) {
+          const clean = name.trim().split(/\s+as\s+/).pop()?.trim();
+          if (clean) imports.set(clean, from);
+        }
+      }
+
+      for (const block of sectionBlocks(text)) {
+        const [headingTag] = openingTags(block, /<h2\b/g);
+        if (!headingTag) continue;
+        const headingStep = step(headingTag);
+        if (headingStep === 0) continue; // sized elsewhere; other checks own that
+
+        const body = block.replace(headingTag, '');
+        let contentStep = 0;
+        let cause = '';
+        for (const [, token] of body.matchAll(/(?:^|["'\s])text-([a-z]+)\b/g)) {
+          const value = sizes[token] ?? 0;
+          if (value > contentStep) {
+            contentStep = value;
+            cause = `text-${token}`;
+          }
+        }
+
+        // One level of indirection, headings only.
+        for (const [, tag] of body.matchAll(/<([A-Z]\w*)[\s/>]/g)) {
+          const from = imports.get(tag);
+          if (!from) continue;
+          const resolved = resolveComponent(path, from);
+          if (!resolved) continue;
+          const value = headingStepIn(resolved);
+          if (value > contentStep) {
+            contentStep = value;
+            cause = `<${tag}> heading`;
+          }
+        }
+
+        if (contentStep > headingStep) {
+          const classes = headingTag.match(/className=(?:"([^"]*)"|\{)/)?.[1] ?? headingTag.trim();
+          offenders.push(
+            `${file}: h2 "${classes}" is ${headingStep * 16}px over ${contentStep * 16}px ${cause}`,
+          );
+        }
       }
     }
 
-    expect(offenders).toEqual([]);
+    expect(offenders, 'a section heading set smaller than its own content stops reading as a heading')
+      .toEqual([]);
   });
 
   it('gives dashboard sections the same heading step as newsroom sections', () => {

@@ -1150,6 +1150,76 @@ for a chip inside a larger target. Every control in that panel carried it, so on
 the one surface operated exclusively by thumb, every control was under the
 minimum — Skip 64×26, Back 49×34, Next 50×34.
 
+### 4.5 A second pass, because one pass is a start
+
+The first pass fixed the four things it looked at. Sweeping every route again at
+320 / 375 / 414 / 768 found four more, and the shape of all four is the same:
+**a rule the site already has, not reaching somewhere.**
+
+**A sideways strip must look like one — and the check is the rendered mask, not
+the call site.** Five strips scroll sideways on this site. Three carried
+`useOverflowFade`; two did not, and the two nobody had measured were the two
+that were wrong.
+
+```
+                                       hidden @320   mask
+  header controls        Header             231px    yes
+  site section tabs      Header             647px    yes
+  dashboard rail         SectionRail        453px    yes
+  newsroom masthead nav  NewsroomLayout      83px    NO
+  insights row           InsightsBanner    1061px    NO
+```
+
+The newsroom nav cut its **active** tab: "How we use AI" rendered as `Hc`
+beneath its own accent underline, which reads as a broken tab rather than as a
+row that continues. The insights row cut a live figure mid-word —
+*"Highest ter"*.
+
+**The second of those is the one to remember, because reading the source calls
+it correct.** `InsightsBanner` does call the hook and does spread its class. But
+`useOverflowFade` attaches in an effect, and an effect runs when its *owner*
+mounts — the component renders a separate "Loading insights" element on the
+first commit, so the effect runs against a null ref, and a ref object cannot
+re-trigger an effect when it is later filled. The fade is wired and dead.
+`NewsFeed`'s new filter strip had the identical fault, measured `mask: NONE`
+with 601px hidden, and was fixed by giving the strip **its own component** so
+the element arrives with its own hook. So: a strip that appears after data
+loads needs the hook mounted with it, and the only check that can tell is one
+that reads the computed mask in a browser.
+
+**A control that wraps costs vertical space, and vertical space is what a phone
+has least of.** The front page's section filter was ten chips in a `flex-wrap`
+row. Measured:
+
+```
+          rows   height   first story starts at
+   320px    4     200px    583px   ->  1 row, 44px, 427px
+   375px    4     200px    565px   ->  1 row, 44px, 409px
+   414px    3     148px    513px   ->  1 row, 44px, 409px
+   768px    2      96px    443px   ->  unchanged, deliberately
+```
+
+200px is 26% of a 780px viewport spent on a filter, above any journalism —
+the same arithmetic that removed the tour panel above. It scrolls sideways
+below `sm` and wraps at `sm` and up, so the desktop layout is provably
+untouched: 768px is identical on both sides of the change.
+
+**A large heading pays for its padding in wrapped lines.** The lead card's `p-6`
+is 24px each side at every width. At 320px that leaves the 34px headline a
+238px box, and the headline ran to **7 lines at 1.57 words per line** — the
+one-word-per-line failure, arrived at through spacing rather than type.
+`p-4 sm:p-6` gives it 254px and **5 lines at 2.2 words per line**, with 375px
+and above unchanged. The type step is not the lever here and was left alone:
+34px already steps down from `sm:text-display`, and at 375px it sets a
+perfectly good 4 lines.
+
+**The 44px rule reaches `nav a`, so a navigation control outside a `nav` is
+outside the rule.** The masthead wordmark — the site's home link, on every
+route — measured **83×26 at every width**. It is not in a `<nav>`, so nothing
+touched it. It carries `min-h-11` now; the row is already `h-14`, so the target
+grew and nothing moved. When a rule is expressed as a selector, the question is
+always what the selector does *not* select.
+
 ---
 
 ## 5. What the tests enforce
@@ -1163,8 +1233,8 @@ minimum — Skip 64×26, Back 49×34, Next 50×34.
 - no arbitrary sizes, no Tailwind default ramp, no inline px `fontSize`;
 - **two weights** — no `font-medium`, no `font-bold`, no inline `fontWeight`
   other than 400 and 600;
-- headings descend, an `h2` is never `text-caption`, and each heading has more
-  room above it than below;
+- headings descend, an `h2` is never smaller than the content of its own
+  `<section>`, and each heading has more room above it than below;
 - spacing, gap and radius classes are on the allowlists in §1.2 and §1.3;
 - every text token clears its contrast floor in **both** themes;
 - semantic and series colours clear 4.5:1 and 3:1 respectively, in both themes;
@@ -1204,6 +1274,14 @@ minimum — Skip 64×26, Back 49×34, Next 50×34.
 - charts do not hardcode a hex colour that a theme token already provides, and
   do not use `connectNulls`;
 - the JS chart palette and the CSS tokens have not drifted apart.
+
+`tests/reducedMotionLayout.live.test.ts` measures the two things above that only
+a browser can answer, in one pass over every derived route at nine widths: no
+route scrolls sideways, and **every strip that does scroll carries a mask**. The
+second is a live check rather than a source check on purpose — the insights row
+in §4.5 reads as correct in source and renders with no fade. Its two current
+offenders are named in an equality, not filtered out, so fixing either turns the
+test red and forces the list to be pruned.
 
 Contrast and colour separation are **computed**, not eyeballed. If you change a
 colour, the test tells you the ratio — or the ΔE — you actually shipped.
