@@ -63,8 +63,28 @@ function InsightsRow({ insights }: { insights: Insight[] }) {
   );
 }
 
+/**
+ * The server sends an ISO instant; a reader wants a clock. Rendered in UTC and
+ * labelled so, rather than in the browser's zone: the insight is computed once
+ * for everyone from a single upstream read, so a local time would imply a
+ * per-reader freshness the figure does not have. Returns the raw string if it
+ * will not parse, because an unreadable timestamp is still more honest than
+ * none.
+ */
+function formatGeneratedAt(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return `${at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} UTC`;
+}
+
 export function InsightsBanner() {
   const [insights, setInsights] = useState<Insight[]>([]);
+  // The endpoint has always shipped these two beside `insights` and nothing
+  // read them, so machine-written text rendered with no generation time and no
+  // attribution — on a site whose newsroom half puts a provenance block under
+  // every article. A reader could not tell whether "Electricity EUR 22.65/MWh"
+  // was computed a minute ago or a week ago, or by what.
+  const [provenance, setProvenance] = useState<{ generatedAt?: string; source?: string }>({});
   const [loading, setLoading] = useState(true);
   const { country } = useCountry();
 
@@ -78,10 +98,12 @@ export function InsightsBanner() {
         const payload = response.ok ? await response.json() : null;
         if (!cancelled) {
           setInsights(payload?.insights ?? []);
+          setProvenance({ generatedAt: payload?.generatedAt, source: payload?.source });
         }
       } catch {
         if (!cancelled) {
           setInsights([]);
+          setProvenance({});
         }
       } finally {
         if (!cancelled) {
@@ -140,6 +162,18 @@ export function InsightsBanner() {
           lets the last card fade rather than be severed — see `InsightsRow`
           for why it has to be a separate component to work at all. */}
       <InsightsRow insights={insights} />
+      {/* Attribution, in the same register as a chart's source line:
+          `text-caption` on `--text-tertiary`. Each half renders only if the
+          server sent it, because an absent value must stay absent rather than
+          become a confident default — the same rule the status panel follows
+          when it cannot read the traffic figures. */}
+      {(provenance.source || provenance.generatedAt) && (
+        <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
+          {provenance.source}
+          {provenance.source && provenance.generatedAt ? ' · ' : ''}
+          {provenance.generatedAt && `Generated ${formatGeneratedAt(provenance.generatedAt)}`}
+        </p>
+      )}
     </section>
   );
 }
