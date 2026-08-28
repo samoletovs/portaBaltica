@@ -340,6 +340,37 @@ print the resolved path beside the file count, name the endpoint beside the
 field. A remembered fact about your instrument is exactly as unreliable as a
 remembered fact about the code.
 
+**A message is a claim about when it was written, not when it lands.** Same
+family, one layer out — in the coordination channel rather than in git. Nine
+cross-session reports arrived late on the final day, every one composed before
+the merges it described. I correctly identified eight as stale duplicates and
+got the ninth backwards: I read a stale-delivered *proposal* as a fresh one,
+concluded the session was about to redo merged work, sent a stop, and wrote it
+up as a vivid instance of a rule that session had itself authored.
+
+Measured after they objected with evidence:
+
+```
+#220 merged  15:33Z
+#226 CREATED 15:54Z  on the branch they named, at the SHA they sent me
+     merged  16:02Z  by me, after I planted against it
+```
+
+Their base was current; the work was finished; I had already merged it. **The
+tell was two seconds away** — `gh pr view <n>` would have shown the branch was
+already mine to merge — and I did not take it because the message *read* as a
+proposal and I never questioned when it was written.
+
+The retraction matters more than the error. Their objection is the correct
+application of this file's own rule: **a false example is worse than an
+unenforced rule, because it fails silently in the safe direction.** A successor
+reading *"the session that identified the stale-control trap then fell into it"*
+would draw a conclusion about vigilance from an event that did not happen, and
+would have no way to check. The generalisation survives — *naming a failure mode
+does not immunise you against it* — but its instance is now the real one, in
+`AGENTS.md`: the same session wrote the week/month collision docstring in the
+same commit as the function whose ordering broke on it.
+
 **A control has a timestamp, and it decays.** This is new and it is not in
 `AGENTS.md`. A session measured a flake rate on clean master, correctly and
 rigorously, and reported it in `#204`. It reused that control in `#211` — by
