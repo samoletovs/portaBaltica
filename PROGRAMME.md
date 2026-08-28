@@ -54,10 +54,12 @@ site          healthy · 8/8 required sources · 0 stale
 newsroom      deployed at master head; the 14:00Z timer edition published
               2 tier A originals at provenance.revision = that day's master head
 articles      81 published
-throughput    49 PRs merged · 13 direct commits · 3.0 PR/h · doc ratio 1 : 4
+throughput    42 PRs merged · 23 direct commits · 5.1 PR/h · doc ratio 1 : 3.3
+              (measured 5cfba82..master, i.e. since the handover at 10:16Z --
+               NOT the calendar day, which adds the previous run's last 7 PRs)
 ```
 
-This run merged **49 PRs** and made **13 direct commits to master**, with eight
+This run merged **42 PRs** and made **23 direct commits to master**, with eight
 implementation sessions running concurrently and zero merge conflicts. The
 previous run merged 117 and then found thirteen further defects after declaring
 itself complete. Treat "complete" as a measurement with a timestamp, not a
