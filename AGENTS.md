@@ -1529,7 +1529,49 @@ step is the previous step's remedy:
 | naive join | the line-leading `> ` **marker** |
 | strip-markup join | **inline `**`** inside the phrase |
 
-Strip line-leading markup, trim, **and strip inline emphasis**, then join. And
+**That remedy was wrong, and the way it was wrong is already forbidden three
+sections down.** Strip `**`, then also `` ` ``, then also `_` is **a word list of
+markup characters discovered one bite at a time** — each member added because it
+bit. The family is not three deep; it is as deep as CommonMark has inline
+constructs.
+
+Measured across every prose sentence of 60–200 characters in the three books,
+searching for the sentence a reader would quote:
+
+| Remedy | AGENTS.md | PROGRAMME.md | DESIGN.md |
+|---|---|---|---|
+| strip markup + trim + emphasis (**as committed**) | 46.9% | 44.4% | 48.6% |
+| **one normaliser, applied to both sides** | **94.6%** | **97.2%** | **96.0%** |
+
+So the enumerative version returned a confident `False` for **more than half** of
+this file's own prose. Backticks alone accounted for more misses than `**` did —
+1.5× as many — and `**` was found first only because it happened to bite.
+
+**The structural remedy is one function, applied identically to the needle and the
+haystack**, comparing on alphanumerics only:
+
+```python
+def norm(s):
+    s = re.sub(r'^\s*(> |//\s?)', '', s)          # line-leading markup
+    return re.sub(r'\s+', ' ', re.sub(r'[^0-9A-Za-z]+', ' ', s)).strip()
+```
+
+No inline construct can defeat it, because every one of them is punctuation — and
+normalising *both sides with the same function* is what makes it total. The
+earlier attempts each normalised one side, or normalised the two sides
+differently, which is how `datastore_active` became `datastoreactive` on one side
+and `datastore active` on the other.
+
+**And the operational rule, which is the transferable part: an enumerative remedy
+cannot be inspected for completeness.** You cannot look at "strip `**`" and notice
+`` ` `` is missing — nobody did, including the person who proposed it. But
+`164/350` says so instantly. **Measure a remedy's coverage against real text with
+a denominator; the miss rate is the only thing that can tell you a member is
+absent.**
+
+Not measured, and stated so rather than implied: inline links, nested and escaped
+constructs, and the prose under `.github/`. The residual 3–5% above is sentence
+splitting, not the normaliser. And
 note what the reading itself is: `False` is produced both by *the phrase is
 absent* and by *the phrase contains emphasis* — two states, one artefact, in the
 instrument recommended for detecting exactly that.
