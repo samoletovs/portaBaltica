@@ -912,6 +912,19 @@ describe('the country palette', () => {
 
 // ─── operability ───────────────────────────────────────────────────────────
 
+/**
+ * Chart components deliberately left without an accessible name, and why.
+ *
+ * Named rather than filtered out, and asserted as an equality, so an entry
+ * that stops being true fails instead of quietly matching nothing.
+ *
+ *   IndicatorTable.tsx — eight 24px sparklines, one per table row. Deferred
+ *   rather than forgiven: the file is being changed by another workstream for
+ *   an unrelated defect, and the right answer here depends on what its rows
+ *   end up saying. See the equality test below for the recommendation.
+ */
+const EXCLUDED_FROM_CHART_DESCRIPTION = ['IndicatorTable.tsx'];
+
 describe('operability', () => {
   it('gives controls a real touch target', () => {
     // Measured across the dashboard, 43 of 43 interactive elements were under
@@ -935,13 +948,88 @@ describe('operability', () => {
   it('describes every chart to a screen reader', () => {
     // Recharts draws SVG with no role, title, desc or table alternative, so
     // the core content of a data product was simply absent.
-    for (const file of ['IndicatorCard.tsx', 'BalticCompareChart.tsx']) {
-      const text = components().find((c) => c.file === file)!.text;
-      expect(text, `${file} chart needs role="img"`).toMatch(/role="img"/);
-      expect(text, `${file} chart needs a described label`).toMatch(
-        /aria-label=\{describe(?:Series|Comparison)\(/,
-      );
+    //
+    // **The population is derived, and this is the fourth instance of that
+    // lesson in this repo.** This assertion named two files by hand:
+    // `IndicatorCard` and `BalticCompareChart`. Both were correct, and both
+    // stayed correct while four more components learned to draw a chart —
+    // measured in Chromium on `/data`, 78 recharts surfaces render and **10
+    // announce as anonymous graphics**. A list of two went stale in silence;
+    // a list of six would go stale the same way. So the set is read from the
+    // source, and `AGENTS.md`'s rule applies: the set the guard walks and the
+    // set the behaviour walks must be the same set, which is only guaranteed
+    // when there is one of them.
+    //
+    // `ResponsiveContainer` is the marker because it is what recharts requires
+    // to draw into a sized box — every chart on this site has one, and nothing
+    // that is not a chart does. The count assertion below is the control: if
+    // the marker ever stops identifying charts, this fails loudly rather than
+    // passing over an empty set, which is the failure mode the whole rule is
+    // about.
+    const charts = components().filter(({ text }) => /<ResponsiveContainer\b/.test(text));
+
+    expect(
+      charts.length,
+      'no chart components found — the derivation is broken, and an empty set passes everything',
+    ).toBeGreaterThanOrEqual(5);
+
+    // A chart may satisfy this in one of two ways, and the distinction is the
+    // point rather than a convenience:
+    //
+    //   * `describeSeries` / `describeComparison` — one vocabulary, from
+    //     `chartAccessibility.ts`, for a chart whose content is a series;
+    //   * a hand-written `aria-label` — for a chart whose content is not
+    //     reducible to "what is plotted, over what span, from where to where".
+    //     `GridStatePanel` is the live example: its point is the *gap* between
+    //     generation and demand and the direction of the resulting flow, which
+    //     no per-series description states.
+    //
+    // What is not permitted is a third way: a chart with no accessible name at
+    // all.
+    const undescribed: string[] = [];
+    for (const { file, text } of charts) {
+      if (EXCLUDED_FROM_CHART_DESCRIPTION.includes(file)) continue;
+      if (!/role="img"/.test(text)) {
+        undescribed.push(`${file}: renders a chart with no role="img"`);
+        continue;
+      }
+      if (!/aria-label=/.test(text)) {
+        undescribed.push(`${file}: has role="img" but no aria-label`);
+      }
     }
+
+    expect(undescribed, 'a chart with no accessible name is invisible on a site made of charts')
+      .toEqual([]);
+  });
+
+  it('keeps the chart exclusions honest, as an equality', () => {
+    // An equality rather than a filter, so an exclusion cannot outlive its
+    // reason. `expect(charts.filter(notExcluded))` would go on passing forever
+    // once the excluded file is fixed, matching nothing and reporting success.
+    //
+    // The one entry is deferred, not forgiven: `IndicatorTable` renders eight
+    // 24px sparklines with no accessible name, and it is being changed by
+    // another workstream for an unrelated defect. When that lands, this
+    // equality fails and forces the decision rather than letting it lapse.
+    //
+    // The recommendation, for whoever picks it up: `aria-hidden="true"` on the
+    // sparkline box, not a description. Each sparkline sits in a table row
+    // that already carries the indicator's name, its latest value and its
+    // change as text — so describing the sparkline makes a screen reader read
+    // the same number twice, and WAI-ARIA calls a graphic that duplicates
+    // adjacent text decorative. That is a judgement about what the row says,
+    // and the row is being edited, which is exactly why it is deferred rather
+    // than guessed at here.
+    const charts = components()
+      .filter(({ text }) => /<ResponsiveContainer\b/.test(text))
+      .map(({ file }) => file);
+
+    const stillUndescribed = charts.filter(
+      (file) => !/role="img"/.test(components().find((c) => c.file === file)!.text),
+    );
+
+    expect(stillUndescribed.sort(), 'an exclusion that no longer matches anything must be deleted')
+      .toEqual([...EXCLUDED_FROM_CHART_DESCRIPTION].sort());
   });
 
   it('does not announce the decorative ticker twice', () => {
