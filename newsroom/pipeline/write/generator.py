@@ -244,8 +244,18 @@ def generate_article(
         # a real one, which is a better article than one that simply stops.
         # When the attempts are gone the paragraph goes, because house style
         # has no rejection path and would otherwise publish it.
+        #
+        # The speculative impact paragraph is cut on the same terms and for the
+        # identical reason, which had simply never been applied to it. It is the
+        # larger fault of the two: 13 of the 25 published tier A originals carry
+        # one, and the desk named it in 17 of 17 of its "ran as filed"
+        # approvals, every time asking for a cut that nothing performed.
         last_attempt = attempt == attempts
-        style = apply_house_style(result.article, cut_empty_closings=last_attempt)
+        style = apply_house_style(
+            result.article,
+            cut_empty_closings=last_attempt,
+            cut_speculative_impact=last_attempt,
+        )
         # A cut deletes prose the verdict was computed against, so the stored
         # verdict now describes an article that no longer exists. Re-run it.
         # Removing a paragraph can only withdraw claims, so this cannot turn a
