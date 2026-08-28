@@ -87,6 +87,7 @@ from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
 from newsroom import numeric_scan
 from newsroom.pipeline import units
+from newsroom.pipeline import field_meanings
 from newsroom.pipeline.analyst import AnalystBrief
 from newsroom.pipeline.context import COUNTRY_NAMES, ContextPack
 from newsroom.pipeline.models import Signal
@@ -660,7 +661,7 @@ period: {period}
 unit: {unit}
 what the detector found: {detector}
 measured against: {comparison_basis}
-
+{quantity_note}
 THE FIGURES (context for you — do NOT restate them, and do not put them in a claim):
 {figures}
 
@@ -678,13 +679,19 @@ What would a specialist in {discipline} say drove this?"""
 
 
 def _figure_table(signal: Signal) -> str:
-    lines = []
-    for name, value in signal.fields.items():
-        if name in units.INTERNAL_ONLY_FIELDS:
-            continue
-        shown = units.display_value(name, float(value))
-        label = units.label_for_field(name, signal.unit, overrides=signal.field_units)
-        lines.append(f"  - {name} = {shown}   ({label})")
+    # The same rendering the analysis desk and the correspondent get, from the
+    # same registry. It used to be a name, a value and a unit — so a spread
+    # between two countries arrived here as "latest_gap = 27.15 (balance of
+    # responses)", indistinguishable from a reading of the indicator, and this
+    # panel produced four confident attributed hypotheses explaining a rise in
+    # consumer confidence that never happened. Three countries stood at -15.6,
+    # -32.5 and -2.9.
+    #
+    # A panel that refuses is recoverable. A panel reasoning fluently about a
+    # fiction is not, which is why this stage mattered most of the three.
+    lines = field_meanings.figure_table(
+        signal, internal_only=units.INTERNAL_ONLY_FIELDS
+    )
     return "\n".join(lines) or "  (none)"
 
 
@@ -785,6 +792,7 @@ def consult_panel(
         "unit": signal.unit,
         "detector": signal.detector,
         "comparison_basis": signal.comparison_basis,
+        "quantity_note": field_meanings.quantity_note(signal),
         "figures": _figure_table(signal),
         "context_section": _context_section(pack, signal),
         "established": _established(brief),

@@ -58,7 +58,7 @@ import re
 
 import pytest
 
-from newsroom.pipeline import analyst, field_meanings
+from newsroom.pipeline import analyst, field_meanings, hypothesis
 from newsroom.pipeline.detect.detectors import (
     detect_divergence,
     detect_structural_divergence,
@@ -95,13 +95,17 @@ def spread_signal():
 
 
 class TestTheAnalystSeesWhatTheWriterSees:
-    def test_the_two_tables_are_identical(self):
-        # The anti-drift assertion. Two renderings of one input are free to
-        # disagree, and did: the writer's carried the meanings and the desk's
-        # did not, for every signal the newsroom has ever produced.
+    def test_all_three_stages_render_one_identical_table(self):
+        # The anti-drift assertion, and the reason this PR exists. Three
+        # renderings of one input are free to disagree, and did: the writer's
+        # carried the meanings and the two upstream of it did not, for every
+        # signal the newsroom has ever produced.
         signal = spread_signal()
 
-        assert analyst._figure_table(signal) == prompts._format_figures(signal)
+        writer_table = prompts._format_figures(signal)
+
+        assert analyst._figure_table(signal) == writer_table
+        assert hypothesis._figure_table(signal) == writer_table
 
     def test_the_desk_is_told_the_figure_is_a_distance(self):
         signal = spread_signal()
@@ -111,8 +115,19 @@ class TestTheAnalystSeesWhatTheWriterSees:
         assert "DISTANCE BETWEEN" in table
         assert "NOT a reading of the indicator" in table
 
+    def test_the_panel_is_told_too(self):
+        # The stage that produced four confident attributed hypotheses
+        # explaining a rise that never happened. An analyst brief that is
+        # merely vague is recoverable; this is not.
+        signal = spread_signal()
+
+        table = hypothesis._figure_table(signal)
+
+        assert "DISTANCE BETWEEN" in table
+        assert "NOT a reading of the indicator" in table
+
     def test_the_control_proves_the_table_could_have_been_bare(self):
-        # Without this, the assertion above would pass on a table that never
+        # Without this, the assertions above would pass on a table that never
         # had a meaning to lose.
         signal = spread_signal()
 
@@ -139,6 +154,27 @@ class TestTheQuantityNote:
 
         assert "The endpoints are LT and EE" in note
         assert "LV" not in note.replace("level", "")
+
+    def test_the_note_has_one_definition(self):
+        # Two copies of this explanation would reproduce, inside the fix for
+        # it, the exact fault this change is about. The analyst adds a line
+        # about thresholds because it proposes one; the panel does not.
+        signal = spread_signal()
+
+        shared = field_meanings.quantity_note(signal)
+        desk = analyst._quantity_note(signal)
+
+        assert shared and shared in desk
+        assert "threshold you propose" in desk
+        assert "threshold you propose" not in shared
+
+    def test_the_panel_is_asked_why_they_moved_apart(self):
+        # "What drove this?" invites a cause for the indicator. The finding is
+        # a distance, so the question that needs answering is why two series
+        # separated — which is what the panel got wrong.
+        note = field_meanings.quantity_note(spread_signal())
+
+        assert "why the two moved APART" in note
 
     @pytest.mark.parametrize(
         "detector", ["record_extreme", "streak", "seasonal_deviation", "sharp_move"]
@@ -227,12 +263,15 @@ class TestTheEndpointsAreArithmeticallyRight:
 
 class TestNoStageIsLeftOnTheBareTable:
     #: Stages that build their own figure table from ``signal.fields`` without
-    #: the shared registry. Stated as an equality so the day one is fixed, or a
-    #: new one appears, this list has to be updated rather than quietly growing.
+    #: the shared registry. Stated as an equality so a new one cannot appear
+    #: quietly, and so fixing the last of them forces this list to be emptied
+    #: rather than left matching nothing.
     #:
-    #: ``hypothesis.py`` is owned by another workstream. It has the same defect
-    #: and the same one-line fix.
-    KNOWN_BARE = {"hypothesis.py"}
+    #: It collected. It was ``{"hypothesis.py"}`` for exactly one commit — the
+    #: panel was owned by another workstream — and clearing it turned this
+    #: assertion red until the entry was deleted, which is the entire argument
+    #: for writing an exemption as an equality rather than as a filter.
+    KNOWN_BARE: set[str] = set()
 
     def test_every_other_stage_reads_the_shared_registry(self):
         root = pathlib.Path(analyst.__file__).parent

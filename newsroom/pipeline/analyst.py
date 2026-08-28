@@ -582,38 +582,13 @@ Give the correspondent their brief."""
 
 
 def _quantity_note(signal: Signal) -> str:
-    """Say plainly when the finding is a distance rather than a reading.
+    """One line, because the definition is shared. See ``field_meanings``.
 
-    "metric: consumer confidence / unit: balance of responses" describes the
-    *series*, and for a spread detector the finding is not a reading of that
-    series at all — it is how far apart two countries are. Nothing said so, and
-    a published brief duly reported "a consumer confidence reading of 29.6 ...
-    reflecting a stronger sentiment" for three countries whose readings were
-    -15.6, -32.5 and -2.9. Every figure was real; the subject had changed.
-
-    Deterministic, and the endpoints are read from the detector's own context
-    rather than inferred by comparing numbers — the same article named Latvia
-    and Estonia as its endpoints when Latvia sat in the middle.
+    It lived here first, and putting a second copy in ``hypothesis.py`` would
+    have reproduced — inside the fix for it — the exact fault this change is
+    about: one explanation written for one consumer of three.
     """
-    if not field_meanings.is_spread_finding(signal):
-        return ""
-
-    high, low = field_meanings.endpoints(signal)
-    between = f"{high} and {low}" if high and low else "two countries"
-    return f"""
-THIS FINDING IS A DISTANCE, NOT A READING. The headline figure is how far apart
-{between} are — a difference between two series, measured in the same unit as
-the series but not a value the indicator ever took. So:
-
-  - It cannot be described as the indicator rising, falling, improving or
-    worsening. Every country's own reading may be falling while this widens.
-  - It carries no sentiment. A wider gap is not good news or bad news; saying
-    which would be an argument, and you do not have the figures for it.
-  - The endpoints are {between}. Any other country in the set is BETWEEN them,
-    and naming a different pair as the extremes is simply wrong.
-  - A threshold you propose must be stated on the distance, not on one
-    country's level.
-"""
+    return field_meanings.quantity_note(signal, mention_thresholds=True)
 
 
 def _figure_table(signal: Signal) -> str:

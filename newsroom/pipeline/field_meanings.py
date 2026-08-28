@@ -136,6 +136,50 @@ def is_spread_finding(signal: Signal) -> bool:
     return signal.detector in SPREAD_DETECTORS
 
 
+def quantity_note(signal: Signal, *, mention_thresholds: bool = False) -> str:
+    """Say plainly when the finding is a distance rather than a reading.
+
+    "metric: consumer confidence / unit: balance of responses" describes the
+    *series*, and for a spread detector the finding is not a reading of that
+    series at all — it is how far apart two countries are. Nothing said so, and
+    a published brief duly reported "a consumer confidence reading of 29.6 ...
+    reflecting a stronger sentiment" for three countries whose readings were
+    -15.6, -32.5 and -2.9. Every figure was real; the subject had changed.
+
+    ONE DEFINITION, read by every stage that needs it. The registry above
+    exists because the same explanation was written for one consumer of three;
+    writing this note twice would repeat that mistake inside the fix for it.
+
+    ``mention_thresholds`` is for the stages that propose one. The causal panel
+    does not, and an instruction about an output it never produces is noise.
+    """
+    if not is_spread_finding(signal):
+        return ""
+
+    high, low = endpoints(signal)
+    between = f"{high} and {low}" if high and low else "two countries"
+    note = f"""
+THIS FINDING IS A DISTANCE, NOT A READING. The headline figure is how far apart
+{between} are — a difference between two series, measured in the same unit as
+the series but not a value the indicator ever took. So:
+
+  - It cannot be described as the indicator rising, falling, improving or
+    worsening. Every country's own reading may be falling while this widens.
+  - It carries no sentiment. A wider gap is not good news or bad news; saying
+    which would be an argument, and you do not have the figures for it.
+  - The endpoints are {between}. Any other country in the set is BETWEEN them,
+    and naming a different pair as the extremes is simply wrong.
+  - What needs explaining is why the two moved APART, not why the indicator
+    moved.
+"""
+    if mention_thresholds:
+        note += (
+            "  - A threshold you propose must be stated on the distance, not on\n"
+            "    one country's level.\n"
+        )
+    return note
+
+
 def endpoints(signal: Signal) -> tuple[str | None, str | None]:
     """Which geographies the spread is measured between, high then low.
 
