@@ -1430,11 +1430,18 @@ content at L77, L390, L418         ->  present on master
 ```
 
 All three are true simultaneously, and only the first looks like "not merged".
-This has misled twice: an audit of 89 branches that appeared to hold unmerged
-commits — the squash artifact, every one — and a session that read
-`--contains <branch head>` as proof a merged pull request was still open, then
-correctly invoked *an absent result is a claim about the instrument* while
-pointing it at the wrong instrument.
+This has misled twice. An audit of 89 branches that appeared to hold unmerged
+commits — the squash artifact, every one. And a reading of `--contains <branch
+head>` that produced the `#146` signature: *a merged pull request whose content
+did not land*.
+
+The second is the instructive one, because **recognising the artifact is not
+enough to dismiss it.** The session that hit it identified the squash cause
+within seconds and still could not rule out a bad merge from that check alone —
+it had to go to the content. A reading that is explained is not thereby
+disproved: `--contains` returning nothing is *consistent with* a squash merge
+and *also* consistent with the merge that dropped two commits in `#146`, and
+nothing about the reading separates them.
 
 So settle merge state on the **squash commit** or, better, on the **content**:
 
