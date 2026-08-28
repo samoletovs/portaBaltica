@@ -37,7 +37,11 @@ const handler = async function (context, req) {
     add('/data', today, '0.8');
     add('/about/ai', today, '0.6');
     add('/corrections', today, '0.5');
-    CORRESPONDENTS.forEach(function (id) { add('/correspondents/' + id, today, '0.5'); });
+    // Canonical URLs only. `/correspondents/:id` still resolves, but `main.tsx`
+    // routes it to `LegacyCorrespondentRedirect` and the page it lands on
+    // declares `canonicalPath: /newsroom/:id` — so listing the old form told
+    // search engines to index a URL whose destination disowns it.
+    CORRESPONDENTS.forEach(function (id) { add('/newsroom/' + id, today, '0.5'); });
     SECTIONS.forEach(function (section) { add('/data/' + section, today, '0.6'); });
 
     articles.forEach(function (article) {

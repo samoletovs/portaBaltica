@@ -57,6 +57,48 @@ describe('the route derivation', () => {
     expect(sections, 'the overview is /data itself, never /data/overview').not.toContain('overview');
   });
 
+  it('every section a reader can click is one the dashboard will render', () => {
+    // The failure this exists for is silent and user-visible. `App.tsx` falls
+    // back to `'all'` for a section it does not recognise, so a nav entry whose
+    // id is missing from `DASHBOARD_SECTIONS` does not 404 — the reader clicks
+    // "Trade", the address bar reads `/data/trade`, and they are served the
+    // Overview instead.
+    //
+    // Nothing caught that. Measured with `trade` deleted from `App.tsx`'s
+    // section set alone: `tsc --noEmit` exited 0 (a `Set<string>` is not
+    // checked against the union) and all 26 route tests passed, because they
+    // derived from the type and from `Header.tsx` and neither had changed.
+    //
+    // `DASHBOARD_SECTIONS` is now one value that both the renderer and the
+    // redirect branch on, so that particular fault can no longer be written.
+    // This asserts the half that remains hand-written: `Header.tsx` carries
+    // labels and paths, so it cannot be generated from the list, and it can
+    // still drift from it in either direction.
+    const renderable = new Set(validSections());
+    const clickable = sectionRoutes()
+      .filter((path) => path.startsWith('/data/'))
+      .map((path) => path.slice('/data/'.length));
+
+    expect(clickable.length, 'no /data/<section> links parsed from Header.tsx').toBeGreaterThan(6);
+
+    for (const section of clickable) {
+      expect(
+        renderable.has(section),
+        `the nav links to /data/${section}, which the dashboard does not render — it would silently serve the Overview`,
+      ).toBe(true);
+    }
+
+    // And the other direction, which is a dead end rather than a wrong page: a
+    // section the dashboard renders but nothing links to is only reachable by
+    // typing the URL.
+    for (const section of renderable) {
+      expect(
+        clickable.includes(section),
+        `the dashboard renders /data/${section} but the nav has no link to it`,
+      ).toBe(true);
+    }
+  });
+
   it('needs both sources, because neither is sufficient', () => {
     // Asserted rather than left to the comment that says so. `/data/:section?`
     // is one router entry and ten destinations; the nav has no entry for the

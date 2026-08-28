@@ -10,6 +10,7 @@ import { FilterProvider } from './FilterContext.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 import { NewsroomLayout } from './components/news/NewsroomLayout.tsx'
 import { SiteLayout } from './components/SiteLayout.tsx'
+import { DASHBOARD_SECTIONS } from './sections.ts'
 
 // The dashboard and everything chart-shaped stays behind a lazy boundary so
 // recharts and d3 never load for a reader who only came for the front page.
@@ -23,10 +24,7 @@ const CorrespondentPage = lazy(() => import('./components/news/CorrespondentPage
 const AiPolicyPage = lazy(() => import('./components/news/AiPolicyPage.tsx'))
 const CorrectionsPage = lazy(() => import('./components/news/CorrectionsPage.tsx'))
 
-const DASHBOARD_SECTIONS = new Set([
-  'economy', 'trade', 'government', 'labour', 'energy',
-  'property', 'environment', 'business', 'maritime',
-])
+const LEGACY_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS)
 
 /**
  * The dashboard used to live at `/economy`, `/maritime` and so on. Those URLs
@@ -35,7 +33,7 @@ const DASHBOARD_SECTIONS = new Set([
  */
 function LegacySectionRedirect() {
   const { section } = useParams<{ section: string }>()
-  if (section && DASHBOARD_SECTIONS.has(section)) {
+  if (section && LEGACY_SECTIONS.has(section)) {
     return <Navigate to={`/data/${section}`} replace />
   }
   return <Navigate to="/" replace />

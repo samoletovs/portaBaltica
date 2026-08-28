@@ -1,7 +1,15 @@
 // ─── Dashboard-wide types ───
 
-/** Active dashboard section */
-export type DashboardSection = 'economy' | 'trade' | 'government' | 'labour' | 'energy' | 'property' | 'environment' | 'maritime' | 'business';
+/**
+ * The dashboard's sections live in `./sections` — a value, with the type
+ * derived from it — so that `main.tsx` can resolve legacy URLs without pulling
+ * `PORTS` into the entry chunk. Re-exported here because this is where the rest
+ * of the app already looks for shared types.
+ */
+import type { DashboardSection } from './sections';
+
+export { DASHBOARD_SECTIONS } from './sections';
+export type { DashboardSection };
 
 /** AI insight significance level */
 export type InsightLevel = 'routine' | 'notable' | 'significant';

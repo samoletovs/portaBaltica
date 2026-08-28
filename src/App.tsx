@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { PORTS } from './types';
+import { PORTS, DASHBOARD_SECTIONS } from './types';
 import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
@@ -26,7 +26,7 @@ interface PortWeatherData {
   weather: PortWeather | null;
 }
 
-const VALID_SECTIONS = new Set(['economy', 'trade', 'government', 'labour', 'energy', 'property', 'environment', 'business', 'maritime']);
+const VALID_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS);
 
 /** The overview's sections, in the order they are rendered, for the rail. */
 const SECTION_LINKS: SectionLink[] = [

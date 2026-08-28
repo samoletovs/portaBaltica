@@ -75,13 +75,52 @@ export function sectionRoutes(): string[] {
  * silently rather than a not-found. That is a reasonable thing for the app to
  * do and a trap for anything that lists routes: `/data/overview` looks like a
  * distinct page and is not one.
+ *
+ * This reads the `DASHBOARD_SECTIONS` **value**, not the `DashboardSection`
+ * type, because the value is now what `App.tsx` and `main.tsx` both branch on
+ * and the type is derived from it. Reading the type would still work and would
+ * be measuring the wrong artefact — a type cannot decide what renders.
+ *
+ * The emptiness check is not decoration. The previous version scraped quoted
+ * strings out of the type alias, and against a derived type
+ * (`typeof DASHBOARD_SECTIONS[number]`) that regex still *matches* and finds no
+ * quotes — so it would have returned `[]`, and an empty expected-set makes
+ * every comparison against it pass. Absence has to be an error here, because
+ * absence is indistinguishable from agreement.
  */
 export function validSections(): string[] {
-  const source = readFileSync(resolve('src/types.ts'), 'utf8');
-  const line = source.match(/export type DashboardSection\s*=\s*([^;]+);/);
-  if (!line) throw new Error('DashboardSection not found in types.ts — the derivation is broken');
+  const source = readFileSync(resolve('src/sections.ts'), 'utf8');
+  const block = source.match(/export const DASHBOARD_SECTIONS\s*=\s*\[([\s\S]*?)\]\s*as const;/);
+  if (!block) throw new Error('DASHBOARD_SECTIONS not found in sections.ts — the derivation is broken');
 
-  return [...line[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const found = [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  if (found.length === 0) {
+    throw new Error('DASHBOARD_SECTIONS parsed to an empty list — the derivation is broken');
+  }
+  return found;
+}
+
+/**
+ * Routes the router declares only to send the reader somewhere else.
+ *
+ * `routerRoutes()` skips these because they render nobody's content of their
+ * own. They are worth naming separately because a *sitemap* must not list them:
+ * a redirect's destination declares its own canonical, so advertising the old
+ * form tells a search engine to index a URL the landing page disowns.
+ */
+export function redirectRoutes(): string[] {
+  const source = readFileSync(resolve('src/main.tsx'), 'utf8');
+  const found: string[] = [];
+
+  for (const match of source.matchAll(/<Route\s+path="([^"]+)"\s+element=\{([\s\S]*?)\}\s*\/>/g)) {
+    const [, path, element] = match;
+    if (/\bNavigate\b|Redirect\b/.test(element)) found.push(path);
+  }
+
+  if (found.length === 0) {
+    throw new Error('no redirect routes parsed from main.tsx — the derivation is broken');
+  }
+  return found.sort();
 }
 
 /**
