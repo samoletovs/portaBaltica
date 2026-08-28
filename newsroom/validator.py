@@ -687,6 +687,20 @@ _DIRECTIONAL_WITH_NUMBER: Final[re.Pattern[str]] = re.compile(
     re.IGNORECASE,
 )
 
+#: A decimal point is not a full stop.
+#:
+#: ``[^.]`` stops dead at the "." in "52.8%", so ``from 52.8% to 61.2%`` did not
+#: match ``from … to`` while ``from 52 to 61`` did — the same construction,
+#: separated only by a decimal point, and the decimal version is what an
+#: economic series almost always produces. Measured: the sentences carrying
+#: figures were exactly the ones this skipped.
+#:
+#: The repo already knew. ``house_style._GAP`` and ``weekly._GAP`` are this
+#: expression, each with a comment saying a decimal point is not a full stop,
+#: while the *gate* kept the broken form in two patterns. A shared fix applied
+#: to some consumers and not others, in the one place it costs an article.
+_GAP: Final[str] = r"(?:[^.]|\.(?=\d))"
+
 _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
     re.compile(pattern, re.IGNORECASE)
     for pattern in (
@@ -707,7 +721,7 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"\bthe\s+same\s+(?:month|period|week|quarter|day|year|hour)\b",
         r"\bthe\s+(?:previous|preceding|prior)\s+\w+",
         r"\bsince\b",
-        r"\bfrom\b[^.]{1,60}?\bto\b",
+        rf"\bfrom\b{_GAP}{{1,60}}?\bto\b",
         r"\brelative\s+to\b",
         r"\bbaseline\b|\bclimatological\b|\blong[-\s]run\b|\blong[-\s]term\s+(?:average|normal|mean)\b",
         r"\bnormal\s+for\b",
@@ -716,7 +730,7 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"\b\d+[-\s]year\s+(?:average|mean|normal|trend)\b",
         r"\bon\s+the\s+(?:year|month|week|day)\b",
         r"\bpre-\s?\d{4}\b",
-        r"\bbetween\b[^.]{1,60}?\band\b",
+        rf"\bbetween\b{_GAP}{{1,60}}?\band\b",
         r"\brecord\s+(?:high|low)\b",
         # A threshold names the value a movement is measured against, so
         # "fell below 2%" states its basis as plainly as "fell compared with
@@ -733,6 +747,105 @@ _BASIS_PATTERNS: Final[tuple[re.Pattern[str], ...]] = tuple(
         r"\b(?:above|below)\s+(?:the\s+)?[€$£]?\d",
     )
 )
+
+
+#: There is deliberately no "a period label is a basis" clause.
+#:
+#: It was written, and removed after measuring it. "grew from 52.8% in 2024 to
+#: a new high" looked like it needed one — but that sentence is already caught
+#: by ``from … to``, so the clause was load-bearing for nothing true, while it
+#: admitted this:
+#:
+#:     "Output rose 12% in 2024."       accepted
+#:     "Prices increased 8.1% during 2025."   accepted
+#:
+#: Twelve per cent higher than *what*? A period label says WHEN a reading was
+#: taken, never what it is measured against, and treating it as a basis turns
+#: this check's 8 false positives into false negatives of exactly the kind it
+#: exists to prevent. Found by planting a fault: dropping the clause changed no
+#: test, which is what an untested clause looks like.
+_SENTENCE_SPLIT: Final[re.Pattern[str]] = re.compile(r"(?<=[.!?])\s+")
+
+#: A numeral immediately followed by a period word says HOW LONG, not HOW MUCH.
+#: "a significant increase, sustained over 22 consecutive quarters" carries one
+#: numeral and quantifies nothing, so demanding a basis beside it is demanding
+#: one for a claim that was never made.
+_DURATION: Final[re.Pattern[str]] = re.compile(
+    r"\b\d[\d,.]*\s+(?:consecutive\s+|earlier\s+|further\s+|straight\s+)*"
+    r"(?:year|month|quarter|week|day|period|observation|reading)s?\b",
+    re.IGNORECASE,
+)
+
+#: Connectives that make two magnitudes in one sentence a COMPARISON.
+#:
+#: Deliberately narrow: each of these joins two SUBJECTS. A bare comparative
+#: adjective does not, and admitting one costs a real rejection —
+#: "settled at 142.5 euros per megawatt-hour, 12.0% higher" carries two
+#: magnitudes and the word "higher", and says higher than *nothing*. Those two
+#: figures are a level and its delta, not a reading and its basis.
+#:
+#: "and" is excluded for the same reason: "prices rose 12%, and unemployment
+#: stood at 6.6%" places two figures side by side and relates nothing.
+_COMPARATIVE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:while|whereas|against|than|compared|versus|vs\.?|"
+    r"ahead\s+of|behind|as\s+against|up\s+from|down\s+from)\b",
+    re.IGNORECASE,
+)
+
+
+def _magnitudes(text: str) -> list[str]:
+    """Numerals that quantify something, with durations removed."""
+    spans = [m.span() for m in _DURATION.finditer(text)]
+    out = []
+    for token in numeric_scan.scan(text):
+        position = text.find(token.text)
+        if any(start <= position < end for start, end in spans):
+            continue
+        out.append(token.text)
+    return out
+
+
+def _states_a_cross_sectional_basis(text: str) -> bool:
+    """Two comparable magnitudes in ONE sentence, joined by a comparative.
+
+    The form no pattern reaches, because it has no marker phrase::
+
+        "Lithuania's road freight stood at 2,435 thousand tonnes, while
+         Latvia's was much lower at 484 thousand tonnes."
+
+    Both values are present and the reader can see exactly what is being
+    measured against what. A vocabulary list cannot express that, which is why
+    adding a twenty-fifth pattern was never going to finish the job.
+
+    WHY IT IS NOT SIMPLY "TWO NUMBERS". Measured against four adversarial
+    controls, "two numbers anywhere in the paragraph" trades this check's 8
+    false positives for 3 false NEGATIVES — "prices rose 12% in June, and
+    unemployment stood at 6.6%" carries two figures and states no basis. On a
+    truth gate that is the worse trade. Same sentence, and a comparative rather
+    than a bare conjunction, is what makes the co-occurrence a relation.
+    """
+    for sentence in _SENTENCE_SPLIT.split(text):
+        if len(_magnitudes(sentence)) >= 2 and _COMPARATIVE.search(sentence):
+            return True
+    return False
+
+
+def _states_a_basis(text: str) -> bool:
+    """Does this text name what its change is measured against?
+
+    Two sufficient forms, and the first is the only one that was here before:
+
+    1. a basis PHRASE — "compared with", "than", "a year earlier";
+    2. a CROSS-SECTIONAL comparison, two magnitudes and a comparative in one
+       sentence, which has no phrase to match on and is the form that proved
+       the shape was wrong rather than merely incomplete.
+
+    A third — treating a period label as a reference point — was written and
+    then removed on measurement. See the note above ``_SENTENCE_SPLIT``.
+    """
+    if any(pattern.search(text) for pattern in _BASIS_PATTERNS):
+        return True
+    return _states_a_cross_sectional_basis(text)
 
 
 def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
@@ -756,7 +869,7 @@ def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
     basis_anywhere = False
 
     for location, text in context.generated_prose():
-        has_basis = any(pattern.search(text) for pattern in _BASIS_PATTERNS)
+        has_basis = _states_a_basis(text)
         if has_basis:
             basis_anywhere = True
 
@@ -773,7 +886,11 @@ def check_comparison_basis_stated(context: ValidationContext) -> CheckResult:
         if has_basis:
             continue
 
-        if numeric_scan.scan(text):
+        # A duration is not a magnitude. "sustained over 22 consecutive
+        # quarters" says how long, not how much, so a paragraph carrying only
+        # that has not quantified its change and is held to the weaker
+        # article-wide rule below.
+        if _magnitudes(text):
             problems.append(
                 f"{location}: quantifies a change ({change.group(0).strip()!r}) "
                 "without naming the comparison basis"
