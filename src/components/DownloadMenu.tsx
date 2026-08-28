@@ -88,9 +88,25 @@ interface DownloadMenuProps {
 }
 
 export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
-  // Only ever set when a download could not be started, so the reader is not
-  // left clicking a control that silently does nothing.
-  const [failed, setFailed] = useState(false);
+  /**
+   * What to announce, and nothing else about the control's state.
+   *
+   * This used to be a `failed` boolean that mounted a `<span role="status">`
+   * at the moment it had something to say. That is the arrangement a live
+   * region is least likely to be announced in: assistive technology watches a
+   * region for *changes*, and a region inserted together with its text is
+   * frequently missed because there was nothing there to change.
+   *
+   * Measured on `/indicator/gdp`: pressing Enter on the CSV button downloads
+   * the file, changes no visible content, leaves focus on the button, and left
+   * `[role="status"]` **absent from the group entirely** — so a screen-reader
+   * user pressing the control heard nothing at all, success or failure. WCAG
+   * 2.2 SC 4.1.3 (AA) exists for exactly this: a status message has to be
+   * programmatically determinable without taking focus.
+   *
+   * So the region is now permanent and only its text changes.
+   */
+  const [status, setStatus] = useState<{ text: string; failed: boolean } | null>(null);
 
   const observations = data?.series.reduce((total, one) => total + one.observations.length, 0) ?? 0;
   if (!data || observations === 0) return null;
@@ -99,7 +115,12 @@ export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
     const text =
       extension === 'csv' ? BOM + toCsv(data) : toJson(data);
     const type = extension === 'csv' ? CSV_TYPE : JSON_TYPE;
-    setFailed(!downloadText(exportFilename(data, extension), type, text));
+    const ok = downloadText(exportFilename(data, extension), type, text);
+    setStatus(
+      ok
+        ? { text: `${data.title} downloaded as ${extension.toUpperCase()}.`, failed: false }
+        : { text: 'Download is not available in this browser.', failed: true },
+    );
   };
 
   return (
@@ -126,11 +147,19 @@ export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
           {extension.toUpperCase()}
         </button>
       ))}
-      {failed && (
-        <span className="text-caption dash-warning" role="status">
-          Download is not available in this browser.
-        </span>
-      )}
+      {/* Always mounted, so there is a region to change. Success is announced
+          without being shown — the file arriving is its own visible feedback
+          for a sighted reader, and a permanent confirmation line in a dense
+          control row would be noise. A failure is shown as well as announced,
+          because nothing else on screen reports it. */}
+      <span
+        role="status"
+        className={
+          status?.failed ? 'text-caption dash-warning' : 'sr-only'
+        }
+      >
+        {status?.text ?? ''}
+      </span>
     </div>
   );
 }

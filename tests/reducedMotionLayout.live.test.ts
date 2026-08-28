@@ -135,31 +135,33 @@ const WIDTHS = [1440, 1024, 960, 820, 768, 600, 512, 375, 320];
 /**
  * Strips that scroll sideways without saying so.
  *
- * This list carried two entries one PR ago — the insights row and the policy
- * table — and both are fixed. It is **not** empty, because emptying it
- * immediately revealed a third that had landed meanwhile:
+ * **Empty, and it emptied itself twice.** It carried two entries one PR ago —
+ * the insights row and the policy table. Fixing those turned this red, which
+ * is how the third was found: `/follow`'s feed URL chips, added by #195 and
+ * not covered by any check that reads a rendered mask.
  *
- *   a.news-link.news-border.news-panel-muted   FollowPage.tsx, the feed URL chip
+ * That third one is worth recording because a fade would have been the wrong
+ * fix. Measured against production at 320 / 375 / 414px, both chips rendered
+ * **byte-identical visible text** — `https://portabaltica.` — since the path
+ * is the only thing distinguishing RSS from JSON Feed and the path is what the
+ * cut removed. Fading the edge would have made two indistinguishable controls
+ * look deliberate. They wrap now, so the whole URL is on screen and nothing
+ * here scrolls at all.
  *
- * `/follow` renders each feed URL in an `<a>` carrying `overflow-x-auto
- * whitespace-nowrap`, so a long URL scrolls sideways behind a hard cut. Same
- * class of defect as the two above, in a file this pass does not own; named
- * here so it is visible and so that fixing it turns this red.
- *
- * The two that were fixed are worth recording, because the *reason* they were
- * hard is not obvious. The insights row **did** call `useOverflowFade` and
- * **did** spread its class, and rendered no fade: the hook attaches in an
- * effect and the component's first commit renders a separate "Loading
- * insights" element, so the effect ran against a null ref. A source-reading
- * check calls that file correct; only a live read of the computed mask does
- * not. That is why this assertion lives here and not in the unit suite.
+ * The insights row was the sharpest of the three: that file **did** call
+ * `useOverflowFade` and **did** spread its class, and rendered no fade, because
+ * the hook attaches in an effect and the component's first commit renders a
+ * separate "Loading insights" element, so the effect ran against a null ref. A
+ * source-reading check calls that file correct; only a live read of the
+ * computed mask does not. That is why this assertion lives here rather than in
+ * the unit suite.
  *
  * An equality, not a subtraction. Written as
- * `expect(found.filter(notKnown)).toEqual([])` this would still name two
+ * `expect(found.filter(notKnown)).toEqual([])` this would still name three
  * strips that no longer offend, matching nothing and reporting success
- * indefinitely — and it would never have surfaced the third.
+ * indefinitely — and it would never have surfaced the second or the third.
  */
-const KNOWN_UNFADED = ['a.news-link.news-border.news-panel-muted'];
+const KNOWN_UNFADED: string[] = [];
 
 describe('the deployed site under prefers-reduced-motion', () => {
   it('does not scroll horizontally, and every strip that does says so', async () => {
