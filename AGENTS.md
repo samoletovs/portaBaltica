@@ -1099,11 +1099,13 @@ fine. `GridStatePanel`'s `dataKey`s are `label` (the x axis), `generated`,
 them.
 
 **A field with no reader is a question, not a verdict**, and the section is
-worth little without that. `freshness` is still the only zero-reader field of
-the eight today — not read, not even declared in the client's type — and that is
-*not* a defect: the client recomputes the verdict itself because only one of the
-two upstreams sends one, and a rule that applies to Latvia and not to Estonia is
-worse than no rule.
+worth little without that. `freshness` is still the only field of the eight with
+no reader in `src/` — not read, not even declared in the client's type — and it
+is *not* a defect: the client recomputes the verdict itself because only one of
+the two upstreams sends one, and a rule that applies to Latvia and not to
+Estonia is worse than no rule. It is also not unread. `historicalData.live.test.ts`
+asserts on its `period`, `age`, `cadence` and `stale`, so the field is a live
+contract with CI even though no component touches it.
 
 But run the grep and then read both sides, because the answer is more
 interesting than "fine". The producer, at `api/historical-data/index.js:513`:
@@ -1132,6 +1134,25 @@ is a person reading `runs/latest.json` after a bad afternoon, and `runreport.py`
 says so at the field, so the next sweep gets its answer from the code instead of
 reconstructing it. That is the cheap habit worth copying — **answer the question
 where the field is defined, before someone has to ask it.**
+
+**And a test is a consumer.** Running this across all fourteen endpoints —
+107 top-level fields, of which **75 are read by the app, 8 only by a test, and
+24 by nothing** — the first version reported `assumptions` as dead on both
+`/api/baltic-compare` and `/api/port-data`. It is not: `indicators.live.test.ts`
+and `portData.live.test.ts` fail when it is non-empty, so a guessed cube slice
+is caught in CI rather than shown to a reader, which is the better design and
+exactly what this repo argues for elsewhere. Same for `freshness`, and for
+`sea-state.unavailable`, and for `power-prices.today`/`tomorrow`. A sweep of
+`src/` alone calls all eight dead, and the obvious tidy-up deletes a guard.
+
+The sweep under-counted four more times before it settled, and every one was the
+same fault it hunts — an enumeration the wrong size for its subject. `src/api.ts`
+in every endpoint's closure made one endpoint's `.source` look like every
+endpoint's. Reading types from `types.ts` only reported three response types as
+"not found" when they are declared in `api.ts`. Matching test files by literal
+name missed `portData.live.test.ts` for `port-data`, because the filename is
+camelCase. And globbing `tests/**/*.ts` silently excluded every `.tsx`. **Each
+one moved the headline number, and every one failed toward "no finding here".**
 
 And note where all three defects were found: **at the reporting layer, by
 reading the output.** Not one is reachable from a test of the producer, because
