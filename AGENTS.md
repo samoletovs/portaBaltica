@@ -1176,6 +1176,31 @@ programme where several sessions merge into one branch through an afternoon,
 every message describing "master" describes a different tree from the one its
 reader will check, and the gap is invisible from both ends.
 
+The same applies to *when*, and it costs one field. A report saying
+`open PRs: 1 (#175)` was read four hours later as a stale snapshot; it was a
+live API call made **inside a four-minute window**, and the `21:28` beside it
+was Riga time, read as UTC by someone three hours behind it:
+
+```
+#175  created 18:28:38Z   merged 18:32:51Z   open for 4.2 minutes
+      observed 21:28 local (UTC+3) = 18:28Z  -- seconds after it opened
+```
+
+So: `observed 2026-08-27T18:28Z`, not `21:28`. **An instant with a zone is
+unambiguous to a reader in another timezone four hours later; a wall clock is
+not.**
+
+And the failure that nearly followed is worth more than the fix. Three
+apparently-stale reports in one evening tempted the manager into a general
+rule — *an idle session's view of PR state is not evidence* — which was
+retracted on measurement. `gh pr list --state open` is a live API call with no
+cached view to go stale; that reading was correct, and it is the only reason
+#175 was reviewed at all against a close-out claiming zero open PRs.
+**A rule that dismisses a class of reporter suppresses their true findings with
+their false ones**, which is a check that cannot produce a finding — the thing
+this file exists to argue against, arriving as a management heuristic rather
+than as code.
+
 Two things survive from the wrong diagnosis, because they are true independently
 of it. **A rigorous instrument produces a confident, well-evidenced conclusion,
 which survives review in a way a sloppy one does not** — that session's work was
