@@ -82,9 +82,28 @@ export function NewsroomLayout() {
             .
           </p>
           <p className="mt-2">
-            <a href="/rss.xml" className="news-hover underline underline-offset-2">
-              RSS
-            </a>
+            {/*
+              Was `RSS`, a bare anchor to /rss.xml, and it was the ONLY follow
+              affordance on the whole site. Measured against production at
+              2026-08-28T12:25Z: /rss.xml was one click from every newsroom
+              page, /follow was two and only via an article, and /feed.json was
+              three. The older, less capable feed was the discoverable one.
+
+              This costs a reader who specifically wants RSS one extra click,
+              and buys every reader a page that explains both feeds, gives the
+              URLs in a copyable form and points at the weekly review. Feed
+              readers are unaffected either way: both feeds are advertised by
+              `<link rel="alternate">` in index.html, which is autodiscovered
+              without anyone clicking anything.
+
+              It is not in the nav above, and that is measured too. That nav
+              already scrolls sideways at phone widths — 83px over at 320 and
+              28px over at 375, with four items — so a fifth would push "How we
+              use AI" further out of reach to make this one easier to find.
+            */}
+            <Link to="/follow" className="news-hover underline underline-offset-2">
+              Follow
+            </Link>
             {' · '}
             <Link to="/newsroom" className="news-hover underline underline-offset-2">
               The newsroom
