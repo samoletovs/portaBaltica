@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from '../ThemeContext';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
-import { formatPeriod } from '../dataFreshness';
+import { freshnessOf, formatPeriod } from '../dataFreshness';
 
 /**
  * How much of each country's inland freight goes by rail.
@@ -124,6 +124,16 @@ export function FreightModalSplit({ compact = false }: { compact?: boolean }) {
     ? formatPeriod(periods[0])
     : `${formatPeriod(periods[0])} to ${formatPeriod(periods[periods.length - 1])}`;
 
+  // Judged on the OLDEST period, not the newest, for the same reason
+  // `MaritimeTile` does: a panel drawing three countries that publish
+  // independently is only as current as the one furthest behind, and dating it
+  // by the leader would give the laggard a quarter it never reached.
+  //
+  // The panel dated its figures and never judged them, which left the reader to
+  // work out whether "Q1 2022" was a normal publication lag or a dead feed —
+  // a judgement the dashboard already knows how to make everywhere else.
+  const freshness = freshnessOf(periods[0]);
+
   const description = splits
     .map((s) => `${s.name} ${s.share.toFixed(1)} per cent by rail`)
     .join('; ');
@@ -134,11 +144,22 @@ export function FreightModalSplit({ compact = false }: { compact?: boolean }) {
         <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>
           Rail&apos;s share of inland freight
         </p>
-        <span className="text-caption" style={{ color: 'var(--text-tertiary)' }}>{dateline}</span>
+        <span
+          className="text-caption"
+          style={{ color: freshness?.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+        >
+          {dateline}
+        </span>
       </div>
       <p className="text-caption mb-4" style={{ color: 'var(--text-tertiary)' }}>
         Tonne-kilometres by rail as a share of rail plus road
       </p>
+
+      {freshness?.stale && (
+        <p className="text-caption mb-4" style={{ color: 'var(--data-warning)' }}>
+          This series has published nothing newer than {formatPeriod(freshness.period)}.
+        </p>
+      )}
 
       <div className="space-y-4" role="img" aria-label={`Rail share of inland freight: ${description}`}>
         {splits.map((s) => (

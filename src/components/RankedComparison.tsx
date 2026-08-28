@@ -4,6 +4,7 @@ import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { formatValue } from '../utils/formatValue';
 import { sentimentColor, signed, type Sentiment } from '../utils/polarity';
 import { rank, COUNTRY_NAMES } from '../utils/rankBaltic';
+import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
 
 /**
  * Three countries, latest value, ranked.
@@ -115,18 +116,43 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
   }
 
   const widest = Math.max(...reading.ranked.map((r) => Math.abs(r.value)), 1);
-  const periods = [...new Set(reading.ranked.map((r) => r.period))];
+  const periods = [...new Set(reading.ranked.map((r) => r.period))].sort();
+
+  // Three faults in one line, all of them about the date.
+  //
+  //   - the period was printed raw, `2022-Q1`, where every other surface on the
+  //     dashboard writes `Q1 2022` through `formatPeriod`;
+  //   - it was rendered only when all three countries agreed on a period, so a
+  //     ranking whose members report on different schedules carried **no date at
+  //     all** — and that is the case most in need of one;
+  //   - nothing judged it, so a ranking frozen in 2022 read as current.
+  //
+  // `periodCoverage` answers the first two: one period when they agree, a span
+  // when they do not, formatted either way. The judgement is made on the OLDEST
+  // period, as `MaritimeTile` does, because a comparison is only as current as
+  // the member furthest behind — dating it by the leader gives the laggard a
+  // quarter it never reached.
+  const coverage = periodCoverage(periods[0], periods[periods.length - 1]);
+  const freshness = freshnessOf(periods[0]);
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-baseline justify-between gap-2 mb-1 flex-wrap">
         <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</p>
-        {periods.length === 1 && (
-          <span className="text-caption font-mono" style={{ color: 'var(--text-tertiary)' }}>
-            {periods[0]}
+        {coverage && (
+          <span
+            className="text-caption font-mono"
+            style={{ color: freshness?.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+          >
+            {coverage.label}
           </span>
         )}
       </div>
+      {freshness?.stale && (
+        <p className="text-caption mb-1" style={{ color: 'var(--data-warning)' }}>
+          This series has published nothing newer than {formatPeriod(freshness.period)}.
+        </p>
+      )}
       <p className="text-caption mb-3" style={{ color: 'var(--text-tertiary)' }}>
         {bestIsHigh ? 'Highest first' : 'Lowest first'}
         {displayUnit ? ` · ${displayUnit}` : ''}
@@ -147,10 +173,16 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
                     {formatValue(row.value, displayUnit)}
                   </span>
                   {row.change !== null && row.change !== 0 && (
-                    <span className="text-caption font-mono" style={{ color: sentimentColor(sentiment) }}>
+                    <span
+                      className="text-caption font-mono"
+                      style={{ color: freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
+                    >
                       {signed(formatValue(Math.abs(row.change), displayUnit), row.change)}
                       <span className="sr-only">
-                        {' '}{describeChange(row.change, bestIsHigh)}
+                        {' '}
+                        {freshness?.stale
+                          ? `${row.change > 0 ? 'up' : 'down'} as of ${formatPeriod(row.period)}, the last reading published`
+                          : describeChange(row.change, bestIsHigh)}
                       </span>
                     </span>
                   )}
@@ -170,7 +202,7 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
                 // ranking figures from different periods against each other
                 // without saying so would be the shared-as-of problem again.
                 <p className="text-caption font-mono mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
-                  {row.period}
+                  {formatPeriod(row.period)}
                 </p>
               )}
             </div>

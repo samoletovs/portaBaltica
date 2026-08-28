@@ -1,0 +1,206 @@
+import { describe, it, expect } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve, basename } from 'node:path';
+
+/**
+ * Every surface that presents a reading off a period-indexed series must judge
+ * whether that reading is stale.
+ *
+ * The defect this guards against does not look like a defect. `/api/historical-data`
+ * already computes `stale` and `age` and ships them in the payload; a component that
+ * ignores them renders a confident number under "Latest" with a favourable green
+ * arrow, and every layer upstream reports success. `AGENTS.md` records
+ * `prc_hicp_manr` answering HTTP 200 with valid JSON-stat and plausible values while
+ * frozen at 2025-12 for eight months. A reader looking at the dashboard through those
+ * eight months had nothing to look at that would have told them.
+ *
+ * The population is DERIVED, not listed. A list would have to be extended by whoever
+ * adds the next silent component, which is precisely the person who did not think
+ * about staleness — and a guard that must be updated by the author of the fault is
+ * not a guard. So the set is computed from source on every run: any component that
+ * indexes the newest element of something period-shaped is in scope, whether or not
+ * anyone remembered to add it here.
+ *
+ * There is no exemption list. When this was written the derivation had two members
+ * that did not call `freshnessOf` themselves — `CargoPanel` and `PortPanelParts` —
+ * and naming them as exceptions would have encoded a fact about today's component
+ * tree as a permanent licence. They are covered because `MaritimeTile` judges on
+ * their behalf, on the oldest of the measures it shows, so coverage is computed
+ * transitively through the import graph instead. The day `MaritimeTile` stops
+ * judging, both of them fail here, which is the outcome a list could not produce.
+ */
+
+const SRC = resolve(__dirname, '..', 'src');
+
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) out.push(...walk(full));
+    else if (/\.tsx$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * `.tsx`, and the extension is doing real work here rather than following a naming
+ * convention: TypeScript will not parse JSX in a `.ts` file at all. Measured with
+ * this repo's own compiler — `export const x = <div>hi</div>;` in a `.ts` gives
+ * `TS1161: Unterminated regular expression literal`, because `<div>` is read as a
+ * regex. So "can this file present anything to a reader" is enforced by the
+ * compiler, not asserted by me.
+ *
+ * That matters because the first draft of this walk took `.ts` too and swept in
+ * `api.ts` and `types.ts`. Neither picks a newest anything; they matched on
+ * `latest: number;` and `latest: string | null;` — type declarations. A guard that
+ * demands a staleness notice from an interface definition is not strict, it is
+ * broken, and the exemption someone would reach for to quiet it would be permanent.
+ *
+ * Stated limitation, because silence here is weaker than proof: a component whose
+ * newest-picking is done entirely inside a `.ts` helper, and which never itself
+ * mentions a period, is invisible to this. Today that gap is empty — the only
+ * period-shaped helper that picks newest is `portStats`, and both of its consumers
+ * are in scope on their own. This is sound, not complete.
+ */
+
+/** The newsroom is a separate surface with its own provenance block. */
+const files = walk(SRC).filter((f) => !f.includes(`${join('components', 'news')}`));
+
+const source = new Map<string, string>(files.map((f) => [f, readFileSync(f, 'utf8')]));
+const nameOf = (f: string) => basename(f).replace(/\.tsx?$/, '');
+
+/**
+ * "Presents the newest reading of a period-indexed series."
+ *
+ * Two halves, and the second is a union of two markers because neither alone is
+ * both sound and complete.
+ *
+ * `READS_PERIOD` is a *read* of a period off data — `row.period`, a `periods`
+ * collection. Not the bare token `period`, which the first draft used: that
+ * swept in `GridStatePanel`, whose live 5-minute grid telemetry *constructs*
+ * `{ period: r.label }` to hand to a chart helper, where the label is a clock
+ * time. It is not a statistical series, `freshnessOf` reads cadence off a period
+ * label's shape and would return null for `14:35` anyway, and the panel already
+ * states its own recency in the only terms that fit — `metered to HH:MM UTC`.
+ * Demanding a staleness notice there would be a false positive, and the exemption
+ * someone would add to quiet it would be permanent.
+ *
+ * `FORMATS_PERIOD` catches `PortPanelParts`, which holds its period under the
+ * name `measure.latest` and so never reads a field called `period` at all.
+ *
+ * The union rather than either alone, and the reason is a control rather than an
+ * argument. Measured against `8604ebb`, the commit before this change:
+ *
+ *   RankedComparison   picksNewest=true  reads=true   formatPeriod=FALSE  -> in scope
+ *   FreightModalSplit  picksNewest=true  reads=true   formatPeriod=true   -> in scope
+ *
+ * `RankedComparison` rendered `{periods[0]}` raw and imported nothing from
+ * `dataFreshness`, so a rule keyed on `formatPeriod` alone would have missed the
+ * very component this guard was written about — circular in the one direction
+ * that matters, since a component that has not thought about periods is exactly
+ * the one that will not call the period formatter.
+ */
+const PICKS_NEWEST = /\[\s*[\w.]+\.length\s*-\s*1\s*\]|\.slice\(\s*-1\s*\)|\.at\(\s*-1\s*\)|\blatest\b/;
+const READS_PERIOD = /\.period\b|\bperiods\b/;
+const FORMATS_PERIOD = /\bformatPeriod\s*\(|\bperiodCoverage\s*\(|\baxisPeriodLabel\s*\(/;
+
+const inScope = files.filter((f) => {
+  const t = source.get(f)!;
+  return PICKS_NEWEST.test(t) && (READS_PERIOD.test(t) || FORMATS_PERIOD.test(t));
+});
+
+const judges = (f: string) => /\bfreshnessOf\s*\(/.test(source.get(f)!);
+
+/** Who renders this module. Resolved by module name, since every import here is relative. */
+function importersOf(f: string): string[] {
+  const name = nameOf(f);
+  const spec = new RegExp(`from\\s+'[^']*\\/${name}'`);
+  return files.filter((other) => other !== f && spec.test(source.get(other)!));
+}
+
+/**
+ * A component is covered if it judges, or if it is only ever rendered by covered
+ * components. `every` rather than `some`: a panel rendered on two surfaces where
+ * only one of them dates the data is silent on the other, and that is the case
+ * worth catching. A component with no importer is a root and must judge itself.
+ */
+function covered(f: string, seen = new Set<string>()): boolean {
+  if (judges(f)) return true;
+  if (seen.has(f)) return false;
+  seen.add(f);
+  const parents = importersOf(f);
+  return parents.length > 0 && parents.every((p) => covered(p, seen));
+}
+
+describe('freshness judgement reaches every dated surface', () => {
+  it('the derivation finds components to check', () => {
+    // Vacuity floor. A regex that matches nothing passes the assertion below
+    // without looking at anything, and reads exactly like a clean bill of health.
+    expect(inScope.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('BalticCompareChart is in scope and judges', () => {
+    // Positive control: a component known to do the right thing, so a run that
+    // reports "all covered" is distinguishable from one whose probe is broken.
+    const chart = inScope.find((f) => nameOf(f) === 'BalticCompareChart');
+    expect(chart, `in scope: ${inScope.map(nameOf).join(', ')}`).toBeDefined();
+    expect(judges(chart!)).toBe(true);
+  });
+
+  it('a component outside the population is not silently exempted', () => {
+    // Negative control on the derivation itself. `PortCard` is a .tsx that renders
+    // live marine weather and mentions periods, but presents no period-indexed
+    // series. If the filter swept it in, it is matching everything, and the
+    // assertion below would prove nothing about the components it does catch.
+    expect(inScope.map(nameOf)).not.toContain('PortCard');
+  });
+
+  it('live telemetry is out of scope, and is out for a structural reason', () => {
+    // `GridStatePanel` shows the grid's newest 5-minute reading. It entered this
+    // population the moment the derivation keyed on the bare token `period`,
+    // because it builds `{ period: r.label }` from a *clock* to hand to a chart
+    // helper. It is not a statistical series, it has no cadence for `freshnessOf`
+    // to read, and it already dates itself as `metered to HH:MM UTC`.
+    //
+    // Pinned as an assertion rather than left to the comment above, because the
+    // day it starts reading a real period off data it belongs in the population
+    // and this line is what says so.
+    const grid = source.get(files.find((f) => nameOf(f) === 'GridStatePanel')!)!;
+    expect(PICKS_NEWEST.test(grid), 'control: it does pick a newest reading').toBe(true);
+    expect(READS_PERIOD.test(grid), 'it writes `period:` as a key, never reads one').toBe(false);
+    expect(inScope.map(nameOf)).not.toContain('GridStatePanel');
+  });
+
+  it('the derivation reads code, not type declarations', () => {
+    // `types.ts` and `api.ts` match the newest-picker on `latest: number;` alone.
+    // They are excluded structurally rather than by name — see the walk — and this
+    // fails if that ever stops being true, because demanding a staleness notice
+    // from an interface is the kind of false positive that gets a guard exempted.
+    const names = inScope.map(nameOf);
+    expect(names).not.toContain('types');
+    expect(names).not.toContain('api');
+  });
+
+  it('every component presenting a period-indexed reading judges its staleness', () => {
+    const silent = inScope.filter((f) => !covered(f)).map(nameOf).sort();
+
+    expect(
+      silent,
+      'these render the newest observation of a dated series without asking whether ' +
+        'it is recent. A frozen upstream then reads as a current figure, which is ' +
+        'the failure AGENTS.md records costing eight months behind a healthy HTTP 200. ' +
+        'Call freshnessOf(period) and show the canonical notice, or render only ' +
+        'inside a parent that already does.',
+    ).toEqual([]);
+  });
+
+  it('reports how each member is covered', () => {
+    const rows = inScope
+      .map((f) => `${nameOf(f)}: ${judges(f) ? 'judges' : `via ${importersOf(f).map(nameOf).join(', ')}`}`)
+      .sort();
+    // Derived and printed rather than pinned, so the shape of the population is
+    // legible in the run without an equality that has to be edited to add a component.
+    process.stderr.write(`\n[freshness population] ${inScope.length} members\n  ${rows.join('\n  ')}\n`);
+    expect(rows.length).toBe(inScope.length);
+  });
+});
