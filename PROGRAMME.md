@@ -375,6 +375,33 @@ print the resolved path beside the file count, name the endpoint beside the
 field. A remembered fact about your instrument is exactly as unreliable as a
 remembered fact about the code.
 
+**The second instance is `git diff --stat`, and the pair gives the criterion.**
+Reading the diffstat before committing caught three of my own errors in one day:
+twice a `PROGRAMME.md` insert **consumed the neighbouring heading** rather than
+preceding it, and once a replayed one-line fix turned out to be a wholesale file
+copy from a stale tree — a silent revert of another session's work, wearing a
+fix.
+
+```
+first attempt   32 insertions(+), 1 deletion(-)    <- a deletion I did not intend
+after fix       31 insertions(+)
+
+a "one-line change"   15 +--------------           <- fourteen lines of someone
+                                                      else's work, about to go
+```
+
+Two instances, one property, stated by the session that drew it:
+
+> both make an instrument state what it did, so a wrong one identifies itself
+> rather than being remembered as right. Mine names the build it served; yours
+> names the lines it touched. **Neither requires anyone to be suspicious at the
+> right moment, which is the only property that survives being tired.**
+
+That is the test to apply when choosing between two safeguards: not which is
+more thorough, but **which one works when nobody is looking for a problem.**
+"Check carefully" fails at hour fourteen. One line of output that states what
+happened does not.
+
 **A message is a claim about when it was written, not when it lands.** Same
 family, one layer out — in the coordination channel rather than in git. Nine
 cross-session reports arrived late on the final day, every one composed before
