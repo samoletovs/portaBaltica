@@ -561,6 +561,43 @@ entire run has been about. If ownership is ever formalised: draw it at the write
 
 ---
 
+## Hard stop: one brief commit after your last PR
+
+**This is the guardrail that matters and it replaces judgement with a count.**
+Measured on this run, from the outside, by a session that was not part of it:
+
+```
+last PR merged                     2026-08-28T19:28Z
+commits after that point                        43
+  touching PROGRAMME.md                         22
+  touching AGENTS.md                            16
+  touching src/ or api/                          7
+
+named gaps that got zero commits    data export, reader retention, i18n
+```
+
+The previous guardrail was a **ratio** — code:docs ≥ 3. It is a lagging measure
+you can satisfy while still spending the last quarter of a run on meta-work, and
+two consecutive runs have failed the same way through it: 0.71:1 then 1.59:1.
+
+So the rule is absolute and checkable at the moment of the decision:
+
+> **After your last PR merges, you get one commit to the brief. Then stop.**
+
+If you are still finding things worth writing down — and you will be, because the
+meta-work is genuinely interesting and that is exactly why it is hard to
+stop — they belong in the `journal` table. It costs nothing and the next run reads
+it anyway.
+
+The uncomfortable part, stated plainly because it is the reason a softer rule
+fails: **the documentation this run produced is good.** The corrections are real,
+each was measured, several overturned committed claims. Quality is not the
+signal — a bad batch would have been easy to stop. What tells you is the counter
+above, and it is only visible from outside, which is why it is written down here
+as a number rather than left to notice.
+
+**A run that ends because the work is done is worth more than one that ends
+because it ran out of things to say about ending.**
 ## Efficiency guardrails
 
 **Watch throughput.** Merged PRs/day across the two runs:
