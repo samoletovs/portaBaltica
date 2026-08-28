@@ -1356,7 +1356,16 @@ should certainly have been present was also absent.
 So: **an absent result is a claim about the instrument before it is a claim
 about the code.** Before reporting "not there", confirm the probe can see a
 thing you already know is there — a control that must be present, measured the
-same way. This costs one extra assertion and it is the only thing standing
+same way, **on the same object**.
+
+That last clause is not decoration, and it was added after someone fell into it
+while writing the section below about controls. A negative control on a
+*different* file proves the phrase is absent from that file **or** that the read
+failed — the same `False` either way, and the positive half, being elsewhere,
+cannot notice. So the pair proves the read happened rather than that the thing is
+missing. The `refLines` story above has the property and never states it: the
+four ordinary series that were also absent were on the **same chart**, which is
+the only reason the zero was disbelieved. This costs one extra assertion and it is the only thing standing
 between a tooling failure and a confident wrong bug report.
 
 The manager did this twice in one evening, both times against merged and
