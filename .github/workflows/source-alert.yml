@@ -80,13 +80,17 @@ permissions:
   issues: write
 
 env:
-  ALERT_LABEL: source-alert
   STATUS_URL: https://portabaltica.naurolabs.com/api/system-status
 
 jobs:
   check:
     name: Check data sources
     runs-on: ubuntu-latest
+
+    outputs:
+      alert: ${{ steps.judge.outputs.alert }}
+      headline: ${{ steps.judge.outputs.headline }}
+      message: ${{ steps.judge.outputs.message }}
 
     steps:
       - uses: actions/checkout@v5
@@ -170,6 +174,14 @@ jobs:
           set +e
           set -u
 
+          # Establish the absence rather than assume it. The guard below reads
+          # `[ ! -f report.json ]` and *means* "the script failed to write a
+          # report" — which is only the same thing if no report.json can arrive
+          # by another route. One did, in the sibling wire monitor: a scratch
+          # file committed by accident, restored by the checkout, and read as
+          # though this run had produced it.
+          rm -f report.json
+
           # shellcheck disable=SC2086
           node scripts/source-alert.mjs --json report.json ${EXTRA_ARGS:-} 2>&1 | tee console.txt
           code=${PIPESTATUS[0]}
@@ -204,29 +216,33 @@ jobs:
           # Read with node rather than jq: node is already a hard dependency of
           # this step, so it is one fewer tool that has to be present. Both
           # reads are defaulted so a shape change cannot make them fail and take
-          # the notification steps down with them.
+          # the notification job down with them.
           node -e '
             const r = JSON.parse(require("fs").readFileSync("report.json", "utf8"));
             const fs = require("fs");
-            // Trailing newlines matter: both files are interpolated into a
-            // fenced block in the issue body, and without one the closing ```
-            // lands on the same line as the last problem and stops closing it.
-            fs.writeFileSync("headline.txt",
-              (r.headline || "status could not be summarised") + "\n");
+            fs.writeFileSync("headline.txt", r.headline || "status could not be summarised");
             fs.writeFileSync("message.txt",
-              (r.text || "portaBaltica data sources: ALERT - the report carried no text.") + "\n");
+              r.text || "portaBaltica data sources: ALERT - the report carried no text.");
           '
 
-      - name: Summarise
+          # Hand the report to the notification job. The delimiter form is
+          # required: the report is multi-line, and a bare `key=value` would
+          # silently keep only its first line.
+          {
+            echo "headline<<__EOF__"
+            cat headline.txt
+            echo ""
+            echo "__EOF__"
+            echo "message<<__EOF__"
+            cat message.txt
+            echo ""
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Attach the shape received
         run: |
           set -euo pipefail
           {
-            echo "### Data source check"
-            echo
-            echo '```'
-            cat message.txt
-            echo '```'
-            echo
             echo "<details><summary>Shape received</summary>"
             echo
             echo '```'
@@ -236,138 +252,32 @@ jobs:
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ---------------------------------------------------------------------
-      # The alert path
-      # ---------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Notification
+  # ---------------------------------------------------------------------------
+  #
+  # `if: always()` and the `result != 'success'` test below are the point of
+  # splitting this into two jobs, and they close a real hole.
+  #
+  # If the check job dies outright -- a runner failure, a cancelled step, a
+  # `node` that will not start -- it produces no outputs at all. With an
+  # ordinary `needs:` this job would be *skipped*, and the run would go red and
+  # silent: no issue, no message, at the exact moment the monitor has most to
+  # say. That is "absence resolves to success" wearing the dependency graph's
+  # clothes.
+  #
+  # So a check job that did not succeed is itself an alert, and the notifier
+  # substitutes a stated message when it is handed none.
 
-      - name: Open or update the alert issue
-        if: steps.judge.outputs.alert == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          # The label is what makes this idempotent. Opening a fresh issue every
-          # morning would turn a single stuck feed into thirty issues nobody
-          # reads, which is how an alert channel becomes wallpaper.
-          gh label create "$ALERT_LABEL" \
-            --description "A required data source is stale or unhealthy" \
-            --color B60205 2>/dev/null || true
-
-          headline=$(cat headline.txt)
-          title="Data sources: ${headline}"
-
-          {
-            echo "\`\`\`"
-            cat message.txt
-            echo "\`\`\`"
-            echo
-            echo "Detected by [\`source-alert.yml\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
-            echo "reading \`${STATUS_URL}\`."
-            echo
-            echo "This issue is reused rather than reopened daily. It closes itself"
-            echo "when a later run reads a clean status."
-          } > issue-body.md
-
-          existing=$(gh issue list --label "$ALERT_LABEL" --state open \
-            --json number --jq '.[0].number // empty')
-
-          if [ -n "$existing" ]; then
-            # Retitle so the issue always describes the *current* fault, and
-            # comment so the history of a long outage is readable.
-            gh issue edit "$existing" --title "$title" --body-file issue-body.md
-            gh issue comment "$existing" --body-file issue-body.md
-            echo "Updated issue #${existing}"
-            echo "- issue: #${existing} (updated)" >> "$GITHUB_STEP_SUMMARY"
-          else
-            url=$(gh issue create --title "$title" --label "$ALERT_LABEL" --body-file issue-body.md)
-            echo "Opened ${url}"
-            echo "- issue: ${url} (opened)" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Send the Telegram message
-        if: steps.judge.outputs.alert == 'true'
-        env:
-          NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
-          NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
-        run: |
-          set -uo pipefail
-
-          # This step fails loudly on a delivery failure, exactly as
-          # telegram-check.yml does and for the same reason: every other
-          # Telegram send in the fleet is written to fail soft, which is right
-          # for a deploy notification and wrong for an alarm. A missing secret
-          # is a dead channel, not a reason to skip.
-          if [ -z "${NAURO_BOT_TOKEN:-}" ] || [ -z "${NAURO_CHAT_ID:-}" ]; then
-            echo "::error::NAURO_BOT_TOKEN or NAURO_CHAT_ID is not set, so the alert could not be delivered. The issue was still opened."
-            exit 1
-          fi
-
-          {
-            cat message.txt
-            echo
-            echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } > telegram.txt
-
-          # Plain text, no parse_mode: nothing here is trusted markup, and an
-          # unescaped entity in an upstream source name must never be able to
-          # fail a delivery.
-          resp=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
-            --data-urlencode "text@telegram.txt" \
-            --data-urlencode "disable_web_page_preview=true")
-
-          if [ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]; then
-            code=$(printf '%s' "$resp" | jq -r '.error_code // "?"')
-            desc=$(printf '%s' "$resp" | jq -r '.description // "no description"')
-            echo "::error::sendMessage failed (${code}): ${desc}"
-            exit 1
-          fi
-
-          echo "Delivered message $(printf '%s' "$resp" | jq -r '.result.message_id')"
-          echo "- telegram: delivered" >> "$GITHUB_STEP_SUMMARY"
-
-      # ---------------------------------------------------------------------
-      # The recovery path
-      # ---------------------------------------------------------------------
-
-      - name: Close the alert issue on recovery
-        if: steps.judge.outputs.alert == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          existing=$(gh issue list --label "$ALERT_LABEL" --state open \
-            --json number --jq '.[0].number // empty')
-
-          if [ -z "$existing" ]; then
-            echo "Clean read, nothing open. Saying nothing."
-            exit 0
-          fi
-
-          {
-            echo "Recovered."
-            echo
-            echo "\`\`\`"
-            cat message.txt
-            echo "\`\`\`"
-            echo
-            echo "Closed by [\`source-alert.yml\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
-          } > recovery.md
-
-          gh issue comment "$existing" --body-file recovery.md
-          gh issue close "$existing" --reason completed
-          echo "Closed issue #${existing}"
-          echo "- issue: #${existing} closed on recovery" >> "$GITHUB_STEP_SUMMARY"
-
-      # ---------------------------------------------------------------------
-      # The red tick
-      # ---------------------------------------------------------------------
-
-      - name: Fail the run on an alert
-        if: steps.judge.outputs.alert == 'true'
-        run: |
-          echo "::error::$(cat headline.txt)"
-          echo "A required data source is stale, unhealthy, or unreadable. See the issue and the summary above."
-          exit 1
+  notify:
+    name: Notify
+    needs: check
+    if: always()
+    uses: ./.github/workflows/alert-notify.yml
+    with:
+      alert: ${{ (needs.check.result != 'success' || needs.check.outputs.alert == 'true') && 'true' || 'false' }}
+      headline: ${{ needs.check.outputs.headline }}
+      message: ${{ needs.check.outputs.message }}
+      label: source-alert
+      subject: Data sources
+    secrets: inherit

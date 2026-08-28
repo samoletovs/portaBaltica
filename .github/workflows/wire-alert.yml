@@ -1,0 +1,241 @@
+name: Newsroom wire alert
+
+# Tell somebody when one of the newsroom's feeds goes dead.
+#
+# WHY THIS IS SEPARATE FROM source-alert.yml
+# ------------------------------------------
+# Different subject, different failure, different fix. `source-alert.yml`
+# watches the twelve dashboard sources and would page you about a frozen
+# statistical series; this watches the feeds the newsroom collector fetches and
+# pages you about a publisher that has stopped answering. They get their own
+# labels so a stuck feed and a stuck statistic are two issues rather than one
+# confusing one.
+#
+# They share the *delivery*, which lives in `alert-notify.yml` and is called by
+# both. Copying that plumbing would be the second-implementation failure this
+# repository keeps writing post-mortems about.
+#
+# WHY THIS IS NEEDED AT ALL, WHICH IS THE SUBTLE PART
+# ---------------------------------------------------
+# The collector fails **soft** on a dead feed, and that is correct: one
+# publisher going down must not take an edition with it. The consequence is
+# that the pipeline keeps running, keeps publishing, and says nothing. Two
+# feeds were dead for weeks behind exactly that behaviour and were found by
+# reading Application Insights traces by hand.
+#
+# So this is the only thing that will ever make a dead feed visible, which
+# means a wire probe that itself fails soft is worthless. The script exits
+# non-zero on a problem and this job fails; nothing here is `|| true`.
+
+on:
+  schedule:
+    # Daily at 06:42 UTC — 08:42 or 09:42 in Riga, before the working day, and
+    # deliberately 25 minutes after source-alert.yml so two red ticks arriving
+    # together are distinguishable rather than a single wall of notification.
+    - cron: '42 6 * * *'
+  workflow_dispatch:
+    inputs:
+      rehearse:
+        description: >-
+          Exercise the alert path against a deliberately broken reading, to prove
+          notification still works. Opens a real issue and sends a real message.
+        type: choice
+        default: 'no'
+        options:
+          - 'no'
+          - 'dead-feed'
+          - 'empty-wire'
+  # Run when this monitor's own moving parts change, so a break is found by the
+  # commit that caused it rather than at the next scheduled run. `sources.yaml`
+  # is included because adding a feed is the most likely way to add a dead one.
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/wire-alert.yml'
+      - '.github/workflows/alert-notify.yml'
+      - 'scripts/wire_check.py'
+      - 'newsroom/sources.yaml'
+
+concurrency:
+  group: wire-alert
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Probe the wire
+    runs-on: ubuntu-latest
+
+    outputs:
+      alert: ${{ steps.judge.outputs.alert }}
+      headline: ${{ steps.judge.outputs.headline }}
+      message: ${{ steps.judge.outputs.message }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install the newsroom's declared dependencies
+        # `newsroom/requirements.txt` and not a hand-picked subset, which is
+        # what the first version of this step did and what broke it.
+        #
+        # The instinct was reasonable and wrong: install only PyYAML, so the
+        # monitor does not fail whenever an unrelated newsroom dependency
+        # breaks. But this probe *imports newsroom code*, and importing
+        # `newsroom.pipeline.collect.rss` executes the package's `__init__`,
+        # which imports `httpclient`, which imports httpx. Measured on the
+        # runner: `ModuleNotFoundError: No module named 'httpx'`. It passed
+        # locally only because httpx was already installed here — and the
+        # comment claiming "PyYAML and nothing else" was a claim about
+        # behaviour that had never been executed in a clean environment.
+        #
+        # `requirements.txt` documents this exact trap in its own header, and
+        # names a second reason a subset is dangerous: `rss.py` falls back to
+        # the standard library's XML parser when `defusedxml` is missing, so an
+        # incomplete install would have this probe parsing untrusted
+        # third-party feed XML with the parser that does not refuse entity
+        # expansion. A missing dependency would degrade safety quietly.
+        run: python -m pip install --quiet -r newsroom/requirements.txt
+
+      - name: Build the rehearsal reading
+        id: rehearsal
+        if: inputs.rehearse != 'no' && inputs.rehearse != ''
+        run: |
+          set -euo pipefail
+
+          # Rehearsals drive the real notification path with a broken reading
+          # rather than a mock of it. A notification path that has never
+          # delivered is not a notification path.
+          case "${{ inputs.rehearse }}" in
+            dead-feed)
+              cat > rehearsal.json <<'JSON'
+          {
+            "results": [
+              {
+                "id": "ep_news", "name": "European Parliament news", "tier": "B",
+                "endpoint": "https://www.europarl.europa.eu/rss/doc/top-stories/en.xml",
+                "http_status": 202, "bytes": 0, "items": 0, "latency_ms": 180,
+                "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
+                "state": "empty_body",
+                "detail": "answered HTTP 202 with a zero-byte body, which every check written against response.ok reads as success"
+              },
+              {
+                "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
+                "endpoint": "https://eng.lsm.lv/rss",
+                "http_status": 200, "bytes": 37440, "items": 50, "latency_ms": 485,
+                "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
+                "state": "ok", "detail": null
+              }
+            ]
+          }
+          JSON
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+            empty-wire)
+              printf '{"results": []}\n' > rehearsal.json
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Probe every feed the collector fetches
+        id: judge
+        env:
+          EXTRA_ARGS: ${{ steps.rehearsal.outputs.args }}
+        run: |
+          # `set +e` is load-bearing and must not be tidied away. GitHub runs
+          # every `run:` block as `bash -e`, so without it the script's non-zero
+          # exit -- the alert itself -- would abort the job before the report is
+          # handed to the notifier. The monitor would go red and silent at
+          # exactly the moment it has something to say.
+          set +e
+          set -u
+
+          # Establish the absence rather than assume it.
+          #
+          # The guard below reads `[ ! -f report.json ]` and *means* "the probe
+          # failed to write a report". Those are only the same thing if no
+          # report.json can arrive by any other route — and one did: a scratch
+          # file swept into a commit by `git add -A`, which the checkout then
+          # restored. The probe crashed on a missing module, the guard saw a
+          # file and stayed quiet, and the step read a **previous run of a
+          # different monitor**, reporting "the status endpoint could not be
+          # reached" from a wire probe. Real, well-formed, and about something
+          # else entirely.
+          rm -f report.json
+
+          # shellcheck disable=SC2086
+          python scripts/wire_check.py --json report.json ${EXTRA_ARGS:-} 2>&1 | tee console.txt
+          code=${PIPESTATUS[0]}
+          echo "Probe exited ${code}"
+
+          # A missing report means the probe died before writing one. That is a
+          # broken monitor, and a broken monitor must shout rather than pass.
+          if [ ! -f report.json ]; then
+            python - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          json.dump({
+              "alert": True,
+              "headline": "the wire probe itself failed to produce a report",
+              "text": (
+                  "portaBaltica newsroom wire: ALERT - scripts/wire_check.py exited "
+                  + code + " without writing report.json. The monitor is broken, so the "
+                  "feeds were NOT checked. See the workflow log."
+              ),
+          }, open("report.json", "w"), indent=2)
+          PY
+            code=1
+          fi
+
+          # Anything other than a clean 0 is an alert, usage errors included: a
+          # monitor invoked wrongly has checked nothing, and treating that as
+          # health is the failure this whole file is built against.
+          if [ "$code" -eq 0 ]; then
+            echo "alert=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          python - <<'PY'
+          import json
+          r = json.load(open("report.json"))
+          open("headline.txt", "w", encoding="utf-8").write(
+              r.get("headline") or "the wire could not be summarised")
+          open("message.txt", "w", encoding="utf-8").write(
+              r.get("text") or "portaBaltica newsroom wire: ALERT - the report carried no text.")
+          PY
+
+          # The delimiter form is required: the report is multi-line, and a bare
+          # `key=value` would silently keep only its first line.
+          {
+            echo "headline<<__EOF__"
+            cat headline.txt
+            echo ""
+            echo "__EOF__"
+            echo "message<<__EOF__"
+            cat message.txt
+            echo ""
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+  # Same reasoning as source-alert.yml: `if: always()` plus the
+  # `result != 'success'` test means a check job that dies outright still
+  # notifies, instead of skipping this job and leaving a red, silent run.
+  notify:
+    name: Notify
+    needs: check
+    if: always()
+    uses: ./.github/workflows/alert-notify.yml
+    with:
+      alert: ${{ (needs.check.result != 'success' || needs.check.outputs.alert == 'true') && 'true' || 'false' }}
+      headline: ${{ needs.check.outputs.headline }}
+      message: ${{ needs.check.outputs.message }}
+      label: wire-alert
+      subject: Newsroom wire
+    secrets: inherit
