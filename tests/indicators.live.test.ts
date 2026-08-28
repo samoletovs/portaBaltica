@@ -40,7 +40,7 @@ const compare = require_('../api/baltic-compare/index.js');
 type IndicatorDef = {
   dataset: string;
   params: string;
-  freq: 'A' | 'S' | 'Q' | 'M';
+  freq: 'A' | 'S' | 'Q' | 'M' | 'W';
   title: string;
   unit: string;
   sanity: [number, number];
@@ -63,11 +63,21 @@ const GEOS = ['LV', 'EE', 'LT'];
 const RECENT_RUN = 8;
 
 /**
- * Months between consecutive periods at each declared frequency.
+ * One step between consecutive periods, in the frequency's **own** unit:
+ * weeks for `W`, months for everything else.
  *
- * The whole point of the last assertion in this file is that `freq` is a
- * dimension code and this table is an *assumption* about it — true for
- * sixty-five of sixty-six, and worth checking rather than trusting.
+ * It was months for all of them until a weekly series arrived, and months
+ * cannot express a week — four or five of them share a month index, so the
+ * modal step for a healthy weekly cube computes as **0**. Writing `W: 0` would
+ * have made this pass while asserting nothing, which is the failure mode this
+ * whole file exists to avoid. `periodStep` below reads the series in the unit
+ * the definition declares instead.
+ *
+ * Two units means two of these numbers are `1` meaning different things, and
+ * that collision is not hypothetical: a plant declaring `demo_r_mwk_ts` as
+ * `freq: 'M'` passed this check, because its weekly labels stepped by 1 week
+ * and `EXPECTED_STEP.M` is 1 month. `theCadenceOfTheLabels` closes it by
+ * pinning the granularity before the step is ever measured.
  *
  * Keyed on the union rather than on `string`, so adding a frequency fails the
  * compiler here instead of silently yielding `undefined` and demanding a
@@ -75,7 +85,19 @@ const RECENT_RUN = 8;
  * lives in `api/shared/eurostat.js` and `tests/indicators.test.ts` asserts the
  * two agree; this is the type-level half of the same partition.
  */
-const EXPECTED_STEP: Record<IndicatorDef['freq'], number> = { M: 1, Q: 3, S: 6, A: 12 };
+const EXPECTED_STEP: Record<IndicatorDef['freq'], number> = { W: 1, M: 1, Q: 3, S: 6, A: 12 };
+
+/**
+ * A period's ordinal in the unit the *definition* declares.
+ *
+ * Deliberately driven by `def.freq` rather than by the shape of the label. If
+ * it read the label, a cube whose granularity disagrees with its declaration
+ * would be measured in its own unit and silently agree with the wrong
+ * expectation.
+ */
+function periodStep(period: string, freq: IndicatorDef['freq']): number | null {
+  return freq === 'W' ? es.periodToWeekIndex(period) : es.periodToMonthIndex(period);
+}
 
 const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 
@@ -170,7 +192,12 @@ describe('Eurostat indicator contracts (live)', () => {
       })
       .filter((p): p is string => p !== null)
       .reduce<string | null>(
-        (best, p) => (best === null || es.periodToMonthIndex(p) > es.periodToMonthIndex(best) ? p : best),
+        // Compared in the series' own unit. A month index cannot order two
+        // weeks inside one month, and `demo_r_mwk_ts` is exactly that case:
+        // Latvia files a week ahead of Estonia and Lithuania, so on a month
+        // index LV 2026-W28 and EE 2026-W27 are indistinguishable and which
+        // one is called newest depends on iteration order.
+        (best, p) => (best === null || (periodStep(p, def.freq) ?? -Infinity) > (periodStep(best, def.freq) ?? -Infinity) ? p : best),
         null
       );
 
@@ -181,8 +208,8 @@ describe('Eurostat indicator contracts (live)', () => {
     const allowed = es.maxAgeMonths(def);
     expect(
       age,
-      `${id} (${def.dataset}) has not advanced past ${newest} — about ${age} months ago, against a ` +
-        `${allowed}-month allowance for ${def.freq}-frequency data. Every other assertion here passes, ` +
+      `${id} (${def.dataset}) has not advanced past ${newest} — about ${(age as number).toFixed(1)} months ago, ` +
+        `against a ${allowed}-month allowance for ${def.freq}-frequency data. Every other assertion here passes, ` +
         'which is exactly what a dataset that has been frozen in place looks like: check whether Eurostat ' +
         'has migrated it to a successor table, as it did moving HICP to ECOICOP ver.2.'
     ).toBeLessThanOrEqual(allowed);
@@ -206,8 +233,32 @@ describe('Eurostat indicator contracts (live)', () => {
     // explicit `maxAgeMonths`, so **the override is the declaration**: a
     // definition that publishes off its stated frequency has to say so in the
     // one field that makes the freshness check correct anyway.
-    const labels = (parsed.countries.LV?.series ?? []).map((p: Point) => p.period);
-    const months = labels.map((p: string) => es.periodToMonthIndex(p)).filter(Number.isFinite);
+    const labels: string[] = (parsed.countries.LV?.series ?? []).map((p: Point) => p.period);
+
+    // Is the cube even published at the granularity the definition claims?
+    //
+    // This has to come first, because the step comparison below is measured in
+    // the unit `freq` names — and `EXPECTED_STEP` holds a 1 for weeks and a 1
+    // for months, so a weekly cube declared monthly steps by "1" and agrees
+    // with the wrong expectation. Planted and confirmed: `weekly_deaths` with
+    // `freq: 'M'` passed every other assertion in this file.
+    //
+    // `periodCadence` reads the label's own shape, which is the one thing a
+    // definition cannot misdeclare, and everything downstream — the since-bound
+    // in `buildUrl`, the freshness allowance, the step below — reads `freq`.
+    const labelCadence = labels.map((p) => es.periodCadence(p)).filter(Boolean);
+    if (labelCadence.length > 0) {
+      const shape = [...new Set(labelCadence)].sort().join('/');
+      expect(
+        shape,
+        `${id} (${def.dataset}) declares freq=${def.freq} but its period labels are ${shape}-shaped ` +
+          `(${labels.slice(-2).join(', ')}). Everything downstream reads freq as the granularity: the ` +
+          'since-bound sent to Eurostat, the staleness allowance, and the cadence check just below. A ' +
+          'mismatch makes all three answer a question about a different unit of time.'
+      ).toBe(def.freq);
+    }
+
+    const months = labels.map((p) => periodStep(p, def.freq)).filter((n): n is number => n !== null);
 
     if (months.length >= 3) {
       const steps: number[] = [];
@@ -221,7 +272,8 @@ describe('Eurostat indicator contracts (live)', () => {
         expect(
           typeof (def as { maxAgeMonths?: number }).maxAgeMonths,
           `${id} (${def.dataset}) declares freq=${def.freq}, which everything downstream reads as ` +
-            `${EXPECTED_STEP[def.freq]} months, but Eurostat publishes it every ${modal}. That is not ` +
+            `${EXPECTED_STEP[def.freq]} ${def.freq === 'W' ? 'week(s)' : 'months'}, but Eurostat publishes it ` +
+            `every ${modal}. That is not ` +
             'necessarily wrong — freq is the cube\u2019s dimension code and the query may well need it — ' +
             'but the freshness allowance is then computed from a cadence the series does not have, and ' +
             'it will read a healthy gap as a freeze. Declare an explicit maxAgeMonths covering the real ' +

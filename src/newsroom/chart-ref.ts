@@ -34,27 +34,33 @@
  * twenty-three ids the API does serve were absent, so an article citing
  * `gov_deficit` or `life_expectancy` had its chart silently dropped.
  *
- * The four that had a real counterpart moved to ALIASES. `building_permits`
- * and `biz_confidence` have none, so they resolve to undefined and render no
- * chart — mapping them to a near-miss would put a chart under a claim it does
- * not support.
+ * The four that had a real counterpart moved to ALIASES. `biz_confidence` has
+ * none, so it resolves to undefined and renders no chart — mapping it to a
+ * near-miss would put a chart under a claim it does not support.
+ * `building_permits` was in the same position until `sts_cobp_q` was added to
+ * the registry; it is now a real id again rather than an alias, which is why
+ * it is back in the list above.
  */
 export const DASHBOARD_INDICATORS = new Set([
   'gdp', 'gdp_per_capita', 'inflation', 'energy_inflation', 'food_inflation',
   'core_inflation', 'services_inflation', 'goods_inflation', 'admin_prices',
   'home_energy_inflation', 'ppi', 'industrial', 'retail', 'construction',
   'house_prices', 'interest_rate', 'consumer_confidence',
+  'building_permits', 'building_permits_residential',
+  'building_permits_non_residential',
   'economic_sentiment', 'unemployment', 'youth_unemployment',
   'employment_rate', 'job_vacancy', 'salary', 'wages_mfg', 'wages_it',
   'minimum_wage', 'gov_debt_gdp', 'gov_revenue', 'gov_deficit', 'inequality',
-  'poverty_risk', 'life_expectancy', 'population', 'net_migration',
+  'poverty_risk', 'life_expectancy', 'weekly_deaths', 'population',
+  'net_migration',
   'birth_rate', 'rd_spending', 'digital_skills', 'online_shoppers',
   'exports', 'imports', 'trade_balance', 'goods_balance', 'services_balance',
   'transport_services', 'financial_services', 'ict_services',
   'other_business_services', 'current_account', 'tourism',
   'tourism_foreign', 'hotel_occupancy', 'elec_production',
   'elec_renewable_gen', 'renewables', 'elec_price_household',
-  'elec_price_industry', 'vehicles', 'air_passengers', 'ghg_emissions',
+  'elec_price_industry', 'gas_price_household', 'vehicles', 'air_passengers',
+  'ghg_emissions',
   'business_registrations', 'bankruptcies', 'rail_freight', 'road_freight',
   'road_freight_tkm', 'rail_passengers', 'labour_productivity',
 ]);

@@ -1209,15 +1209,37 @@ class TestTheEnvironmentBeatHasASource:
         assert {s.metric for s in env} == {
             "ghg_emissions",
             # Mirrored from the dashboard. Demography is the environment
-            # beat's other half, and annual: emissions is still the only
-            # series here that moves within a year.
+            # beat's other half, and annual — except for weekly deaths, which
+            # is the fastest series on the whole wire and the reason this
+            # comment no longer says emissions is the only one that moves
+            # within a year.
             "population",
             "birth_rate",
             "net_migration",
             "life_expectancy",
+            "weekly_deaths",
         }
         emissions = next(s for s in env if s.metric == "ghg_emissions")
         assert emissions.frequency == "quarterly"
+
+    def test_the_beat_has_one_series_faster_than_a_month(self):
+        """Cadence is the lever, and this is where it entered.
+
+        Every Eurostat series the newsroom read was monthly or slower, so a
+        daily run consumed each release once and then had nothing: the
+        08-27 ranking logged 49 of 50 signals already published. Depth cannot
+        fix that — measured across 18 indicator/country pairs, a longer window
+        changed the verdict on the latest observation zero times — so the only
+        remedy is a source that publishes more often.
+        """
+        env = [s for s in EUROSTAT_DATASETS if s.section == "environment"]
+        weekly = [s for s in env if s.frequency == "weekly"]
+
+        assert [s.metric for s in weekly] == ["weekly_deaths"]
+        assert weekly[0].periods >= 104, (
+            "a year-on-year comparison against the same week needs at least "
+            "two years of weeks"
+        )
 
     def test_should_read_the_only_breakdown_that_carries_values(self):
         """``TOTAL_HH`` and nothing finer, because nothing finer exists.

@@ -78,7 +78,9 @@ NOT_COMPARED = {"freq"}
 CONSTRUCTED_BY_THE_DASHBOARD = {"rep_mar"}
 
 #: Eurostat's dimension code for a cadence, as the newsroom names it.
-FREQUENCY_OF_CODE = {"M": "monthly", "Q": "quarterly", "A": "annual", "S": "semi-annual"}
+FREQUENCY_OF_CODE = {
+    "W": "weekly", "M": "monthly", "Q": "quarterly", "A": "annual", "S": "semi-annual",
+}
 
 #: Metrics whose chart lives outside ``indicators.js``, exempt from the chart
 #: join and checked against their own dashboard module instead.

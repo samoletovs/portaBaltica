@@ -229,6 +229,55 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         params={"nace_r2": "F", "indic_bt": "PRD", "s_adj": "SCA", "unit": "PCH_PRE"},
         periods=40,
     ),
+    # Building permits — construction output's leading edge, and a composition
+    # rather than a fourth national aggregate. Residential and non-residential
+    # sum to the total, so a detector that finds the total flat can still find
+    # the two halves moving in opposite directions, which is a different shape
+    # of story from "index up 4%".
+    #
+    # ⚠ `indic_bt=PSQM` is the obvious code and it is empty: HTTP 200, zero
+    # observations for all three countries, measured 2026-08-28. BPRM_SQM
+    # carries 106 of 106 quarters for each.
+    #
+    # The unit is an index, not square metres, whatever `indic_bt` is called.
+    # Saying "square metres" in a sentence would be a claim the number does not
+    # support.
+    EurostatDataset(
+        dataset="sts_cobp_q",
+        metric="building_permits",
+        metric_label="building permits",
+        unit="index points",
+        section="property",
+        frequency="quarterly",
+        chart_ref="building_permits",
+        params={"indic_bt": "BPRM_SQM", "cpa2_1": "CPA_F41001_41002",
+                "s_adj": "SCA", "unit": "I21"},
+        periods=40,
+    ),
+    EurostatDataset(
+        dataset="sts_cobp_q",
+        metric="building_permits_residential",
+        metric_label="residential building permits",
+        unit="index points",
+        section="property",
+        frequency="quarterly",
+        chart_ref="building_permits_residential",
+        params={"indic_bt": "BPRM_SQM", "cpa2_1": "CPA_F41001",
+                "s_adj": "SCA", "unit": "I21"},
+        periods=40,
+    ),
+    EurostatDataset(
+        dataset="sts_cobp_q",
+        metric="building_permits_non_residential",
+        metric_label="non-residential building permits",
+        unit="index points",
+        section="property",
+        frequency="quarterly",
+        chart_ref="building_permits_non_residential",
+        params={"indic_bt": "BPRM_SQM", "cpa2_1": "CPA_F41002",
+                "s_adj": "SCA", "unit": "I21"},
+        periods=40,
+    ),
     EurostatDataset(
         dataset="lc_lci_lev",
         metric="hourly_labour_cost",
@@ -811,6 +860,34 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         periods=20,
         params={'age': 'TOTAL', 'sex': 'T'},
     ),
+    # ── The one series on this wire that moves faster than a month ──────────
+    #
+    # Every other dataset here is monthly or slower. Against a daily timer that
+    # means each new release is read once and produces nothing on the next four
+    # to twenty-nine runs, which is what the suppression ledger was recording
+    # when it reported 49 of 50 signals already published. Adding monthly cubes
+    # cannot change that; only cadence can, and this is the only Baltic-wide
+    # source with any.
+    #
+    # `periods=104` is two years of weeks — enough for a year-on-year
+    # comparison against the same week, which is the only comparison worth
+    # making on a mortality series, and short enough that a collector run does
+    # not carry 1388 observations per country.
+    #
+    # ⚠ Latvia files a week ahead of Estonia and Lithuania. Anything reading a
+    # shared newest period across the three will silently drop Latvia's latest
+    # week or read a null for the other two as a fall.
+    EurostatDataset(
+        dataset="demo_r_mwk_ts",
+        metric="weekly_deaths",
+        metric_label="weekly deaths",
+        unit="deaths a week",
+        section="environment",
+        frequency="weekly",
+        chart_ref="weekly_deaths",
+        periods=104,
+        params={'sex': 'T', 'unit': 'NR'},
+    ),
     EurostatDataset(
         dataset="demo_gind",
         metric="net_migration",
@@ -986,6 +1063,23 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         chart_ref="elec_price_industry",
         periods=20,
         params={'currency': 'EUR', 'nrg_cons': 'MWH500-1999', 'tax': 'X_TAX', 'unit': 'KWH'},
+    ),
+    # The same trap as nrg_pc_205 above, in the gas cube and worse: `TOT_GJ`
+    # carries LV=1, EE=1, LT=3 observations of twenty and stops at 2024-S1,
+    # while every real consumption band carries 20 and reaches 2025-S2.
+    # GJ20-199 is Eurostat's band D2, the medium household consumer behind its
+    # own headline household gas price, and the label says so.
+    EurostatDataset(
+        dataset="nrg_pc_202",
+        metric="gas_price_household",
+        metric_label="household gas price for a medium consumer",
+        unit="EUR per kWh",
+        section="energy",
+        frequency="semi-annual",
+        chart_ref="gas_price_household",
+        periods=20,
+        params={'currency': 'EUR', 'nrg_cons': 'GJ20-199', 'siec': 'G3000',
+                'tax': 'I_TAX', 'unit': 'KWH'},
     ),
     EurostatDataset(
         dataset="road_eqs_carhab",

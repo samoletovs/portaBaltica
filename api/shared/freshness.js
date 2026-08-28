@@ -37,14 +37,18 @@ const es = require('./eurostat.js');
  * imprecise by up to a day or two at the margin, which does not matter: these
  * bounds are deliberately generous and nothing turns on whether a quarterly
  * table is 2.9 or 3.0 quarters late.
+ *
+ * The month is read from `api/shared/eurostat.js` rather than restated, because
+ * that file now measures ages in months too and the two would have been the
+ * same number written twice with nothing comparing them.
  */
 const UNIT_MS = {
   H: 3600e3,
   D: 86400e3,
-  W: 604800e3,
-  M: 2629746e3,
-  Q: 7889238e3,
-  A: 31557600e3,
+  W: es.WEEK_MS,
+  M: es.AVG_MONTH_MS,
+  Q: es.AVG_MONTH_MS * 3,
+  A: es.AVG_MONTH_MS * 12,
 };
 
 const CADENCES = Object.keys(UNIT_MS);
@@ -61,7 +65,9 @@ const CADENCE_NAME = {
  * Both occur: Elering and the ECB stamp their data with a moment, Eurostat and
  * PxWeb date theirs by the period it describes. A period resolves to the last
  * month it covers, via the same `periodToMonthIndex` the rest of the codebase
- * uses, so `2026-Q1` is March 2026 rather than January.
+ * uses, so `2026-Q1` is March 2026 rather than January — except for a period
+ * shorter than a month, which is located to the millisecond instead because a
+ * month index cannot distinguish the weeks inside one.
  *
  * Returns null when it cannot tell, never zero.
  */
@@ -81,6 +87,15 @@ function ageInUnits(cadence, observation, now) {
   }
 
   if (observation.period) {
+    // A period finer than a month has to be located exactly, because a month
+    // index cannot tell `2026-W28` from `2026-W31` — they share July. Before
+    // `periodToMonthIndex` learned to read a weekly label this branch returned
+    // null and the verdict was an honest `unknown`; teaching it the label
+    // without this line would have replaced that with a confident number 36%
+    // too small, which is the worse of the two failures.
+    const end = es.periodEndMs(observation.period);
+    if (end !== null) return (at - end) / per;
+
     const idx = es.periodToMonthIndex(observation.period);
     if (idx === null) return null;
     const d = new Date(at);
