@@ -1556,11 +1556,42 @@ def norm(s):
     return re.sub(r'\s+', ' ', re.sub(r'[^0-9A-Za-z]+', ' ', s)).strip()
 ```
 
-No inline construct can defeat it, because every one of them is punctuation — and
+No inline construct that is **purely punctuation** can defeat it — and
 normalising *both sides with the same function* is what makes it total. The
 earlier attempts each normalised one side, or normalised the two sides
 differently, which is how `datastore_active` became `datastoreactive` on one side
 and `datastore active` on the other.
+
+**The obvious next claim — that *no* inline construct can defeat it — is false,
+and the reason is worth more than the correction.** Stripping punctuation removes
+the **delimiters**; it does not remove what the delimiters were **hiding**. So the
+operation that makes this total against emphasis is exactly what makes it blind to
+links:
+
+```
+CONTROL  bold inside a span   FOUND        <- the construct IS punctuation
+CONTROL  inline code          FOUND
+
+link, text != dest            NOT FOUND    "See the design book DESIGN md for rules"
+HTML comment                  NOT FOUND    "It stays Free see era rg and never"
+image                         NOT FOUND    "The tile grid tiles png is unchanged"
+autolink                      NOT FOUND    "Read https example com spec before that"
+```
+
+The brackets and `<!--` are punctuation and vanish — leaving the URL, the alt text
+or the comment body sitting *inside* the reader's sentence.
+
+Measured, it does not bite here yet: 0.4–0.5% of prose sentences miss across the
+three books, and **all of those are sentence splitting rather than the
+normaliser.** But the books hold three inline links and every one breaks a
+quotation that spans it — including the one whose text and destination are
+identical, because normalisation then leaves the words *twice*. There is no immune
+form; there is only a quotation that happens to start after the link.
+
+So: **total against constructs that are punctuation, blind to constructs that
+conceal alphanumerics.** Where those are common — ordinary `[text](url)` prose —
+resolve links to their text and strip comments before normalising, or render the
+markdown and search that.
 
 **And the operational rule, which is the transferable part: an enumerative remedy
 cannot be inspected for completeness.** You cannot look at "strip `**`" and notice
