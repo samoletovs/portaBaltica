@@ -1262,6 +1262,103 @@ not: at 320px Chromium still reports `table` → `rowgroup` → 3 × `row` → 9
 `cell`, and each cell announces its own label, so the header association is
 replaced rather than lost.
 
+### 4.7 Ask what the cut is removing before you fade it
+
+§4.5 says a sideways strip must look like one, and the reflex that follows is to
+reach for `useOverflowFade`. The third strip found by that rule is the
+counter-example: **a fade would have been the wrong fix, and it would have
+looked right.**
+
+`/follow` renders each feed address in a chip carrying `overflow-x-auto
+whitespace-nowrap`. Measured against production:
+
+```
+                          on screen                 hidden
+  320px  /rss.xml         https://portabaltica.       170px
+         /feed.json       https://portabaltica.       186px
+  375px  both             https://portabaltica.naurol
+  414px  both             https://portabaltica.naurolabs.c
+  768px  differ           the whole URL
+```
+
+At every phone width **both chips rendered byte-identical visible text**, because
+the only thing distinguishing RSS from JSON Feed is the path and the path is
+precisely what the cut removed. Two controls whose entire job is to say *which*
+address, reading the same — on the page whose entire job is to hand a reader a
+URL.
+
+Fading the edge would have made that read as deliberate. The chips wrap instead
+(`break-words`, the same answer `markdown.tsx` already gives for a URL that
+offers a line break nowhere), so the whole address is on screen and nothing
+scrolls: 63px and 79px hidden at 320px → **0**, at a cost of one line.
+
+So the rule §4.5 states is about how a cut *looks*, and it has a prior question:
+**what is on the other side of it?** When the hidden part is more of the same —
+another tab, another card — a fade is right, because the reader can see there is
+more and reach it. When the hidden part is the informative part, no treatment of
+the edge helps, and the answer is to stop cutting.
+
+### 4.8 What a keyboard and a screen reader actually get
+
+Two mobile passes measured tap targets, overflow, fades and heading steps.
+Nothing had measured whether the site can be used without a mouse. Audited in
+Chromium against a real build — jsdom reports focus for elements a browser will
+not focus, and `getComputedStyle` on an SVG there is close to useless — with a
+positive and a negative control on every run.
+
+**Most of it is already right, and that is the result.** Across `/`, `/data`,
+an article and `/follow`, at 320px and 375px:
+
+```
+  route        tab stops   no focus ring   clipped by a scroller   off-screen
+  /                   81               0                       0            0
+  /data              158               0                       0            0
+  /article            40               0                       0            0
+  /follow             39               0                       0            0
+```
+
+318 tab stops, every one reachable, every one with an outline, none clipped.
+**The five faded scroll strips do not trap or hide focus**: a browser scrolls a
+focused descendant into view, and a `mask` — unlike `overflow: hidden` on a
+clipping ancestor — does not prevent it. Tab order never jumped upward by more
+than 24px, so it follows visual order. Every route: one `main`, one `h1`, no
+skipped heading levels, every `nav` labelled, `lang="en"`. The `sr-only`
+"Front page" `h1` on the feed holds.
+
+**A status message has to exist before it has anything to say.** The download
+controls announced **nothing** on success: the file arrives, no visible content
+changes, focus stays on the button, and `[role="status"]` was absent from the
+group entirely. WCAG 2.2 SC 4.1.3 (AA) is precisely this case. The subtler half
+is that the region was *mounted with its own message* on failure — assistive
+technology watches a live region for changes, and a region inserted together
+with its text is frequently missed, so even the failure was unreliable. The
+region is permanent now and only its text changes; success is announced
+`sr-only`, because the file arriving is its own feedback for a sighted reader.
+
+**A chart with no accessible name is invisible on a site that is mostly
+charts.** `chartAccessibility.ts` provides `describeSeries`, which is good — it
+says what is plotted, over what span, and where the series started and ended.
+Measured on `/data`, 77 recharts surfaces render and **67 carry a described
+`role="img"` ancestor; 10 do not**, so they announce as anonymous graphics.
+
+The guard is the reason. `design-system.test.ts` asserts the rule against a
+hand-written list of **two** files while **six** components render a chart —
+the same population gap this book records twice already. Source enumeration and
+rendered DOM agree exactly on which are missing:
+
+```
+  BalticCompareChart   role="img"   described   guarded
+  IndicatorCard        role="img"   described   guarded
+  GridStatePanel       role="img"   hand-written label
+  EconomyTile          none                              1 bare surface
+  PowerMarketCard      none                              1 bare surface
+  IndicatorTable       none                              8 bare sparklines
+```
+
+The eight are 24px sparklines in a table whose row already carries the figure
+and its change, so `aria-hidden` may be the right answer there rather than a
+description — but *neither* is what they have.
+
 ---
 
 ## 5. What the tests enforce
@@ -1323,11 +1420,12 @@ route scrolls sideways, and **every strip that does scroll carries a mask**. The
 second is a live check rather than a source check on purpose — the insights row
 in §4.5 read as correct in source and rendered with no fade.
 
-Its exemption list is now **empty, and it emptied itself**. It named two strips;
-both were fixed, and because the list is asserted as an *equality* rather than
-subtracted with a filter, fixing them turned the test red and forced the list to
-be pruned. Written the other way it would still name two strips that no longer
-offend, matching nothing and reporting success indefinitely.
+Its exemption list is now **empty, and it emptied itself twice**. It named two
+strips; fixing those turned the test red, which is how a third was found —
+`/follow`'s feed URL chips, added meanwhile by another change and covered by no
+check that reads a rendered mask. Written as a filter rather than an equality it
+would still name two strips that no longer offend, matching nothing, reporting
+success, and never surfacing the third.
 
 Contrast and colour separation are **computed**, not eyeballed. If you change a
 colour, the test tells you the ratio — or the ΔE — you actually shipped.

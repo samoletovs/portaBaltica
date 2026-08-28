@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { DownloadMenu } from '../src/components/DownloadMenu';
 import { toCsv, type SeriesExport } from '../src/utils/exportSeries';
 
@@ -270,10 +270,58 @@ describe('when the browser cannot save a file', () => {
     expect(screen.getByRole('status').textContent).toMatch(/not available/i);
   });
 
-  it('shows no such message on a browser that can', () => {
+  it('does not claim a failure on a browser that can', () => {
     render(<DownloadMenu data={example()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Download GDP growth rate as CSV' }));
 
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status').textContent).not.toMatch(/not available/i);
+  });
+});
+
+describe('what a screen reader hears', () => {
+  // Measured on `/indicator/gdp` in Chromium before this existed: pressing
+  // Enter on the CSV button downloaded the file, changed no visible content,
+  // left focus on the button, and left `[role="status"]` absent from the group
+  // entirely — so the control reported nothing at all, success or failure.
+  // WCAG 2.2 SC 4.1.3 (AA) is exactly this case.
+
+  it('keeps the live region mounted before it has anything to say', () => {
+    // The previous version rendered the region *with* its message. Assistive
+    // technology watches a live region for changes, and a region inserted
+    // together with its text is frequently missed, because there was nothing
+    // there to change. So the region has to exist from the first render — and
+    // that is the assertion, not the message.
+    render(<DownloadMenu data={example()} />);
+
+    expect(screen.getByRole('status')).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('announces the download, naming the series and the format', () => {
+    render(<DownloadMenu data={example()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download GDP growth rate as JSON' }));
+
+    // Named rather than "Downloaded.", because a page carrying four charts
+    // gives four identical confirmations otherwise.
+    expect(screen.getByRole('status').textContent).toBe('GDP growth rate downloaded as JSON.');
+  });
+
+  it('announces success without showing it', () => {
+    // The file arriving is its own feedback for a sighted reader, and a
+    // permanent confirmation line in a dense control row is noise. A failure
+    // is shown as well as announced, because nothing else on screen reports
+    // one — so the two states must not share a presentation.
+    render(<DownloadMenu data={example()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download GDP growth rate as CSV' }));
+    const onSuccess = screen.getByRole('status').className;
+
+    cleanup();
+    vi.stubGlobal('URL', { ...URL, createObjectURL: undefined });
+    render(<DownloadMenu data={example()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Download GDP growth rate as CSV' }));
+    const onFailure = screen.getByRole('status').className;
+
+    expect(onSuccess).toContain('sr-only');
+    expect(onFailure).not.toContain('sr-only');
   });
 });

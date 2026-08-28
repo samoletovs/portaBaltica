@@ -133,9 +133,25 @@ function FeedRow({
       <p className="pretty-text news-muted mt-2 text-ui">{carries}</p>
 
       <div className="mt-3 flex items-center gap-2">
+        {/* The URL wraps rather than scrolling sideways.
+            
+            It used to carry `overflow-x-auto whitespace-nowrap`, and measured
+            against production at 320 / 375 / 414px **both chips rendered
+            byte-identical visible text** — `https://portabaltica.` — because
+            the only part that distinguishes RSS from JSON Feed is the path,
+            and the path is exactly what the cut removed. Two controls whose
+            whole job is to say *which* address, reading the same. It is the
+            §4.4 ticker defect (`R/USD` for EUR/USD) one page over, and worse,
+            because here the hidden characters are the informative ones.
+            
+            A fade would have made the cut read as a cut rather than as a bug
+            and left the two chips indistinguishable, so this shows the whole
+            URL instead: `break-words` is what `markdown.tsx` already uses for
+            the same reason, a URL offering a line break nowhere. Costs one
+            line at 320px. */}
         <a
           href={path}
-          className="news-link news-border news-panel-muted min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded border px-2 py-1 font-mono text-ui underline underline-offset-2"
+          className="news-link news-border news-panel-muted min-w-0 flex-1 break-words rounded border px-2 py-1 font-mono text-ui underline underline-offset-2"
         >
           {absolute}
         </a>
