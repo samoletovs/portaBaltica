@@ -9,6 +9,7 @@ import { useTheme } from '../ThemeContext';
 
 import { useCountry } from '../CountryContext';
 import { chartTick, chartTooltip, tickInterval } from '../utils/chartType';
+import { describeSeries } from '../utils/chartAccessibility';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -96,7 +97,23 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                     <span className="dash-warning dash-tint-warning px-2 py-0.5 rounded">Negative price</span>
                   )}
                 </div>
-                <div className="h-28">
+                <div
+                  className="h-28"
+                  role="img"
+                  // Routed through `describeSeries` rather than hand-written,
+                  // so the dashboard has one vocabulary for "what is in this
+                  // chart" and a reader who has heard one chart described
+                  // knows the shape of the next. The period is already a
+                  // clock label, so it needs no reformatting.
+                  aria-label={describeSeries(
+                    "Today's day-ahead electricity price by hour",
+                    prices.map((p) => ({
+                      period: `${hourIn.format(new Date(p.timestamp))}:00`,
+                      value: finite(p.price),
+                    })),
+                    (v) => (v === null ? 'no price' : `€${v.toFixed(2)} per megawatt hour`),
+                  )}
+                >
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={prices.map((p) => ({
                       // Zero-padded so the labels are a fixed width and the
