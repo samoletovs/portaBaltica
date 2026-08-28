@@ -114,6 +114,53 @@ describe('Correspondent bio page', () => {
     expect(screen.getByText(/Elering \/ Nord Pool/)).toBeTruthy();
   });
 
+  it('renders a dataset list for every correspondent, so the promise is never empty', () => {
+    // The heading is "Works only from these datasets". Rendered above nothing at
+    // all it reads as "no sources", which is a different false impression from
+    // the one being fixed rather than an honest shorter list -- so removing an
+    // untrue entry must never empty a list.
+    //
+    // This is the reader-facing half. Whether each id is a source the pipeline
+    // actually fetches is decided in
+    // `newsroom/tests/pipeline/test_correspondent_datasets.py`, which derives
+    // the permitted set by *running* both collectors. It lives on the Python
+    // side because that is where the collectors are: asserting it here would
+    // mean restating their behaviour in a second language, which is the
+    // drift this repository keeps writing post-mortems about.
+    for (const correspondent of CORRESPONDENTS) {
+      expect(
+        correspondent.datasets.length,
+        `${correspondent.id} would render the heading above an empty list`,
+      ).toBeGreaterThan(0);
+
+      for (const dataset of correspondent.datasets) {
+        expect(dataset.sourceId, `${correspondent.id} has a dataset with no source id`).toBeTruthy();
+        expect(dataset.label, `${correspondent.id}/${dataset.sourceId} has no label`).toBeTruthy();
+      }
+    }
+  });
+
+  it('no longer claims sources the newsroom never fetches', () => {
+    // These five were listed while no collector requested them. `statee` and
+    // `datagovlt` were found by a repository-wide grep; `datagovlv`, `ecb` and
+    // `openmeteo` by then asking what the collectors actually fetch, which is a
+    // different and better question.
+    //
+    // Asserted as an explicit set rather than as a filter: if one of them is
+    // wired into a collector and legitimately returns, this fails and has to be
+    // updated deliberately, instead of silently matching nothing for ever.
+    const NEVER_FETCHED = ['datagovlv', 'statee', 'datagovlt', 'ecb', 'openmeteo'];
+    const declared = new Set(
+      CORRESPONDENTS.flatMap((c) => c.datasets.map((d) => d.sourceId)),
+    );
+
+    expect([...declared].filter((id) => NEVER_FETCHED.includes(id))).toEqual([]);
+    // The companion: prove the set being searched is populated, so this cannot
+    // pass because `declared` is empty.
+    expect(declared.size).toBeGreaterThan(0);
+    expect(declared.has('eurostat')).toBe(true);
+  });
+
   it('names the accountable publisher', () => {
     renderBio('kolka');
 
