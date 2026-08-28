@@ -7,6 +7,8 @@ import { useTheme } from '../ThemeContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
 import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed } from '../utils/polarity';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 const EUROSTAT_MAP: Record<string, string> = {
   gdp: 'gdp', unemployment: 'unemployment', cpi: 'inflation', house_prices: 'house_prices',
@@ -18,6 +20,8 @@ interface IndicatorRow {
   id: string;
   title: string;
   unit: string;
+  /** Where this row's numbers came from, carried through to the export. */
+  source?: string;
   series: { period: string; value: number | null }[];
   summary: { latest: number | null; previous: number | null; change: number | null };
 }
@@ -50,14 +54,14 @@ export function IndicatorTable() {
                 const values = series.map((s) => s.value);
                 const latest = values.length > 0 ? values[values.length - 1] : null;
                 const previous = values.length > 1 ? values[values.length - 2] : null;
-                return { id, title: d.title, unit: d.unit || '', series, summary: { latest, previous, change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null } } as IndicatorRow;
+                return { id, title: d.title, unit: d.unit || '', source: optionalString(d, 'source'), series, summary: { latest, previous, change: latest !== null && previous !== null ? +(latest - previous).toFixed(2) : null } } as IndicatorRow;
               })
               .catch(() => null);
           }
           if (country === 'LV') {
             return fetch(`/api/historical-data?indicator=${id}&years=${years}`)
               .then((r) => r.ok ? r.json() : null)
-              .then((d) => d ? { id, title: d.title, unit: d.unit, series: d.series, summary: d.summary } as IndicatorRow : null)
+              .then((d) => d ? { id, title: d.title, unit: d.unit, source: optionalString(d, 'source'), series: d.series, summary: d.summary } as IndicatorRow : null)
               .catch(() => null);
           }
           return Promise.resolve(null);
@@ -88,11 +92,32 @@ export function IndicatorTable() {
     );
   }
 
+  // Eight indicators side by side, each in its own unit and from its own cube.
+  // The header's `unit` and `source` say that plainly rather than picking one
+  // column's answer and applying it to the other seven; the detail travels per
+  // column, which is what `ExportSeries.unit` and `.source` are for.
+  const exportPayload: SeriesExport = {
+    indicator: `key-indicators-${country.toLowerCase()}`,
+    title: `${countryLabel} key indicators`,
+    unit: 'varies by indicator',
+    source: 'Eurostat and CSP Latvia, via portaBaltica',
+    exportedAt: new Date().toISOString(),
+    series: rows.map((row) => ({
+      label: row.title,
+      unit: row.unit || undefined,
+      source: row.source,
+      observations: row.series,
+    })),
+  };
+
   return (
     <div className="dash-card border dash-edge rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b dash-edge">
-        <h3 className="text-callout font-semibold dash-fg">{countryLabel} key indicators</h3>
-        <p className="text-caption dash-subtle">Click any row for analysis</p>
+      <div className="px-4 py-3 border-b dash-edge flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
+          <h3 className="text-callout font-semibold dash-fg">{countryLabel} key indicators</h3>
+          <p className="text-caption dash-subtle">Click any row for analysis</p>
+        </div>
+        <DownloadMenu data={exportPayload} />
       </div>
 
       {/* Header row */}

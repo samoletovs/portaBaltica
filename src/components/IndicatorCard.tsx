@@ -10,6 +10,8 @@ import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
 import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
 import { list } from '../utils/payload';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -70,6 +72,10 @@ interface IndicatorData {
   title: string;
   unit: string;
   source: string;
+  /** The upstream table code, where the payload reports one. Export metadata. */
+  dataset?: string;
+  /** When the API read the source, as it reports it. Export metadata. */
+  fetchedAt?: string;
   series: TimeSeriesPoint[];
   summary: IndicatorSummary;
 }
@@ -396,6 +402,10 @@ export function IndicatorChart({
                 title: d.title,
                 unit: d.unit || '',
                 source: d.source || 'Eurostat',
+                // Read defensively: `/api/baltic-compare` returns both, and
+                // `BalticCompareData` declares neither. See `optionalString`.
+                dataset: optionalString(d, 'dataset'),
+                fetchedAt: optionalString(d, 'fetchedAt'),
                 series,
                 summary: {
                   latest, previous,
@@ -484,25 +494,43 @@ export function IndicatorChart({
   const values = chartData.map((p) => p.value as number);
   const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
+  // What the download writes out: the series as held, rather than the charted
+  // subset, so a period the chart drops is still a row in the file.
+  const exportPayload: SeriesExport = {
+    indicator: id,
+    title: data.title,
+    unit: data.unit,
+    source: data.source,
+    dataset: data.dataset,
+    retrievedAt: data.fetchedAt,
+    exportedAt: new Date().toISOString(),
+    series: [{ label: data.title, observations: list<TimeSeriesPoint>(data.series) }],
+  };
+
   return (
     <div>
-      {/* Time range selector */}
-      <div className="flex items-center gap-2 mb-4" role="group" aria-label="Time range">
-        {[1, 3, 5, 10, 0].map((y) => (
-          <button
-            key={y}
-            onClick={() => setYears(y)}
-            aria-pressed={years === y}
-            className="px-3 py-1 text-caption rounded-lg transition-colors"
-            style={{
-              background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
-              border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
-              color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            {y === 0 ? 'MAX' : `${y}Y`}
-          </button>
-        ))}
+      {/* The toolbar: a time range on the left, the export on the right.
+          Two separate controls rather than one — the download is not a time
+          range, so it must not sit inside a group labelled as one. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-4">
+        <div className="flex items-center gap-2" role="group" aria-label="Time range">
+          {[1, 3, 5, 10, 0].map((y) => (
+            <button
+              key={y}
+              onClick={() => setYears(y)}
+              aria-pressed={years === y}
+              className="px-3 py-1 text-caption rounded-lg transition-colors"
+              style={{
+                background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
+                border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
+                color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
+              }}
+            >
+              {y === 0 ? 'MAX' : `${y}Y`}
+            </button>
+          ))}
+        </div>
+        <DownloadMenu data={exportPayload} />
       </div>
 
       {/* Main chart */}

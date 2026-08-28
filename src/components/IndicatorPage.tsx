@@ -243,7 +243,11 @@ export function IndicatorPage() {
             ? 'Data from Eurostat. Updated according to Eurostat publication calendar.'
             : `Data from Latvia's Central Statistical Bureau (CSP) via PxWeb API. Updated according to CSP publication calendar.`
           }{' '}
-          All data is publicly available under open license.
+          All data is publicly available under open license.{' '}
+          {/* The open-licence claim used to end the page with nothing behind it.
+              Every chart above now writes the series out as CSV or JSON, unit,
+              source and retrieval instant included, so the sentence says where. */}
+          Use the download buttons on each chart to take the series as CSV or JSON.
         </p>
       </main>
     </div>

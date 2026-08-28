@@ -8,6 +8,8 @@ import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
 import { referenceSharesAxis } from '../utils/referenceScale';
 import { describeComparison } from '../utils/chartAccessibility';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 /**
  * Each country's identity in a chart: its flag colour, a stroke pattern, an
@@ -221,6 +223,28 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   // previously unmarked. Only drawn where the data actually straddles it.
   const crossesZero = balticValues.some((v) => v < 0) && balticValues.some((v) => v > 0);
 
+  // What the download writes out. The EU27 benchmark is included whenever the
+  // cube carries one, including where the chart withholds the line: withholding
+  // is a decision about the axis, not about the fact, and a file has no axis.
+  // It is labelled as an average rather than given a flag, so it cannot be read
+  // as a fourth country in the column headers.
+  const exportPayload: SeriesExport = {
+    indicator: indicator,
+    title: title ?? data.title,
+    unit: data.unit,
+    source: data.source,
+    dataset: optionalString(data, 'dataset'),
+    retrievedAt: optionalString(data, 'fetchedAt'),
+    exportedAt: new Date().toISOString(),
+    series: [
+      ...COUNTRY_ORDER.filter((geo) => data.countries[geo]).map((geo) => ({
+        label: COUNTRY_META[geo].label,
+        observations: data.countries[geo].series,
+      })),
+      ...(reference ? [{ label: `${reference.label} average`, observations: reference.series }] : []),
+    ],
+  };
+
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       {/* The header is two blocks — a title and a direct-labelling legend —
@@ -426,7 +450,14 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           flatten the three into one line.
         </p>
       )}
-      <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>Source: {data.source}</p>
+      {/* The source line and the export, on one row. A download belongs beside
+          the attribution rather than beside the title: it is the last thing a
+          reader wants, not the first, and the file it produces carries this
+          same source line in its preamble. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>Source: {data.source}</p>
+        {!compact && <DownloadMenu data={exportPayload} />}
+      </div>
     </div>
   );
 }
