@@ -35,6 +35,18 @@ export function EnergyTile() {
           <BalticCompareChart indicator="elec_renewable_gen" title="Renewable electricity generated" compact />
           <BalticCompareChart indicator="elec_price_household" title="Electricity price (households)" compact />
           <BalticCompareChart indicator="elec_price_industry" title="Electricity price (industry, 500–2000 MWh)" compact />
+          {/* The other half of a household energy bill, and it belongs next to
+              electricity rather than beside a Latvia-only PxWeb card in a
+              different unit. Eurostat's band D2 is the medium household
+              consumer behind its own headline gas price, and the title names
+              it for the same reason the industrial electricity title names a
+              band: a band is not a total, and a reader comparing this to their
+              own bill is entitled to know which consumer it describes.
+
+              Semi-annual, so it is roughly eight months in arrears as normal
+              operation. The card dates itself; that is not decoration on a
+              tile whose power price updates hourly. */}
+          <BalticCompareChart indicator="gas_price_household" title="Gas price (households, 20–200 GJ)" compact />
           {/* Annual, five points. A share that moves a point or two a year is a
               ranking question, not a shape-over-time one. */}
           <RankedComparison indicator="renewables" title="Renewable energy share" higherIsBetter />

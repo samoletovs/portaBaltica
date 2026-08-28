@@ -48,6 +48,14 @@ const POLARITY: Record<string, Polarity> = {
   industrial: 'higher-better',
   construction_output: 'higher-better',
   building_permits: 'higher-better',
+  // The two segments inherit the aggregate's classification above rather than
+  // getting one of their own. A composition whose parts were graded
+  // differently from their total would say something incoherent — residential
+  // rising is favourable, non-residential rising is not, and the sum of the
+  // two is favourable again — on a panel whose whole job is to compare them
+  // against each other.
+  building_permits_residential: 'higher-better',
+  building_permits_non_residential: 'higher-better',
   biz_confidence: 'higher-better',
   renewable_share: 'higher-better',
   exports: 'higher-better',
