@@ -880,23 +880,56 @@ question rather than an open one:
 | Statistics Estonia (`andmed.stat.ee`) | HTTP 200, 224–518ms, **PxWeb** — the protocol `api/historical-data` already speaks | Technically cheap, strategically wrong: buys depth in one country and manufactures the asymmetry the Baltic grid exists to avoid |
 | Statistics Lithuania (`osp-rs.stat.gov.lt`) | HTTP 200, 2386ms, **SDMX 2.1**, 7.3 MB dataflow catalogue | Different protocol entirely, for the same strategic cost |
 
-**Candidates measured and worth adding**, in order:
+**Candidates measured and worth adding** — ~~in order~~ **all three shipped in
+`#189` on 2026-08-28.** Kept because re-measuring them on the way in corrected
+the survey three times, and each correction is a trap that will recur:
 
-- **`demo_r_mwk_ts` — weekly deaths.** The one exception to the conclusion.
-  Fully pinned (`freq=W&sex=T` leaves nothing for a parser to choose), 1383–1384
-  weekly points per country from 2000-W01, 99.7% fill, **18-day lag**. Sanity
-  band `[50, 2000]` from the observed range. It is the *only* candidate that adds
-  articles without either rewriting detectors or publishing stale news, because
-  every other source here is monthly or slower — **cadence is the one lever
-  mining cannot supply**. Note LV runs a week ahead of EE/LT, so per-country
-  `latest` must drive display.
+- **`demo_r_mwk_ts` — weekly deaths.** The one exception to the conclusion,
+  and it held: it is the *only* candidate that adds articles without either
+  rewriting detectors or publishing stale news, because every other source
+  here is monthly or slower — **cadence is the one lever mining cannot
+  supply**. LV really does run a week ahead of EE/LT, so per-country `latest`
+  must drive display. ⚠️ **The lag is 47 days, not the 18 stated here.** The
+  original survey read the newest *coordinate* — the cube offers `2026-W32` —
+  when the newest *observation* is `2026-W28`. **Reading the time dimension
+  instead of the values understated a lagging feed by 2.5×**, which is the
+  same shape as the forecast trap recorded above: a period that exists is not
+  a reading that exists.
 - **`sts_cobp_q` building permits.** `indic_bt=BPRM_SQM` with any of nine
-  `cpa2_1` codes is **106/106/106**. Carries a composition — residential,
-  office, non-residential — so it can be a different *shape* of answer rather
-  than three more lines. ⚠️ `indic_bt=PSQM`, the obvious guess, returns **zero
-  for all three countries** while answering HTTP 200.
-- **`nrg_pc_202` gas prices.** Fully pinned, **37/37/37**. Completeness, not
-  news: semi-annual with an 8-month lag.
+  `cpa2_1` codes is **106/106/106**, confirmed. Carries a composition, so it
+  is a different *shape* of answer rather than three more lines. ⚠️
+  `indic_bt=PSQM`, the obvious guess, returns **zero for all three countries**
+  while answering HTTP 200 — re-confirmed, 0 of 42 quarters. **Office permits
+  were deliberately left out**: 106/106 for all three, but the series sits at
+  **0** in LV and EE, so a sanity band wide enough to be true catches nothing
+  and a segment resting on zero throws a record extreme almost every time it
+  moves.
+- **`nrg_pc_202` gas prices.** ⚠️ **The 37/37/37 is true of a consumption
+  *band*, not of the total.** `TOT_GJ` carries **LV=1, EE=1, LT=3** of twenty
+  and stops at `2024-S1`, while every numbered band carries 20/20/20 through
+  `2025-S2`. This is the `TOT_KWH` trap from `nrg_pc_205` again and worse: the
+  aggregate is not merely sparse, it is **eighteen months more stale than its
+  own components**, so a freshness check reading the total would call the
+  series dead while the data it should be reading is current. Pinned to band
+  D2 and named in the title.
+
+**And the rung that was missing was not where it looked.** `freshness.js`
+already knew `W` in `UNIT_MS` and `CADENCE_NAME`. The gap was in
+`eurostat.js`, whose own comment had described this exact case before any
+weekly series existed. Measured on master immediately before the fix:
+
+```
+maxAgeMonths({ freq: 'W' })      -> 30      the ANNUAL fallback, ~130 missing weeks
+periodCadence('2026-W28')        -> null
+monthsSincePeriod('2026-W28')    -> null
+```
+
+So an unknown frequency resolved to the most permissive allowance in the
+table — **absence resolving to success**, in the one function whose job is to
+say when something has gone quiet. Teaching the label to `periodToMonthIndex`
+without teaching `ageInUnits` precision would have been worse than leaving it:
+`2026-W28` and `2026-W31` share July, so a month index would have swapped an
+honest `null` for a *confident* number 36% too small.
 
 **Why "more periods" is not the cheap lever it appears to be.** The dashboard
 caps history at `years=5` and `?years=30` already works — 3.3× to 5.8× more
