@@ -1,9 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ReactNode } from 'react';
+// Imported at module scope, not inside a test.
+//
+// `tests/suiteDeterminism.test.ts` names a wall-clock wait beside a dynamic
+// import as the combination that flaked, and it is right: a `await import()`
+// in a test body is real work — Vite transforming a module — competing with
+// every other worker, which is precisely what turns a timer into a coin flip.
+// This file carried both when it was first written.
+import { ThemeProvider } from '../src/ThemeContext';
+import { CountryProvider } from '../src/CountryContext';
+import { FilterProvider } from '../src/FilterContext';
+import { IndicatorCard, IndicatorChart } from '../src/components/IndicatorCard';
+import { IndicatorTable } from '../src/components/IndicatorTable';
 
 /**
  * A frozen series must not render as news.
@@ -90,9 +102,6 @@ beforeEach(() => {
 });
 
 async function shell(node: ReactNode) {
-  const { ThemeProvider } = await import('../src/ThemeContext');
-  const { CountryProvider } = await import('../src/CountryContext');
-  const { FilterProvider } = await import('../src/FilterContext');
   return render(
     <MemoryRouter>
       <ThemeProvider>
@@ -102,6 +111,25 @@ async function shell(node: ReactNode) {
       </ThemeProvider>
     </MemoryRouter>,
   );
+}
+
+/**
+ * Let the component's fetch settle, without a clock.
+ *
+ * `tests/suiteDeterminism.test.ts` forbids `waitFor`/`findBy*` here and it is
+ * right to: a wall-clock wait inside a parallel suite is what makes
+ * `dashboardCadence` fail once in two runs under worker contention, and this
+ * file was a fresh offender the moment it was written — it carried a clock and
+ * a dynamic import, the combination that guard names as the amplifier.
+ *
+ * The mocked API resolves immediately, so there is nothing to wait *for*: two
+ * drains of the microtask queue inside `act` settle the fetch and the state
+ * update it schedules. That is deterministic under any load, where a timer is
+ * a guess about how busy the machine is.
+ */
+async function settle() {
+  await act(async () => {});
+  await act(async () => {});
 }
 
 /** Every inline colour a rendered element carries, with the text it colours. */
@@ -117,9 +145,8 @@ const STALE_SENTENCE = /This series has published nothing newer than/;
 describe('the compact indicator card', () => {
   async function card(last: string) {
     fetchBalticCompare.mockResolvedValue(payload(last));
-    const { IndicatorCard } = await import('../src/components/IndicatorCard');
     const view = await shell(<IndicatorCard id="gdp" title="GDP growth rate" unit="% change" />);
-    await waitFor(() => expect(view.container.textContent).toContain('GDP growth rate'));
+    await settle();
     return view.container;
   }
 
@@ -197,9 +224,8 @@ describe('the compact indicator card', () => {
 describe('the indicator detail chart', () => {
   async function chart(last: string) {
     fetchBalticCompare.mockResolvedValue(payload(last));
-    const { IndicatorChart } = await import('../src/components/IndicatorCard');
     const view = await shell(<IndicatorChart id="gdp" />);
-    await waitFor(() => expect(view.container.textContent).toContain('Source'));
+    await settle();
     return view.container;
   }
 
@@ -257,9 +283,8 @@ describe('the indicator detail chart', () => {
 describe('the key indicators table', () => {
   async function table(last: string) {
     fetchBalticCompare.mockResolvedValue(payload(last));
-    const { IndicatorTable } = await import('../src/components/IndicatorTable');
     const view = await shell(<IndicatorTable />);
-    await waitFor(() => expect(view.container.textContent).toContain('key indicators'));
+    await settle();
     return view.container;
   }
 
