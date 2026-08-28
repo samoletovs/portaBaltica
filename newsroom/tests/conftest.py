@@ -308,3 +308,130 @@ def assert_rejected_by(
 def assert_all_passed(verdict: ValidatorVerdict) -> None:
     """Assert a clean article clears every gate, with the reason if it does not."""
     assert verdict.passed, f"clean article was rejected: {verdict.failure_summary()}"
+
+
+# ── the network is not available to a unit test ─────────────────────────
+#
+# The JavaScript suite reached the internet from two files for months, and
+# nothing said so: `api/economy-data` and `api/historical-data` call
+# `https.request`, the mocks stubbed only `https.get`, and the escaping calls
+# went to CSP PxWeb — 1-12s per table, under a 5000ms test timeout. Roughly one
+# push in thirteen went red for a reason unrelated to its content. That is fixed
+# in `tests/noNetwork.ts`; this is the same guard for the Python side.
+#
+# Measured before writing it, by wrapping `socket.socket.connect`,
+# `connect_ex` and `getaddrinfo` and running all 1681 tests: **126 connections,
+# every one of them to loopback, and zero DNS lookups**. So nothing here reaches
+# the internet today and this guard changes no behaviour. It exists to keep that
+# true — the newsroom pipeline calls Eurostat, Azure OpenAI and a dozen RSS
+# feeds, so the transports are all present and one unmocked call is all it takes.
+#
+# **Loopback must be allowed, and that is measured rather than cautious.** Those
+# 126 connections are asyncio's event-loop self-pipe, which on Windows is a
+# socket pair over 127.0.0.1: a file with async tests produces 23 of them and a
+# file without produces 0. A guard that blocked loopback would break every async
+# test in the suite.
+#
+# A blocked attempt is also *recorded*, not only raised. Pipeline code catches
+# broadly around its network calls, so an exception alone could be swallowed and
+# leave the test green with a silent new dependency. The autouse fixture below
+# fails the specific test that reached out, which an exception on its own would
+# not name.
+
+import errno as _errno
+import ipaddress as _ipaddress
+import socket as _socket
+
+_BLOCKED: list[str] = []
+
+_real_connect = _socket.socket.connect
+_real_connect_ex = _socket.socket.connect_ex
+
+
+class NetworkAccessDenied(OSError):
+    """A unit test tried to open a socket to something that is not loopback."""
+
+
+def _is_local(address: object) -> bool:
+    """Whether an address is loopback, a unix path, or otherwise not the internet.
+
+    Anything that is not an ``(host, port)`` tuple is local by construction: an
+    AF_UNIX path or a Windows pipe cannot leave the machine. A hostname that is
+    not ``localhost`` is treated as remote, because resolving it to find out
+    would be the network access this is trying to prevent.
+    """
+    if not isinstance(address, tuple) or not address:
+        return True
+    host = address[0]
+    if host in ("", "localhost"):
+        return True
+    try:
+        return _ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _describe(address: object) -> str:
+    if isinstance(address, tuple) and len(address) >= 2:
+        return f"{address[0]}:{address[1]}"
+    return repr(address)
+
+
+def _denied(address: object) -> NetworkAccessDenied:
+    target = _describe(address)
+    _BLOCKED.append(target)
+    return NetworkAccessDenied(
+        _errno.ECONNREFUSED,
+        f"connect {target} refused by the portaBaltica test guard. A unit test "
+        "may not reach the network. Stub the call, or make it an explicitly "
+        "live check that runs outside this suite.",
+    )
+
+
+def _guarded_connect(self, address):  # type: ignore[no-untyped-def]
+    if _is_local(address):
+        return _real_connect(self, address)
+    raise _denied(address)
+
+
+def _guarded_connect_ex(self, address):  # type: ignore[no-untyped-def]
+    # `connect_ex` reports an errno rather than raising, which is exactly how a
+    # caller could ignore this one. It is recorded either way, and the autouse
+    # fixture is what turns that record into a failure.
+    if _is_local(address):
+        return _real_connect_ex(self, address)
+    _denied(address)
+    return _errno.ECONNREFUSED
+
+
+_socket.socket.connect = _guarded_connect
+_socket.socket.connect_ex = _guarded_connect_ex
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    # `--strict-markers` is set in pytest.ini, so this has to be registered.
+    config.addinivalue_line(
+        "markers",
+        "expects_blocked_network: the test deliberately provokes the network "
+        "guard, so its blocked attempts are not a failure.",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _network_stayed_local(request: pytest.FixtureRequest):
+    """Fail the test that reached out, rather than the run that noticed.
+
+    Raising is not enough on its own: the code under test may catch broadly, in
+    which case the test passes and the new dependency is invisible. This names
+    the offender.
+    """
+    before = len(_BLOCKED)
+    yield
+    attempts = _BLOCKED[before:]
+    if request.node.get_closest_marker("expects_blocked_network"):
+        return
+    assert not attempts, (
+        "this test tried to reach " + ", ".join(sorted(set(attempts))) + ". "
+        "A unit test may not use the network: stub the call, or move the check "
+        "somewhere that is honest about being live."
+    )
