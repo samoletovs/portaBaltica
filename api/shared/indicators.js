@@ -15,6 +15,28 @@
  * Gini index reading 8.9 fails `[20, 45]`; an empty chart fails on point count.
  * When adding an indicator, set the band from what the statistic *means*, not
  * from what the API happens to return today.
+ *
+ * `euAggregation` says what the `EU27_2020` figure on the same cube actually
+ * *is*, and it is mandatory for the same reason `sanity` is — absence must not
+ * resolve to "draw it".
+ *
+ *   - `average` — an intensive statistic: a rate, a share, a price, a per-capita
+ *     or per-1000 figure, an index. The EU value is a weighted average of its
+ *     members, it sits in the same numeric range as the three, and it answers
+ *     "is 6.8% good or bad". This is the benchmark `/api/baltic-compare`
+ *     returns as `reference`.
+ *   - `sum` — an extensive total: euros, persons, nights, GWh, tonnes,
+ *     tonne-km, passengers. The EU value is not a benchmark at all; it is the
+ *     whole of which Latvia is a part, and it is one to two orders of magnitude
+ *     larger. EU27 population is ~449M against Latvia's ~1.85M, a ratio of 240,
+ *     so plotting both on one linear axis prices the axis in EU units and
+ *     collapses all three Baltic series into a flat line along the bottom. The
+ *     chart then shows the reader nothing about the three countries it exists
+ *     to compare.
+ *
+ * The band itself is corroborating evidence of the split: `sanity` is written
+ * from what a *Baltic* reading means, and every `sum` indicator's EU value
+ * falls far outside its own band while every `average` one falls inside it.
  */
 
 const INDICATORS = {
@@ -25,6 +47,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'GDP Growth Rate',
     unit: '% QoQ',
+    euAggregation: 'average',
     sanity: [-20, 20],
   },
   gdp_per_capita: {
@@ -34,6 +57,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'GDP per capita',
     unit: 'EUR',
+    euAggregation: 'average',
     sanity: [5000, 60000],
   },
   // Eurostat moved HICP from ECOICOP ver.1 to ver.2. The ver.1 tables
@@ -50,6 +74,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'HICP Inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-10, 40],
   },
   energy_inflation: {
@@ -58,6 +83,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Energy inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-60, 100],
   },
   food_inflation: {
@@ -66,6 +92,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Food inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-30, 50],
   },
   core_inflation: {
@@ -74,6 +101,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Core inflation (excl. energy & food)',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-10, 30],
   },
   services_inflation: {
@@ -82,6 +110,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Services inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-10, 30],
   },
   goods_inflation: {
@@ -90,6 +119,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Goods inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-20, 40],
   },
   admin_prices: {
@@ -101,6 +131,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Administered prices',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-30, 60],
   },
   home_energy_inflation: {
@@ -112,6 +143,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Home energy inflation',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-70, 200],
   },
   ppi: {
@@ -120,6 +152,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Producer prices',
     unit: '% MoM',
+    euAggregation: 'average',
     sanity: [-25, 25],
   },
   industrial: {
@@ -129,6 +162,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Industrial production',
     unit: '% MoM',
+    euAggregation: 'average',
     sanity: [-30, 30],
   },
   retail: {
@@ -137,6 +171,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Retail sales growth',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-40, 40],
   },
   construction: {
@@ -147,6 +182,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Construction output',
     unit: '% QoQ',
+    euAggregation: 'average',
     sanity: [-40, 40],
   },
   house_prices: {
@@ -155,6 +191,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'House Price Change',
     unit: '% YoY',
+    euAggregation: 'average',
     sanity: [-40, 50],
   },
   interest_rate: {
@@ -163,6 +200,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Long-term interest rate',
     unit: '%',
+    euAggregation: 'average',
     sanity: [-2, 20],
   },
   consumer_confidence: {
@@ -172,6 +210,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Consumer confidence',
     unit: 'balance',
+    euAggregation: 'average',
     sanity: [-70, 30],
   },
   economic_sentiment: {
@@ -182,6 +221,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Economic sentiment indicator',
     unit: 'index (long-term avg=100)',
+    euAggregation: 'average',
     sanity: [40, 150],
   },
 
@@ -192,6 +232,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Unemployment Rate',
     unit: '%',
+    euAggregation: 'average',
     sanity: [1, 30],
   },
   youth_unemployment: {
@@ -200,6 +241,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Youth unemployment (under 25)',
     unit: '%',
+    euAggregation: 'average',
     sanity: [2, 50],
   },
   employment_rate: {
@@ -211,6 +253,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Employment rate (20-64)',
     unit: '%',
+    euAggregation: 'average',
     sanity: [40, 90],
   },
   job_vacancy: {
@@ -220,6 +263,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Job vacancy rate',
     unit: '%',
+    euAggregation: 'average',
     sanity: [0, 12],
   },
   salary: {
@@ -228,6 +272,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Hourly labour cost',
     unit: 'EUR/hour',
+    euAggregation: 'average',
     sanity: [3, 80],
   },
   wages_mfg: {
@@ -236,6 +281,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Labour cost: manufacturing',
     unit: 'index (2020=100)',
+    euAggregation: 'average',
     sanity: [60, 300],
   },
   wages_it: {
@@ -244,6 +290,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Labour cost: IT sector',
     unit: 'index (2020=100)',
+    euAggregation: 'average',
     sanity: [60, 300],
   },
   minimum_wage: {
@@ -252,6 +299,7 @@ const INDICATORS = {
     freq: 'S',
     title: 'Minimum wage',
     unit: 'EUR/month',
+    euAggregation: 'average',
     sanity: [200, 3000],
   },
 
@@ -264,6 +312,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Government debt / GDP',
     unit: '% GDP',
+    euAggregation: 'average',
     sanity: [0, 200],
   },
   gov_revenue: {
@@ -272,6 +321,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Government revenue',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [100, 50000],
   },
   gov_deficit: {
@@ -280,6 +330,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Government net lending/borrowing',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-20000, 20000],
   },
   inequality: {
@@ -291,6 +342,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Income inequality (Gini)',
     unit: 'index',
+    euAggregation: 'average',
     sanity: [20, 45],
   },
   poverty_risk: {
@@ -299,6 +351,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'At risk of poverty or social exclusion',
     unit: '% of population',
+    euAggregation: 'average',
     sanity: [5, 45],
   },
   life_expectancy: {
@@ -308,6 +361,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Life expectancy at birth',
     unit: 'years',
+    euAggregation: 'average',
     sanity: [65, 90],
   },
   population: {
@@ -316,6 +370,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Population',
     unit: 'persons',
+    euAggregation: 'sum',
     sanity: [100000, 20000000],
   },
   net_migration: {
@@ -324,6 +379,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Net migration rate',
     unit: 'per 1000 inhabitants',
+    euAggregation: 'average',
     sanity: [-40, 40],
   },
   birth_rate: {
@@ -332,6 +388,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Crude birth rate',
     unit: 'per 1000 inhabitants',
+    euAggregation: 'average',
     sanity: [3, 25],
   },
   rd_spending: {
@@ -340,6 +397,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'R&D expenditure',
     unit: '% GDP',
+    euAggregation: 'average',
     sanity: [0.1, 6],
   },
   digital_skills: {
@@ -348,6 +406,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Basic digital skills',
     unit: '% of individuals',
+    euAggregation: 'average',
     sanity: [10, 95],
     // The cube's `freq` dimension says A and the query needs it, but Eurostat
     // publishes this one every **two** years — 2021, 2023, 2025, with no 2022
@@ -372,6 +431,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Online shoppers',
     unit: '% of individuals',
+    euAggregation: 'average',
     sanity: [10, 95],
   },
 
@@ -384,6 +444,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Exports of goods',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [100, 100000],
   },
   imports: {
@@ -392,6 +453,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Imports of goods',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [100, 100000],
   },
   trade_balance: {
@@ -400,6 +462,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Trade balance (goods & services)',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-20000, 20000],
   },
   // The two halves of `trade_balance`, which the combined figure hides.
@@ -416,6 +479,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Goods balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     // A quarterly external-balance flow for an economy of roughly 10-22bn EUR
     // per quarter. Anything outside this is a different statistic or a
     // different unit, not a Baltic goods balance.
@@ -427,6 +491,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Services balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-3000, 7000],
   },
 
@@ -442,6 +507,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Transport services balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-2000, 3000],
   },
   financial_services: {
@@ -450,6 +516,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Financial services balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-1500, 2500],
   },
   ict_services: {
@@ -458,6 +525,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Telecom, computer & information services balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-1500, 2500],
   },
   other_business_services: {
@@ -466,6 +534,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Other business services balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-1500, 2500],
   },
   current_account: {
@@ -474,6 +543,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Current account balance',
     unit: 'M EUR',
+    euAggregation: 'sum',
     sanity: [-20000, 20000],
   },
   tourism: {
@@ -482,6 +552,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Tourist arrivals',
     unit: 'persons',
+    euAggregation: 'sum',
     sanity: [1000, 10000000],
   },
   tourism_foreign: {
@@ -490,6 +561,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Nights spent by foreign visitors',
     unit: 'nights',
+    euAggregation: 'sum',
     sanity: [1000, 10000000],
   },
   hotel_occupancy: {
@@ -500,6 +572,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Net occupancy rate of bed places',
     unit: '%',
+    euAggregation: 'average',
     sanity: [5, 95],
   },
 
@@ -512,6 +585,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Electricity production',
     unit: 'GWh',
+    euAggregation: 'sum',
     sanity: [10, 20000],
   },
   elec_renewable_gen: {
@@ -520,6 +594,7 @@ const INDICATORS = {
     freq: 'M',
     title: 'Renewable electricity generation',
     unit: 'GWh',
+    euAggregation: 'sum',
     sanity: [1, 20000],
   },
   renewables: {
@@ -528,6 +603,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Renewable energy share',
     unit: '%',
+    euAggregation: 'average',
     sanity: [0, 100],
   },
   elec_price_household: {
@@ -536,6 +612,7 @@ const INDICATORS = {
     freq: 'S',
     title: 'Electricity price (households)',
     unit: 'EUR/kWh',
+    euAggregation: 'average',
     sanity: [0.03, 1],
   },
   elec_price_industry: {
@@ -555,6 +632,7 @@ const INDICATORS = {
     freq: 'S',
     title: 'Electricity price (industry, 500\u20132000 MWh)',
     unit: 'EUR/kWh',
+    euAggregation: 'average',
     // Observed 0.0834 to 0.3294 EUR/kWh for this band across the same window.
     sanity: [0.02, 1],
   },
@@ -564,6 +642,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Passenger cars per 1000 inhabitants',
     unit: 'per 1000',
+    euAggregation: 'average',
     sanity: [100, 900],
   },
   air_passengers: {
@@ -575,6 +654,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Air passengers carried',
     unit: 'passengers/quarter',
+    euAggregation: 'sum',
     sanity: [1000, 50000000],
   },
   ghg_emissions: {
@@ -586,6 +666,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Greenhouse gas emissions',
     unit: 'thousand tonnes CO2-eq',
+    euAggregation: 'sum',
     sanity: [100, 50000],
   },
 
@@ -599,6 +680,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'New business registrations',
     unit: 'index (2021=100)',
+    euAggregation: 'average',
     sanity: [10, 400],
   },
   bankruptcies: {
@@ -607,6 +689,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Bankruptcy declarations',
     unit: 'index (2021=100)',
+    euAggregation: 'average',
     sanity: [10, 500],
   },
 
@@ -623,6 +706,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Rail freight',
     unit: 'M tonne-km',
+    euAggregation: 'sum',
     // Observed 71 (Estonia, 2025-Q4) to 4,806 (Latvia, pre-sanctions) across
     // eight years. The upper bound leaves room for a revision without being so
     // wide it would accept a percentage or a headcount by mistake.
@@ -638,6 +722,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Road freight',
     unit: 'k tonnes',
+    euAggregation: 'sum',
     // Observed 4,413 (Estonia) to 36,034 (Lithuania).
     sanity: [500, 50000],
   },
@@ -657,6 +742,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Road freight (tonne-km)',
     unit: 'M tonne-km',
+    euAggregation: 'sum',
     // Observed 897 (Estonia, 2025-Q4) to 17,547 (Lithuania).
     sanity: [100, 40000],
   },
@@ -686,6 +772,7 @@ const INDICATORS = {
     freq: 'Q',
     title: 'Rail passengers',
     unit: 'k passengers',
+    euAggregation: 'sum',
     // Observed 519 (Lithuania, at the 2020 trough) to 6,074 (Latvia) over
     // 2019-Q1..2026-Q2. The floor sits above Latvia's entire MIO_PKM range and
     // still 42% below the lowest quarter ever recorded, including the pandemic
@@ -706,6 +793,7 @@ const INDICATORS = {
     freq: 'A',
     title: 'Labour productivity per person',
     unit: 'index (2020=100)',
+    euAggregation: 'average',
     // An index rebased to 100, so a decade of real movement stays well inside
     // this while a raw euro or headcount series would not.
     sanity: [60, 200],

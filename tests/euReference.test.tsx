@@ -162,3 +162,110 @@ describe('the reference never becomes a fourth country', () => {
     expect(handler.REFERENCE_GEO).toBe('EU27_2020');
   });
 });
+
+/**
+ * A total is not a benchmark.
+ *
+ * `EU27_2020` is a weighted **average** of its members for an intensive
+ * statistic — a rate, a share, a price, an index — and a **sum** containing
+ * them for an extensive one. Only the first belongs on a shared linear axis
+ * with the three: EU27 population is ~449M against Latvia's ~1.85M, so drawing
+ * it prices the axis in EU units and collapses Latvia, Estonia and Lithuania
+ * into a single flat line along the bottom. The benchmark then destroys the
+ * comparison the chart exists to make.
+ *
+ * The registry says which kind each indicator is, and the handler asks Eurostat
+ * for the reference only where it is one.
+ */
+describe('the benchmark is withheld where the EU figure is a sum, not an average', () => {
+  const require_ = createRequire(import.meta.url);
+  const INDICATORS = require_('../api/shared/indicators.js');
+  const { referenceIsComparable } = require_('../api/baltic-compare/index.js');
+
+  it('reads the registry rather than guessing from the unit string', () => {
+    expect(referenceIsComparable(INDICATORS.unemployment)).toBe(true);
+    expect(referenceIsComparable(INDICATORS.gdp_per_capita)).toBe(true);
+    expect(referenceIsComparable(INDICATORS.population)).toBe(false);
+    expect(referenceIsComparable(INDICATORS.elec_production)).toBe(false);
+  });
+
+  it('treats an undeclared indicator as not comparable', () => {
+    // Absence must not resolve to "draw it". A new indicator that says nothing
+    // gets no benchmark, which is a missing line — not a flattened chart with
+    // three countries in it that a reader cannot tell apart.
+    expect(referenceIsComparable(undefined)).toBe(false);
+    expect(referenceIsComparable(null)).toBe(false);
+    expect(referenceIsComparable({ unit: '%' })).toBe(false);
+  });
+});
+
+describe('the handler asks for EU27 only where it can be drawn', () => {
+  const require_ = createRequire(import.meta.url);
+
+  /** A flat reading per geography, held constant across the window. */
+  const atlas = (values: Record<string, number>) => (geo: string) => values[geo] ?? 0;
+
+  /** A JSON-stat cube over geo and time alone, which is all the parser needs. */
+  function cube(geos: string[], times: string[], valueFor: (geo: string) => number) {
+    const cats = (codes: string[]) => {
+      const index: Record<string, number> = {};
+      codes.forEach((c, i) => { index[c] = i; });
+      return { category: { index, label: Object.fromEntries(codes.map((c) => [c, c])) } };
+    };
+    const value: Record<number, number> = {};
+    geos.forEach((g, gi) => times.forEach((_, ti) => { value[gi * times.length + ti] = valueFor(g); }));
+    return {
+      version: '2.0', class: 'dataset', id: ['geo', 'time'],
+      size: [geos.length, times.length],
+      dimension: { geo: cats(geos), time: cats(times) },
+      value,
+    };
+  }
+
+  /** Drive the real handler with a stubbed Eurostat, and report what it asked for. */
+  async function call(indicator: string, served: string[], valueFor: (geo: string) => number) {
+    require_('../api/shared/cache.js').clear();
+    const es = require_('../api/shared/eurostat.js');
+    const original = es.httpJson;
+    const urls: string[] = [];
+    es.httpJson = (url: string) => {
+      urls.push(url);
+      return Promise.resolve(cube(served, ['2025', '2026'], valueFor));
+    };
+    try {
+      const handler = require_('../api/baltic-compare/index.js');
+      const ctx: { res?: { body: string; status: number } } = {};
+      await handler(ctx, { query: { indicator, years: '5' }, headers: {} });
+      return { body: JSON.parse(ctx.res!.body), urls };
+    } finally {
+      es.httpJson = original;
+    }
+  }
+
+  it('draws it for a rate, where the EU value is an average of the members', async () => {
+    const { body, urls } = await call(
+      'unemployment',
+      ['LV', 'EE', 'LT', 'EU27_2020'],
+      atlas({ LV: 6.8, EE: 7.2, LT: 6.3, EU27_2020: 6.0 }),
+    );
+    expect(urls[0]).toContain('geo=EU27_2020');
+    expect(body.reference).not.toBeNull();
+    expect(body.reference.latest).toBe(6.0);
+  });
+
+  it('does not even ask for it for a total, where the EU value contains the three', async () => {
+    // Latvia 1.85M against the EU's 449M. Served here anyway, so this fails
+    // against the old handler rather than against a thinner fixture.
+    const { body, urls } = await call(
+      'population',
+      ['LV', 'EE', 'LT', 'EU27_2020'],
+      atlas({ LV: 1850000, EE: 1370000, LT: 2860000, EU27_2020: 449000000 }),
+    );
+    expect(urls[0], 'a slice we cannot draw is not worth fetching').not.toContain('EU27_2020');
+    expect(body.reference, 'a sum is not a benchmark').toBeNull();
+    // The comparison itself is untouched: withholding the denominator must not
+    // cost the three countries the chart is about.
+    expect(Object.keys(body.countries).sort()).toEqual(['EE', 'LT', 'LV']);
+    expect(body.countries.LV.series.at(-1).value).toBe(1850000);
+  });
+});

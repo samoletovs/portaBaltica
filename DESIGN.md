@@ -513,6 +513,25 @@ Watch the library defaults here. Recharts' implicit y-axis is `[0, 'auto']`, so
 a chart with no explicit `<YAxis>` is already zero-based whether or not anyone
 decided it should be.
 
+**A benchmark that does not share the scale is not a benchmark, it is a ruined
+axis.** The EU27 line answers "is 6.8% good or bad", and it can only do that
+where the EU figure is a weighted *average* of its members — a rate, a share, a
+price, an index, a per-head figure. For an extensive total it is a *sum
+containing* the three, one to two orders of magnitude larger: EU27 population is
+about 449 million against Latvia's 1.85 million. Drawn on the same linear axis it
+prices the axis in EU units and flattens Latvia, Estonia and Lithuania into one
+line along the bottom, so the reference destroys the comparison the chart exists
+to make. This is the same failure as a cropped axis, from the other direction —
+one exaggerates a difference, this one erases it.
+
+The remedy is not a second axis, which invites the reader to compare two
+different scales as though they were one. It is to **withhold the line**:
+`euAggregation` in `api/shared/indicators.js` states which kind each indicator
+is, and `/api/baltic-compare` does not even request the EU slice for a total. A
+chart with no benchmark already has to look intentional (§3.6), so nothing about
+it renders — and an indicator that declares nothing is treated as a total, since
+a missing line is a smaller loss than an unreadable chart.
+
 ### 3.4 Gridlines recede, data dominates
 
 Gridlines are structure, not data, and are deliberately below the 3:1 non-text
