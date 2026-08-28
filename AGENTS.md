@@ -1169,6 +1169,38 @@ So when a measurement is a comparison, measure both sides in the same session,
 on the same build. A remembered figure has no provenance, no timestamp and no
 control — it is a claim wearing a number's clothes.
 
+**And the whole table assumes a reading exists. The failure it cannot see is
+the claim you never measured at all.**
+
+Every row above tells you to distrust something you read. A fourth kind has no
+reading to distrust: you remember the fact, state it, and never open an
+instrument. Two instances, from two sessions, on the same day the rest of this
+section was written:
+
+- A session quoted a **verbatim blockquote** from `#177`'s body in `#182`'s
+  description. The sentence was not in `#177` — it was from a handoff message
+  composed minutes apart from the same thought. The substance survived; the
+  quotation did not. It was published in a pull request whose own argument is
+  that a description is not the thing it describes.
+- The manager wrote **"95 PRs merged"** while correcting someone else's stale
+  count, having incremented 94 for a commit that was a direct push and never a
+  PR. Measured immediately afterwards: still 94.
+
+Neither is absent, plausible-but-wrong, or absurd, because neither came from a
+probe. And note where they landed: one in a PR description, one in a status
+line — **prose, where no reader expects a citation, rather than a code block,
+where everyone does.** A number inside a fenced block reads as measured and
+invites *"measured how?"*. The same number in a sentence reads as known.
+
+There is no clever fix. The remedy is the boring one: **open the artefact, or
+mark the claim as remembered.** What the taxonomy can offer is the tell —
+if you cannot say what command produced a figure, you did not measure it, and
+the fluency with which you can say it aloud is not evidence.
+
+The two above were caught by an outside reader and by the author's own habit of
+re-counting, respectively. Neither was caught by a rule, and this entry does not
+pretend it would have been.
+
 ## State the SHA you measured, not the branch
 
 The rule above fires on an empty reading. **The failure it does not catch
