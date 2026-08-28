@@ -1451,7 +1451,7 @@ That is the row's saving grace: an absurd reading defends itself. A plausible
 one does not, which is why the middle row is the dangerous one and needs a
 mechanical check rather than an instinct.
 
-That claim got a controlled test the day it was written, by accident. Two people
+That claim got an illustration the day it was written, by accident. Two people
 verified the *same entry* in the *same file* within an hour, and both probes were
 wrong:
 
@@ -1464,11 +1464,17 @@ me      a search widened from the section to the whole file
 ```
 
 Same taxonomy, same evening, same subject, and the only variable was **whether the
-wrong answer happened to look ridiculous.** That is not a difference in care —
-their reading defended itself and mine did not, and neither of us chose which kind
-we got. It is the strongest evidence available that the middle row cannot be
-handled by being careful, because the reader who ships a plausible wrong number
-feels exactly as careful as the one who catches an absurd one.
+wrong answer happened to look ridiculous.** Their reading defended itself and mine
+did not, and **no difference in care is needed to explain that** — which is the
+claim the argument actually requires. It does not need care to have been equal;
+it needs care to be something you cannot *rely* on, and a reader who ships a
+plausible wrong number has no signal telling them they are less careful than the
+one who catches an absurd one.
+
+**Stated precisely, because this paragraph's whole subject is a claim outrunning
+its evidence: n=2, one probe each, and care was never measured — only unaccounted
+for.** That is an illustration, not a controlled result, and the distinction is
+the difference between *this justifies a mechanical check* and *this settles it*.
 
 ### The next probe fails for a different reason
 
