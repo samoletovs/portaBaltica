@@ -72,15 +72,41 @@ const nameOf = (f: string) => basename(f).replace(/\.tsx?$/, '');
 /**
  * "Presents the newest reading of a period-indexed series."
  *
- * Two halves, and both are needed. The newest-picker alone matches any array
- * access; `period` alone matches a file that merely passes a series through.
+ * Two halves, and the second is a union of two markers because neither alone is
+ * both sound and complete.
+ *
+ * `READS_PERIOD` is a *read* of a period off data — `row.period`, a `periods`
+ * collection. Not the bare token `period`, which the first draft used: that
+ * swept in `GridStatePanel`, whose live 5-minute grid telemetry *constructs*
+ * `{ period: r.label }` to hand to a chart helper, where the label is a clock
+ * time. It is not a statistical series, `freshnessOf` reads cadence off a period
+ * label's shape and would return null for `14:35` anyway, and the panel already
+ * states its own recency in the only terms that fit — `metered to HH:MM UTC`.
+ * Demanding a staleness notice there would be a false positive, and the exemption
+ * someone would add to quiet it would be permanent.
+ *
+ * `FORMATS_PERIOD` catches `PortPanelParts`, which holds its period under the
+ * name `measure.latest` and so never reads a field called `period` at all.
+ *
+ * The union rather than either alone, and the reason is a control rather than an
+ * argument. Measured against `8604ebb`, the commit before this change:
+ *
+ *   RankedComparison   picksNewest=true  reads=true   formatPeriod=FALSE  -> in scope
+ *   FreightModalSplit  picksNewest=true  reads=true   formatPeriod=true   -> in scope
+ *
+ * `RankedComparison` rendered `{periods[0]}` raw and imported nothing from
+ * `dataFreshness`, so a rule keyed on `formatPeriod` alone would have missed the
+ * very component this guard was written about — circular in the one direction
+ * that matters, since a component that has not thought about periods is exactly
+ * the one that will not call the period formatter.
  */
 const PICKS_NEWEST = /\[\s*[\w.]+\.length\s*-\s*1\s*\]|\.slice\(\s*-1\s*\)|\.at\(\s*-1\s*\)|\blatest\b/;
-const PERIOD_SHAPED = /\bperiods?\b/;
+const READS_PERIOD = /\.period\b|\bperiods\b/;
+const FORMATS_PERIOD = /\bformatPeriod\s*\(|\bperiodCoverage\s*\(|\baxisPeriodLabel\s*\(/;
 
 const inScope = files.filter((f) => {
   const t = source.get(f)!;
-  return PICKS_NEWEST.test(t) && PERIOD_SHAPED.test(t);
+  return PICKS_NEWEST.test(t) && (READS_PERIOD.test(t) || FORMATS_PERIOD.test(t));
 });
 
 const judges = (f: string) => /\bfreshnessOf\s*\(/.test(source.get(f)!);
@@ -127,6 +153,22 @@ describe('freshness judgement reaches every dated surface', () => {
     // series. If the filter swept it in, it is matching everything, and the
     // assertion below would prove nothing about the components it does catch.
     expect(inScope.map(nameOf)).not.toContain('PortCard');
+  });
+
+  it('live telemetry is out of scope, and is out for a structural reason', () => {
+    // `GridStatePanel` shows the grid's newest 5-minute reading. It entered this
+    // population the moment the derivation keyed on the bare token `period`,
+    // because it builds `{ period: r.label }` from a *clock* to hand to a chart
+    // helper. It is not a statistical series, it has no cadence for `freshnessOf`
+    // to read, and it already dates itself as `metered to HH:MM UTC`.
+    //
+    // Pinned as an assertion rather than left to the comment above, because the
+    // day it starts reading a real period off data it belongs in the population
+    // and this line is what says so.
+    const grid = source.get(files.find((f) => nameOf(f) === 'GridStatePanel')!)!;
+    expect(PICKS_NEWEST.test(grid), 'control: it does pick a newest reading').toBe(true);
+    expect(READS_PERIOD.test(grid), 'it writes `period:` as a key, never reads one').toBe(false);
+    expect(inScope.map(nameOf)).not.toContain('GridStatePanel');
   });
 
   it('the derivation reads code, not type declarations', () => {
