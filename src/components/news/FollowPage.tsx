@@ -29,7 +29,8 @@ const FEEDS = [
     format: 'RSS 2.0',
     carries:
       'Everything we write: original analysis, and the official releases we reproduce verbatim. ' +
-      'Not the link-outs to other outlets — that is their journalism, and it belongs in their feed.',
+      'Link-outs to other outlets are not included, because that is their journalism and it ' +
+      'belongs in their feed.',
   },
   {
     path: '/feed.json',
@@ -188,7 +189,7 @@ export default function FollowPage() {
         <p className="pretty-text news-muted mt-4 text-ui">
           Both carry the same items. A withdrawn article leaves both the moment it is withdrawn,
           which is the only thing that stops a headline we have publicly taken back going on
-          circulating — see the{' '}
+          circulating. The reason is always in the{' '}
           <Link to="/corrections" className="news-link underline underline-offset-2">
             corrections log
           </Link>
@@ -203,7 +204,7 @@ export default function FollowPage() {
 
         <p className="pretty-text news-muted mt-4 text-prose">
           We publish when the data warrants it and not otherwise. The newsroom runs on a timer,
-          but a run that finds nothing new in the series writes nothing — so some days carry
+          but a run that finds nothing new in the series writes nothing, so some days carry
           several articles and some carry none. We would rather be quiet than padded.
         </p>
 

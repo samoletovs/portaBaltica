@@ -48,7 +48,7 @@ const handler = async function (context, req) {
     const articles = newsroom.ourArticles(await newsroom.fetchIndex());
     const site = newsroom.SITE_URL;
 
-    const items = articles.map(function (article) {
+    const items = articles.map(function (article, index) {
       const url = site + '/article/' + article.slug;
       const summary = typeof article.dek === 'string' && article.dek ? article.dek : '';
 
@@ -83,9 +83,13 @@ const handler = async function (context, req) {
       if (tags.length > 0) item.tags = tags;
 
       // Custom objects must be prefixed with an underscore, per the spec, so a
-      // reader that does not know them ignores them rather than choking.
+      // reader that does not know them ignores them rather than choking. The
+      // spec also asks for an `about` pointing somewhere a human can find out
+      // what the extension means, "preferably in the first use" — which is why
+      // it is attached once rather than repeated on all seventy-odd items.
       const extra = { tier: article.tier };
       if (article.format) extra.format = String(article.format);
+      if (index === 0) extra.about = site + '/follow';
       item._portabaltica = extra;
 
       return item;

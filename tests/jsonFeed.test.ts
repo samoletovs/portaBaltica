@@ -89,11 +89,12 @@ interface Res {
 
 let ip = 0;
 
+/** Callable with methods, which is the shape the Functions host passes. */
+const log = Object.assign(() => {}, { warn: () => {}, error: () => {}, info: () => {} });
+
 async function invoke(path: string): Promise<Res> {
   const handler = freshHandler(path);
-  const context: { res?: Res; log: Record<string, unknown> } = {
-    log: Object.assign(() => {}, { warn: () => {}, error: () => {}, info: () => {} }),
-  };
+  const context: { res?: Res; log: typeof log } = { log };
   await handler(context, {
     headers: { 'x-forwarded-for': `10.1.0.${(++ip % 250) + 1}` },
     query: {},

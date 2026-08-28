@@ -45,8 +45,8 @@ function WhatItIs() {
   return (
     <p className="pretty-text news-muted mt-4 text-prose">
       Once a week we read back over what we reported and write one piece about it. It is written on
-      Sundays, and published only when the week produced enough findings to be worth reviewing —
-      so some weeks carry none.
+      Sundays, and published only when the week produced enough findings to be worth reviewing, so
+      some weeks carry none.
     </p>
   );
 }
@@ -106,7 +106,7 @@ export default function WeeklyPage() {
   usePageMeta({
     title: 'The weekly review | portaBaltica',
     description:
-      'One piece a week reading back over what we reported from Baltic open data — published only when the week produced enough to review.',
+      'One piece a week reading back over what we reported from Baltic open data, published only when the week produced enough to review.',
     canonicalPath: '/weekly',
   });
 
@@ -144,13 +144,17 @@ export default function WeeklyPage() {
       {load.state === 'ok' && !latest && <NoReview />}
 
       {latest && (
-        <section aria-labelledby="latest-review" className="mt-8">
-          <h2
-            id="latest-review"
-            className="news-subtle text-caption font-semibold uppercase tracking-widest"
-          >
+        <section aria-label="The latest weekly review" className="mt-8">
+          {/*
+            An eyebrow, not a heading. `text-caption` is 12px, and an h2 set
+            smaller than the prose beneath it stops reading as a heading —
+            `tests/typography.test.ts` fails on exactly that. The section is
+            labelled for a screen reader by `aria-label` instead, which says
+            more than the two words on screen do.
+          */}
+          <p className="news-subtle text-caption font-semibold uppercase tracking-widest">
             The latest
-          </h2>
+          </p>
           <div className="mt-3">
             <ArticleCard summary={latest} variant="lead" />
           </div>
@@ -191,12 +195,14 @@ export default function WeeklyPage() {
         </section>
       )}
 
-      <p className="news-border news-panel news-muted mt-12 rounded-lg border px-4 py-3 text-ui">
-        Prefer everything as it lands?{' '}
-        <Link to="/follow" className="news-link underline underline-offset-4">
-          Our feeds are here →
-        </Link>
-      </p>
+      <div className="news-border news-panel mt-12 rounded-lg border px-4 py-3">
+        <p className="news-muted text-ui">Prefer everything as it lands?</p>
+        <p className="mt-1 text-ui">
+          <Link to="/follow" className="news-link underline underline-offset-4">
+            Our feeds are here →
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
