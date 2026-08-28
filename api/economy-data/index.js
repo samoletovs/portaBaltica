@@ -1,6 +1,5 @@
 const https = require('https');
 const businessRegistry = require('../shared/businessRegistry.js');
-const http = require('http');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const country = require('../shared/country.js');
