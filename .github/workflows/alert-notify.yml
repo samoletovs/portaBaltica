@@ -1,0 +1,240 @@
+name: Alert notification
+
+# The one place an alert becomes a notification.
+#
+# WHY THIS IS A REUSABLE WORKFLOW RATHER THAN COPIED STEPS
+# --------------------------------------------------------
+# There are now two monitors — `source-alert.yml` for the twelve dashboard
+# sources and `wire-alert.yml` for the newsroom's feeds — and there will
+# probably be a third. Copying sixty lines of issue-and-Telegram plumbing into
+# each is the "second implementation that can disagree" failure this repository
+# keeps writing post-mortems about: both copies work on the day they are
+# written, and then one of them is fixed.
+#
+# So the delivery lives here once, and a caller supplies only the verdict.
+#
+# WHICH WAY DOES ABSENCE RESOLVE
+# ------------------------------
+# Every input is treated as possibly missing, because the callers hand this
+# workflow the *outputs of a job that may have died*. An alert with no message
+# still notifies, with a message saying the monitor did not report. Silence is
+# reachable only when a caller explicitly says `alert: 'false'`.
+#
+# `alert` is a string rather than a boolean on purpose: an empty or malformed
+# boolean input coerces to `false`, and `false` here means "tell nobody".
+
+on:
+  workflow_call:
+    inputs:
+      alert:
+        description: "'true' to notify, anything else to treat as clean."
+        required: true
+        type: string
+      headline:
+        description: "One line describing the state. Becomes the issue title."
+        required: false
+        type: string
+        default: ''
+      message:
+        description: "The full plain-text report."
+        required: false
+        type: string
+        default: ''
+      label:
+        description: "Label that identifies this monitor's issue, so it is reused not duplicated."
+        required: true
+        type: string
+      subject:
+        description: "What is being monitored, for the issue title."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Normalise the verdict
+        id: verdict
+        env:
+          ALERT: ${{ inputs.alert }}
+          HEADLINE: ${{ inputs.headline }}
+          MESSAGE: ${{ inputs.message }}
+          SUBJECT: ${{ inputs.subject }}
+        run: |
+          set -euo pipefail
+
+          # A caller that could not produce a headline or a body has still told
+          # us something is wrong. Substituting a stated fallback keeps the
+          # alert deliverable; leaving it empty would produce an issue with a
+          # blank title, which GitHub rejects, which would lose the alert
+          # entirely at the moment it matters most.
+          headline="${HEADLINE:-}"
+          if [ -z "$headline" ]; then
+            headline="the monitor did not report a headline"
+          fi
+
+          if [ -z "${MESSAGE:-}" ]; then
+            message="portaBaltica ${SUBJECT}: ALERT - the monitor produced no report.
+          Its check job did not finish, or finished without writing one, so the
+          sources were NOT checked. See the workflow run."
+          else
+            message="$MESSAGE"
+          fi
+
+          {
+            echo "headline<<__EOF__"
+            echo "$headline"
+            echo "__EOF__"
+            echo "message<<__EOF__"
+            echo "$message"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+          printf '%s\n' "$message"
+
+      - name: Summarise
+        env:
+          MESSAGE: ${{ steps.verdict.outputs.message }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### ${{ inputs.subject }}"
+            echo
+            echo '```'
+            printf '%s\n' "$MESSAGE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update the alert issue
+        if: inputs.alert == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEADLINE: ${{ steps.verdict.outputs.headline }}
+          MESSAGE: ${{ steps.verdict.outputs.message }}
+          LABEL: ${{ inputs.label }}
+          SUBJECT: ${{ inputs.subject }}
+        run: |
+          set -euo pipefail
+
+          # The label is what makes this idempotent. Opening a fresh issue every
+          # morning would turn one stuck feed into thirty issues nobody reads,
+          # which is how an alert channel becomes wallpaper.
+          gh label create "$LABEL" \
+            --description "Automated monitor: $SUBJECT" \
+            --color B60205 2>/dev/null || true
+
+          {
+            echo '```'
+            printf '%s\n' "$MESSAGE"
+            echo '```'
+            echo
+            echo "Detected by [\`${GITHUB_WORKFLOW}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+            echo
+            echo "This issue is reused rather than reopened daily, and closes itself"
+            echo "when a later run reads clean."
+          } > issue-body.md
+
+          existing=$(gh issue list --label "$LABEL" --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$existing" ]; then
+            # Retitle so the issue always describes the *current* fault, and
+            # comment so the history of a long outage stays readable.
+            gh issue edit "$existing" --title "${SUBJECT}: ${HEADLINE}" --body-file issue-body.md
+            gh issue comment "$existing" --body-file issue-body.md
+            echo "Updated issue #${existing}"
+            echo "- issue: #${existing} (updated)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            url=$(gh issue create --title "${SUBJECT}: ${HEADLINE}" --label "$LABEL" --body-file issue-body.md)
+            echo "Opened ${url}"
+            echo "- issue: ${url} (opened)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Send the Telegram message
+        if: inputs.alert == 'true'
+        env:
+          NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
+          NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
+          MESSAGE: ${{ steps.verdict.outputs.message }}
+        run: |
+          set -uo pipefail
+
+          # Fails loudly on a delivery failure, exactly as telegram-check.yml
+          # does and for the same reason: every other Telegram send in the fleet
+          # is written to fail soft, which is right for a deploy notification
+          # and wrong for an alarm. A missing secret is a dead channel, not a
+          # reason to skip.
+          if [ -z "${NAURO_BOT_TOKEN:-}" ] || [ -z "${NAURO_CHAT_ID:-}" ]; then
+            echo "::error::NAURO_BOT_TOKEN or NAURO_CHAT_ID is not set, so the alert could not be delivered. The issue was still opened."
+            exit 1
+          fi
+
+          {
+            printf '%s\n' "$MESSAGE"
+            echo
+            echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > telegram.txt
+
+          # Plain text, no parse_mode: nothing here is trusted markup, and an
+          # unescaped entity in a publisher's name must never fail a delivery.
+          resp=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
+            --data-urlencode "text@telegram.txt" \
+            --data-urlencode "disable_web_page_preview=true")
+
+          if [ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]; then
+            code=$(printf '%s' "$resp" | jq -r '.error_code // "?"')
+            desc=$(printf '%s' "$resp" | jq -r '.description // "no description"')
+            echo "::error::sendMessage failed (${code}): ${desc}"
+            exit 1
+          fi
+
+          echo "Delivered message $(printf '%s' "$resp" | jq -r '.result.message_id')"
+          echo "- telegram: delivered" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Close the alert issue on recovery
+        if: inputs.alert != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ steps.verdict.outputs.message }}
+          LABEL: ${{ inputs.label }}
+        run: |
+          set -euo pipefail
+
+          existing=$(gh issue list --label "$LABEL" --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -z "$existing" ]; then
+            echo "Clean read, nothing open. Saying nothing."
+            exit 0
+          fi
+
+          {
+            echo "Recovered."
+            echo
+            echo '```'
+            printf '%s\n' "$MESSAGE"
+            echo '```'
+            echo
+            echo "Closed by [\`${GITHUB_WORKFLOW}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
+          } > recovery.md
+
+          gh issue comment "$existing" --body-file recovery.md
+          gh issue close "$existing" --reason completed
+          echo "Closed issue #${existing}"
+          echo "- issue: #${existing} closed on recovery" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail the run on an alert
+        if: inputs.alert == 'true'
+        env:
+          HEADLINE: ${{ steps.verdict.outputs.headline }}
+        run: |
+          echo "::error::${HEADLINE}"
+          echo "See the issue and the summary above."
+          exit 1
