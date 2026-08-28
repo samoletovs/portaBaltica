@@ -1,0 +1,295 @@
+"""Every figure the writer is handed must say what it MEANS, not just what it is.
+
+WHY THIS EXISTS
+---------------
+Measured against all 25 published tier A originals: four of them use one bare
+English word for two or three different quantities. All four come from
+``structural_divergence``, and there are exactly four ``structural_divergence``
+articles — so the rate is 4 of 4, not 4 in 25. The live example::
+
+    body[0]  "The gap ... has widened to 25,605 thousand tonnes"   signal_field: gap
+    body[3]  "The recent gap of 27,471.1 thousand tonnes"          signal_field: recent_gap
+
+A reader is told the gap is 25,605 and, three paragraphs later, that the recent
+gap is 27,471.1. Both are true of their own field. Nothing in the prose says
+what distinguishes them, and ``gap`` is the *latest quarter alone* while
+``recent_gap`` is the *mean of the last eight*.
+
+Every validator check passed, and correctly: ``figures_traceable`` reported
+"8 figure(s) traced to the signal payload" and ``no_invented_numbers`` reported
+"8 numeric token(s) all traced to declared figures". Both are true. The contract
+protects figures, not subjects — a number can trace perfectly to a field whose
+name in English the prose then reuses for a different field.
+
+THE CAUSE, MEASURED RATHER THAN GUESSED
+---------------------------------------
+The writer's figure table gave a name, a number and a unit and nothing else, so
+three different quantities arrived with three identical descriptions and the
+writer had to invent English for each.
+
+``detect_divergence`` emits the same shape of near-synonym pair — ``spread``
+beside ``typical_spread`` — and *both* its published articles render it
+correctly, because its comparison basis describes ``typical_spread`` as "the
+median spread" and the writer copies that. The fields that go wrong are exactly
+the ones no prose anywhere describes. So this is a missing input rather than a
+discipline problem, and the remedy is an input, not a gate.
+
+THE INVARIANT
+-------------
+Every field a detector emits carries a meaning, and no two fields of one signal
+carry the same meaning. A check on the prose was considered and rejected: see
+``test_a_sub_name_rule_would_reject_correct_work`` below, which measures why.
+"""
+
+from __future__ import annotations
+
+import re
+
+from newsroom.pipeline import units
+from newsroom.pipeline.write.prompts import (
+    FIELD_MEANINGS,
+    _format_figures,
+    meaning_for_field,
+)
+from newsroom.tests.pipeline.conftest import make_signal
+from newsroom.tests.pipeline.test_basis_declarable import (
+    DETECTORS_UNDER_CONTRACT,
+    all_detector_signals,
+)
+
+
+def _described_fields(signal):
+    """The fields the writer is actually shown, in the order it sees them."""
+    return [n for n in signal.fields if n not in units.INTERNAL_ONLY_FIELDS]
+
+
+class TestEveryDetectorFieldIsDescribed:
+    """Run the real detectors and check their real output."""
+
+    def test_coverage_is_asserted_not_assumed(self):
+        # Anti-vacuity. Every assertion below iterates whatever these detectors
+        # happen to produce, so a fixture that stopped triggering its detector
+        # would silently shrink the population while still reporting green —
+        # and a guard that walks a smaller set than its subject is unguarded
+        # everywhere in the gap.
+        produced = all_detector_signals()
+        assert {name for name, _ in produced} == DETECTORS_UNDER_CONTRACT
+        for name, signal in produced:
+            assert _described_fields(signal), f"{name} emitted no visible fields"
+
+    def test_every_field_a_detector_emits_carries_a_meaning(self):
+        missing = []
+        for name, signal in all_detector_signals():
+            for field in _described_fields(signal):
+                if meaning_for_field(signal, field) is None:
+                    missing.append(f"{name}.{field}")
+
+        assert missing == [], (
+            "these fields reach the writer as a bare name and a unit, which is "
+            f"what produced the published gap/recent_gap collision: {missing}"
+        )
+
+    def test_no_two_fields_of_one_signal_share_a_meaning(self):
+        # Distinct quantities described identically are the same defect one
+        # step later: the writer still has nothing to tell them apart.
+        clashes = []
+        for name, signal in all_detector_signals():
+            seen: dict[str, str] = {}
+            for field in _described_fields(signal):
+                meaning = meaning_for_field(signal, field)
+                if meaning is None:
+                    continue
+                if meaning in seen:
+                    clashes.append(f"{name}: {seen[meaning]} and {field}")
+                seen[meaning] = field
+
+        assert clashes == []
+
+    def test_a_meaning_never_supplies_a_numeral(self):
+        # A meaning is prose the writer reads and may quote. Only fields are
+        # declarable, so a digit here is a digit the validator will reject the
+        # article for — and it would arrive looking like something we told it
+        # to say. Period labels are exempt: the prompt already licenses those
+        # verbatim, and they are how a window is named at all.
+        offenders = []
+        for name, signal in all_detector_signals():
+            for field in _described_fields(signal):
+                meaning = meaning_for_field(signal, field)
+                if meaning is None:
+                    continue
+                stripped = meaning.replace(signal.period, "")
+                if re.search(r"\d", stripped):
+                    offenders.append(f"{name}.{field}: {meaning}")
+
+        assert offenders == []
+
+
+class TestTheStructuralDivergenceCollision:
+    """The four published articles, at the point where they went wrong."""
+
+    @staticmethod
+    def _signal():
+        found = [s for n, s in all_detector_signals() if n == "structural_divergence"]
+        assert found, "the detector stopped firing, so this proves nothing"
+        return found[0]
+
+    def test_the_bare_generic_name_is_gone(self):
+        # "gap" is the head noun that early_gap and recent_gap also use, so the
+        # unmodified form stops picking out a quantity the moment the modified
+        # ones exist. The correct name was already in the detector, as the
+        # local variable the field was read from.
+        signal = self._signal()
+
+        assert "gap" not in signal.fields
+        assert "latest_gap" in signal.fields
+
+    def test_each_gap_states_which_periods_it_covers(self):
+        # The names cannot carry this and must not be relied on to: "latest"
+        # and "recent" are near-synonyms in ordinary English, which is why the
+        # rename alone would not have been enough.
+        signal = self._signal()
+        period_word = "quarters"
+
+        latest = meaning_for_field(signal, "latest_gap")
+        early = meaning_for_field(signal, "early_gap")
+        recent = meaning_for_field(signal, "recent_gap")
+
+        assert signal.period in latest and "ALONE" in latest
+        assert "AVERAGE" in early and period_word in early
+        assert "AVERAGE" in recent and period_word in recent
+        assert len({latest, early, recent}) == 3
+
+    def test_a_country_level_is_not_describable_as_a_gap(self):
+        # Two published articles rendered a country's own reading as that
+        # country's "gap" — "Lithuania's transport services balance gap stands
+        # at 1,273.1" is value_lt, a level.
+        signal = self._signal()
+
+        for field in ("value_lv", "value_ee", "value_lt", "highest_value"):
+            meaning = meaning_for_field(signal, field)
+            assert meaning is not None
+            assert "NOT a gap" in meaning
+
+    def test_a_count_of_quarters_is_not_a_quantity_of_cargo(self):
+        # The figure table offered "window_periods = 8 (thousand tonnes)" and
+        # "widening_ratio = 6.47 (thousand tonnes)". units.py exists to stop
+        # exactly that and says so in its own docstring; its suffix rule closes
+        # the class for _count and _length, and this detector emits neither.
+        signal = self._signal()
+
+        assert units.label_for_field(
+            "window_periods", signal.unit, overrides=signal.field_units
+        ) == "quarters"
+        assert units.label_for_field(
+            "widening_ratio", signal.unit, overrides=signal.field_units
+        ) == "times"
+        assert signal.unit not in _format_figures(signal).split("window_periods")[1].split("\n")[0]
+
+
+class TestTheGuardCanFail:
+    """An assertion that something is absent needs a companion proving it
+    could have been present. Otherwise it passes on a subject that never had
+    the thing at all."""
+
+    def test_an_undescribed_field_is_reported_as_undescribed(self):
+        signal = make_signal(
+            detector="record_extreme",
+            fields={"latest_value": 6.8, "invented_field": 1.0},
+        )
+
+        assert meaning_for_field(signal, "latest_value") is not None
+        assert meaning_for_field(signal, "invented_field") is None
+
+    def test_a_meaning_does_not_leak_across_detectors(self):
+        # Keyed by detector as well as field. Two detectors may use one name
+        # for different quantities, and a name-only registry would quietly
+        # describe one of them with the other's meaning.
+        record = make_signal(detector="record_extreme", fields={"margin": 0.3})
+        streak = make_signal(detector="streak", fields={"margin": 0.3})
+
+        assert meaning_for_field(record, "margin") is not None
+        assert meaning_for_field(streak, "margin") is None
+
+    def test_the_meaning_reaches_the_writer_verbatim(self):
+        # The registry is only worth anything if _format_figures prints it.
+        # Asserting the registry alone would pass with the call site deleted.
+        signal = make_signal(detector="record_extreme", fields={"latest_value": 6.8})
+
+        rendered = _format_figures(signal)
+
+        assert meaning_for_field(signal, "latest_value") in rendered
+
+    def test_a_sub_name_rule_would_reject_correct_work(self):
+        """Why there is no prose check here, measured rather than asserted.
+
+        The tempting structural rule is: no field name may be a word-boundary
+        sub-name of another field in the same unit. It catches the real defect
+        — ``gap`` inside ``early_gap`` and ``recent_gap``. It also fires on
+        ``divergence`` twice and on ``record_extreme`` once, and the published
+        articles from both of those are correct. A check that rejects true work
+        is a worse defect than the one it was built to catch, so the fix is the
+        meaning, not a gate.
+
+        Two of those three flags are also an artefact of the series' own unit
+        rather than of the field names: ``spread_pct`` and ``margin_pct`` are
+        "%" whatever the series is, so they collide with ``spread`` and
+        ``margin`` only when the series is itself measured in "%" — as an
+        unemployment rate is and a cargo tonnage is not. A rule that fires on
+        one series and not another for the same field names is not describing a
+        property of the code.
+
+        The exact figures below are the measurement, and the first draft of
+        this test asserted one pair for ``divergence`` where there are two.
+        Running it is what corrected that, which is the whole argument for
+        executing an example rather than writing one down.
+        """
+
+        def sub_names(signal):
+            out = []
+            for a in signal.fields:
+                for b in signal.fields:
+                    ta, tb = a.split("_"), b.split("_")
+                    if a == b or ta == tb or len(ta) >= len(tb):
+                        continue
+                    if not any(tb[i:i + len(ta)] == ta for i in range(len(tb) - len(ta) + 1)):
+                        continue
+                    ua = units.unit_for_field(a, signal.unit, overrides=signal.field_units)
+                    ub = units.unit_for_field(b, signal.unit, overrides=signal.field_units)
+                    if ua == ub:
+                        out.append((a, b))
+            return out
+
+        by_detector = {n: sub_names(s) for n, s in all_detector_signals()}
+
+        # Detectors the rule would flag whose published articles are correct.
+        assert by_detector["divergence"] == [
+            ("spread", "spread_pct"),
+            ("spread", "typical_spread"),
+        ]
+        assert by_detector["record_extreme"] == [("margin", "margin_pct")]
+        # And the one it was aimed at, now clean, because the bare name is gone.
+        assert by_detector["structural_divergence"] == []
+
+
+class TestTheRegistryIsNotAWordList:
+    def test_meanings_are_keyed_by_detector(self):
+        # A registry keyed on field name alone is a word list wearing a
+        # dictionary's clothes: it encodes the examples its author thought of
+        # and silently mis-describes the next detector to reuse a name.
+        assert set(FIELD_MEANINGS) <= DETECTORS_UNDER_CONTRACT
+        assert "structural_divergence" in FIELD_MEANINGS
+
+    def test_per_geography_fields_are_matched_by_shape(self):
+        # value_lv, value_ee, value_lt are emitted per geography and cannot be
+        # enumerated. A signal for a country the registry never heard of must
+        # still describe its level.
+        signal = make_signal(
+            detector="divergence",
+            fields={"value_pl": 1.0},
+            context={"frequency": "quarterly"},
+        )
+
+        meaning = meaning_for_field(signal, "value_pl")
+
+        assert meaning is not None
+        assert "PL" in meaning

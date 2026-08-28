@@ -628,8 +628,21 @@ def detect_structural_divergence(
     sample = next(iter(usable.values()))
     score = _clamp(0.50 + 0.25 * _scale(gap_pct, 150) + 0.25 * _scale(sustained, 24))
 
+    period_word = reading_word(sample.frequency, window)
+
     fields = {
-        "gap": latest_gap,
+        # ``latest_gap``, not ``gap``. The bare name is the generic head noun
+        # that ``early_gap`` and ``recent_gap`` also use, and a writer given
+        # three fields where one is the unmodified form of the other two renders
+        # it as "the gap" and the others as "the recent gap" and "the early
+        # gap" -- at which point "the gap" no longer picks out a quantity. That
+        # shipped: one article stated a gap of 25,605 in its opening paragraph
+        # and a "recent gap" of 27,471.1 three paragraphs later, both true of
+        # their own field, with nothing in the prose to tell them apart.
+        #
+        # The correct name was already here, ten lines up, as the local
+        # variable this reads from.
+        "latest_gap": latest_gap,
         "gap_pct": gap_pct,
         "early_gap": early_gap,
         "recent_gap": recent_gap,
@@ -645,6 +658,18 @@ def detect_structural_divergence(
         fields["widening_ratio"] = widening
     fields.update({f"value_{geo.lower()}": value for geo, value in latest_values.items()})
 
+    # Three of these are not measurements in the series' unit, and without this
+    # the writer's figure table offered "window_periods = 8 (thousand tonnes)"
+    # and "widening_ratio = 6.47 (thousand tonnes)". ``units.py`` exists to stop
+    # exactly that, and says so in its own docstring; its suffix rule closes the
+    # class for ``_count`` and ``_length`` but this detector emits neither, so
+    # the correction is stated here, where the meaning is known.
+    field_units = {
+        "window_periods": period_word,
+        "sustained_periods": period_word,
+        "widening_ratio": "times",
+    }
+
     return Signal(
         detector="structural_divergence",
         metric=sample.metric,
@@ -655,12 +680,13 @@ def detect_structural_divergence(
         unit=sample.unit,
         comparison_basis=(
             f"the same countries' average difference of {early_gap:g} {sample.unit} "
-            f"across the first {window} {reading_word(sample.frequency, window)} "
+            f"across the first {window} {period_word} "
             f"of the series"
         ),
         score=score,
         section=sample.section,
         fields=fields,
+        field_units=field_units,
         sources=[s.source for s in usable.values()],
         context={
             "highest_geography": high_geo,
