@@ -1606,31 +1606,58 @@ autolink                      NOT FOUND    "Read https example com spec before t
 The brackets and `<!--` are punctuation and vanish — leaving the URL, the alt text
 or the comment body sitting *inside* the reader's sentence.
 
-Measured, it does not bite here at all: 0.4–0.5% of prose sentences miss across
-the three books, and **all of those are sentence splitting rather than the
-normaliser.** The books hold three inline links, and tested at four span positions
-each — the link alone, with the words after, with the words before, and spanning
-both — **all twelve readings are found.**
+**It bites once in this file today.** An earlier version of this paragraph said it
+did not bite at all, on a span test that looked for the words *preceding* a link
+only on the link's own line — where, all three being line-initial, there were
+none. The haystack joins lines, so the preceding words are on the line before, and
+the test was looking where they could not be.
 
-An earlier version of this paragraph claimed the opposite, on a sentence the file
-does not contain. The failure needs a construct that **interrupts** a sentence,
-and these three do not, for two independent reasons that happen to hold together:
+Decomposed as `A T B` — words before, the link's text, words after — against a
+haystack that holds `A T T B`, because a self-referential link normalises to its
+text twice:
 
-- **Self-referential after normalisation.** `[`X`](../X)` looks like text ≠ dest,
-  but `../` and the backticks are punctuation and vanish, so both sides reduce to
-  the same words and the duplicate is a no-op.
-- **Line-initial**, so there are no preceding words for a span to start from.
+```
+L166  nothing follows the link            A T   FOUND     no A T B case   SAFE
+L339  nothing follows the link            A T   FOUND     no A T B case   SAFE
+L392  " is the design book and ..."       A T B NOT FOUND                 BITES
+```
+
+**A quote breaks iff it starts before the link and extends past it.** So the two
+safe links are safe for one reason only — **nothing follows them on their line** —
+and a comma's worth of continuation would put them in the third row. That is a
+much thinner margin than "immune", and it is the third different answer this
+question has produced under measurement.
+
+Note what does *not* save the third one: it is preceded by a heading and a blank
+line. **A heading and a blank line do not stop a sentence being interrupted**,
+because the joined haystack runs straight through them and so does any sentence
+splitter built the same way.
+
+Self-reference is what creates the duplicate: `[`X`](../X)` looks like text ≠
+dest, but `../` and the backticks are punctuation and vanish, so both sides reduce
+to the same words and the haystack carries them twice. **Line-initial position
+does not help**, which is the trap — it only makes the preceding words live on the
+previous line, where a careless probe will not look for them.
 
 So the general rule is narrower and more useful than "links break it": **only a
 construct that interrupts a sentence conceals anything.** A block-level HTML
 comment costs nothing; an inline one does. A link on its own line costs nothing; a
 link mid-sentence with a different destination does.
 
-**And nothing checks that these three stay where they are.** The immunity is two
-accidents stacked, either of which lapses under ordinary editing — move a link
-into the middle of a sentence, or point one at a URL that does not match its text,
-and it bites. Stated so the next reader knows the vulnerability is real, the count
-is currently zero, and the reason is positional rather than structural.
+**And nothing checks any of this.** Two links are safe only because nothing
+follows them, one already bites, and adding text after either safe link — or
+pointing a link at a URL that does not match its text — moves it into the third
+row. So: the vulnerability is real, **the count today is one**, and the margin on
+the other two is a single clause of continuation.
+
+**What it cost to establish that is the part worth keeping.** The claim that none
+of them bit came from a measurement with controls, a denominator and a span
+table — and it displaced a correct unmeasured instinct that they did. The
+population was wrong in one respect nothing in the output could show: the span
+test looked for preceding words on the link's own line, and the haystack joins
+lines. **A plausible reading defends itself, and one decorated with the apparatus
+this file recommends defends itself best of all.** Four measurements of the same
+object; the answer changed three times. Do not treat this one as final either.
 
 So: **total against constructs that are punctuation, blind to constructs that
 conceal alphanumerics.** Where those are common — ordinary `[text](url)` prose —
