@@ -417,7 +417,7 @@ geography: {geography}
 period: {period}
 unit: {unit}
 what triggered this story: {detector}
-
+{quantity_note}
 COMPARISON BASIS — state this in the article:
 {comparison_basis}
 
@@ -944,6 +944,12 @@ def build_user_prompt(
         unit=signal.unit,
         detector=signal.detector,
         comparison_basis=signal.comparison_basis,
+        # The third consumer. The meanings reached this stage first and the
+        # standing note did not, which is the same enumeration failure this
+        # whole change is about — committed inside the fix for it. Measured
+        # before it was added: 4 of 4 drafts on a spread signal closed with
+        # "a reading above 23.48", where 23.48 is ``recent_gap``.
+        quantity_note=field_meanings.quantity_note(signal, mention_thresholds=True),
         figures=_format_figures(signal),
         period_labels=period_labels,
         context_section=_context_section(pack, signal),

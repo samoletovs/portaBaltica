@@ -170,6 +170,50 @@ class TestTheQuantityNote:
         assert "threshold you propose" in desk
         assert "threshold you propose" not in shared
 
+    def test_the_note_reaches_every_stage_that_writes_prose(self):
+        """The enumeration, asserted rather than remembered.
+
+        This is the third consumer, and it was missed the same way as the
+        first two: the meanings reached the writer and the note did not, in
+        the very change whose lesson is *when you fix a shared input,
+        enumerate its consumers*. Measured before it was added, 4 of 4 drafts
+        on a spread signal closed with "a reading above 23.48" — ``recent_gap``
+        used as a level.
+
+        Stated as an equality over the stages, so a fourth prompt builder
+        cannot quietly be added without one.
+        """
+        signal = spread_signal()
+        note = field_meanings.quantity_note(signal)
+        assert note, "the fixture is not a spread finding"
+
+        writer = StubWriter({"hypotheses": []})
+        consult_panel(signal, writer, size=1)
+        panel_prompt = writer.calls[0]["user"]
+
+        desk_prompt = analyst._quantity_note(signal)
+        correspondent_prompt = prompts.build_user_prompt(signal)
+
+        for stage, text in (
+            ("the analysis desk", desk_prompt),
+            ("the causal panel", panel_prompt),
+            ("the correspondent", correspondent_prompt),
+        ):
+            assert "DISTANCE, NOT A READING" in text, stage
+            assert "The endpoints are LT and EE" in text, stage
+
+    def test_a_level_finding_reaches_none_of_them(self):
+        # The control. Without it the assertion above would pass on a note
+        # that was sent unconditionally, which is a different defect.
+        signal = make_signal(detector="record_extreme")
+
+        writer = StubWriter({"hypotheses": []})
+        consult_panel(signal, writer, size=1)
+
+        assert "DISTANCE, NOT A READING" not in writer.calls[0]["user"]
+        assert analyst._quantity_note(signal) == ""
+        assert "DISTANCE, NOT A READING" not in prompts.build_user_prompt(signal)
+
     def test_the_panel_is_asked_why_they_moved_apart(self):
         # "What drove this?" invites a cause for the indicator. The finding is
         # a distance, so the question that needs answering is why two series
