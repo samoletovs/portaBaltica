@@ -151,7 +151,7 @@ sources:
     publisher: "European Commission"
     tier: B
     endpoint: "https://ec.europa.eu/commission/presscorner/api/rss?language=en"
-    verified: "2026-08-24 — HTTP 200, 10 items"
+    verified: "2026-08-28 — HTTP 200, 10 items parsed by scripts/wire_check.py"
     auth: none
     licence: "EU Decision 2011/833/EU — reproduction permitted, source acknowledged, content not distorted"
     attribution: "Source: European Commission"
@@ -209,7 +209,7 @@ sources:
     publisher: "European Central Bank"
     tier: B
     endpoint: "https://www.ecb.europa.eu/rss/press.html"
-    verified: "2026-08-26 — HTTP 200, application/rss+xml, 15 items, English confirmed by reading titles"
+    verified: "2026-08-28 — HTTP 200, 15 items parsed by scripts/wire_check.py; English confirmed 2026-08-26 by reading titles"
     auth: none
     licence: "ECB copyright: reproduction for educational and non-commercial purposes permitted with acknowledgement"
     attribution: "Source: European Central Bank"
@@ -230,7 +230,7 @@ sources:
     country: LV
     tier: B
     endpoint: "https://www.bank.lv/en/news-and-events/news-and-articles/news?format=feed&type=rss"
-    verified: "2026-08-24 — HTTP 200, RSS 2.0, English confirmed by reading titles"
+    verified: "2026-08-28 — HTTP 200, RSS 2.0, 10 items parsed by scripts/wire_check.py; English confirmed 2026-08-24 by reading titles"
     language: en
     auth: none
     licence: "Official primary-source material; research context with attribution only"
@@ -255,7 +255,7 @@ sources:
     country: LV
     tier: C
     endpoint: "https://eng.lsm.lv/rss"
-    verified: "2026-08-24 — HTTP 200, language=en, 50 items"
+    verified: "2026-08-28 — HTTP 200, 50 items parsed by scripts/wire_check.py; language=en confirmed 2026-08-24"
     auth: none
     licence: "Copyright LSM. No open reuse licence. RSS snippet + link only."
     attribution: "LSM.lv English"
@@ -277,7 +277,7 @@ sources:
     country: EE
     tier: C
     endpoint: "https://news.err.ee/rss"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 200, 50 items parsed by scripts/wire_check.py"
     auth: none
     licence: "Copyright ERR, declared in feed. RSS snippet + link only."
     attribution: "ERR News"
@@ -324,7 +324,7 @@ sources:
     country: "Regional"
     tier: C
     endpoint: "https://emerging-europe.com/feed/"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 200, 10 items parsed by scripts/wire_check.py"
     auth: none
     licence: "Copyright. RSS snippet + link only."
     attribution: "Emerging Europe"
@@ -345,7 +345,7 @@ sources:
     country: LT
     tier: C
     endpoint: "https://feed.delfi.lt/v2/channel/global?format=rss"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 200, 50 items parsed by scripts/wire_check.py. The feed is alive; it stays disabled because the open question is whether the channel serves English, which the probe does not check"
     auth: none
     licence: "Copyright, commercial publisher. RSS snippet + link only."
     attribution: "Delfi"
@@ -364,7 +364,7 @@ sources:
     country: "EU"
     tier: C
     endpoint: "https://euobserver.com/feed/"
-    verified: "2026-08-24 — HTTP 200"
+    verified: "2026-08-28 — HTTP 200, 20 items parsed by scripts/wire_check.py"
     auth: none
     licence: "Copyright. RSS snippet + link only."
     attribution: "EUobserver"
