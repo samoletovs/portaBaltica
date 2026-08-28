@@ -1,5 +1,6 @@
 import { NavLink, Link, Outlet } from 'react-router-dom';
 import { ACCOUNTABLE_PUBLISHER } from '../../newsroom/editorial';
+import { useOverflowFade } from '../../utils/useOverflowFade';
 
 /**
  * The shell around every news route.
@@ -27,12 +28,14 @@ const NAV = [
 
 function navClass({ isActive }: { isActive: boolean }) {
   return [
-    'whitespace-nowrap border-b-2 px-1 pb-2 text-ui transition-colors',
+    'shrink-0 whitespace-nowrap border-b-2 px-1 pb-2 text-ui transition-colors',
     isActive ? 'news-nav-active font-semibold' : 'news-nav-idle border-transparent',
   ].join(' ');
 }
 
 export function NewsroomLayout() {
+  const [navRef, navFade] = useOverflowFade<HTMLElement>();
+
   return (
     <div>
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
@@ -45,7 +48,19 @@ export function NewsroomLayout() {
             </Link>
           </p>
 
-          <nav aria-label="Sections" className="mt-3 flex gap-6 overflow-x-auto">
+          {/* The masthead nav scrolls sideways on a phone, so it needs the same
+              mask the site header and the dashboard rail already carry.
+              Measured at 320px it hid 83px with a hard cut, and the item it cut
+              was the *active* one: "How we use AI" rendered as "Hc" beneath its
+              own accent underline, which reads as a broken tab rather than as a
+              row that continues. `useOverflowFade` was written for exactly this
+              — its docstring names two other strips — and this one was never
+              given it. */}
+          <nav
+            ref={navRef}
+            aria-label="Sections"
+            className={`mt-3 flex gap-6 overflow-x-auto ${navFade}`}
+          >
             {NAV.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={navClass}>
                 {item.label}

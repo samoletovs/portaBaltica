@@ -73,7 +73,16 @@ export function Header() {
             least load-bearing thing in the row. */}
         <div className="flex items-center justify-between gap-3 h-14">
           <div className="flex items-center gap-3 shrink-0">
-            <Link to="/" className="text-callout font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            {/* `min-h-11` because the 44px rule in index.css reaches `nav a`,
+                and the wordmark is not in a nav — so the site's home link was
+                the one masthead control the rule never touched, measured at
+                83×26 at every width. The row is already `h-14`, so the target
+                grows and nothing moves. */}
+            <Link
+              to="/"
+              className="flex min-h-11 items-center text-callout font-semibold tracking-tight"
+              style={{ color: 'var(--text-primary)' }}
+            >
               porta<span style={{ color: 'var(--news-accent)' }}>Baltica</span>
             </Link>
             <span className="hidden sm:inline text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>

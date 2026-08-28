@@ -22,7 +22,13 @@ export function ArticleCard({ summary, variant = 'standard' }: CardProps) {
       data-tier={summary.tier}
       className={
         isLead
-          ? 'news-border news-panel rounded-xl border p-6 transition-colors'
+          ? // `p-4` below `sm`: 24px of inner padding each side is 15% of a
+            // 320px viewport, and the lead card is the one element whose
+            // content is set at 34px, so it pays for that padding in wrapped
+            // lines rather than in whitespace. Measured at 320px the headline
+            // box is 238px wide and the headline runs to 7 lines at 1.57 words
+            // per line.
+            'news-border news-panel rounded-xl border p-4 transition-colors sm:p-6'
           : 'news-border border-b pb-6'
       }
     >

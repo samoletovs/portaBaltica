@@ -132,8 +132,33 @@ const ROUTES = [...navigableRoutes(), ...CONCRETE_PARAM_ROUTES];
  */
 const WIDTHS = [1440, 1024, 960, 820, 768, 600, 512, 375, 320];
 
+/**
+ * Strips that scroll sideways today without saying so, named rather than
+ * filtered out.
+ *
+ * Both were measured at 320px during the second mobile pass, and both live in
+ * files that pass owned. They are listed here so the next person sees them and
+ * so that fixing one turns this red — an exemption that quietly matches
+ * nothing is the same defect as no exemption at all.
+ *
+ *   div.flex.gap-3.overflow-x-auto        InsightsBanner  1061px hidden at 320px
+ *   div.news-border.my-6.overflow-x-auto  markdown.tsx     44px hidden at 320px (/corrections)
+ *
+ * The insights one is the interesting half: that file *does* call
+ * `useOverflowFade` and *does* spread its class. The hook attaches in an
+ * effect, the component renders a separate "Loading insights" element on the
+ * first commit, so the effect runs against a null ref and nothing re-attaches
+ * it when the real strip arrives. A source-reading check calls that correct.
+ * `NewsFeed` had the identical fault and was fixed by giving the strip its own
+ * component, so it mounts with its own hook.
+ */
+const KNOWN_UNFADED = [
+  'div.flex.gap-3.overflow-x-auto',
+  'div.news-border.my-6.overflow-x-auto',
+];
+
 describe('the deployed site under prefers-reduced-motion', () => {
-  it('does not scroll horizontally on any route', async () => {
+  it('does not scroll horizontally, and every strip that does says so', async () => {
     // Skips locally without a browser; throws in CI, where a skip would be
     // the runner reporting a pass for a check it never ran. See
     // `tests/liveBrowser.ts` — this file spent weeks doing exactly that.
@@ -141,6 +166,8 @@ describe('the deployed site under prefers-reduced-motion', () => {
     if (!browser) return;
 
     const offenders: string[] = [];
+    const unfaded = new Set<string>();
+    let probedScrollables = 0;
     try {
       // One page load per route, then resize through the widths — rather than
       // a fresh load per width/route pair, which is what this did.
@@ -186,10 +213,41 @@ describe('the deployed site under prefers-reduced-motion', () => {
             );
             const maxScrollLeft = Math.round(window.scrollX);
             window.scrollTo(0, 0);
+
+            // Every strip that is scrolling sideways right now, and whether it
+            // says so. Measured here rather than read from the source because
+            // the interesting failure is a fade that is wired and dead: the
+            // insights row calls `useOverflowFade` and renders a *different*
+            // element while loading, so the hook's effect runs against a null
+            // ref and never re-attaches. Statically that file looks correct.
+            const unfaded: string[] = [];
+            for (const element of document.querySelectorAll<HTMLElement>('body *')) {
+              const style = getComputedStyle(element);
+              if (!/auto|scroll/.test(style.overflowX)) continue;
+              if (element.scrollWidth <= element.clientWidth + 1) continue;
+              const masked =
+                (style.maskImage && style.maskImage !== 'none') ||
+                (style.webkitMaskImage && style.webkitMaskImage !== 'none');
+              if (masked) continue;
+              const label = element.getAttribute('aria-label');
+              unfaded.push(
+                element.tagName.toLowerCase() +
+                  (label ? `[${label}]` : '') +
+                  '.' +
+                  element.className.trim().split(/\s+/).slice(0, 3).join('.'),
+              );
+            }
+
             return {
               maxScrollLeft,
               scrollWidth: doc.scrollWidth,
               clientWidth: doc.clientWidth,
+              unfaded,
+              // A control: if nothing on the page scrolls sideways at all, an
+              // empty `unfaded` is a claim about the probe, not the page.
+              scrollableCount: [...document.querySelectorAll<HTMLElement>('body *')].filter((e) =>
+                /auto|scroll/.test(getComputedStyle(e).overflowX),
+              ).length,
               reduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
             };
           });
@@ -197,6 +255,8 @@ describe('the deployed site under prefers-reduced-motion', () => {
           // If the emulation did not take, the run proves nothing — say so
           // rather than reporting a pass.
           expect(measured.reduced, `${route} did not receive the reduced-motion preference`).toBe(true);
+          probedScrollables += measured.scrollableCount;
+          for (const strip of measured.unfaded) unfaded.add(strip);
 
           if (measured.maxScrollLeft > 0) {
             offenders.push(
@@ -212,5 +272,19 @@ describe('the deployed site under prefers-reduced-motion', () => {
     }
 
     expect(offenders, 'these routes scroll sideways into blank space').toEqual([]);
+
+    // The probe has to be able to see a strip before "no unfaded strip" means
+    // anything. Every route carries the masthead controls and the section
+    // tabs, so zero here is a broken instrument.
+    expect(probedScrollables, 'no scrollable strip was found on any route — the probe is broken')
+      .toBeGreaterThan(0);
+
+    // An equality, not a subtraction. `expect(found.filter(notKnown)).toEqual([])`
+    // also passes today and goes on passing forever once the offender is
+    // fixed, matching nothing and reporting success — so the exemption has to
+    // fail when it stops being true. Fix either of these and this line goes
+    // red, which is the only thing that gets the list pruned.
+    expect([...unfaded].sort(), 'a strip that scrolls sideways must look like one')
+      .toEqual([...KNOWN_UNFADED].sort());
   }, 600_000);
 });

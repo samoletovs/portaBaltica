@@ -123,7 +123,7 @@ export default function CorrespondentPage() {
       </section>
 
       <section aria-labelledby="beat-heading" className="mt-8">
-        <h2 id="beat-heading" className="news-fg text-callout font-semibold">
+        <h2 id="beat-heading" className="news-fg text-title font-semibold">
           The beat
         </h2>
         <p className="pretty-text news-muted mt-3 text-prose">{correspondent.summary}</p>
@@ -164,7 +164,7 @@ export default function CorrespondentPage() {
       <section aria-labelledby="datasets-heading" className="mt-8">
         <h2
           id="datasets-heading"
-          className="news-fg text-callout font-semibold"
+          className="news-fg text-title font-semibold"
         >
           Works only from these datasets
         </h2>
@@ -185,7 +185,7 @@ export default function CorrespondentPage() {
         <section aria-labelledby="recent-heading" className="mt-12">
           <h2
             id="recent-heading"
-            className="news-border news-fg border-b pb-2 text-callout font-semibold"
+            className="news-border news-fg border-b pb-2 text-title font-semibold"
           >
             Recent articles
           </h2>

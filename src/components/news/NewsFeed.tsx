@@ -6,8 +6,67 @@ import { usePageMeta } from '../../newsroom/usePageMeta';
 import { ArticleCard, FeedItem } from './NewsCard';
 import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
+import { useOverflowFade } from '../../utils/useOverflowFade';
 
 type Filter = 'all' | string;
+
+/**
+ * The section filter, as its own component.
+ *
+ * Not a nicety: `useOverflowFade` attaches in an effect, and an effect runs
+ * once when its *owner* mounts. `NewsFeed` mounts showing a skeleton, because
+ * the index has not arrived, so the strip does not exist yet and the hook
+ * bails on a null ref — measured, the fade never appeared (`mask: NONE` at
+ * 320px with 601px hidden) while the two strips in `Header` worked, because
+ * those elements are present at mount. A ref object cannot re-trigger the
+ * effect when it is later filled, so the element has to arrive *with* its own
+ * hook. Mounting this only once there are sections does exactly that.
+ */
+function SectionFilter({
+  sections,
+  filter,
+  onChange,
+}: {
+  sections: string[];
+  filter: Filter;
+  onChange: (next: Filter) => void;
+}) {
+  const [ref, fade] = useOverflowFade<HTMLDivElement>();
+
+  return (
+    // One row that scrolls sideways on a phone, wrapping only once there is
+    // room to wrap into.
+    //
+    // Wrapping at every width made the filter cost **200px across four rows**
+    // at 320px — 26% of a 780px viewport, spent on a control, above any
+    // journalism. That is the same arithmetic §4.4 already applies to the
+    // guided tour: what costs a tenth of a laptop costs a quarter of a phone.
+    // A sideways strip is the answer the site header and the dashboard rail
+    // both already give, so this is the existing idiom rather than a new one.
+    <div
+      ref={ref}
+      className={`mb-6 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible ${fade}`}
+      role="group"
+      aria-label="Filter by section"
+    >
+      {(['all', ...sections] as Filter[]).map((section) => (
+        <button
+          key={section}
+          type="button"
+          onClick={() => onChange(section)}
+          aria-pressed={filter === section}
+          className={[
+            'shrink-0 rounded-full border px-4 py-2 text-caption transition-colors',
+            '',
+            filter === section ? 'news-tab-active' : 'news-tab-inactive news-hover',
+          ].join(' ')}
+        >
+          {section === 'all' ? 'Everything' : SECTION_LABELS[section as never] ?? section}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function byNewestFirst(a: ArticleSummary, b: ArticleSummary): number {
   return (b.published_at ?? '').localeCompare(a.published_at ?? '');
@@ -90,25 +149,7 @@ export default function NewsFeed() {
   return (
     <div>
       {sections.length > 1 && (
-        <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Filter by section">
-          {(['all', ...sections] as Filter[]).map((section) => (
-            <button
-              key={section}
-              type="button"
-              onClick={() => setFilter(section)}
-              aria-pressed={filter === section}
-              className={[
-                'rounded-full border px-4 py-2 text-caption transition-colors',
-                '',
-                filter === section
-                  ? 'news-tab-active'
-                  : 'news-tab-inactive news-hover',
-              ].join(' ')}
-            >
-              {section === 'all' ? 'Everything' : SECTION_LABELS[section as never] ?? section}
-            </button>
-          ))}
-        </div>
+        <SectionFilter sections={sections} filter={filter} onChange={setFilter} />
       )}
 
       <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
