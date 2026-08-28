@@ -27,6 +27,7 @@ export function Header() {
   const { country, setCountry, timezone, tzAbbr } = useCountry();
   const { years, setYears, strokeStyle, setStrokeStyle } = useFilter();
   const [navRef, navFade] = useOverflowFade<HTMLElement>();
+  const [controlsRef, controlsFade] = useOverflowFade<HTMLDivElement>();
   const section = location.pathname.startsWith('/data/')
     ? location.pathname.slice('/data/'.length).split('/')[0]
     : null;
@@ -48,20 +49,48 @@ export function Header() {
   return (
     <header>
       <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        {/* Top bar. It wraps rather than clipping: at 375 the country, range
-            and theme controls together are wider than the viewport, and a
-            fixed-height row simply cut the last one off at the edge. The clock
-            steps aside first, because the time is the least load-bearing thing
-            in the row. */}
-        <div className="flex flex-wrap items-center justify-between gap-y-2 py-2 sm:h-14 sm:py-0">
-          <div className="flex items-center gap-3">
+        {/* Top bar. One row, at every width.
+
+            It used to wrap, on the reasoning that at 375 the country, range
+            and theme controls together are wider than the viewport and a
+            fixed-height row cut the last one off. Wrapping does avoid the
+            clip, and it pays for it in height: measured at 375 the bar was
+            **148px** across three stacked rows — wordmark, then the two
+            segmented groups, then the two toggles — before a reader reaches
+            the section tabs or a single figure. Every control is also held at
+            44×44 by the touch-target rule, so nine of them cannot fit a phone
+            however they are arranged; wrapping only decides whether the
+            surplus costs vertical space or scrolls.
+
+            So the controls are one strip that scrolls sideways, the same
+            answer the section tabs below already give, with the same
+            `useOverflowFade` mask so the cut edge reads as more content
+            rather than as a clip. `min-w-0` is what lets the strip give way:
+            without it the flex item refuses to shrink below its content and
+            pushes the wordmark off instead.
+
+            The clock steps aside first below `sm`, because the time is the
+            least load-bearing thing in the row. */}
+        <div className="flex items-center justify-between gap-3 h-14">
+          <div className="flex items-center gap-3 shrink-0">
             <Link to="/" className="text-callout font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               porta<span style={{ color: 'var(--news-accent)' }}>Baltica</span>
             </Link>
             <span className="hidden sm:inline text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>Baltic news & data intelligence</span>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-            <span className="hidden sm:inline text-caption font-mono" style={{ color: 'var(--text-secondary)' }}>
+          <div
+            ref={controlsRef}
+            // No `justify-end` here, and that is load-bearing rather than
+            // tidying: in a scroll container, content that overflows a
+            // flex-end row spills off the *start* edge, where scrolling cannot
+            // reach it. Measured at 375 with `justify-end`, the strip reported
+            // `scrollWidth === clientWidth` — 225px for 440px of controls —
+            // and the country selector was clipped and unreachable. The parent
+            // row's `justify-between` already holds the strip against the
+            // right edge when everything fits.
+            className={`flex items-center gap-2 sm:gap-3 min-w-0 overflow-x-auto ${controlsFade}`}
+          >
+            <span className="hidden sm:inline shrink-0 text-caption font-mono" style={{ color: 'var(--text-secondary)' }}>
               {clock.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
               <span style={{ color: 'var(--text-tertiary)' }} className="ml-1">{tzAbbr}</span>
             </span>
@@ -72,7 +101,7 @@ export function Header() {
                 on the page. It is a raised surface with an accent underline
                 now, which is a state a reader can both see and, because the
                 accent is not the only cue, distinguish without colour. */}
-            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Country">
+            <div className="flex items-center shrink-0 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Country">
               {(Object.keys(COUNTRY_INFO) as Country[]).map((c) => (
                 <button
                   key={c}
@@ -91,7 +120,7 @@ export function Header() {
               ))}
             </div>
             {/* Date range selector */}
-            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Date range filter">
+            <div className="flex items-center shrink-0 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Date range filter">
               {YEAR_OPTIONS.map((y: YearRange) => (
                 <button
                   key={y}
@@ -111,7 +140,7 @@ export function Header() {
             </div>
             <button
               onClick={() => setStrokeStyle(strokeStyle === 'patterned' ? 'plain' : 'patterned')}
-              className="h-8 px-2 flex items-center gap-1 rounded-lg transition-colors"
+              className="relative h-8 px-2 shrink-0 flex items-center gap-1 rounded-lg transition-colors"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
               // The label says what the control *does*, not what it currently
               // is: a toggle announced as its own state reads backwards to a
@@ -134,7 +163,7 @@ export function Header() {
             </button>
             <button
               onClick={toggle}
-              className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+              className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
               aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
             >
