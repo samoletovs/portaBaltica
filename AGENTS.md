@@ -1600,7 +1600,20 @@ CONTROL  inline code          FOUND
 link, text != dest            NOT FOUND    "See the design book DESIGN md for rules"
 HTML comment                  NOT FOUND    "It stays Free see era rg and never"
 image                         NOT FOUND    "The tile grid tiles png is unchanged"
-autolink                      NOT FOUND    "Read https example com spec before that"
+```
+
+**The criterion, not the list:** a construct conceals only if the source carries
+alphanumerics the **rendered text does not show**. That is what to apply; the
+three rows above are illustration, not definition.
+
+An autolink was in that list and does not belong: CommonMark renders
+`<https://example.com>` with **the URL as its visible text**, so nothing is
+hidden. The counterexample that put it there modelled the reader as *not* seeing
+the URL, which deletes text they do see. Corpus control — every real autolink in
+`DESIGN.md`, quoted as rendered:
+
+```
+autolinks in DESIGN.md   12      found  12/12
 ```
 
 The brackets and `<!--` are punctuation and vanish — leaving the URL, the alt text
