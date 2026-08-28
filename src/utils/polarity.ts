@@ -71,7 +71,6 @@ const POLARITY: Record<string, Polarity> = {
   biz_confidence: 'higher-better',
   renewable_share: 'higher-better',
   exports: 'higher-better',
-  trade_balance: 'higher-better',
   tourist_arrivals: 'higher-better',
   hotel_occupancy: 'higher-better',
 
@@ -105,10 +104,35 @@ const POLARITY: Record<string, Polarity> = {
   //   …_non_residential     as investment and a union as jobs; a central bank
   //                         in this region reads it as a warning, and the
   //                         admission test above needs all three.
+  //   trade_balance       — arithmetically exports minus imports, and `imports`
+  //                         is declined two lines above. Grading the balance
+  //                         grades imports after all, in the opposite
+  //                         direction, through a series the reader is not told
+  //                         is derived. See DERIVED_FROM_A_DECLINED_INPUT
+  //                         below: this one is not a judgement, it is forced.
 };
 
 /**
  * Ids that reach `sentimentOf` and are ungraded **on purpose**.
+ *
+ * Read that first line as the membership rule, because it is one. This set is
+ * for ids the page actually **colours**; an id nothing hands to `sentimentOf`
+ * does not belong here however ungradable it is, and putting one in would make
+ * the set mean "things someone thought about" rather than "abstentions the
+ * reader can see". Measured: of the ten balance-of-payments definitions in the
+ * registry, three reach a colouring surface and seven do not.
+ *
+ * There are now two different reasons to be ungraded and only one of them
+ * lives here:
+ *
+ *   - **Declined** — a human weighed it and the admission test above failed.
+ *     That is this set.
+ *   - **Derived** — the arithmetic forbids it, because the series inherits an
+ *     input that was declined. Nobody decides those one at a time; a rule
+ *     does, and `tests/derivedPolarity.test.ts` is that rule.
+ *
+ * `trade_balance` is in both categories and is listed here because it is
+ * *rendered*, so the sweep below would otherwise report it as an omission.
  *
  * This exists so the abstention is a decision rather than an omission, and so
  * the difference between them is checkable. `polarityOf` answers `neutral` for
@@ -137,6 +161,7 @@ export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
   'building_permits',
   'building_permits_residential',
   'building_permits_non_residential',
+  'trade_balance',
   'port_goods',
   'port_passengers',
   'port_vessels',

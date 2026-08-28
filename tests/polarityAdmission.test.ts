@@ -140,6 +140,12 @@ describe('building permits and construction output', () => {
     // A named list rather than a filter, so a new grade is a visible diff line
     // and this assertion has to be looked at. Written as an equality: a filter
     // of known-good ids stops matching silently the day one is renamed.
+    //
+    // It has already earned that: `trade_balance` left this list when the
+    // derivation guard was added, and the equality is what made its departure
+    // a decision rather than a silent shrink. Twenty-three now, not
+    // twenty-four — see `tests/derivedPolarity.test.ts` for why a balance
+    // cannot carry a grade its own inputs do not.
     expect(GRADED.map((g) => g.id).sort()).toEqual([
       'bankruptcies',
       'biz_confidence',
@@ -161,7 +167,6 @@ describe('building permits and construction output', () => {
       'salary',
       'services_inflation',
       'tourist_arrivals',
-      'trade_balance',
       'unemployment',
       'wages_industry',
       'wages_it',
