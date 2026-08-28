@@ -1,6 +1,0 @@
-portaBaltica data sources: ALERT — the status endpoint could not be reached
-checked 2026-08-28T11:37:02.734Z
-source  http://203.0.113.1/x
-
-Problems:
-  - Could not read http://203.0.113.1/x: timed out after 2000ms. Treating an unreachable status endpoint as an alert on purpose — a monitor that goes quiet when the site is down is worse than no monitor.
