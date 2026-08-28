@@ -224,6 +224,75 @@ describe('the suite does not decide correctness on a wall clock', () => {
   });
 });
 
+describe('a test does not write into a directory other tests walk', () => {
+  /**
+   * The race this closes was reproduced rather than reasoned about.
+   *
+   * `liveBrowserWiring.test.ts` planted a control fixture at
+   * `tests/.wiring-control/` and removed it again, while
+   * `distIsNotRead.test.ts` walks `tests/` **recursively** in a different
+   * worker and `readFileSync`s every `.ts` it finds. Driven deliberately —
+   * one process cycling the create/remove against another running that walk —
+   * the reader threw in **56 of 368 walks: ENOENT ×53, EPERM ×3**.
+   *
+   * Worth being exact about what it was and was not. It is a real race and it
+   * was **not** the timeout flake this file was written for: the symptom is a
+   * throw in an unrelated file, not a 5000ms budget. The two were briefly
+   * conflated because both surface as an unexplained red tick, and separating
+   * them is most of the value here — a fix aimed at the wrong one of the two
+   * would have looked like it worked, because the other was already fixed.
+   *
+   * In a real run the window is a couple of milliseconds inside a minute, so
+   * this was rare rather than routine. It is closed anyway because the cost
+   * when it fires is an ENOENT deep inside a file that did nothing wrong.
+   */
+  const WRITES = /\b(?:mkdirSync|writeFileSync|appendFileSync|rmSync|unlinkSync|rmdirSync|cpSync|renameSync)\s*\(/;
+
+  it('names every unit test that writes to the filesystem at all, as an equality', () => {
+    // Writing is not itself wrong — a test may need a fixture. Writing *into a
+    // directory another test walks* is. So this is not a prohibition, it is a
+    // register: a new name here has to be looked at, and the reviewer's
+    // question is one line long — where does it write?
+    const writers = scanned()
+      .filter(({ text }) => WRITES.test(code(text)))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(
+      writers,
+      'a unit test that writes to disk must write somewhere no other test reads. ' +
+        'Use mkdtempSync(join(tmpdir(), …)); writing inside tests/ or src/ races every ' +
+        'sweep in the suite and fails as an ENOENT in an unrelated file.',
+    ).toEqual(['liveBrowserWiring.test.ts']);
+  });
+
+  it('keeps the one writer out of the directories the suite walks', () => {
+    // The assertion that actually matters, and the reason the register above
+    // is worth keeping: the register catches a *new* writer, this catches the
+    // known one regressing.
+    const text = code(
+      scanned().find((f) => f.file === 'liveBrowserWiring.test.ts')!.text,
+    );
+
+    expect(text, 'the control fixture belongs in a scratch directory, not in tests/')
+      .toMatch(/mkdtempSync\(/);
+    expect(text, 'a path built from TESTS_DIR is a path inside the tree other tests walk')
+      .not.toMatch(/(?:mkdirSync|writeFileSync)\([^)]*TESTS_DIR/);
+    expect(text).not.toMatch(/join\(TESTS_DIR, '\.wiring-control'\)/);
+  });
+
+  it('is looking at a file that really does still write, so this is not vacuous', () => {
+    // The companion. If the control fixture were deleted outright, both
+    // assertions above would pass while checking nothing — and the check
+    // `liveBrowserWiring` exists to perform would be gone with it.
+    const text = code(
+      scanned().find((f) => f.file === 'liveBrowserWiring.test.ts')!.text,
+    );
+
+    expect(WRITES.test(text), 'the fixture that made this necessary has gone').toBe(true);
+  });
+});
+
 describe('a test does not repeat expensive work it could do once', () => {
   it('scans the source tree once in the colour ratchet, not ten times', () => {
     // `instances()` walks 90 files, reads each and regex-scans it. It was
