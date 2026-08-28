@@ -45,6 +45,7 @@ on:
           - 'no'
           - 'dead-feed'
           - 'empty-wire'
+          - 'drought'
   # Run when this monitor's own moving parts change, so a break is found by the
   # commit that caused it rather than at the next scheduled run. `sources.yaml`
   # is included because adding a feed is the most likely way to add a dead one.
@@ -139,6 +140,31 @@ jobs:
               ;;
             empty-wire)
               printf '{"results": []}\n' > rehearsal.json
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+            drought)
+              # Every feed healthy, no original journalism. The case no other
+              # monitor on this site can see.
+              cat > rehearsal.json <<'JSON'
+          {
+            "results": [
+              {
+                "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
+                "endpoint": "https://eng.lsm.lv/rss",
+                "http_status": 200, "bytes": 37440, "items": 50, "latency_ms": 485,
+                "verified": "2026-08-28 - HTTP 200", "verified_age_days": 0,
+                "state": "ok", "detail": null
+              }
+            ],
+            "drought": {
+              "state": "drought",
+              "detail": "no original article has been published for 96.0 hours (budget 72h, which is three scheduled runs). The wire may still be full of syndicated cards, and every other check stays green through this",
+              "last_original_at": "2026-08-24T12:00:00Z",
+              "hours": 96.0,
+              "runs_without_originals": 0
+            }
+          }
+          JSON
               echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
               ;;
           esac
