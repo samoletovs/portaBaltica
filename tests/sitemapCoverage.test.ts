@@ -215,8 +215,7 @@ describe('every route is listed, or declared absent on purpose', () => {
   });
 });
 
-describe('the sitemap cannot invent a URL', () => {
-  it('lists nothing that does not resolve to a route we would list', async () => {
+describe('the sitemap cannot invent a URL', () => {  it('lists nothing that does not resolve to a route we would list', async () => {
     const listable = listableRoutes();
     const listed = await generate();
 
@@ -397,5 +396,80 @@ describe('a listed page has to claim to be a page', () => {
     expect(page, 'the unknown-indicator branch must set index: false').toMatch(
       /index:\s*known/,
     );
+  });
+});
+
+describe('every listed URL gets its head in the served bytes', () => {
+  /**
+   * The layer `usePageMeta` cannot reach.
+   *
+   * Measured against production on 2026-08-28, raw HTML with no JavaScript:
+   * every non-article URL in this sitemap shipped the generic title and a
+   * canonical naming the HOME PAGE. `usePageMeta` fixes the rendered document,
+   * so Google is fine; X, Facebook, LinkedIn, Slack, WhatsApp and Bing are not,
+   * because none of them execute JavaScript.
+   *
+   * So a sitemap entry is only worth as much as the bytes at that URL. This
+   * asserts the two agree: everything we ask a crawler to index must have a
+   * head the crawler can actually read.
+   */
+  const pageMeta = require(resolve(ROOT, 'api/shared/pageMeta.js')) as {
+    metaFor: (path: string) => { title: string | null; index: boolean } | null;
+  };
+
+  interface SwaConfig { routes?: { route: string; rewrite?: string }[] }
+  const swaRoutes = (): { route: string; rewrite?: string }[] =>
+    (JSON.parse(
+      readFileSync(resolve(ROOT, 'public/staticwebapp.config.json'), 'utf-8'),
+    ) as SwaConfig).routes ?? [];
+
+  it('has server-rendered meta for every non-article URL it lists', async () => {
+    const listed = (await generate()).filter((url) => !url.startsWith('/article/'));
+
+    expect(listed.length, 'nothing was listed, so this proves nothing').toBeGreaterThan(20);
+
+    const generic = listed.filter((url) => {
+      const meta = pageMeta.metaFor(url);
+      return meta === null || meta.title === null;
+    });
+
+    expect(generic, 'these are in the sitemap but ship the generic head to a crawler').toEqual([]);
+  });
+
+  it('routes every one of them to the function that injects it', () => {
+    // A head the function can build is worth nothing if the URL never reaches
+    // the function. SWA takes the first matching route, so each family needs a
+    // rule ahead of the catch-all.
+    const routes = swaRoutes();
+    const all = routes.map((r) => r.route);
+    const catchAll = all.indexOf('/*');
+
+    for (const route of ['/', '/data', '/data/*', '/indicator/*', '/newsroom', '/newsroom/*',
+      '/follow', '/weekly', '/corrections', '/about/ai', '/api-docs']) {
+      const index = all.indexOf(route);
+      expect(index, `${route} has no rule`).toBeGreaterThanOrEqual(0);
+      expect(routes[index].rewrite, `${route} rewrite`).toBe('/api/page-shell');
+      expect(index, `${route} is behind the catch-all and never runs`).toBeLessThan(catchAll);
+    }
+  });
+
+  it('leaves /article/* to its own function, ahead of everything', () => {
+    // Two functions claiming one URL would put two canonicals in one document.
+    const all = swaRoutes().map((r) => r.route);
+
+    expect(all.indexOf('/article/*')).toBeLessThan(all.indexOf('/*'));
+    expect(swaRoutes().find((r) => r.route === '/article/*')?.rewrite).toBe('/api/article-page');
+    expect(pageMeta.metaFor('/article/anything')).toBeNull();
+  });
+
+  it('does not swallow the blob route or the API', () => {
+    // `/articles/*` is the published article JSON and `/api/*` is every
+    // endpoint. Both must stay ahead of the new rules; answering either with
+    // the HTML shell would take the whole front page down.
+    const all = swaRoutes().map((r) => r.route);
+
+    expect(all.indexOf('/articles/*')).toBeGreaterThanOrEqual(0);
+    expect(all.indexOf('/api/*')).toBeLessThan(all.indexOf('/'));
+    expect(all.indexOf('/articles/*')).toBeLessThan(all.indexOf('/'));
   });
 });
