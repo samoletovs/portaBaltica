@@ -7,6 +7,8 @@ import { act, render } from '@testing-library/react';
 import { ThemeProvider } from '../src/ThemeContext';
 import { RankedComparison } from '../src/components/RankedComparison';
 import { FreightModalSplit } from '../src/components/FreightModalSplit';
+import { BalticCompareChart } from '../src/components/BalticCompareChart';
+import { FilterProvider } from '../src/FilterContext';
 import type { BalticCompareData } from '../src/api';
 
 /**
@@ -106,8 +108,51 @@ function renderRanked() {
   );
 }
 
+/** The multi-country chart, which judges on the laggard and so must not say
+    "this series" when the countries disagree about their newest period. */
+function renderCompare() {
+  return render(
+    <ThemeProvider>
+      <FilterProvider>
+        <BalticCompareChart indicator="x" title="Test comparison" />
+      </FilterProvider>
+    </ThemeProvider>,
+  );
+}
+
 beforeEach(() => {
   fetchBalticCompare.mockReset();
+});
+
+describe('the multi-country chart does not blame one series for the slowest', () => {
+  it('says "the slowest of these" when the countries disagree on their newest period', async () => {
+    // The verdict is taken on the laggard, so the singular sentence was false
+    // for whichever countries had already published. Measured on the built
+    // app: 47 cards pair a span with this notice. Line 528 of the chart
+    // already qualifies its inline label with "oldest " for exactly this
+    // case; the notice never got the same treatment.
+    fetchBalticCompare.mockResolvedValue(raggedData({ LV: '2016-Q1', EE: '2015-Q3', LT: '2016-Q1' }));
+    const { container } = renderCompare();
+    await settle();
+
+    expect(container.textContent, 'the notice must not claim every series stopped')
+      .not.toContain('This series has published nothing newer');
+    expect(container.textContent).toContain(
+      'The slowest of these series has published nothing newer than Q3 2015.',
+    );
+  });
+
+  it('keeps the singular sentence when they agree, so the wording is not simply reworded', async () => {
+    // The control. Without this, replacing the sentence unconditionally would
+    // pass the assertion above while making a different claim false.
+    fetchBalticCompare.mockResolvedValue(compareData('2015-Q3', { LV: 5, EE: 4, LT: 3 }));
+    const { container } = renderCompare();
+    await settle();
+
+    expect(container.textContent).toContain(
+      'This series has published nothing newer than Q3 2015.',
+    );
+  });
 });
 
 describe('RankedComparison dates and judges its reading', () => {

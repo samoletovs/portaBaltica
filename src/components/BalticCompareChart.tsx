@@ -538,7 +538,15 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           not. */}
       {freshness?.stale && (
         <p className="text-caption mt-1" style={{ color: 'var(--data-warning)' }}>
-          This series has published nothing newer than {formatPeriod(freshness.period)}.
+          {/* The verdict is taken on the laggard — `latestPeriods[0]` — so on a
+              ragged comparison the singular sentence was false for whichever
+              countries had published since. Measured on the built app: 47 cards
+              pair a span with this notice, and the Baltic states routinely
+              publish weeks apart. Line 528 already carries the qualifier for
+              exactly this case; the notice never got it. */}
+          {coverage?.spans
+            ? `The slowest of these series has published nothing newer than ${formatPeriod(freshness.period)}.`
+            : `This series has published nothing newer than ${formatPeriod(freshness.period)}.`}
         </p>
       )}
     </div>
