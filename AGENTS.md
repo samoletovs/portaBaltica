@@ -1262,6 +1262,21 @@ and eventually will not get one.** A permanent, justified exemption — such as
 because that file *is* the theme — is a different case and may stay a filter,
 since it is not waiting on a fix.
 
+**But "permanent" is a narrower category than it sounds, and the test is not
+"do I plan to change it".** It is: *do I control the fact this depends on?*
+`ThemeContext.tsx` is definitional — it is the theme, and nothing anyone else
+writes can make that untrue. Compare `test_collector_matches_dashboard.py`,
+which excused `rep_mar` because the newsroom pins a country while `ports.js`
+builds the value per port — `'rep_mar=' + encodeURIComponent(c)` at line 96 —
+so there is no fixed value on the dashboard side to compare the newsroom's
+pinned one against. Entirely legitimate — and it stops being true the day
+someone writes a literal value into `ports.js`, at which point the exemption is
+silently excusing a real disagreement about which **country** is being read.
+
+So: **an exemption that rests on someone else's code is never permanent,
+because you are not the one who decides.** It is contingent, it belongs in an
+equality, and the equality is what tells you the day the contingency lapsed.
+
 ## Mark the guess in a brief
 
 Work dispatched between sessions arrives as a brief, and a brief is written from
