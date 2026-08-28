@@ -122,10 +122,15 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Every `gh` call names the repository explicitly, because this job
+          # deliberately does not check the code out — it needs a verdict, not
+          # a working tree. Without `--repo`, `gh` looks for a git remote in the
+          # current directory and fails with `not a git repository`, which is
+          # how the first run of this workflow lost its alert entirely.
           # The label is what makes this idempotent. Opening a fresh issue every
           # morning would turn one stuck feed into thirty issues nobody reads,
           # which is how an alert channel becomes wallpaper.
-          gh label create "$LABEL" \
+          gh label create "$LABEL" --repo "$GITHUB_REPOSITORY" \
             --description "Automated monitor: $SUBJECT" \
             --color B60205 2>/dev/null || true
 
@@ -140,18 +145,18 @@ jobs:
             echo "when a later run reads clean."
           } > issue-body.md
 
-          existing=$(gh issue list --label "$LABEL" --state open \
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$LABEL" --state open \
             --json number --jq '.[0].number // empty')
 
           if [ -n "$existing" ]; then
             # Retitle so the issue always describes the *current* fault, and
             # comment so the history of a long outage stays readable.
-            gh issue edit "$existing" --title "${SUBJECT}: ${HEADLINE}" --body-file issue-body.md
-            gh issue comment "$existing" --body-file issue-body.md
+            gh issue edit "$existing" --repo "$GITHUB_REPOSITORY" --title "${SUBJECT}: ${HEADLINE}" --body-file issue-body.md
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file issue-body.md
             echo "Updated issue #${existing}"
             echo "- issue: #${existing} (updated)" >> "$GITHUB_STEP_SUMMARY"
           else
-            url=$(gh issue create --title "${SUBJECT}: ${HEADLINE}" --label "$LABEL" --body-file issue-body.md)
+            url=$(gh issue create --repo "$GITHUB_REPOSITORY" --title "${SUBJECT}: ${HEADLINE}" --label "$LABEL" --body-file issue-body.md)
             echo "Opened ${url}"
             echo "- issue: ${url} (opened)" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -207,7 +212,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          existing=$(gh issue list --label "$LABEL" --state open \
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$LABEL" --state open \
             --json number --jq '.[0].number // empty')
 
           if [ -z "$existing" ]; then
@@ -225,8 +230,8 @@ jobs:
             echo "Closed by [\`${GITHUB_WORKFLOW}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})."
           } > recovery.md
 
-          gh issue comment "$existing" --body-file recovery.md
-          gh issue close "$existing" --reason completed
+          gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body-file recovery.md
+          gh issue close "$existing" --repo "$GITHUB_REPOSITORY" --reason completed
           echo "Closed issue #${existing}"
           echo "- issue: #${existing} closed on recovery" >> "$GITHUB_STEP_SUMMARY"
 
