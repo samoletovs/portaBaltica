@@ -4,7 +4,7 @@ const API_ENDPOINTS = [
   { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Live electricity prices, ECB exchange rates, PxWeb macro indicators, business pulse', cache: '30 min' },
   { method: 'GET', path: '/api/environment-data', params: '?country=lv|ee|lt', description: 'Weather for 4 cities, air quality, capital-region population', cache: '15 min' },
   { method: 'GET', path: '/api/historical-data', params: '?indicator=gdp&years=5', description: '24 Latvian indicators with time series from CSP PxWeb, falling back to Eurostat where a national table is unavailable. The `source` field always names the provider that answered.', cache: '1 hour' },
-  { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 55 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
+  { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 71 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
   { method: 'GET', path: '/api/power-prices', params: '', description: 'Nord Pool day-ahead prices for all four Baltic-region bidding zones (EE, LV, LT, FI) with the spread between them and whether the market is currently coupled', cache: '15 min' },
   { method: 'GET', path: '/api/property-data', params: '', description: 'Construction permits by municipality, building energy profile', cache: '1 hour' },
   { method: 'GET', path: '/api/port-data', params: 'country=LV|EE|LT', description: 'Baltic port statistics from Eurostat: cargo tonnage, sea passengers, vessel arrivals, quarterly', cache: '6 hours' },
@@ -86,8 +86,10 @@ export function ApiDocsPage() {
             <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€0</p>
             <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>All dashboard data</li>
-              <li>24 historical indicators</li>
-              <li>Baltic comparison charts</li>
+              <li>24 Latvian indicators from CSP PxWeb</li>
+              <li>71 Baltic comparison indicators from Eurostat</li>
+              <li>CSV and JSON export on every series</li>
+              <li>Full history, not a rolling window</li>
               <li>AI insights</li>
               <li>3 country support</li>
             </ul>
@@ -98,9 +100,7 @@ export function ApiDocsPage() {
             <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
               <li>Everything in Free</li>
               <li>Email alerts on changes</li>
-              <li>CSV data export</li>
               <li>Custom indicator watchlist</li>
-              <li>30+ day history</li>
             </ul>
             <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>Coming soon</p>
           </div>
