@@ -839,10 +839,12 @@ A session flagged this on its way out and correctly declined to act on it. I
 measured it, and **its stated mechanism is wrong in the dangerous direction**:
 
 ```
-local samoletovs-* branches            140
-checked out in live worktrees           15
-present on origin                      133
-LOCAL-ONLY -- gone for good if deleted   11
+local branches                 140
+remote branches                133
+local AND remote               129
+LOCAL ONLY -- lost if deleted   11   = 140 - 129
+remote only                      4   = 133 - 129
+checked out in live worktrees   15
 
 claimed:  "git branch -d refuses them by design"
 actual:   git branch -d SUCCEEDS
@@ -852,7 +854,25 @@ actual:   git branch -d SUCCEEDS
 Squash merging means a branch head is never an ancestor of master, so the
 intuition that `-d` will refuse is reasonable — and false. These branches have
 upstream tracking, and `-d` compares against **the upstream, not master**. It
-deletes them, with a warning that reads like an error.
+deletes them, and the warning is the hazard:
+
+```
+git branch -d zz-probe-disposable
+  warning: deleting branch 'zz-probe-disposable' that has been merged to
+           'refs/remotes/origin/...', but not yet merged to HEAD
+  Deleted branch zz-probe-disposable (was 8beab33).
+```
+
+Read it as a reader does. `warning:` trains you to stop; *"but not yet merged to
+HEAD"* reads as the reason for a refusal; and **the opening clause is past tense
+reporting a deletion that already happened.** The word `Deleted` is on the next
+line. Someone who stops at the warning takes away the opposite of the fact.
+
+Reproduce a destructive probe on something disposable. The first measurement here
+ran `-d` on a real branch and **destroyed its own subject** — the reading was
+correct and unrepeatable, and nothing was lost only by luck. `git branch` has no
+`--dry-run`, so the safe form is to recreate the condition on a throwaway, which
+is how the transcript above was obtained.
 
 That matters because someone told `-d` refuses will reach for **`-D`**, which
 skips every safety check, on a set where 11 branches exist nowhere else.
