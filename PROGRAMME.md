@@ -383,6 +383,38 @@ people, and the grep's output is a list to measure, not a list to fix.
 
 ---
 
+## Exclusive file ownership does more than prevent conflicts
+
+Give each session a file set it alone may write, and re-clear files explicitly
+when work moves. I imposed this across eight concurrent sessions to stop merge
+conflicts, and it produced zero — but that is not the reason to keep it.
+
+**It enforces the separation of measurement from remedy structurally, without
+anyone having to remember the rule.** `AGENTS.md` argues that whoever proves a
+defect should state it and someone else should choose the fix, because a
+measurement defines the shape of the repair and you cannot see what your own
+measurement did not reach. That is a discipline, and disciplines lapse.
+
+The clearest instance: a session published the rejection reasons the pipeline
+had been discarding, executed the failing check's own regexes against the four
+paragraphs it refused, and handed the result over **because `validator.py` was
+not in its set**. Their words afterwards, and they are the correct account:
+
+> I did not know the check was broken — I knew I could not tell whether it was…
+> It happened to be enforced here by ownership boundaries rather than by
+> discipline, and it produced the better outcome regardless.
+
+Had they been able to patch it, the likely fix was a 25th pattern added by
+someone who had not measured. The session that did receive it found **four**
+defects, only one of which was vocabulary — the largest being a regex reading a
+decimal point as a full stop, whose repaired form already sat in two sibling
+files.
+
+**A structural constraint that produces good behaviour without anyone
+remembering the rule is worth more than the rule.**
+
+---
+
 ## Efficiency guardrails
 
 **Watch throughput.** Merged PRs/day across the two runs:
