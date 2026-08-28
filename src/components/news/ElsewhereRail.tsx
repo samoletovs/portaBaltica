@@ -113,10 +113,29 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
         </div>
       )}
 
-      <p className="sr-only" role="status">
-        {shown.length} {shown.length === 1 ? 'story' : 'stories'}
-        {outlet === ALL ? ' from other outlets' : ` from ${outlet}`}
-      </p>
+      {/* Announced only when there is a corpus to count.
+          
+          `items` arrives as a prop, so this component cannot see whether the
+          fetch failed — an empty array means "the wire is quiet" and "we could
+          not reach it" identically. Announcing "0 stories from other outlets"
+          into a live region turns a network error into an assertion about the
+          world, spoken aloud, while the main column correctly says the front
+          page could not be loaded.
+          
+          Guarding on `items` rather than on `shown` is deliberate but is *not*
+          currently a behavioural difference: `useOutlets` derives the filter
+          buttons from `items`, so every offered outlet has at least one story
+          and `shown.length === 0` implies `items.length === 0`. A plant proved
+          that — swapping this for `shown` changes no test. It is written this
+          way because it states the reason, and because the day a filter can
+          legitimately match nothing, a zero the reader just caused is a fact
+          about their action and should still be announced. */}
+      {items.length > 0 && (
+        <p className="sr-only" role="status">
+          {shown.length} {shown.length === 1 ? 'story' : 'stories'}
+          {outlet === ALL ? ' from other outlets' : ` from ${outlet}`}
+        </p>
+      )}
 
       {shown.length === 0 ? (
         <p className="news-subtle mt-4 text-caption">Nothing filed here right now.</p>

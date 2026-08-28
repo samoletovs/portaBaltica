@@ -167,3 +167,34 @@ describe('Elsewhere rail: length', () => {
     expect(screen.getByRole('button', { name: /show 5 more/i })).toBeTruthy();
   });
 });
+
+describe('Elsewhere rail: an empty wire is not a fact about the world', () => {
+  it('announces nothing when it was given nothing', () => {
+    // `items` arrives as a prop, so this component cannot tell "the wire is
+    // quiet" from "we could not reach it" -- an empty array is both. With every
+    // API call failing, `/` correctly says the front page could not be loaded
+    // in the main column while this region announced "0 stories from other
+    // outlets": a network error spoken aloud as an assertion about the world.
+    renderRail([]);
+
+    expect(
+      screen.queryByRole('status'),
+      'a live region must not report a count it cannot vouch for',
+    ).toBeNull();
+  });
+
+  it('still announces when there is a corpus, so the fix is not blanket suppression', () => {
+    // The control. Without it, deleting the region outright would pass the
+    // assertion above.
+    //
+    // It does NOT distinguish `items` from `shown`: a plant swapping the guard
+    // to `shown.length > 0` passes every test here, because `useOutlets`
+    // derives the filter buttons from `items`, so no reachable filter matches
+    // nothing. Stated rather than implied — a control that cannot separate two
+    // implementations should not be described as though it can.
+    renderRail(MIXED);
+
+    const region = screen.getByRole('status');
+    expect(region.textContent).toMatch(/\d+ stor/);
+  });
+});
