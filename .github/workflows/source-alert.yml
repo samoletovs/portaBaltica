@@ -64,7 +64,7 @@ on:
   # is only ever exercised on a schedule is one whose breakage is discovered by
   # the outage it failed to report.
   push:
-    branches: [master]
+    branches: [master, samoletovs-source-alerting]  # TEMPORARY: branch reverted after the end-to-end proof
     paths:
       - '.github/workflows/source-alert.yml'
       - 'scripts/source-alert.mjs'
@@ -97,14 +97,14 @@ jobs:
 
       - name: Build the rehearsal payload
         id: rehearsal
-        if: inputs.rehearse != 'no' && inputs.rehearse != ''
+        if: inputs.rehearse != 'no' || github.event_name == 'push'  # TEMPORARY: push clause reverted after the proof
         run: |
           set -euo pipefail
 
           # Rehearsals run the real notification path against a broken payload,
           # rather than a mock of it. A notification path that has never
           # delivered is not a notification path.
-          case "${{ inputs.rehearse }}" in
+          case "${{ inputs.rehearse || 'stale-required' }}" in
             stale-required)
               cat > rehearsal.json <<'JSON'
           {
