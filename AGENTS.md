@@ -928,7 +928,7 @@ So an unknown frequency resolved to the most permissive allowance in the
 table — **absence resolving to success**, in the one function whose job is to
 say when something has gone quiet. Teaching the label to `periodToMonthIndex`
 without teaching `ageInUnits` precision would have been worse than leaving it:
-`2026-W28` and `2026-W31` share July, so a month index would have swapped an
+`2026-W28` and `2026-W30` share July, so a month index would have swapped an
 honest `null` for a *confident* number 36% too small.
 
 **Why "more periods" is not the cheap lever it appears to be.** The dashboard
@@ -1101,6 +1101,20 @@ Four weeks do share July's index, so the phenomenon is real and the fractional
 age is right. The pair chosen to illustrate it was not, and nothing checked a
 claim sitting three lines from the loop it was about. It now names `W27` and
 `W30`, which is executable and true.
+
+**And correcting one copy did not correct the other. Or the third.** The same
+false pair was written three times: into the `monthsSincePeriod` docstring, into
+the weekly-rung paragraph above (stated there as fact rather than as a
+quotation), and into `api/shared/freshness.js`. Fixing the docstring left two
+live. The session that had written them searched `AGENTS.md`, found the second,
+and reported it; **a repo-wide grep found the third.** So each pass over this one
+sentence found exactly the copies it thought to look for.
+
+**Two copies of a fact drift, and these drifted the instant one was corrected, by
+the person correcting it.** That is this file's own rule about enumerations
+arriving in its own prose: a fact stated three times is three enumerations, and
+prose is not exempt. Execute *every* copy — and search the repository, not the
+file you are editing.
 
 **And the population rule has a form specific to this.** When you add a member
 to a vocabulary — a fifth cadence, a sixth tier, a new status — the population

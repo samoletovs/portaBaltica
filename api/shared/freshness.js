@@ -88,7 +88,7 @@ function ageInUnits(cadence, observation, now) {
 
   if (observation.period) {
     // A period finer than a month has to be located exactly, because a month
-    // index cannot tell `2026-W28` from `2026-W31` — they share July. Before
+    // index cannot tell `2026-W28` from `2026-W30` — they share July. Before
     // `periodToMonthIndex` learned to read a weekly label this branch returned
     // null and the verdict was an honest `unknown`; teaching it the label
     // without this line would have replaced that with a confident number 36%
