@@ -1486,3 +1486,34 @@ only ever gets tested where it costs something.
 And when a candidate fails these tests, **write it where it will be found**: in
 the file it concerns, next to a test that pins it. Knowledge inside the code it
 governs outlives a paragraph someone reads once.
+
+### Prefer a rule that names a shape
+
+Two kinds of entry live here, and only one of them can be *pointed at code
+nobody has read yet*.
+
+A **shape** rule names a syntactic form: an exemption written as a subtraction
+rather than an equality; a loop that is a test's entire body; an example in
+guidance that has never been executed. You can grep for it, and you can mutate
+the code to check the rule fires.
+
+A **habit** rule — *read the artefact*, *a word list encodes your examples* —
+is true, is often the more important of the two, and cannot be swept for. It
+fires when someone already has the artefact in hand.
+
+The difference is measurable. Two shape rules were written this programme and
+each produced a pull request against code they were not written about, in under
+seven minutes:
+
+```
+2026-08-27T20:18:03Z  "write an exemption as an assertion, not a filter"
+2026-08-27T20:24:54Z  -> #177: adding `geo` to NOT_COMPARED left 207 tests green
+
+2026-08-28T06:50:58Z  "an exemption resting on someone else's code is never permanent"
+2026-08-28T06:56:43Z  -> #182: the exemption whose premise nothing re-checked
+```
+
+No habit rule did that, and none was expected to. So when writing an entry, say
+which kind it is — and if it can be given a shape without becoming false, give
+it one, because that is the difference between a rule that waits to be
+recognised and one that can be run.
