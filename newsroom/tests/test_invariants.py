@@ -300,6 +300,26 @@ def _asserts_outside_every_loop(fn: ast.FunctionDef) -> bool:
 #:
 #: A *subset* check rather than an equality, because adding an invariant here
 #: should not require editing this list — only losing one should.
+#:
+#: WHERE THE REGRESS STOPS, AND WHY HERE. Emptying this list makes `missing`
+#: unconditionally empty and the guard vacuous again — measured, `19 passed`.
+#: That is deliberate and is not worth another assertion, for three reasons.
+#:
+#: It is not reachable by drift. Not by a refactor, not by a config edit, not
+#: by a list quietly growing: only by deleting six named invariants under a
+#: comment saying what they are for. That is the `overallStatus` case rather
+#: than the `maxLag` case — nothing here contradicts a stated contract, since
+#: the line above says out loud that losing an entry is the edit that matters.
+#:
+#: Any guard added here would relocate the question one level up, and whatever
+#: guarded *that* would have the same property. **The regress is infinite, so
+#: it has to terminate on something other than a mechanism.** A named list read
+#: by a human in review is the right terminator, and it is the same reason
+#: `is_servable` is this repo's good example rather than an infinitely nested
+#: one: at some point the defence stops being code and becomes legibility.
+#:
+#: Recorded so the next person to trace this gets as far as we did and finds
+#: the answer instead of reopening it.
 LOAD_BEARING = frozenset({
     "test_no_tier_c_source_may_permit_rewriting",
     "test_every_tier_c_source_is_pinned_to_the_outlets_own_rss_snippet",
