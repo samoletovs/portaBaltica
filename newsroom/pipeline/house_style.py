@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Final, Mapping
 
 # --- dashes ----------------------------------------------------------------
 
@@ -470,6 +471,109 @@ def speculative_impact_phrase(text: str) -> str | None:
     return None
 
 
+#: Fields holding a DIFFERENCE between two things rather than a level of one.
+#:
+#: A threshold is only meaningful against the quantity it is a threshold on, so
+#: one of these can bound another difference and never a single reading. The
+#: distinction is not visible in the prose — both render as a bare number — so
+#: it has to be read off the field the figure was declared against.
+#:
+#: Named per detector family rather than guessed from the name: ``margin`` and
+#: ``deviation`` carry no suffix that marks them out, and ``latest_value`` is a
+#: level despite sitting beside them in the same figure table.
+DIFFERENCE_FIELDS: Final[frozenset[str]] = frozenset({
+    "gap", "latest_gap", "early_gap", "recent_gap", "gap_pct",
+    "spread", "typical_spread", "spread_pct", "spread_vs_typical",
+    "margin", "margin_pct",
+    "deviation", "deviation_pct",
+    "change", "change_pct", "cumulative_change", "cumulative_change_pct",
+    "distance_from_threshold", "widening_ratio",
+    "typical_move", "move_vs_typical",
+})
+
+#: A threshold proposed on a single reading, as opposed to on a difference.
+_THRESHOLD_ON_A_LEVEL = re.compile(
+    r"\b(?:above|below|under|over|beneath|beyond|exceed(?:s|ing)?)\b",
+    re.IGNORECASE,
+)
+
+#: The subject of that threshold, when it is one thing's own reading.
+_LEVEL_SUBJECT = re.compile(
+    r"\b(?:reading|readings|level|levels|balance|rate|price|prices|value|"
+    r"figure|figures|index|volume)\b",
+    re.IGNORECASE,
+)
+
+
+def threshold_subject_problems(
+    text: str, figures, *, where: str = "the closing"
+) -> list[str]:
+    """A future test proposed on a level, but quantified by a difference.
+
+    THE PUBLISHED CASE. A structural-divergence piece closed with::
+
+        "A sustained consumer confidence balance above 29.6 in the coming
+         months would reinforce this positive trend"
+
+    29.6 is ``latest_gap`` — the spread between the highest and lowest country,
+    ``-2.9 − (-32.5)``. A country *balance* above 29.6 is a different quantity,
+    and all three countries were deeply negative, so the sentence proposes a
+    test that essentially cannot occur. It reads as a falsifiable prediction
+    and is not one.
+
+    Every check passed and was right to. ``no_invented_numbers`` traced 29.6 to
+    a declared figure; the figure is real and its subject changed. This is the
+    same class as the ``gap``/``recent_gap`` collision — one number, two
+    meanings — arriving in the sentence nobody guards.
+
+    WHY THE FORWARD-LOOKING CONDITION IS LOAD-BEARING. Without it the rule
+    fires on four sentences that are simply *describing* the present reading —
+    "this reading is 16.35 percentage points below the seasonal norm",
+    "exceeding the previous record by 542 thousand tonnes" — which are correct
+    and are what a deviation and a margin are *for*. Measured over all 144
+    published paragraphs: 5 hits without it, 4 of them wrong; 1 hit with it,
+    and no false positive. A rule that rejects true work costs more than the
+    fault it catches.
+
+    ADVISORY, like everything here except the two cuts. It is fed back while
+    the writer still has an attempt left, costs no model call, and cannot
+    reject a true article. At one occurrence in twenty-seven it does not earn
+    a cut, and the paragraph is worth keeping: a named threshold is the thing
+    that makes a closing checkable at all.
+    """
+    if not text:
+        return []
+    if not (_FORWARD_LOOKING.search(text) or _NAMES_A_CONSEQUENCE.search(text)):
+        return []
+    if not (_THRESHOLD_ON_A_LEVEL.search(text) and _LEVEL_SUBJECT.search(text)):
+        return []
+
+    for figure in figures or []:
+        field = _field_of(figure)
+        if field in DIFFERENCE_FIELDS:
+            return [
+                f"{where}: proposes a future reading {_threshold_word(text)} "
+                f"{field!r}, but that figure is a difference between two things "
+                f"— a gap, spread, margin, deviation or change — not a level "
+                f"one reading can be compared against. State the threshold in "
+                f"the same quantity you are watching, or name the release "
+                f"without a number"
+            ]
+    return []
+
+
+def _field_of(figure) -> str | None:
+    """``signal_field``, whether the figure is a dict or a dataclass."""
+    if isinstance(figure, Mapping):
+        return figure.get("signal_field")
+    return getattr(figure, "signal_field", None)
+
+
+def _threshold_word(text: str) -> str:
+    found = _THRESHOLD_ON_A_LEVEL.search(text)
+    return found.group(0).lower() if found else "beyond"
+
+
 def check_prose(text: str, *, where: str = "body") -> list[str]:
     """Style violations in a run of prose. Deterministic, case-insensitive."""
     problems: list[str] = []
@@ -610,6 +714,26 @@ def apply_house_style(
         if prose:
             last_index, last_text = prose[-1]
             report.violations.extend(closing_problems(last_text, where=f"body[{last_index}]"))
+
+    # Whether or not the closing was cut, and always on whatever paragraph the
+    # article now ends on. This is advisory rather than a cut: at one
+    # occurrence in twenty-seven it does not earn one, and a named threshold is
+    # what makes a closing checkable at all — deleting it would remove the
+    # good version along with the bad.
+    ending = [
+        (index, block)
+        for index, block in enumerate(article.body or [])
+        if getattr(block, "type", None) == "paragraph" and block.text
+    ]
+    if ending:
+        last_index, last_block = ending[-1]
+        report.violations.extend(
+            threshold_subject_problems(
+                last_block.text,
+                getattr(last_block, "figures", None),
+                where=f"body[{last_index}]",
+            )
+        )
 
     return report
 

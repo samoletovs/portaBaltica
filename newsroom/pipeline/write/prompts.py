@@ -376,7 +376,32 @@ keeps it legal — put that exact phrase in that paragraph:
      what this wire is for.
 
   6. WHAT WOULD SETTLE IT. Name the next release and the reading that would
-     change the conclusion. Carry no digits here either.
+     change the conclusion.
+
+     NAME THE NUMBER. "A reading above 25.35% next year would show a return to
+     higher inflation" is a prediction a reader can check; "further releases
+     will clarify the trend" is not, and it is deleted before publication. So
+     quote the figure and declare it in this block's figures array like any
+     other. This paragraph is the one place a repeated figure earns its place.
+
+     IT MUST BE THE SAME QUANTITY YOU ARE WATCHING. A threshold is only
+     meaningful against the thing it is a threshold on, and the trap is a
+     figure that is a DIFFERENCE between two things — a gap, a spread, a
+     margin, a deviation, a change — reused as a level for one of them:
+
+        REJECTED  "a consumer confidence balance above 29.6 would reinforce
+                   this"          ← 29.6 is the GAP between the highest and
+                                    lowest country. Every country's balance is
+                                    negative, so this proposes a test that
+                                    cannot happen, and it published.
+        ALLOWED   "a gap above 29.6 would show the divergence widening further"
+                   ← a threshold on the gap, stated in the gap.
+        ALLOWED   "a reading above 25.35% would show a return to the norm"
+                   ← the seasonal mean is a level of the same series.
+
+     If the only figures you have are differences, put the threshold on the
+     difference, or name the release without a number and say what direction
+     would change the conclusion.
 
 Plain, active, specific. This is a wire story with something to say, not an
 essay and not a table read aloud.
