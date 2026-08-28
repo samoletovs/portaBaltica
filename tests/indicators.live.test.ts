@@ -30,10 +30,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
+import { measureReferenceScale, MIN_AXIS_RETENTION } from '../src/utils/referenceScale';
 
 const require_ = createRequire(import.meta.url);
 const INDICATORS = require_('../api/shared/indicators.js');
 const es = require_('../api/shared/eurostat.js');
+const compare = require_('../api/baltic-compare/index.js');
 
 type IndicatorDef = {
   dataset: string;
@@ -79,9 +81,16 @@ const entries = Object.entries(INDICATORS) as [string, IndicatorDef][];
 
 describe('Eurostat indicator contracts (live)', () => {
   it.each(entries)('%s returns plausible data for all three countries', async (id, def) => {
-    const url = es.buildUrl(def, 5, GEOS);
+    // The request the handler makes, asked of the handler rather than restated.
+    // A probe that rebuilds the query it is checking is a second implementation
+    // that can disagree with the first — which is how the maritime status check
+    // came to watch one Latvian port while the app read four.
+    const wantReference: boolean = compare.referenceIsComparable(def);
+    const requested = wantReference ? [...GEOS, compare.REFERENCE_GEO] : GEOS;
+
+    const url = es.buildUrl(def, 5, requested);
     const raw = await es.httpJson(url, { deadlineMs: 30_000 });
-    const parsed = es.parseJsonStat(raw, GEOS);
+    const parsed = es.parseJsonStat(raw, requested);
 
     // An unpinned dimension means the parser chose a slice on our behalf. The
     // choice may even be right, but nobody declared it — pin it in
@@ -218,6 +227,41 @@ describe('Eurostat indicator contracts (live)', () => {
             'it will read a healthy gap as a freeze. Declare an explicit maxAgeMonths covering the real ' +
             'publication interval, with the measurement in a comment.'
         ).toBe('number');
+      }
+    }
+
+    // Does the benchmark this indicator claims to support actually fit?
+    //
+    // `euAggregation` is a hand-written classification of sixty-six indicators,
+    // and every check above would pass whether or not it is true of any of
+    // them: the EU slice is a different geography, so a mis-declaration shows
+    // up in none of the sanity, coverage, freshness or cadence assertions. What
+    // it shows up in is the rendered chart, where a benchmark one to two orders
+    // of magnitude away prices the axis in EU units and presses the three into
+    // a single line along the bottom — measured at 0.2% of the axis for
+    // tourist arrivals, which is what a reader reported as "useless".
+    //
+    // So the declaration is held against the property it stands for, using the
+    // same function the chart uses. A `sum` declared `average` fails here, by
+    // name, with the number.
+    if (wantReference) {
+      const eu: Point[] = parsed.countries[compare.REFERENCE_GEO]?.series ?? [];
+      const three = GEOS.flatMap((geo) => (parsed.countries[geo]?.series ?? []).map((p: Point) => p.value));
+      const scale = measureReferenceScale(three, eu.map((p) => p.value));
+
+      // A cube that carries no EU figure at all is not a fault — `minimum_wage`
+      // has none because not every member state has one — and `buildReference`
+      // already returns null for it, so there is no line to withhold.
+      if (scale !== null) {
+        expect(
+          scale.retention,
+          `${id} (${def.dataset}) declares euAggregation=average, but its EU27 series leaves the three ` +
+            `only ${(scale.retention * 100).toFixed(1)}% of the y-axis they would have alone — ` +
+            `LV/EE/LT span ${scale.bandWith < 0.01 ? '<1' : (scale.bandWith * 100).toFixed(1)}% of the ` +
+            'drawn range once it is added. That is the signature of a sum containing the three rather ' +
+            'than an average beside them. The chart withholds the line at runtime, so nothing is ' +
+            'mis-drawn; the declaration is what needs correcting.'
+        ).toBeGreaterThanOrEqual(MIN_AXIS_RETENTION);
       }
     }
   }, 45_000);

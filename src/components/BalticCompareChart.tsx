@@ -6,6 +6,7 @@ import { SeriesSwatch } from './SeriesSwatch';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { chartTick, chartTooltip } from '../utils/chartType';
+import { referenceSharesAxis } from '../utils/referenceScale';
 import { describeComparison } from '../utils/chartAccessibility';
 
 /**
@@ -167,13 +168,30 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   // nothing about the benchmark renders at all in that case.
   const reference = data.reference ?? null;
 
+  // Every reading the three publish, which is both what the axis is built from
+  // and what decides whether the benchmark may join it.
+  const balticValues = COUNTRY_ORDER.flatMap((geo) =>
+    (data.countries[geo]?.series ?? []).map((point) => point.value),
+  ).filter((value): value is number => typeof value === 'number');
+
+  // The benchmark is drawn only where it fits.
+  //
+  // `/api/baltic-compare` already refuses to fetch it for an extensive total,
+  // and that gate catches every case measured today. It is a hand-written
+  // classification of sixty-six indicators, though, and nothing upstream checks
+  // that a classification is true — so the axis is measured here as well,
+  // against the data actually returned. A benchmark that would flatten the
+  // three is withheld from the chart and kept in the header, where it still
+  // answers "is this good or bad" without pricing the axis in EU units.
+  const plotReference = reference !== null && referenceSharesAxis(balticValues, reference.series.map((p) => p.value));
+
   const chartData = sortedPeriods.map((period) => {
     const point: Record<string, string | number | null> = { period };
     for (const [geo, cs] of Object.entries(data.countries)) {
       const match = cs.series.find((s) => s.period === period);
       point[geo] = match?.value ?? null;
     }
-    if (reference) {
+    if (plotReference && reference) {
       const match = reference.series.find((s) => s.period === period);
       point[REFERENCE_KEY] = match?.value ?? null;
     }
@@ -201,10 +219,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
 
   // Zero is the most important value on a percentage-change series, and it was
   // previously unmarked. Only drawn where the data actually straddles it.
-  const allValues = chartData.flatMap((point) =>
-    COUNTRY_ORDER.map((geo) => point[geo]).filter((v): v is number => typeof v === 'number'),
-  );
-  const crossesZero = allValues.some((v) => v < 0) && allValues.some((v) => v > 0);
+  const crossesZero = balticValues.some((v) => v < 0) && balticValues.some((v) => v > 0);
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
@@ -268,10 +283,17 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
             // the three: no flag, no series swatch, a dashed rule instead. It
             // answers "is this good or bad", which is a different question from
             // "who is ahead", and it must not read as a fourth competitor.
+            //
+            // It stays here even when the chart cannot carry the line, because
+            // withholding the line is about the axis and not about the fact.
+            // The dashed rule is a key to a line, so it is dropped with the
+            // line rather than left pointing at nothing.
             <div className="flex items-center gap-1 text-caption font-mono"
               title={reference.fullLabel}>
-              <span aria-hidden="true" className="inline-block w-3 border-t border-dashed"
-                style={{ borderColor: 'var(--text-tertiary)' }} />
+              {plotReference && (
+                <span aria-hidden="true" className="inline-block w-3 border-t border-dashed"
+                  style={{ borderColor: 'var(--text-tertiary)' }} />
+              )}
               <span className="sr-only">{reference.fullLabel} average: </span>
               <span aria-hidden="true" style={{ color: 'var(--text-tertiary)' }}>EU27</span>
               <span style={{ color: 'var(--text-secondary)' }}>
@@ -343,7 +365,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
                 no country colour (DESIGN.md §3.6 reserves the palette for the
                 flags, and the EU is not a Baltic state), a thinner stroke, and
                 a long dash that reads as a rule rather than as a series. */}
-            {reference && (
+            {reference && plotReference && (
               <Line
                 type="monotone"
                 dataKey={REFERENCE_KEY}
@@ -395,6 +417,15 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
         </ResponsiveContainer>
       </div>
 
+      {/* An undisclosed omission is the same fault as an undisclosed crop:
+          DESIGN.md §3.3 asks for the axis decision to be stated on the card, so
+          a reader can tell a withheld benchmark from a missing one. */}
+      {reference && !plotReference && (
+        <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
+          EU27 is off this chart&rsquo;s scale, so it is shown above but not drawn — plotting it would
+          flatten the three into one line.
+        </p>
+      )}
       <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>Source: {data.source}</p>
     </div>
   );

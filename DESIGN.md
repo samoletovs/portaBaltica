@@ -532,6 +532,39 @@ chart with no benchmark already has to look intentional (§3.6), so nothing abou
 it renders — and an indicator that declares nothing is treated as a total, since
 a missing line is a smaller loss than an unreadable chart.
 
+**And the declaration is checked against the axis, because it is a taxonomy
+standing in for a measurement.** Sixty-six indicators are classified by hand;
+nothing in the sanity, coverage, freshness or cadence assertions can see a
+wrong classification, because they all read the three countries and the mistake
+lives in a fourth geography. So `src/utils/referenceScale.ts` measures the
+thing itself — the height of the y-axis with the benchmark against without —
+and the chart withholds any line that fails it, whatever the registry says.
+
+Measured live over a five-year window, the two groups do not overlap and are
+not close:
+
+| | axis the three keep |
+|---|---|
+| the 11 `sum` cubes that carry an EU figure | 0.002 – 0.034 |
+| the 42 `average` cubes | 0.541 – 1.000 |
+
+Tourist arrivals, nights spent and air passengers — the three charts that
+prompted the rule — keep 0.2%, 0.2% and 0.6%. The threshold sits in the empty
+band between the modes rather than beside either edge.
+
+Two clauses, because there are two ways to lose the axis and only one of them
+is the benchmark's doing. A band can already be unreadable without it: life
+expectancy spans 7.6% of its own zero-based axis, the employment rate 9.5%,
+labour productivity 12.4%, with no EU line drawn at all — which is what a
+zero-based axis does to a series living at 73–79. Withholding the benchmark
+there widens nothing and costs a real reading, so the test is whether **the
+reference is what pushed them under**, not whether they are under.
+
+When a line is withheld the figure stays in the header, and the card says so.
+An undisclosed omission is the same fault as an undisclosed crop above: the
+reader has to be able to tell a benchmark that was withheld from one that was
+never there.
+
 ### 3.4 Gridlines recede, data dominates
 
 Gridlines are structure, not data, and are deliberately below the 3:1 non-text
