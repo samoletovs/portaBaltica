@@ -1451,6 +1451,25 @@ That is the row's saving grace: an absurd reading defends itself. A plausible
 one does not, which is why the middle row is the dangerous one and needs a
 mechanical check rather than an instinct.
 
+That claim got a controlled test the day it was written, by accident. Two people
+verified the *same entry* in the *same file* within an hour, and both probes were
+wrong:
+
+```
+they    two identical section lengths across a commit that added 21 lines
+        -> ABSURD    disbelieved instantly, re-derived, correct answer
+
+me      a search widened from the section to the whole file
+        -> PLAUSIBLE believed, diagnosed as the wrong cause, SHIPPED into this file
+```
+
+Same taxonomy, same evening, same subject, and the only variable was **whether the
+wrong answer happened to look ridiculous.** That is not a difference in care —
+their reading defended itself and mine did not, and neither of us chose which kind
+we got. It is the strongest evidence available that the middle row cannot be
+handled by being careful, because the reader who ships a plausible wrong number
+feels exactly as careful as the one who catches an absurd one.
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
