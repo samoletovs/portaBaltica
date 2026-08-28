@@ -514,6 +514,32 @@ not a guard, it is a second implementation that can disagree.** Same family as
 an instrument that cannot fail: it stops measuring the thing and says nothing
 about having stopped.
 
+**And its quieter sibling: a guard must enumerate the same set as the thing it
+guards.** Reproducing the logic is one failure; covering a *smaller population*
+than the subject is another, and it is harder to see because the guard is
+correct about everything it looks at. Everything in the gap is unguarded while
+looking covered.
+
+Three instances, all the same shape:
+
+```
+#149     maritime probe   rep_mar=LV_0LVRIX, since 2023-Q1
+         the app          4 Latvian ports,   since 2018-Q1
+
+#178     wiring guard     readdirSync(TESTS_DIR)          flat
+         the live runner  glob('tests/**')                recursive
+
+389d1f9  vacuity guard    ast.parse(Path(__file__))       one file
+         its subject      the invariants, wherever they live
+```
+
+Each was found only when someone asked what the *subject* enumerates and
+compared it. That is the check: **write down the set the guard walks and the
+set the behaviour walks, and require them to match** — or, better, have the
+guard call the same builder, as `statusChecks.js` now does with `buildUrl` and
+`ports.seriesUrls`. A shared enumeration cannot drift; two enumerations always
+will, and the drift is silent in the direction that reports success.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because
