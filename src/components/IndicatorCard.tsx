@@ -10,6 +10,8 @@ import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
 import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
 import { list } from '../utils/payload';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -70,6 +72,10 @@ interface IndicatorData {
   title: string;
   unit: string;
   source: string;
+  /** The upstream table code, where the payload reports one. Export metadata. */
+  dataset?: string;
+  /** When the API read the source, as it reports it. Export metadata. */
+  fetchedAt?: string;
   series: TimeSeriesPoint[];
   summary: IndicatorSummary;
 }
@@ -396,6 +402,10 @@ export function IndicatorChart({
                 title: d.title,
                 unit: d.unit || '',
                 source: d.source || 'Eurostat',
+                // Read defensively: `/api/baltic-compare` returns both, and
+                // `BalticCompareData` declares neither. See `optionalString`.
+                dataset: optionalString(d, 'dataset'),
+                fetchedAt: optionalString(d, 'fetchedAt'),
                 series,
                 summary: {
                   latest, previous,
@@ -483,6 +493,19 @@ export function IndicatorChart({
 
   const values = chartData.map((p) => p.value as number);
   const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
+
+  // What the download writes out: the series as held, rather than the charted
+  // subset, so a period the chart drops is still a row in the file.
+  const exportPayload: SeriesExport = {
+    indicator: id,
+    title: data.title,
+    unit: data.unit,
+    source: data.source,
+    dataset: data.dataset,
+    retrievedAt: data.fetchedAt,
+    exportedAt: new Date().toISOString(),
+    series: [{ label: data.title, observations: list<TimeSeriesPoint>(data.series) }],
+  };
 
   return (
     <div>
@@ -572,12 +595,21 @@ export function IndicatorChart({
         <StatBox label="Max" value={fmt(summary.max)} />
       </div>
 
-      <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>
-        Source: {data.source} · {summary.count} data points
-        {summary.change !== null && summary.change !== 0 && (
-          <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
-        )}
-      </p>
+      {/* The source line and the export, on one row — the same arrangement as
+          the comparison chart below it, and for the same reason. It began in
+          the toolbar at the top, where at 320px it wrapped onto a second row
+          and pushed the chart down by 52px measured. A download is the last
+          thing a reader wants, not the first, and the file it produces carries
+          this source line in its preamble. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+          Source: {data.source} · {summary.count} data points
+          {summary.change !== null && summary.change !== 0 && (
+            <span className="sr-only">. Latest change is {changeDescription(id, summary.change)}.</span>
+          )}
+        </p>
+        <DownloadMenu data={exportPayload} />
+      </div>
     </div>
   );
 }
