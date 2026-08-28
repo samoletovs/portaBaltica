@@ -56,13 +56,24 @@ newsroom      deployed at master head; the 14:00Z timer edition published
 articles      81 published
 throughput    42 PRs merged · 5.1 PR/h · doc ratio ~1 : 6
 
-              Measured over 5cfba82..master -- the handover commit at 10:16Z,
-              NOT the calendar day, which adds the previous run's last 7 PRs and
-              its markdown. The direct-commit count is deliberately absent: it is
-              self-referential, so every commit correcting it made it wrong
-              again. Measure it, do not read it:
+              Measured over 5cfba82..925c091 -- the handover commit at 10:16Z to
+              the last commit of the run. NOT the calendar day, which adds the
+              previous run's last 7 PRs and its markdown.
 
-                git log --format='%s' 5cfba82..origin/master |
+              Direct commits over that range: 30. It is quotable because BOTH
+              ENDS ARE PINNED. An earlier version of this block used
+              `5cfba82..origin/master` and said the count was unbindable because
+              stating it moved it -- that diagnosis was one axis narrow. The
+              self-reference only bites while the far end is open: pin it and
+              the commit recording the number lands after the range closes.
+              Measured four minutes apart, the two forms already read 32 and 30.
+
+              To measure YOUR run, substitute your own handover SHA and your own
+              endpoint. Do not reuse this range -- an open end would hand you
+              this run's commits plus your own, which is the day-versus-run error
+              inherited rather than repeated:
+
+                git log --format='%s' <your-handover-sha>..<your-final-sha> |
                   Where-Object { $_ -notmatch '\(#\d+\)\s*$' } | Measure-Object
               (measured 5cfba82..master, i.e. since the handover at 10:16Z --
                NOT the calendar day, which adds the previous run's last 7 PRs)
