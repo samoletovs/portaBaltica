@@ -286,15 +286,50 @@ def _asserts_outside_every_loop(fn: ast.FunctionDef) -> bool:
     )
 
 
+#: The invariants whose silent disappearance would cost the most, named so that
+#: moving one to another file turns this red rather than quietly narrowing the
+#: guard's reach.
+#:
+#: WHY A NAMED LIST AND NOT A COUNT. `offenders == []` is true of a compliant
+#: file and equally true of a scan that found nothing — measured at 17 tests, at
+#: 1, and at 0, and the guard passed all three. A count would close the third
+#: case only: seventeen invariants in one file is exactly the size that gets
+#: split, and after a split the guard follows whichever half retains it, sees a
+#: non-zero number of tests, and goes on reporting green about the invariants it
+#: no longer covers. Naming them is what makes the move visible.
+#:
+#: A *subset* check rather than an equality, because adding an invariant here
+#: should not require editing this list — only losing one should.
+LOAD_BEARING = frozenset({
+    "test_no_tier_c_source_may_permit_rewriting",
+    "test_every_tier_c_source_is_pinned_to_the_outlets_own_rss_snippet",
+    "test_every_source_carries_a_licence_and_an_attribution",
+    "test_the_shipped_registry_satisfies_the_loaders_own_contract",
+    "test_every_dashboard_section_routes_to_a_valid_persona",
+    "test_every_correspondent_renders_a_byline_that_discloses_ai",
+})
+
+
 def test_no_invariant_in_this_file_can_pass_by_asserting_nothing() -> None:
     tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
 
-    offenders = [
-        node.name
+    tests = [
+        node
         for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
-        and node.name.startswith("test_")
-        and not _asserts_outside_every_loop(node)
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
+
+    # The coverage check, before the compliance one. Without it this test is the
+    # very thing it forbids: an assertion that holds when nothing was examined.
+    missing = sorted(LOAD_BEARING - {node.name for node in tests})
+    assert missing == [], (
+        f"these invariants are no longer in the file this guard scans: {missing}. "
+        "If they moved, the guard did not move with them and is now reporting "
+        "green about tests it does not cover. Point it at them or split it too."
+    )
+
+    offenders = [
+        node.name for node in tests if not _asserts_outside_every_loop(node)
     ]
 
     assert offenders == [], (
