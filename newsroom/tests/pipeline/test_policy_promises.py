@@ -182,6 +182,50 @@ class TestTheHypothesisPromise:
         assert "no invented person appears anywhere on this site" in policy_text
         assert "never a person with a surname or a doctorate" in policy_text
 
+    def test_the_policy_admits_the_one_article_that_breaks_the_rule(
+        self, policy_text: str
+    ) -> None:
+        """A rule stated as though it had never been broken is a second untruth.
+
+        The sentence above is written in the present tense and tells a reader
+        that a personal name in an article "belongs to a real person". For one
+        published article that is false, and the reader most likely to check is
+        the one it misleads.
+        """
+        assert "carries a correction saying so" in policy_text
+        assert "Dr. Ineta Zvirbule" in policy_text
+        assert "we do not quietly edit our archive" in policy_text
+
+    def test_the_admission_is_backed_by_an_actual_correction(self) -> None:
+        """The two must not drift apart in either direction.
+
+        A policy admitting a fault with no correction filed is an apology with
+        no artefact; a correction with no admission leaves the rule above
+        reading as absolute. Both are checked from ``PENDING`` rather than from
+        the prose, so the correction is the thing that has to exist.
+        """
+        from newsroom.pipeline.corrections import PENDING
+
+        assert PENDING, (
+            "the policy admits an article breaks the no-invented-person rule "
+            "and no correction is declared for it"
+        )
+        assert any("Dr. Ineta Zvirbule" in c.description for c in PENDING)
+
+    def test_the_correction_says_the_prose_was_left_alone(
+        self, policy_text: str
+    ) -> None:
+        """The policy and the note must agree about what was done to the page.
+
+        The policy says the paragraph is still there unedited. If the note ever
+        said otherwise — or a later change started rewriting prose — a reader
+        comparing the two would catch us before any test did.
+        """
+        from newsroom.pipeline.corrections import PENDING
+
+        assert "still there, unedited" in policy_text
+        assert any("left exactly as published" in c.description for c in PENDING)
+
     def test_the_panel_keeps_the_no_invented_person_promise(self) -> None:
         """The promise is kept by there being nobody to invent, not by a rule.
 

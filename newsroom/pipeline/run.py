@@ -32,6 +32,8 @@ from newsroom.pipeline.collect.archive import RawArchive
 from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.collect.opendata import collect_open_data
 from newsroom.pipeline.collect.rss import extract_raw_description, parse_feed
+from newsroom.pipeline import corrections as editorial_corrections
+from newsroom.pipeline.corrections import issue as issue_corrections
 from newsroom.pipeline.analyst import AnalystBrief, analyse
 from newsroom.pipeline.context import ContextPack, build_context, enrich_signal
 from newsroom.pipeline.detect import Threshold, detect_all
@@ -590,6 +592,23 @@ async def run_once(
         except Exception as exc:  # noqa: BLE001
             log.exception("revision watch failed")
             report.errors.append(f"revision watch: {exc}")
+
+        # --- 13. editorial corrections --------------------------------------
+        # The other kind of note about an article already out. The watch above
+        # finds figures the SOURCE restated; this files errors that were ours,
+        # on pieces that otherwise stand. Declared rather than detected, because
+        # deciding a published sentence was wrong is an editorial act and not a
+        # computation — see `corrections.PENDING`.
+        #
+        # Idempotent, so it runs every edition and appends nothing once the note
+        # is on the article.
+        try:
+            corrected = await issue_corrections(store, editorial_corrections.PENDING)
+            if corrected:
+                log.info("editorial correction(s) filed on: %s", ", ".join(corrected))
+        except Exception as exc:  # noqa: BLE001
+            log.exception("editorial corrections failed")
+            report.errors.append(f"editorial corrections: {exc}")
     finally:
         if owns_http:
             await client.__aexit__(None, None, None)

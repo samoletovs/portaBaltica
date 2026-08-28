@@ -93,6 +93,11 @@ claiming an interview. There is now no invented person for a reader to mistake
 for a real one, which is a stronger guarantee than a rule about how to describe
 one.
 
+That article is still up, with the paragraph exactly as published and a
+correction above it. We did not go back and quietly swap the name out. A site
+that edits its own archive to remove an embarrassment has no archive, and a
+correction you cannot check against the page it corrects is worth nothing.
+
 **What they produce is a hypothesis, and it is published as one.** Four rules
 are enforced in code rather than asked for in a prompt:
 
@@ -203,6 +208,13 @@ disclosure work on its own. These rules do:
   demographer", never a person with a surname or a doctorate. If you see a
   personal name in an article, it belongs to a real person or organisation in a
   source we retrieved and linked.
+
+  One article, published on 28 August 2026, breaks that rule and carries a
+  correction saying so. A defect gave our analysts invented personal names for a
+  few hours, and one reached print as "Dr. Ineta Zvirbule". The paragraph is
+  still there, unedited, with the correction above it — we do not quietly edit
+  our archive, and a rule stated as though it had never been broken would be a
+  second untruth on top of the first.
 - no correspondent may claim to have visited, phoned, interviewed, attended or
   witnessed anything — this is enforced in code, and an article that breaks it
   is rejected before publication rather than corrected afterwards
