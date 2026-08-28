@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 /**
  * No test may read from `dist/`, and the question must be answerable by machine.
@@ -55,17 +55,38 @@ const TESTS_DIR = resolve(__dirname);
  */
 const SELF = 'distIsNotRead.test.ts';
 
-/** Every `.ts`/`.tsx` file in `tests/`, with block and line comments removed. */
-function testSources(): { name: string; code: string }[] {
-  return readdirSync(TESTS_DIR)
-    .filter((f) => /\.(ts|tsx)$/.test(f))
-    .map((name) => {
-      const raw = readFileSync(resolve(TESTS_DIR, name), 'utf-8');
-      const code = raw
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/(^|[^:])\/\/.*$/gm, '$1');
-      return { name, code };
-    });
+/**
+ * Every `.ts`/`.tsx` file under `tests/`, **recursively**, with block and line
+ * comments removed.
+ *
+ * The recursion is not tidiness. This walked flat while its own docstring
+ * claimed "every file in `tests/`", so the claim was false the moment a
+ * subdirectory held a test — and one did, briefly: `tests/live/planted.live.
+ * test.ts`, created while verifying `#178`. `liveBrowserWiring.test.ts` was made
+ * recursive for exactly this exposure and this file was not, so two guards over
+ * the same tree disagreed about what "the suite" means.
+ *
+ * That is the guard-reach rule in `AGENTS.md` applied to the guard that taught
+ * it: **a guard must enumerate the same set as the thing it guards.**
+ *
+ * Names are returned relative to `tests/`, so a top-level file is still
+ * `distIsNotRead.test.ts` and a nested one is `sub/foo.test.ts`.
+ */
+function testSources(dir = TESTS_DIR, prefix = ''): { name: string; code: string }[] {
+  const out: { name: string; code: string }[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      out.push(...testSources(join(dir, entry.name), name));
+    } else if (/\.(ts|tsx)$/.test(entry.name)) {
+      const raw = readFileSync(join(dir, entry.name), 'utf-8');
+      out.push({
+        name,
+        code: raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1'),
+      });
+    }
+  }
+  return out;
 }
 
 /** A path reference into `dist`, in code rather than prose. */
