@@ -94,6 +94,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
     research,
     context,
     analysis,
+    hypotheses,
     editor,
   } = provenance;
 
@@ -266,6 +267,55 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                   {analysis.mechanisms_discarded} further explanation
                   {analysis.mechanisms_discarded === 1 ? ' was' : 's were'} proposed and discarded
                   for resting on no verified figure. The correspondent never saw them.
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          {hypotheses && (
+            <div>
+              <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">
+                What the causal panel proposed
+              </h3>
+              <p className="news-muted text-ui">
+                {hypotheses.consulted.length === 1
+                  ? '1 specialist was'
+                  : `${hypotheses.consulted.length} specialists were`}{' '}
+                consulted separately and asked what drove this:{' '}
+                {hypotheses.consulted.join(', ')}. Their answers are proposals, not
+                findings — nothing in this article establishes any of them.
+              </p>
+              {hypotheses.hypotheses.length > 0 ? (
+                <ul className="news-subtle mt-2 space-y-2 text-caption">
+                  {hypotheses.hypotheses.map((hypothesis) => (
+                    <li key={hypothesis.claim}>
+                      {hypothesis.claim} — {hypothesis.strength === 'likely' ? 'likely' : 'possible'},
+                      held by {hypothesis.attribution}, {hypothesis.discipline}
+                      {hypothesis.informed_by
+                        ? `, who had read ${hypothesis.informed_by}. The claim is theirs, not that publisher's`
+                        : ', from their own expertise rather than from this data'}
+                      {hypothesis.corroborated_by && hypothesis.corroborated_by.length > 0
+                        ? `. Reached independently by ${hypothesis.corroborated_by.join(', ')}`
+                        : ''}
+                      {hypothesis.testable_with
+                        ? `. What would settle it: ${hypothesis.testable_with}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="news-subtle mt-2 text-caption">
+                  No explanation survived the panel's own checks, so the article offers
+                  none. Specialists looked and found nothing they could stand behind,
+                  which is not the same as nobody asking.
+                </p>
+              )}
+              {hypotheses.discarded ? (
+                <p className="news-subtle mt-2 text-caption">
+                  {hypotheses.discarded} further explanation
+                  {hypotheses.discarded === 1 ? ' was' : 's were'} proposed and discarded
+                  for carrying an unverified figure or citing a document the newsroom
+                  never retrieved. The correspondent never saw them.
                 </p>
               ) : null}
             </div>

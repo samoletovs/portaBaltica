@@ -95,6 +95,13 @@ convention.
    │                  settle it. A mechanism that does not name verified fields
    │                  is deleted in code before the writer sees it.
    │
+   ├─ 6b. THE PANEL   two specialists per beat, consulted separately, propose
+   │                  *why*. This is the one stage permitted world knowledge,
+   │                  and everything it returns is a hypothesis: attributed to
+   │                  whoever holds it, marked unconfirmed, and carrying no
+   │                  quantity — a claim with a number in it is deleted in code.
+   │                  See "The causal panel" below.
+   │
    ├─ 7. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
    │                  Receives the enriched signal, the context pack, the
    │                  analyst's brief, fenced research and a persona voice card.
@@ -135,6 +142,121 @@ gate: context figures are merged into `Signal.fields`, which is exactly what
 `figures_traceable` resolves against, and every analyst mechanism must name
 fields the pipeline actually retrieved or it is deleted before the writer's
 prompt is built.
+
+### The causal panel
+
+Both stages above left the reader's first question unanswered, and the analyst
+prompt says so in terms: *"do not reach for world knowledge about tax changes,
+elections, wars or company decisions"*. That rule is right for a **mechanism**,
+which this wire publishes as fact. Its consequence was that no component
+anywhere could say why anything happened.
+
+Measured across the 21 published articles carrying an analyst brief, 18 held at
+least one mechanism — so the desk was working. A mechanism is a relationship
+between two verified series, and never a cause, so an article could hold two of
+them and still close:
+
+> The decline in economic sentiment coincides with a GDP growth of 0.4% quarter
+> on quarter and an unemployment rate of 6.4% of the labour force in the same
+> period.
+>
+> **The data does not show what drove the change in sentiment.**
+
+Both sentences are true. Together they are an admission that nobody looked.
+
+`hypothesis.py` is the component that looks. A **hypothesis** is a different
+kind of claim from everything else here, and the two are kept apart all the way
+to the reader:
+
+|              | Mechanism (`analyst.py`)   | Hypothesis (`hypothesis.py`)     |
+| ------------ | -------------------------- | -------------------------------- |
+| rests on     | two verified series        | domain knowledge, or a document  |
+| published as | a statement of fact        | attributed, and marked unconfirmed |
+| guard        | `_ground`: field names     | `_admissible`: no quantities     |
+| if wrong     | a correction               | a hypothesis that did not hold   |
+
+**Three guarantees, all in code**, because a prompt instruction is not an
+argument — `_admissible` runs after the model exactly as `_ground` does:
+
+1. **No quantities.** Every claim goes through `numeric_scan`, the same module
+   the validator uses to decide what a numeric claim *is*, and one carrying a
+   number is dropped rather than redacted. Note what this deliberately permits:
+   bare years are masked, so *"the 2024 pension reform"* survives while
+   *"housing costs rose 12%"* does not. That is asserted, not assumed — naming
+   a specific policy is the whole point, and a year that killed the claim would
+   force the vagueness this stage exists to remove.
+2. **A cited document exists.** A hypothesis resting on an official statement
+   must name a source in *this article's* research context, and only an
+   `official_statement` — tier C is link-out only, so a hypothesis attributed to
+   a newspaper would put its name behind a cause we read not one word of.
+3. **Attribution is assigned, never claimed.** For a domain-knowledge claim the
+   name is written from the panel table, not read from the answer. A model
+   cannot promote its own guess into a central bank's mouth.
+
+**Two analysts, consulted separately.** Asking one model for three perspectives
+returns one perspective wearing three hats, because the second is written in the
+light of the first. Independent calls mean a convergence is evidence rather than
+an artefact of ordering, and `_converge` tells the correspondent which causes two
+panellists reached alone.
+
+**The lenses are not the sections.** A finding is read by whoever can explain it,
+which is why `environment` — where this newsroom files its demographic series —
+routes to a demographer and a political economist rather than to a climate
+analyst. A section-shaped default is exactly what made the birth-rate article
+shallow.
+
+**It costs two model calls per article**, on top of the analyst's one and the
+writer's one to three. `NEWSROOM_PANEL_SIZE` is the dial; two is the floor at
+which a convergence means anything, and the third lens per beat exists for
+where they genuinely disagree. Watch it against the €3–5/mo target rather than
+assuming it is free.
+
+**The gate got stricter, not looser.** `no_unsupported_mechanism` now admits a
+figure-free paragraph that explains something on the newsroom's own analyst's
+authority *only* when the same paragraph marks the cause unconfirmed, and it
+tests that branch **before** the general attribution exemption. That ordering is
+the whole guarantee: `_ATTRIBUTED_TO_A_SOURCE` matches any sentence containing
+"says", so a desk cause stated flatly would otherwise pass on the generic
+clause and the hedge requirement would be a branch nothing ever reached. The
+panellists' names are read off the article's own provenance rather than matched
+by pattern, so *"Dr Liina Sarapuu says X is driven by Y"* — the same claim on
+the same authority, without the possessive a regex would look for — is caught.
+
+An outside publisher is on the record independently and answerable for what it
+said; our panellist is a model this newsroom prompted. The asymmetry is
+deliberate.
+
+**A hypothesis is never attributed to a publisher, even when one informed it.**
+`_admissible` can establish that a named document was *retrieved* for this
+article. Nothing establishes that the document *says* the claim — the guard
+compares a name against a list and never opens the release. So attributing the
+claim to the publisher would answer a question nobody asked, and the failure is
+legible to the reader and invisible to us: they follow the link, read the
+release, and find we paraphrased it into saying something it does not. Every
+claim is therefore the panellist's, for both bases, and a cited release is
+recorded beside it as `informed_by`.
+
+What the gate still cannot see is the truth of an attribution: *"According to
+Latvijas Banka, the fall is driven by X"* passes whether or not the bank said
+so, and it has passed since the check was written — measured against the
+untouched validator with no panel present at all. The panel does not widen that
+and is built not to walk into it, but the limit is real and is named in
+`check_no_unsupported_mechanism`'s docstring rather than left implied. Closing
+it means requiring that an attributed cause name a source whose document text
+was actually fetched, which is a change to a long-standing rule and belongs in
+its own piece of work.
+
+**Retrieval had to be fixed first.** `research._topic_terms` knew only the
+section vocabulary, so the birth-rate story could match on `climate`,
+`environment` and `weather` and nothing else. The five items it retrieved were
+Estonian farm subsidies, a crane migration count, Greece's Social Climate Plan,
+Latvijas Banka's climate disclosures and a Commission daily digest, and the one
+document actually read into the prompt was the climate report. Widening the
+section list would have fixed that one finding and left the next; the metric's
+own label is asked instead, because it always describes the subject and a metric
+added tomorrow brings its own vocabulary with it. Measured on the published
+case, the demographic headline went from scoring **0** — below the crane story's
+4, so it could not be selected at all — to outranking it.
 
 ### What the desk is shown
 
@@ -675,6 +797,7 @@ newsroom/
 ├── numeric_scan.py            # numeric tokenising for no_invented_numbers
 ├── validator.py               # the gate: every check in the schema enum
 ├── pipeline/research.py       # bounded context from cached registered feeds
+├── pipeline/hypothesis.py     # the causal panel: attributed, quantity-free why
 ├── pipeline/significance.py   # the measurement floor: is the move resolvable?
 ├── pipeline/vintage.py        # ledger of published figures and their vintages
 ├── pipeline/revisions.py      # the revision watch and the public correction
@@ -706,6 +829,14 @@ infrastructure/main.bicep      # Functions + Storage + Foundry role assignment
    advance, while it is still cheap to refuse.
 6. **A difference below the measurement floor is not a small story.** It is the
    absence of one. Never make it survivable by weighting.
+7. **A cause is never asserted, and never anonymous.** The causal panel is the
+   one stage allowed knowledge from outside the retrieved figures, and every
+   claim it produces reaches the reader carrying both a name and a mark that
+   this data cannot confirm it. Neither half is optional: without the name the
+   reader cannot weigh whose idea it is, and without the mark the wire has
+   asserted something it did not establish. A hypothesis also never carries a
+   quantity — if one is ever needed to make the claim stand up, the claim is a
+   numeric assertion the pipeline did not verify, and it is dropped.
 
 ## Deploying
 

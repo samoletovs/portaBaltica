@@ -937,6 +937,90 @@ _ATTRIBUTED_TO_A_SOURCE = re.compile(
     re.IGNORECASE,
 )
 
+#: Who the newsroom's own causal panel speaks as, when the prose names a role
+#: rather than a person. A hypothesis from
+#: :mod:`newsroom.pipeline.hypothesis` has no outside publisher to name -- it is
+#: a specialist on this masthead proposing a cause -- so the possessive is what
+#: distinguishes it. Deliberately narrow: a bare "the analyst" or "the
+#: economist" belongs to whoever the sentence says it does, and claiming those
+#: would tighten the gate on ordinary external attribution.
+_DESK_ATTRIBUTION = re.compile(
+    r"\bthe\s+newsroom's\b|\bportaBaltica's\b"
+    r"|\bthe\s+(?:causal\s+panel|analysis\s+desk)\b",
+    re.IGNORECASE,
+)
+
+#: The words that make a proposed cause a proposal rather than a finding.
+_MARKED_UNCONFIRMED = re.compile(
+    r"\b(?:may|might|could|likely|possible|possibly|probable|probably|perhaps)\b"
+    r"|\bhypothesis\b|\bunconfirmed\b|\bcannot\s+(?:be\s+)?confirm(?:ed)?\b"
+    r"|\bdoes\s+not\s+confirm\b|\bnot\s+established\b|\bcandidate\s+explanation\b"
+    r"|\bwould\s+need\b|\bone\s+explanation\b",
+    re.IGNORECASE,
+)
+
+
+def _panellists(context: "ValidationContext") -> tuple[str, ...]:
+    """The names this article's causal panel actually spoke under.
+
+    Read off the artefact rather than matched by pattern. The alternative --
+    a regex for "the newsroom's <role>" -- covers a smaller population than
+    its subject: the prompt's own worked example is *"Dr Liina Sarapuu, the
+    newsroom's demographer, says"*, and a draft that writes the name without
+    the possessive is the same claim on the same authority with nothing to
+    match on.
+
+    Only ``analyst`` is read, never ``attribution``, and the two are equal by
+    construction in :func:`newsroom.pipeline.hypothesis._admissible`. Reading
+    both was a hazard in each direction while an ``official_document``
+    hypothesis could still be attributed to its publisher: a registry feed
+    name landing in this set would have made ordinary external attribution --
+    *"According to Latvijas Banka, ..."* -- start failing a check it has
+    always passed, for articles whose panel merely happened to cite that feed.
+    """
+    provenance = context.article.get("provenance")
+    if not isinstance(provenance, Mapping):
+        return ()
+    block = provenance.get("hypotheses")
+    if not isinstance(block, Mapping):
+        return ()
+    entries = block.get("hypotheses")
+    names: list[str] = []
+    if isinstance(entries, Sequence) and not isinstance(entries, (str, bytes)):
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+            value = entry.get("analyst")
+            if isinstance(value, str) and value.strip():
+                names.append(value.strip())
+    return tuple(dict.fromkeys(names))
+
+
+def _speaks_for_the_newsroom(text: str, panellists: Sequence[str]) -> bool:
+    """Is this paragraph explaining on our own analyst's authority?"""
+    if _DESK_ATTRIBUTION.search(text):
+        return True
+    return any(name and name in text for name in panellists)
+
+
+def _is_hedged_desk_hypothesis(text: str, panellists: Sequence[str] = ()) -> bool:
+    """A cause the newsroom's own panel proposed, marked as a proposal.
+
+    Deliberately a **conjunction**, and that is the whole safety argument. The
+    panel exists so a reader gets a candidate cause instead of "the data does
+    not show what drove the change" -- but a candidate cause asserted flatly is
+    exactly the fabrication ``check_no_unsupported_mechanism`` was built to
+    catch, and the retracted container-throughput sentence would sail through a
+    check that asked only for an attribution.
+
+    So both halves are required and the exemption fails closed on either. Drop
+    the attribution and the reader cannot tell whose idea it is; drop the
+    hedge and the wire has asserted a cause it did not establish.
+    """
+    return bool(
+        _speaks_for_the_newsroom(text, panellists) and _MARKED_UNCONFIRMED.search(text)
+    )
+
 
 def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
     """A paragraph with no figures may not explain why something happened.
@@ -972,20 +1056,47 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
     what drove the change" is figure-free and is one of the better sentences
     this wire publishes -- or report one somebody is named as the source of.
 
-    WHY IT IS A CHECK RATHER THAN AN INSTRUCTION
-    --------------------------------------------
-    The prompt has forbidden this in terms, by name, including the exact verb
-    the retracted article used::
+    THE THIRD EXEMPTION, AND WHY IT NEEDS TWO CONDITIONS
+    ----------------------------------------------------
+    Denying a mechanism is honest exactly once. Measured across the published
+    corpus it had stopped being a considered judgement and become the default
+    ending: one article carried two of the analyst's mechanisms and still
+    closed "the data does not show what drove the change in sentiment",
+    because a mechanism relates two verified series and never says why either
+    moved. Nothing in the pipeline was asking.
 
-        Never write that a movement "reflects", "indicates", "highlights",
-        "underscores" or "points to" something the figures do not establish.
+    :mod:`newsroom.pipeline.hypothesis` now asks, and what it returns is a
+    third kind of paragraph: a cause proposed by this newsroom's own panel,
+    with no outside institution to name. ``_is_hedged_desk_hypothesis`` admits
+    it only when the prose carries **both** the attribution and an explicit
+    mark that the cause is unconfirmed -- see that function for why either
+    alone would reopen the hole this check exists to close.
 
-    It did it anyway. Fourth component where the guidance was right and nothing
-    enforced it, after the persona closing moves, the analyst's
-    ``what_to_watch``, and the prompt's own "same period" requirement.
+    WHAT THIS CHECK STILL CANNOT SEE
+    --------------------------------
+    It reads the grammar of attribution, never the truth of it. So
+    *"According to Latvijas Banka, the fall is driven by X"* passes whether or
+    not the bank said any such thing, and it has passed since this check was
+    written -- measured against the untouched validator with no panel present
+    at all.
+
+    The panel does not widen that hole and is built not to walk into it:
+    ``hypothesis._admissible`` attributes every claim to the panellist for
+    **both** bases, recording a cited release as ``informed_by`` instead,
+    precisely because the guard can establish that a document was retrieved and
+    can never establish that it says the claim. The brief then tells the writer
+    in terms not to write "according to <publisher>" for a panel cause. That is
+    a prompt, not a guarantee, and it is named here rather than left implied.
+
+    Closing it properly means requiring that a cause attributed to a publisher
+    name a source whose **document text was actually fetched** -- a title-only
+    feed item cannot support a claim about what anyone said. That is a change
+    to a long-standing rule with its own regression surface, and it belongs in
+    its own piece of work rather than as a side effect of this one.
     """
     name = "no_unsupported_mechanism"
     problems: list[str] = []
+    panellists = _panellists(context)
 
     for index, block in enumerate(context.blocks):
         if block.get("type") != "paragraph":
@@ -998,12 +1109,37 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
         found = _ATTRIBUTION.search(text)
         if not found:
             continue
+        # Order matters, and this is the whole point of the branch.
+        #
+        # Our own analyst is tested FIRST and against a stricter rule than an
+        # outside publisher, because ``_ATTRIBUTED_TO_A_SOURCE`` matches any
+        # sentence containing "says" -- so a desk cause stated flatly would
+        # otherwise pass on the generic attribution and the hedge requirement
+        # would never decide anything. A conjunction that some other clause
+        # always satisfies first is not a guard, it is an unreachable branch
+        # with a reassuring docstring.
+        #
+        # The asymmetry is also the correct editorial position: a central bank
+        # is on the record independently of this wire and answerable for what
+        # it said. Our panellist is a model this newsroom prompted, so a cause
+        # in their mouth needs the reader told it is unconfirmed.
+        if _speaks_for_the_newsroom(text, panellists):
+            if _MARKED_UNCONFIRMED.search(text):
+                continue
+            problems.append(
+                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+                "on the newsroom's own analyst's authority, in a paragraph carrying "
+                "no figure and no mark that the cause is unconfirmed. A candidate "
+                "cause must say that this data cannot confirm it"
+            )
+            continue
         if _DENIES_A_MECHANISM.search(text) or _ATTRIBUTED_TO_A_SOURCE.search(text):
             continue
         problems.append(
             f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
             "in a paragraph carrying no figure. Say what the data shows, "
-            "attribute the explanation to a named source, or say plainly that "
+            "attribute the explanation to a named source, name the newsroom's "
+            "own analyst AND mark the cause as unconfirmed, or say plainly that "
             "the data does not establish a cause"
         )
 
