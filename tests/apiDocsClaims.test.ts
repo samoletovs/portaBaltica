@@ -141,4 +141,41 @@ describe('the API docs page states numbers that are true', () => {
       'the page lists indicator ids that api/historical-data no longer serves, or omits ones it does',
     ).toEqual(registry);
   });
+
+  it('states the eu-funds sample size the endpoint actually returns', () => {
+    // This claim said "955 projects" for months. The endpoint returns a
+    // twenty-project sample and a separate total, and 955 was neither: the
+    // live total measured 1682. It was missed when the three claims above
+    // were pinned, which is this repo's own guard-population fault committed
+    // inside the guard written against it — so the count is derived here
+    // rather than restated.
+    const source = readFileSync(resolve('api/eu-funds/index.js'), 'utf8');
+    const slice = source.match(/\.slice\(0,\s*(\d+)\)/);
+    expect(slice, 'api/eu-funds no longer slices a fixed sample').not.toBeNull();
+
+    expect(
+      PAGE,
+      'the /api/eu-funds description states a sample size that no longer matches api/eu-funds/index.js',
+    ).toContain(`the ${slice![1]} most recent projects`);
+  });
+
+  it('states no project total, because the total is upstream and would go stale silently', () => {
+    // The rule the policy audit established: a published sentence that counts
+    // is false the instant the thing it counts grows, so either drop the
+    // number or bind it. `total` comes from data.gov.lv and no live check
+    // covers it, so this one is dropped rather than bound.
+    const line = PAGE.match(/'\/api\/eu-funds'[^\n]*/);
+    expect(line, 'the eu-funds row is gone from the endpoint table').not.toBeNull();
+
+    // Scope to the description: `cache: '1 hour'` is a number too, and the
+    // first version of this assertion failed on it.
+    const description = line![0].match(/description:\s*'([^']*)'/);
+    expect(description, 'the eu-funds row no longer carries a description').not.toBeNull();
+
+    const counts = description![1].match(/\b\d[\d,]*\b/g) ?? [];
+    expect(
+      counts,
+      'the eu-funds description states a project total; it varies upstream and nothing checks it',
+    ).toEqual(['20']);
+  });
 });
