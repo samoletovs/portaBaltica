@@ -82,7 +82,7 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
 from newsroom import numeric_scan
@@ -108,10 +108,16 @@ MAX_HYPOTHESIS_TOKENS = 650
 #: more words.
 MAX_PER_ANALYST = 2
 
-#: How many of the panel are consulted per article. Each is one model call, so
-#: this is the cost dial. Two is enough for a convergence to mean something;
-#: the third is worth having on the beats where the lenses genuinely disagree.
-PANEL_SIZE = max(1, int(os.environ.get("NEWSROOM_PANEL_SIZE", "2")))
+#: How many of the panel are consulted per article. Each is one model call.
+#:
+#: Three, not two. Measured at the ranking ceiling of eight articles a day on
+#: gpt-4o-mini list price, the whole stage costs about $0.27/month at two and
+#: $0.41 at three — so the panel was never the cost driver the €3–5 target is
+#: about, and the third lens buys two things the second cannot. It is the
+#: tie-breaker on beats where the first two disagree, and it makes a
+#: corroboration mean more: two analysts of three agreeing is evidence in a way
+#: two of two, who had no third opinion to differ from, is not.
+PANEL_SIZE = max(1, int(os.environ.get("NEWSROOM_PANEL_SIZE", "3")))
 
 Basis = Literal["domain_knowledge", "official_document"]
 Strength = Literal["likely", "possible"]
@@ -132,11 +138,48 @@ _STOP = frozenset(
 
 _WORD = re.compile(r"[^\W\d_]{4,}", re.UNICODE)
 
-#: Two analysts are taken to have landed on the same cause when their claims
-#: share this fraction of their content words. Set by inspection rather than by
-#: theory, and it is only ever used to *annotate* — a convergence that is not
-#: spotted costs the correspondent a sentence, never correctness.
-_CONVERGENCE_THRESHOLD = 0.34
+#: Two analysts are taken to have landed on the same cause when this fraction of
+#: the shorter claim's content words appears in the longer one. Only ever used to
+#: *annotate* — a convergence that is not spotted costs the correspondent a
+#: sentence, never correctness.
+#:
+#: Measured on the live claims that exposed the original measure (see
+#: :func:`_overlap`), agreeing pairs score 0.42 and 0.50 while pairs proposing
+#: genuinely different causes score 0.00 to 0.16. This sits in that gap rather
+#: than beside either edge of it.
+_CONVERGENCE_THRESHOLD = 0.30
+
+#: A claim shorter than this cannot corroborate anything. The overlap
+#: coefficient's known weakness is that a very short string contained in a long
+#: one scores 1.0, so "energy prices" would corroborate every energy hypothesis
+#: on the panel. Jaccard had no such weakness, so trading measures without this
+#: would have swapped one defect for another.
+_MIN_WORDS_TO_CORROBORATE = 5
+
+#: And an absolute floor on the words actually shared, because the ratio alone
+#: does not carry the weight the length floor was assumed to give it: at a 0.30
+#: threshold a five-word claim needs only **two** shared words to clear it.
+#:
+#: That is not hypothetical. "Weaker external demand reduced industrial output"
+#: against the live Estonian home-energy claim shares only *demand* and
+#: *reduced* — two generic words, different mechanisms, different lenses — and
+#: scored 0.333. It would have been printed to a reader as independent
+#: agreement and promoted to the head of the writer's brief.
+#:
+#: Measured across the same real pairs the ratio was calibrated on, agreeing
+#: claims share 8 and 10 content words while every non-agreeing pair shares 1
+#: to 3. Four sits in that gap, and requiring both conditions means neither a
+#: coincidental ratio nor a coincidental length can produce a false
+#: corroboration on its own.
+_MIN_SHARED_WORDS = 4
+
+
+#: The token that makes an attribution self-disclosing, and the same string the
+#: byline uses. ``persona_rules`` builds "· AI correspondent" in code precisely
+#: so a model cannot phrase the disclosure away; a panel attribution is written
+#: by a model into prose, so the disclosure has to be inside the name it is
+#: given rather than a rule it is asked to remember.
+AI_DISCLOSURE = "AI"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,10 +189,33 @@ class Lens:
     A lens is not a section. The same finding is read by a demographer and by a
     political economist and they propose different causes for it, which is the
     whole reason for consulting more than one.
+
+    **A lens is a role, not a person, and that is a correction.** The first
+    version of this module gave each one an invented name — "Dr Liina
+    Sarapuu", "Dr Ineta Zvirbule" — and those reached published prose:
+
+        "Dr. Ineta Zvirbule suggests this is a likely explanation, but the
+         data cannot confirm it."
+
+    Neither name is on ``personas.yaml``, so neither has a bio page, an AI
+    byline or a correspondent route. A reader had no way to tell she was not a
+    real economist the correspondent had rung — on a site that forbids writing
+    "analysts say", publishes abstract avatars rather than synthetic faces,
+    and rejects an article for claiming an interview.
+
+    A personal name bought nothing here. It is the *discipline* that
+    distinguishes one perspective from another, and a role title carries the
+    discipline and the disclosure together. So there is no invented person left
+    to be mistaken for a real one — which is a structure rather than a check,
+    and cannot be phrased away by a draft nobody read.
     """
 
     id: str
-    name: str
+    #: How this lens is named wherever a reader can see it: in the article, in
+    #: the passport, in the brief. Always contains :data:`AI_DISCLOSURE`, and
+    #: always possessive to this newsroom, so the phrase a writer copies is
+    #: already both attributed and disclosed.
+    title: str
     discipline: str
     #: What this analyst reaches for. Written as the causes they are qualified
     #: to propose, because that is what reaches the prompt.
@@ -160,7 +226,10 @@ class Lens:
 
     def card(self) -> str:
         return (
-            f"You are {self.name}, {self.discipline}, on the portaBaltica causal panel.\n\n"
+            f"You are {self.title}, on the portaBaltica causal panel. You are an AI "
+            f"system, not a person: you have never held a post, advised anyone or "
+            f"spoken to anyone, and the correspondent will name you by your role "
+            f"rather than by a personal name.\n\n"
             f"WHAT YOU ARE QUALIFIED TO PROPOSE:\n{self.looks_for}\n\n"
             f"THE MISTAKE YOUR DISCIPLINE MAKES, WHICH YOU WILL NOT MAKE:\n{self.overreach}"
         )
@@ -169,7 +238,7 @@ class Lens:
 LENSES: Mapping[str, Lens] = {
     "demography": Lens(
         id="demography",
-        name="Dr Liina Sarapuu",
+        title="the newsroom's AI demographer",
         discipline="demographer",
         looks_for=(
             "- Cohort structure. A birth or death rate moves when the size of the cohort at\n"
@@ -192,7 +261,7 @@ LENSES: Mapping[str, Lens] = {
     ),
     "political_economy": Lens(
         id="political_economy",
-        name="Rasa Irbene",
+        title="the newsroom's AI political economist",
         discipline="political economist",
         looks_for=(
             "- Policy with a known commencement date: tax changes, benefit reform, minimum wage\n"
@@ -214,7 +283,7 @@ LENSES: Mapping[str, Lens] = {
     ),
     "industry": Lens(
         id="industry",
-        name="Marek Akmeņrags",
+        title="the newsroom's AI industry analyst",
         discipline="industry and market analyst",
         looks_for=(
             "- Concentration. Baltic sectors are small enough that one firm's decision — a\n"
@@ -234,7 +303,7 @@ LENSES: Mapping[str, Lens] = {
     ),
     "geopolitics": Lens(
         id="geopolitics",
-        name="Gintaras Kolka",
+        title="the newsroom's AI geopolitical analyst",
         discipline="geopolitical and trade-corridor analyst",
         looks_for=(
             "- The loss of Russian and Belarusian transit, which is the single largest\n"
@@ -257,7 +326,7 @@ LENSES: Mapping[str, Lens] = {
     ),
     "household": Lens(
         id="household",
-        name="Dr Ineta Zvirbule",
+        title="the newsroom's AI household economist",
         discipline="household and labour-market economist",
         looks_for=(
             "- Real incomes: the gap between nominal pay and prices, which decides whether\n"
@@ -406,12 +475,15 @@ class HypothesisPanel:
             "",
             "HOW TO USE THEM — this is the part that decides whether the piece publishes:",
             "  - Write ONE paragraph, near the end, offering the best one or two.",
-            "  - You MUST name the panellist who holds it, in the sentence —",
-            '    "Dr Liina Sarapuu, the newsroom\'s demographer, says ...".',
+            "  - You MUST name the analyst who holds it, USING THE EXACT WORDING GIVEN",
+            '    BELOW — "the newsroom\'s AI demographer says ...". These are AI analysts',
+            "    on this masthead, not people. Do NOT invent a personal name for one, do",
+            "    NOT give one a title or a doctorate, and do NOT drop the word AI: a",
+            "    reader must never take one for a human expert we telephoned.",
             "  - You MUST mark it as unconfirmed in the same paragraph: that this data",
             "    cannot confirm it, that it is a likely or possible explanation. A cause",
             "    stated flatly is rejected, however plausible it is.",
-            "  - Where a panellist was reading an official release, that release is named",
+            "  - Where an analyst was reading an official release, that release is named",
             "    below as what INFORMED them. It is not the source of the claim. Do NOT",
             "    write 'according to <publisher>' — the publisher did not say this, our",
             "    analyst did, after reading them. You may say the analyst was reading it.",
@@ -425,7 +497,7 @@ class HypothesisPanel:
         for hypothesis in self.hypotheses:
             lines.append(f"  - {hypothesis.claim}")
             lines.append(
-                f"    held by: {hypothesis.attribution} ({hypothesis.discipline})"
+                f"    held by, and name it exactly this way: {hypothesis.attribution}"
             )
             if hypothesis.informed_by:
                 lines.append(
@@ -453,10 +525,55 @@ def _content_words(value: str) -> frozenset[str]:
 
 
 def _overlap(left: str, right: str) -> float:
+    """How much of the shorter claim's substance appears in the longer one.
+
+    The overlap coefficient, |A ∩ B| / min(|A|, |B|), not the Jaccard index
+    this used to compute. **Jaccard was the wrong question**, and the live
+    output showed it rather than a test:
+
+        "…attributed to a combination of reduced demand for energy due to
+         milder weather conditions and a shift in energy supply dynamics,
+         particularly the impact of decreased reliance on Russian gas."
+
+        "…attributed to a reduction in energy prices driven by changes in the
+         global energy market, particularly the decreased reliance on Russian
+         gas and the shift towards alternative energy sources."
+
+    Two analysts, consulted separately, both naming decreased reliance on
+    Russian gas. That is precisely the corroboration this newsroom makes
+    separate model calls in order to be able to report — and it was scored
+    0.323 against a 0.34 threshold and dropped.
+
+    Jaccard divides by the *union*, so every qualifier either analyst adds on
+    its own enlarges the denominator while contributing nothing to the
+    numerator. It therefore penalises exactly what a specialist writing at
+    length does, and two claims can only score highly by being the same length
+    as well as the same substance. Measured across the real pairs:
+
+        ==============================  =======  =======
+                                        jaccard  overlap
+        ==============================  =======  =======
+        AGREE   gas / gas                 0.323    0.500
+        AGREE   efficiency / efficiency   0.258    0.421
+        DIFFER  gas / efficiency          0.081    0.158
+        DIFFER  labour / reforms          0.075    0.143
+        DIFFER  gas / labour              0.024    0.048
+        DIFFER  cohort / sanctions        0.000    0.000
+        ==============================  =======  =======
+
+    Jaccard leaves a 0.18 gap with both agreeing pairs *below* the threshold
+    that was set; the overlap coefficient leaves 0.26 with a threshold that
+    fits inside it. So this is a change of measure, not a threshold tuned until
+    one observation passed — which would have been fitting to a sample of one.
+    """
     a, b = _content_words(left), _content_words(right)
     if not a or not b:
         return 0.0
-    return len(a & b) / len(a | b)
+    if min(len(a), len(b)) < _MIN_WORDS_TO_CORROBORATE:
+        return 0.0
+    if len(a & b) < _MIN_SHARED_WORDS:
+        return 0.0
+    return len(a & b) / min(len(a), len(b))
 
 
 def _converge(hypotheses: Sequence[Hypothesis]) -> tuple[Hypothesis, ...]:
@@ -477,12 +594,37 @@ def _converge(hypotheses: Sequence[Hypothesis]) -> tuple[Hypothesis, ...]:
             and _overlap(hypothesis.claim, other.claim) >= _CONVERGENCE_THRESHOLD
         ]
         if others:
-            from dataclasses import replace
-
             out.append(replace(hypothesis, corroborated_by=tuple(dict.fromkeys(others))))
         else:
             out.append(hypothesis)
     return tuple(out)
+
+
+def _by_evidence(hypotheses: Sequence[Hypothesis]) -> tuple[Hypothesis, ...]:
+    """Strongest first, so the writer reads the best candidate before the rest.
+
+    Three lenses returning two each is six candidate causes for one paragraph,
+    and the brief asks for "the best one or two". Left in lens order that is
+    whichever lens the section table happens to list first — demography's two
+    ahead of geopolitics' better one, decided by nothing.
+
+    The order is corroboration, then strength, because that is the order of how
+    much stands behind a claim: two analysts reaching a cause separately is the
+    one signal here that consulting them separately was for, and it outranks a
+    single analyst's own confidence in itself.
+
+    Stable within each band, so a tie keeps lens order and the output stays
+    reproducible from the same model responses.
+    """
+    return tuple(
+        sorted(
+            hypotheses,
+            key=lambda h: (
+                0 if h.corroborated_by else 1,
+                0 if h.strength == "likely" else 1,
+            ),
+        )
+    )
 
 
 def _admissible(
@@ -567,7 +709,7 @@ def _admissible(
         #
         # So the claim is always the panellist's, and the document is recorded
         # beside it as what informed them.
-        attribution = lens.name
+        attribution = lens.title
 
         key = claim.casefold()
         if key in seen:
@@ -581,7 +723,7 @@ def _admissible(
             Hypothesis(
                 claim=claim,
                 lens=lens.id,
-                analyst=lens.name,
+                analyst=lens.title,
                 discipline=lens.discipline,
                 basis=basis,  # type: ignore[arg-type]
                 attribution=attribution,
@@ -819,7 +961,7 @@ def consult_panel(
             log.warning("panellist %s returned %r for %s", lens.id, type(payload), signal.id)
             continue
 
-        consulted.append(f"{lens.name} ({lens.discipline})")
+        consulted.append(lens.title)
         kept, dropped = _admissible(payload.get("hypotheses") or [], lens, research)
         gathered.extend(kept)
         discarded.extend(dropped)
@@ -833,7 +975,7 @@ def consult_panel(
         )
 
     return HypothesisPanel(
-        hypotheses=_converge(gathered),
+        hypotheses=_by_evidence(_converge(gathered)),
         consulted=tuple(consulted),
         discarded=tuple(discarded),
     )

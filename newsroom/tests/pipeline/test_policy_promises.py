@@ -170,10 +170,61 @@ class TestTheHypothesisPromise:
             "is precise disclosure has to say so"
         )
 
-    def test_the_policy_promises_attribution_and_a_hedge(self, policy_text: str) -> None:
+    def test_the_policy_promises_attribution_a_hedge_and_no_figure(
+        self, policy_text: str
+    ) -> None:
         assert "It is attributed." in policy_text
+        assert "It is disclosed as AI." in policy_text
         assert "It is marked unconfirmed." in policy_text
         assert "It carries no figure." in policy_text
+
+    def test_the_policy_promises_no_invented_person(self, policy_text: str) -> None:
+        assert "no invented person appears anywhere on this site" in policy_text
+        assert "never a person with a surname or a doctorate" in policy_text
+
+    def test_the_panel_keeps_the_no_invented_person_promise(self) -> None:
+        """The promise is kept by there being nobody to invent, not by a rule.
+
+        Enumerated from ``LENSES`` rather than from a list written here, so a
+        sixth analyst added tomorrow is covered on the day it is added.
+        """
+        from newsroom.pipeline.hypothesis import AI_DISCLOSURE, LENSES
+
+        for lens in LENSES.values():
+            assert AI_DISCLOSURE in lens.title, f"{lens.id} does not disclose itself"
+            assert lens.title.startswith("the newsroom's "), (
+                f"{lens.id} is titled {lens.title!r} — a name with no owner reads "
+                f"as an outside expert"
+            )
+
+    def test_the_validator_keeps_the_no_invented_expert_promise(self) -> None:
+        """The published sentence, refused by the gate the policy points at."""
+        from newsroom.pipeline.safety import personas, registry
+        from newsroom.validator import (
+            ValidationContext,
+            check_no_unsupported_mechanism,
+        )
+
+        article = {
+            "body": [
+                {
+                    "type": "paragraph",
+                    "text": (
+                        "Dr. Ineta Zvirbule suggests this is a likely explanation, "
+                        "but the data cannot confirm it."
+                    ),
+                }
+            ],
+            "provenance": {},
+        }
+        verdict = check_no_unsupported_mechanism(
+            ValidationContext(
+                article=article, registry=registry(), personas=personas()
+            )
+        )
+
+        assert not verdict.passed
+        assert "named person's mouth" in verdict.detail
 
     def test_the_validator_keeps_the_attribution_and_hedge_promise(self) -> None:
         from newsroom.validator import check_no_unsupported_mechanism
@@ -225,4 +276,48 @@ class TestTheHypothesisPromise:
         assert source.count("writer.complete_json(") == 1, (
             "one call site inside the per-lens loop is what makes the calls "
             "independent; a single call outside it would make the policy false"
+        )
+
+    def test_the_policy_states_the_panel_size_the_code_uses(
+        self, policy_text: str
+    ) -> None:
+        """The policy says "three AI analysts", which is a fact about a constant.
+
+        A number in published prose is exactly the kind of claim that goes stale
+        silently: change ``PANEL_SIZE`` and the page keeps telling readers the
+        old figure, on a site whose whole argument is that its numbers are
+        checkable.
+        """
+        from newsroom.pipeline.hypothesis import PANEL_SIZE
+
+        words = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+        assert f"{words[PANEL_SIZE]} AI analysts are consulted separately" in policy_text, (
+            f"PANEL_SIZE is {PANEL_SIZE}; the published policy names a different number"
+        )
+
+    def test_every_analyst_a_reader_can_see_is_named_on_the_policy_page(
+        self, policy_text: str
+    ) -> None:
+        """The policy enumerates the analysts, so the two lists must agree.
+
+        Checked against ``title``, not ``discipline``: the title is the string
+        that reaches an article, and ``discipline`` is internal to the prompt.
+        Comparing the wrong one asserts a relationship between the policy and a
+        string no reader ever sees.
+
+        Enumerated from ``LENSES`` rather than from the sentence, which is the
+        direction that catches an analyst added to the code and never disclosed
+        — the failure that matters. The reverse would only catch a stale page.
+        """
+        from newsroom.pipeline.hypothesis import LENSES
+
+        prefix = "the newsroom's AI "
+        undisclosed = [
+            lens.title
+            for lens in LENSES.values()
+            if lens.title.removeprefix(prefix) not in policy_text
+        ]
+        assert not undisclosed, (
+            f"these analysts can reach an article and are not named on the "
+            f"published policy page: {undisclosed}"
         )

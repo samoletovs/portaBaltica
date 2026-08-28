@@ -23,10 +23,10 @@ asking for trust it has not earned.
   come from deterministic code that we can inspect and test.
 - **Where we suggest a cause, we say whose idea it is and that we cannot confirm
   it.** A statistic tells you what changed, not why. Rather than always answering
-  "the data does not show what drove this", we ask specialist AI analysts for
-  candidate explanations — and every one is published with a name attached and
-  marked as unconfirmed. They are proposals, not findings, and they never carry a
-  figure.
+  "the data does not show what drove this", we ask AI analysts for candidate
+  explanations — and every one is published as the newsroom's own AI analyst,
+  marked unconfirmed. They are proposals, not findings, they never carry a
+  figure, and they are never dressed up as a person.
 - **We do not rewrite other outlets' journalism.** Where we point you at another
   publication, you get their headline, the summary they published themselves, and
   a link. Nothing is reworded.
@@ -68,20 +68,38 @@ this site answered that question by refusing it — "the data does not show what
 drove the change" appeared in article after article. That sentence is honest,
 and it is also an admission that nobody looked.
 
-So after the figures are verified, two AI specialists are consulted separately
-and asked what a demographer, a political economist, an industry analyst, a
+So after the figures are verified, three AI analysts are consulted separately and
+asked what a demographer, a political economist, an industry analyst, a
 geopolitical analyst or a household economist would say drove this. They are
 permitted to use what they know about the region — its policy history, its
 industries, its corridors, its population structure. They are consulted
 separately rather than together, so where two of them independently land on the
 same explanation, that is worth something and we say so.
 
-**What they produce is a hypothesis, and it is published as one.** Three rules
+**They are not people, and they are never given names.** An analyst appears as
+*"the newsroom's AI demographer"* — a role, carrying the same disclosure the
+byline carries, in the same phrase a reader sees. This is a correction rather
+than a design we got right first time: the panel initially gave each analyst an
+invented name, and on 28 August 2026 an article published
+
+> "Dr. Ineta Zvirbule suggests this is a likely explanation, but the data cannot
+> confirm it."
+
+That sentence is attributed, hedged and honest about its uncertainty, and it is
+still wrong. No such economist exists. She has no page on this site, and the
+sentence reads as a correspondent relaying an expert they had consulted — on a
+site that will not publish a synthetic human face and rejects an article for
+claiming an interview. There is now no invented person for a reader to mistake
+for a real one, which is a stronger guarantee than a rule about how to describe
+one.
+
+**What they produce is a hypothesis, and it is published as one.** Four rules
 are enforced in code rather than asked for in a prompt:
 
-- **It is attributed.** Either to the analyst who proposed it, by name and
-  discipline, or to an official document we actually retrieved and read. A cause
-  we cannot put a name to is not published.
+- **It is attributed.** To the AI analyst who proposed it, by role. A cause we
+  cannot put an accountable name to is not published.
+- **It is disclosed as AI.** The article must say so in the same sentence. An
+  analyst is never introduced as a person, given a title, or given a doctorate.
 - **It is marked unconfirmed.** The article says, in the same paragraph, that
   this data cannot establish it. Our validator rejects the piece otherwise, and
   it applies that rule to our own analysts *more* strictly than to an outside
@@ -112,6 +130,7 @@ marked as unconfirmed (see section 1).
 | Decide what is newsworthy | Story selection is deterministic code — records, streaks, thresholds, divergence between countries. Auditable and testable. |
 | Rewrite another outlet's article | Both a copyright matter and a quality one. See section 5. |
 | Claim lived experience | No correspondent may say it visited, phoned, interviewed, attended or witnessed anything. It did not. |
+| Invent an expert | A cause may only be attributed to a source we retrieved or to one of our own AI analysts, named by role and disclosed as AI. A paragraph crediting an invented "Dr" is rejected before publication. |
 | Invent a quote | We publish no quotes that are not verbatim in a cited public source. |
 | Present itself as human | See section 4. |
 
@@ -178,6 +197,12 @@ disclosure work on its own. These rules do:
 - every correspondent has a page that opens by stating it is a software system
   and not a person, before anything else
 - avatars are abstract marks. **We will never use a synthetic human face.**
+- **no invented person appears anywhere on this site.** Our correspondents are
+  named, and every one of them is labelled an AI correspondent with a page
+  saying so. Our analysts are not named at all: an analyst is "the newsroom's AI
+  demographer", never a person with a surname or a doctorate. If you see a
+  personal name in an article, it belongs to a real person or organisation in a
+  source we retrieved and linked.
 - no correspondent may claim to have visited, phoned, interviewed, attended or
   witnessed anything — this is enforced in code, and an article that breaks it
   is rejected before publication rather than corrected afterwards

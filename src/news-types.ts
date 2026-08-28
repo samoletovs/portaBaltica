@@ -203,6 +203,27 @@ export interface EditorProvenance {
 }
 
 /**
+ * How an analyst is named to a reader, for a record that may predate the rule.
+ *
+ * Analysts are roles now — "the newsroom's AI demographer" — and the disclosure
+ * rides inside the string. Articles already in blob storage do not have that:
+ * they carry `analyst: "Dr Ineta Zvirbule"`, an invented person with no bio
+ * page and no AI label, and one of them is live. The component cannot rewrite
+ * history, but it must not echo a fabricated expert as though the site stood
+ * behind them either.
+ *
+ * So an attribution that does not disclose itself gets the disclosure appended
+ * here. That is the same move `renderByline` makes for the correspondent roster
+ * — repairing an older record on the way to the screen — and it is why this is
+ * a function rather than an interpolation.
+ */
+export function analystLabel(attribution: string): string {
+  return /\bAI\b/.test(attribution)
+    ? attribution
+    : `${attribution} (an AI analyst on this masthead, not a person)`;
+}
+
+/**
  * The article's "passport": what it was built from, by what, when, and who is
  * accountable. Rendered on the page — not merely stored.
  */
