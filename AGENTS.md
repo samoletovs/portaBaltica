@@ -1354,6 +1354,45 @@ That is the row's saving grace: an absurd reading defends itself. A plausible
 one does not, which is why the middle row is the dangerous one and needs a
 mechanical check rather than an instinct.
 
+### The next probe fails for a different reason
+
+Every row above treats one bad reading in isolation. In practice you fix the
+cause you found and probe again — and **the obvious next probe may fail for a
+different cause, so fixing the first one does not make the second reading
+trustworthy.**
+
+The clean case is a phrase wrapped across a line break, measured on `PROGRAMME.md`:
+
+```
+per-line grep for the phrase    0 hits    <- the NEWLINE defeats it
+joined the file, then searched  False     <- the MARKER defeats it
+markup stripped, then joined    True      <- only this
+
+isolating the two:
+  newline alone, naive join     True      <- a break alone does not break a join
+  newline + "> ", naive join    False     <- the quote marker does
+```
+
+Naive joining produces `suspicious at the > right moment`: the continuation
+marker lands *inside* the phrase. So the obvious remedy for the first failure —
+"stop searching line by line, search the whole file" — returns a **second
+confident absent**, and it is the same word `False` for an entirely different
+reason. A reader who fixed one cause and believed the next reading would
+conclude the text is missing, twice, with increasing confidence.
+
+The reload count three paragraphs up is the same shape and was not read that
+way: `framenavigated` failed because it was the wrong *event*, counting document
+responses failed because the SPA fallback polluted the *population*, and only
+`Sec-Fetch-Dest` asked the question intended. Three probes, three distinct
+causes. That session got there by re-deriving each time rather than by trusting
+the correction it had just made.
+
+So when a probe fails, **the fix is a new instrument, and a new instrument needs
+its own control** — one case that must be found and one that must not. The
+stripped-join above is only believable because a phrase on a single line was
+measured beside it. Otherwise "I fixed the grep" is a claim about the last bug,
+not about the current reading.
+
 **And the table assumes you have something correct to compare against, which is
 its own failure point: a recollection is not a control.**
 
