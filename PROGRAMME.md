@@ -680,6 +680,41 @@ was measured over precisely so you can re-derive it, and re-deriving one is wort
 more than reading ten. If you find a figure that does not reconcile, that is the
 discrepancy doing its work — follow it.
 
+## How to tell whether any of this is working
+
+`AGENTS.md` is long and it is tempting to judge it by whether the mistakes it
+describes stopped happening. **They will not stop, and that is not the test.** In
+the words of a session closing out this run:
+
+> Knowing a trap and *recognising an instance of it* are different acts. The rules
+> do not prevent the failures; they make them cheap to identify afterwards.
+> **Cheap identification is the entire product. Prevention was never on offer.**
+
+So the measure is not *did the book prevent it* but **how long did the mistake
+survive**. Measured on this run's own commits, each pair being a thing shipped to
+master and then corrected:
+
+```
+e56565d -> b918f72     3 min   the wrapped-phrase remedy was insufficient
+dde6a28 -> dfeeafe     9 min   the principle shipped without its limits
+73af3b9 -> ae52ff3     9 min   that remedy was an enumerated word list
+6642896 -> 385dab5    10 min   a diagnosis blamed the SHA; it was the scope
+```
+
+Median under ten minutes, every one of them caught by **a second reader**, and
+several by someone who had written the relevant page minutes earlier — which is
+the same evidence for the rule as against the author's memory of it.
+
+The control is the contrast, and it is stark: `/api-docs` shipped four false
+claims that survived **weeks**, because nobody read the page. Same book, same
+rules, same people. The variable is not knowledge, it is whether a second reader
+with a different question ever looked.
+
+**So if you want one number for whether the practice is holding, take the interval
+from shipping a mistake to someone naming it.** If that figure starts being
+measured in days, the mechanism has gone — and it will go quietly, because a run
+with no second reader produces no corrections and therefore looks flawless.
+
 ---
 
 ## Run a journal in SQLite, not in markdown
