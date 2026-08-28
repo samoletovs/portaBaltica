@@ -179,13 +179,16 @@ jobs:
           # a syntax error, an OOM, a runtime the runner does not have. That is
           # a broken monitor, and a broken monitor must shout rather than pass.
           if [ ! -f report.json ]; then
-            jq -n --arg code "$code" '{
-              alert: true,
-              headline: "the monitor itself failed to produce a report",
-              text: ("portaBaltica data sources: ALERT - scripts/source-alert.mjs exited "
-                     + $code + " without writing report.json. The monitor is broken, so the "
-                     + "sources were NOT checked. See the workflow log.")
-            }' > report.json
+            node -e '
+              const code = process.argv[1];
+              require("fs").writeFileSync("report.json", JSON.stringify({
+                alert: true,
+                headline: "the monitor itself failed to produce a report",
+                text: "portaBaltica data sources: ALERT - scripts/source-alert.mjs exited "
+                  + code + " without writing report.json. The monitor is broken, so the "
+                  + "sources were NOT checked. See the workflow log.",
+              }, null, 2));
+            ' "$code"
             code=1
           fi
 
@@ -198,11 +201,17 @@ jobs:
             echo "alert=true" >> "$GITHUB_OUTPUT"
           fi
 
-          # Defaulted so a shape change cannot make these fail and take the
-          # notification steps down with them.
-          jq -r '.headline // "status could not be summarised"' report.json > headline.txt
-          jq -r '.text // "portaBaltica data sources: ALERT - the report carried no text."' \
-            report.json > message.txt
+          # Read with node rather than jq: node is already a hard dependency of
+          # this step, so it is one fewer tool that has to be present. Both
+          # reads are defaulted so a shape change cannot make them fail and take
+          # the notification steps down with them.
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("report.json", "utf8"));
+            const fs = require("fs");
+            fs.writeFileSync("headline.txt", r.headline || "status could not be summarised");
+            fs.writeFileSync("message.txt",
+              r.text || "portaBaltica data sources: ALERT - the report carried no text.");
+          '
 
       - name: Summarise
         run: |

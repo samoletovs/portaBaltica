@@ -210,12 +210,18 @@ const rows: Row[] = [
         delete copy.required;
         return copy;
       });
-      // Counters left describing the original population on purpose: this is
-      // what a real endpoint regression would look like.
-      return { ...base, dataSources: { ...sources, checks: stripped } };
+      // Counters recomputed from the stripped population on purpose, so this
+      // row isolates the missing-flag rule. Handing it the *original* counters
+      // -- which is what the first draft did -- left the payload also tripping
+      // the requiredTotal consistency rule, and a mutation control proved the
+      // row then passed with the missing-flag check disabled entirely. The
+      // disagreement case is a separate row below, where it belongs.
+      return payloadWith(stripped);
     })(),
     alert: true,
-    mentions: ['required'],
+    // Asserted on the distinctive phrase, not on the bare word "required" --
+    // that is a substring of "requiredTotal" and matched the wrong message.
+    mentions: ['has no boolean "required"'],
   },
   {
     what: 'a check reports a status word the vocabulary does not contain',
