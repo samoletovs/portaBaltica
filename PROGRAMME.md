@@ -54,7 +54,7 @@ site          healthy · 8/8 required sources · 0 stale
 newsroom      deployed at master head; the 14:00Z timer edition published
               2 tier A originals at provenance.revision = that day's master head
 articles      81 published
-throughput    42 PRs merged · 23 direct commits · 5.1 PR/h · doc ratio 1 : 3.3
+throughput    42 PRs merged · 25 direct commits · 5.1 PR/h · doc ratio 1 : 6.4
               (measured 5cfba82..master, i.e. since the handover at 10:16Z --
                NOT the calendar day, which adds the previous run's last 7 PRs)
 ```
