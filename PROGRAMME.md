@@ -486,7 +486,7 @@ remembering the rule is worth more than the rule.**
 **Watch throughput.** Merged PRs/day across the two runs:
 
 ```
-08-24: 35   08-25: 23   08-26: 22   08-27: 88   08-28: 18 (and rising at handover)
+08-24: 35   08-25: 23   08-26: 22   08-27: 88   08-28: 49   (42 of them this run)
 ```
 
 The previous run collapsed from 88 to 6 while still busy, because the work had
