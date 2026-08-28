@@ -386,6 +386,32 @@ print the resolved path beside the file count, name the endpoint beside the
 field. A remembered fact about your instrument is exactly as unreliable as a
 remembered fact about the code.
 
+**And a phrase that wraps is invisible to a line-based search — twice over.**
+Three instances, one family, and the last is the sharpest because the newline is
+not the culprit:
+
+```
+#222's verifier   flattening a quoted sentence dropped a `//` into the middle
+                  of it, and reported a verbatim quote MISSING
+a session's grep  Select-String matches per line; the phrase spanned a break
+                  -> 0 hits on text that is present
+mine, minutes on  joined the whole file and STILL missed it, because the
+                  continuation line begins "> " and the join left that marker
+                  sitting inside the phrase
+```
+
+So the fix is not "search the whole file" — I did that and still got a false
+absent. It is **strip the line-leading markup before joining**, or match a
+fragment short enough not to wrap. Verified on the same text: naive join
+`False`, markup-stripped join `True`.
+
+A fourth arrived while writing this down: the multi-line anchor for this very
+edit was built with LF against a CRLF file and matched nothing, silently.
+
+Every one produced a confident *absent* on text that was there, and each was
+caught only by printing the shape. **A one-line grep is an instrument like any
+other, and it is the one nobody thinks to distrust.**
+
 **The second instance is `git diff --stat`, and the pair gives the criterion.**
 Reading the diffstat before committing caught three of my own errors in one day:
 twice a `PROGRAMME.md` insert **consumed the neighbouring heading** rather than
