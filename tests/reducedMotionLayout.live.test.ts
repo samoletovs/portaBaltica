@@ -133,29 +133,33 @@ const ROUTES = [...navigableRoutes(), ...CONCRETE_PARAM_ROUTES];
 const WIDTHS = [1440, 1024, 960, 820, 768, 600, 512, 375, 320];
 
 /**
- * Strips that scroll sideways today without saying so, named rather than
- * filtered out.
+ * Strips that scroll sideways without saying so.
  *
- * Both were measured at 320px during the second mobile pass, and both live in
- * files that pass owned. They are listed here so the next person sees them and
- * so that fixing one turns this red — an exemption that quietly matches
- * nothing is the same defect as no exemption at all.
+ * This list carried two entries one PR ago — the insights row and the policy
+ * table — and both are fixed. It is **not** empty, because emptying it
+ * immediately revealed a third that had landed meanwhile:
  *
- *   div.flex.gap-3.overflow-x-auto        InsightsBanner  1061px hidden at 320px
- *   div.news-border.my-6.overflow-x-auto  markdown.tsx     44px hidden at 320px (/corrections)
+ *   a.news-link.news-border.news-panel-muted   FollowPage.tsx, the feed URL chip
  *
- * The insights one is the interesting half: that file *does* call
- * `useOverflowFade` and *does* spread its class. The hook attaches in an
- * effect, the component renders a separate "Loading insights" element on the
- * first commit, so the effect runs against a null ref and nothing re-attaches
- * it when the real strip arrives. A source-reading check calls that correct.
- * `NewsFeed` had the identical fault and was fixed by giving the strip its own
- * component, so it mounts with its own hook.
+ * `/follow` renders each feed URL in an `<a>` carrying `overflow-x-auto
+ * whitespace-nowrap`, so a long URL scrolls sideways behind a hard cut. Same
+ * class of defect as the two above, in a file this pass does not own; named
+ * here so it is visible and so that fixing it turns this red.
+ *
+ * The two that were fixed are worth recording, because the *reason* they were
+ * hard is not obvious. The insights row **did** call `useOverflowFade` and
+ * **did** spread its class, and rendered no fade: the hook attaches in an
+ * effect and the component's first commit renders a separate "Loading
+ * insights" element, so the effect ran against a null ref. A source-reading
+ * check calls that file correct; only a live read of the computed mask does
+ * not. That is why this assertion lives here and not in the unit suite.
+ *
+ * An equality, not a subtraction. Written as
+ * `expect(found.filter(notKnown)).toEqual([])` this would still name two
+ * strips that no longer offend, matching nothing and reporting success
+ * indefinitely — and it would never have surfaced the third.
  */
-const KNOWN_UNFADED = [
-  'div.flex.gap-3.overflow-x-auto',
-  'div.news-border.my-6.overflow-x-auto',
-];
+const KNOWN_UNFADED = ['a.news-link.news-border.news-panel-muted'];
 
 describe('the deployed site under prefers-reduced-motion', () => {
   it('does not scroll horizontally, and every strip that does says so', async () => {

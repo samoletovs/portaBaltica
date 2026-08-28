@@ -164,10 +164,33 @@ function BlockView({ block, index }: { block: Block; index: number }) {
       );
 
     case 'table':
+      // A policy table is prose in cells with a short label column, and at a
+      // phone's width a column is not a column. Measured on master at 320px:
+      //
+      //   /corrections   3 columns at 108 / 115 / 110px, rows 13 lines tall,
+      //                  and 46px of it hidden with no scroll affordance
+      //   /about/ai      2 columns at 114 / 172px, rows 7 lines tall
+      //
+      // 115px at 14px type is about **11 characters a line**. §4.2 puts a
+      // comfortable measure at 45–75 and WCAG SC 1.4.8 caps a block of text at
+      // 80, so the cells were failing the site's own reading rule by a factor
+      // of four — on the two pages a sceptical reader goes to. Widening the
+      // columns is not available: the viewport is the constraint.
+      //
+      // So below `sm` each row becomes a labelled block at the full column
+      // width, which is the same information at ~33 characters a line and no
+      // sideways scroll. It costs height, and that is the right trade here in
+      // a way it was not for the section filter in §4.5: this is the content,
+      // not a control standing in front of it.
+      //
+      // The header row is hidden below `sm` because each cell carries its own
+      // label there — rendered as a real element rather than as
+      // `content: attr(...)`, which cannot be selected, copied or read
+      // reliably. Above `sm` those labels are hidden and the table is a table.
       return (
-        <div className="news-border my-6 overflow-x-auto rounded-lg border">
-          <table className="w-full border-collapse text-left text-ui">
-            <thead>
+        <div className="news-border my-6 overflow-hidden rounded-lg border sm:overflow-x-auto">
+          <table className="block w-full border-collapse text-left text-ui sm:table">
+            <thead className="hidden sm:table-header-group">
               <tr className="news-border news-panel border-b">
                 {block.header.map((cell, position) => (
                   <th
@@ -180,17 +203,20 @@ function BlockView({ block, index }: { block: Block; index: number }) {
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="block sm:table-row-group">
               {block.rows.map((row, rowPosition) => (
                 <tr
                   key={`${index}-r-${rowPosition}`}
-                  className="news-border border-b last:border-0"
+                  className="news-border block border-b p-4 last:border-0 sm:table-row sm:p-0"
                 >
                   {row.map((cell, position) => (
                     <td
                       key={`${index}-c-${rowPosition}-${position}`}
-                      className="news-muted px-4 py-2 align-top leading-relaxed"
+                      className="news-muted block align-top leading-relaxed sm:table-cell sm:px-4 sm:py-2"
                     >
+                      <span className="news-subtle block text-caption font-semibold uppercase tracking-widest sm:hidden">
+                        {block.header[position]}
+                      </span>
                       {renderInline(cell, `td-${index}-${rowPosition}-${position}`)}
                     </td>
                   ))}
