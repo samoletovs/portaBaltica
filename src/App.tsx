@@ -17,8 +17,9 @@ import { BusinessTile } from './components/BusinessTile';
 import { SystemStatusFooter } from './components/SystemStatusFooter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCountry } from './CountryContext';
+import { usePageMeta } from './newsroom/usePageMeta';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -76,12 +77,99 @@ function Section({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
+/**
+ * What each dashboard URL is, for the document head.
+ *
+ * WHY THIS EXISTS AT ALL
+ * ----------------------
+ * `App.tsx` set no page metadata, so every `/data*` URL inherited the static
+ * shell's head — including its `<link rel="canonical" href="https://portabaltica.naurolabs.com">`.
+ * Measured in a rendering Chromium against production at 2026-08-28T13:12:28Z:
+ * all ten of `/data` and `/data/{9 sections}` came back
+ * `canonical=/  DISOWNS ITSELF`, with the generic site title, while the article
+ * page beside them resolved to itself.
+ *
+ * Ten of the twenty non-article URLs in our own sitemap were therefore
+ * submitted for indexing by a document that told the crawler the canonical
+ * version of it was the home page. The sitemap said "index this"; the page
+ * said "no, index that instead". Nothing was red, because a canonical is only
+ * read by machines that never report back.
+ *
+ * The descriptions are per section rather than one template with the label
+ * substituted, because a search result is the only part of this dashboard most
+ * people will ever read.
+ */
+const SECTION_META: Record<DashboardSection, { title: string; description: string }> = {
+  economy: {
+    title: 'Economy',
+    description:
+      'GDP, inflation, wages and retail trade for Latvia, Estonia and Lithuania, from Eurostat and the national statistics offices, with the source named beside every series.',
+  },
+  trade: {
+    title: 'Trade',
+    description:
+      'Exports, imports and the goods and services balance across the three Baltic states, quarterly, traceable to the Eurostat cube each figure came from.',
+  },
+  government: {
+    title: 'Government',
+    description:
+      'Government debt, revenue and expenditure for the Baltic states, alongside EU Recovery Fund projects and their status.',
+  },
+  labour: {
+    title: 'Labour',
+    description:
+      'Unemployment, hourly labour cost and minimum wage across Latvia, Estonia and Lithuania, with each series shown against its own basis.',
+  },
+  energy: {
+    title: 'Energy',
+    description:
+      'Nord Pool day-ahead electricity prices for all four Baltic-region bidding zones, the spread between them, and household and industrial energy prices.',
+  },
+  property: {
+    title: 'Property',
+    description:
+      'House prices, construction output and building permits for the Baltic states, with Latvian energy certificates and cadastral data underneath.',
+  },
+  environment: {
+    title: 'Environment',
+    description:
+      'Weather, air quality on the European AQI bands, greenhouse gas emissions and population for the Baltic region.',
+  },
+  business: {
+    title: 'Business',
+    description:
+      'Company registrations and bankruptcies across the Baltic states, with searchable Latvian beneficial-ownership and address registers.',
+  },
+  maritime: {
+    title: 'Maritime',
+    description:
+      'Cargo tonnage, sea passengers and vessel arrivals at Baltic ports from Eurostat, quarterly, with live sea state at the Latvian ports.',
+  },
+};
+
+const OVERVIEW_META = {
+  title: 'The dashboard',
+  description:
+    'Live Baltic open data: 71 indicators across economy, trade, energy, property, environment, government and maritime, for Latvia, Estonia and Lithuania. Every figure is traceable to the dataset it came from.',
+};
+
 export default function App() {
   const { section } = useParams<{ section?: string }>();
   const navigate = useNavigate();
   const activeSection: DashboardSection | 'all' =
     section && VALID_SECTIONS.has(section) ? section as DashboardSection : 'all';
   const { country } = useCountry();
+
+  // The canonical is the load-bearing half. `activeSection` falls back to
+  // 'all' for an unknown section, so `/data/not-a-section` — which the SPA
+  // fallback answers 200 for, like every route here — declares `/data` as its
+  // canonical rather than inventing one for itself.
+  const meta = activeSection === 'all' ? OVERVIEW_META : SECTION_META[activeSection];
+  usePageMeta({
+    title: `${meta.title} | portaBaltica`,
+    description: meta.description,
+    canonicalPath: activeSection === 'all' ? '/data' : `/data/${activeSection}`,
+  });
 
   function setActiveSection(s: DashboardSection | 'all') {
     navigate(s === 'all' ? '/data' : `/data/${s}`, { replace: true });
@@ -299,7 +387,26 @@ export default function App() {
           <p className="mt-4 dash-subtle">
             Built by <a href="https://naurolabs.com" className="dash-hover-body">NauroLabs</a>
             {' · '}
-            <a href="/api-docs" className="dash-hover-body">API docs & pricing</a>
+            {/*
+              `Link`, not `<a>`. A bare anchor from here reloads the whole
+              application to reach a page the bundle already contains — measured
+              at 1 document request and ~1.4MB of assets re-fetched versus 0 and
+              one lazy chunk. It is the same fault this footer's `Follow` link
+              would have had if it had copied its neighbour.
+            */}
+            <Link to="/api-docs" className="dash-hover-body">API docs &amp; pricing</Link>
+            {' · '}
+            {/*
+              The dashboard's only route to a feed.
+
+              Measured before this existed, against production at
+              2026-08-28T12:25:08Z: `/follow` was three clicks from `/data`, and
+              `/weekly` and `/feed.json` were unreachable within three, because
+              every route out of the dashboard ran through the wordmark to the
+              front page and then through an article. This footer had a link to
+              every upstream data provider and none back to our own journalism.
+            */}
+            <Link to="/follow" className="dash-hover-body">Follow</Link>
           </p>
         </footer>
       </main>

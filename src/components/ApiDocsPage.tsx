@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { usePageMeta } from '../newsroom/usePageMeta';
 
 const API_ENDPOINTS = [
   { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Live electricity prices, ECB exchange rates, PxWeb macro indicators, business pulse', cache: '30 min' },
@@ -24,6 +25,18 @@ const INDICATORS = [
 
 export function ApiDocsPage() {
   const navigate = useNavigate();
+
+  // Without this the page inherited the shell's head, which names the home
+  // page as its canonical — measured against production at 2026-08-28T13:12Z:
+  // `/api-docs  canonical=/  DISOWNS ITSELF`. Adding it to the sitemap while
+  // it said that would have submitted a URL that disclaims itself, so the head
+  // had to be fixed before the sitemap entry was worth anything.
+  usePageMeta({
+    title: 'API documentation | portaBaltica',
+    description:
+      'Twelve public JSON endpoints over Baltic open data: Eurostat indicators for Latvia, Estonia and Lithuania, Nord Pool electricity prices, port statistics, and searchable Latvian business and address registers.',
+    canonicalPath: '/api-docs',
+  });
 
   return (
     <div className="min-h-screen">
