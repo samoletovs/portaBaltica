@@ -59,6 +59,8 @@ import re
 import pytest
 
 from newsroom.pipeline import analyst, field_meanings, hypothesis
+from newsroom.pipeline.hypothesis import consult_panel
+from newsroom.pipeline.write.llm import StubWriter
 from newsroom.pipeline.detect.detectors import (
     detect_divergence,
     detect_structural_divergence,
@@ -176,6 +178,29 @@ class TestTheQuantityNote:
 
         assert "why the two moved APART" in note
 
+    def test_the_note_actually_reaches_the_panel(self):
+        # Asserting the note exists is not the same as asserting it is sent.
+        # A plant that set the panel's copy to "" left every other assertion
+        # green, because none of them looked at the prompt the panel receives.
+        # This drives the real ``consult_panel`` and reads what was asked.
+        signal = spread_signal()
+        writer = StubWriter({"hypotheses": []})
+
+        consult_panel(signal, writer, size=1)
+
+        assert writer.calls, "the panel was never consulted"
+        assert "DISTANCE, NOT A READING" in writer.calls[0]["user"]
+        assert "The endpoints are LT and EE" in writer.calls[0]["user"]
+
+    def test_a_level_finding_sends_the_panel_no_note(self):
+        # The control: the assertion above must be capable of failing.
+        writer = StubWriter({"hypotheses": []})
+
+        consult_panel(make_signal(detector="record_extreme"), writer, size=1)
+
+        assert writer.calls
+        assert "DISTANCE, NOT A READING" not in writer.calls[0]["user"]
+
     @pytest.mark.parametrize(
         "detector", ["record_extreme", "streak", "seasonal_deviation", "sharp_move"]
     )
@@ -274,20 +299,21 @@ class TestNoStageIsLeftOnTheBareTable:
     KNOWN_BARE: set[str] = set()
 
     def test_every_other_stage_reads_the_shared_registry(self):
+        # The property is "does this file build its OWN table", so the probe
+        # asks whether it calls ``label_for_field`` — the one function a table
+        # builder cannot avoid. An earlier version exempted any file merely
+        # MENTIONING ``field_meanings``, and a plant caught it: once the panel
+        # imported the module for the quantity note, it was skipped even with
+        # its bare table restored. A guard keyed on a file's imports rather
+        # than on its behaviour is not a guard.
         root = pathlib.Path(analyst.__file__).parent
         registry = pathlib.Path(field_meanings.__file__).resolve()
-        bare = set()
-        for path in root.rglob("*.py"):
-            # The registry itself renders the table; it is the thing the others
-            # are supposed to call, not a stage that forgot to.
-            if path.resolve() == registry:
-                continue
-            source = path.read_text(encoding="utf-8")
-            if "units.label_for_field(" not in source:
-                continue
-            if "field_meanings" in source:
-                continue
-            bare.add(path.name)
+        bare = {
+            path.name
+            for path in root.rglob("*.py")
+            if path.resolve() != registry
+            and "units.label_for_field(" in path.read_text(encoding="utf-8")
+        }
 
         assert bare == self.KNOWN_BARE, (
             "a stage builds a figure table without the shared meanings. That is "
