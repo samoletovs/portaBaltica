@@ -1366,7 +1366,8 @@ The clean case is a phrase wrapped across a line break, measured on `PROGRAMME.m
 ```
 per-line grep for the phrase    0 hits    <- the NEWLINE defeats it
 joined the file, then searched  False     <- the MARKER defeats it
-markup stripped, then joined    True      <- only this
+markup stripped, then joined    True      <- for THAT file
+markup stripped, TRIMMED, join  True      <- the general form
 
 isolating the two:
   newline alone, naive join     True      <- a break alone does not break a join
@@ -1392,6 +1393,25 @@ its own control** — one case that must be found and one that must not. The
 stripped-join above is only believable because a phrase on a single line was
 measured beside it. Otherwise "I fixed the grep" is a claim about the last bug,
 not about the current reading.
+
+**This section shipped with an insufficient remedy, and the rule above found it
+four minutes later.** Verifying an unrelated claim in this same file, the
+stripped-join returned `False` for a phrase that is plainly present:
+
+```
+1839 [  `revision_unavailable` with the reason instead, the two keys are mutually]
+1840 [  exclusive, and `provenance` sets `additionalProperties: false` so an]
+
+per-line                    0 hits   <- the NEWLINE
+strip markers, join         False    <- the INDENT: no marker, so the spaces survive
+strip markers, TRIM, join   True
+```
+
+The join yielded `mutually   exclusive`. In `PROGRAMME.md` the second probe
+failed on a `> ` **marker**; here it failed on **leading whitespace** with no
+marker at all — so even the *same* remedy fails for different reasons in
+different files, which is the section's own claim one level deeper than it was
+written. Strip the markup **and** trim, then join.
 
 **And the table assumes you have something correct to compare against, which is
 its own failure point: a recollection is not a control.**
