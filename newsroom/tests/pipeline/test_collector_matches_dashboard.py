@@ -45,6 +45,7 @@ from newsroom.pipeline.collect.opendata import EUROSTAT_DATASETS
 from newsroom.pipeline.config import NEWSROOM_DIR
 
 INDICATORS_JS = NEWSROOM_DIR.parent / "api" / "shared" / "indicators.js"
+PORTS_JS = NEWSROOM_DIR.parent / "api" / "shared" / "ports.js"
 
 #: Dimensions the two sides legitimately express differently.
 #:
@@ -173,8 +174,7 @@ class TestEveryNewsroomSeriesIsJoinedToTheDashboard:
         while the newsroom pins it to the country because it wants the national
         total, and that is a documented difference rather than drift.
         """
-        ports_js = NEWSROOM_DIR.parent / "api" / "shared" / "ports.js"
-        source = ports_js.read_text(encoding="utf-8")
+        source = PORTS_JS.read_text(encoding="utf-8")
 
         chartless = [d for d in EUROSTAT_DATASETS if d.metric in CHARTLESS_METRICS]
         assert chartless, "CHARTLESS_METRICS names nothing that exists"
@@ -421,6 +421,71 @@ class TestTheExclusionsAreTheOnesSomeoneDecidedAbout:
             f"only if ports.js builds it rather than writing it literally, so "
             f"no string comparison could succeed. Anything else is a real "
             f"disagreement being excused."
+        )
+
+    def test_rep_mar_is_still_constructed_rather_than_written(self) -> None:
+        """The companion, and the half `#177` left out.
+
+        The equality above stops the set gaining a member. It says nothing
+        about whether the reason for the member it has is still true -- and
+        that reason is a fact about ``api/shared/ports.js``, a file this
+        session does not own.
+
+        ``rep_mar`` is excused because ports.js builds the value
+        (``'rep_mar=' + encodeURIComponent(c)``) rather than writing it, so
+        ``rep_mar=LV`` is in neither file's text and the string comparison
+        could only ever fail. Write a literal into ports.js tomorrow and the
+        comparison becomes possible, meaningful, and skipped -- excusing a
+        real disagreement about which COUNTRY the newsroom reads.
+
+        `#177` named that risk in its own description and did not close it,
+        having just written the equivalent companion for ``freq`` eight lines
+        above. **The correct sibling conceals the broken one**: a reader
+        checking whether these exclusions are guarded finds
+        ``test_freq_is_compared_somewhere_else_as_the_note_claims`` and stops.
+
+        This is also the sharper form of the carve-out: an exemption resting
+        on someone else's source is never permanent, because you are not the
+        one who decides. So it has to be re-checked rather than assumed, and
+        that is cheap -- it is a substring search against a file already in
+        the repo, needing no network.
+        """
+        source = PORTS_JS.read_text(encoding="utf-8")
+        pinned = sorted(
+            {d.params["rep_mar"] for d in EUROSTAT_DATASETS if "rep_mar" in d.params}
+        )
+        assert pinned, "no dataset pins rep_mar, so this test is asserting nothing"
+
+        written = [value for value in pinned if f"rep_mar={value}" in source]
+
+        assert not written, (
+            f"ports.js now writes rep_mar={written} literally, so the string "
+            f"comparison this exemption exists to avoid would actually "
+            f"succeed. Drop 'rep_mar' from CONSTRUCTED_BY_THE_DASHBOARD and "
+            f"let the dimension be compared like any other."
+        )
+
+    def test_the_search_above_can_find_a_literal_when_there_is_one(self) -> None:
+        """The positive control, without which the assertion is unfalsifiable.
+
+        ``"rep_mar=LV" not in source`` is also what a mistyped path, an empty
+        file or a renamed parameter returns. An assertion that something is
+        absent needs a companion proving it could have been present, so this
+        names four parameters ports.js *does* write literally and requires the
+        same search to find them.
+        """
+        source = PORTS_JS.read_text(encoding="utf-8")
+
+        missing = [
+            literal
+            for literal in ("freq=Q", "direct=TOTAL", "unit=THS_T", "par_mar=TOTAL")
+            if literal not in source
+        ]
+
+        assert not missing, (
+            f"{missing} are no longer written literally in ports.js, so the "
+            f"search used by the test above is no longer known to find a "
+            f"literal at all and its 'absent' result means nothing."
         )
 
     def test_the_two_exclusions_do_not_overlap(self) -> None:
