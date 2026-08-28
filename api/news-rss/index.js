@@ -17,9 +17,10 @@ const handler = async function (context, req) {
     const items = articles.map(function (article) {
       const url = site + '/article/' + article.slug;
       const published = article.published_at ? new Date(article.published_at).toUTCString() : '';
-      const author = article.persona && article.persona.byline
-        ? article.persona.byline
-        : (article.persona ? article.persona.name + ' \u00b7 AI correspondent' : 'portaBaltica');
+      // Shared with /feed.json rather than rebuilt here. The two feeds must
+      // credit the same article to the same author, and "must" is worth as much
+      // as the thing that checks it — see tests/jsonFeed.test.ts.
+      const author = newsroom.bylineFor(article);
 
       return [
         '    <item>',

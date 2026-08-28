@@ -23,6 +23,8 @@ const ArticlePage = lazy(() => import('./components/news/ArticlePage.tsx'))
 const CorrespondentPage = lazy(() => import('./components/news/CorrespondentPage.tsx'))
 const AiPolicyPage = lazy(() => import('./components/news/AiPolicyPage.tsx'))
 const CorrectionsPage = lazy(() => import('./components/news/CorrectionsPage.tsx'))
+const FollowPage = lazy(() => import('./components/news/FollowPage.tsx'))
+const WeeklyPage = lazy(() => import('./components/news/WeeklyPage.tsx'))
 
 const LEGACY_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS)
 
@@ -68,6 +70,12 @@ createRoot(document.getElementById('root')!).render(
                       <Route path="/correspondents/:id" element={<LegacyCorrespondentRedirect />} />
                       <Route path="/about/ai" element={<AiPolicyPage />} />
                       <Route path="/corrections" element={<CorrectionsPage />} />
+                      {/* How to keep up, and the one artefact worth coming back
+                          for. `/weekly` is a stable address for whatever the
+                          latest weekly review is, so a bookmark keeps working
+                          when the article behind it changes. */}
+                      <Route path="/follow" element={<FollowPage />} />
+                      <Route path="/weekly" element={<WeeklyPage />} />
                     </Route>
                     <Route path="/data/:section?" element={<App />} />
                     <Route path="/indicator/:id" element={<IndicatorPage />} />
