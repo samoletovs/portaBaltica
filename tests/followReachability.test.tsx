@@ -125,7 +125,10 @@ describe('the front page', () => {
     stubIndex([tierASummary()]);
     renderFeed();
 
-    expect(await screen.findByText(/which is not every day/i)).toBeTruthy();
+    // The claim, not the wording: some days carry nothing. A reader who hears
+    // nothing for a fortnight should be able to tell a quiet fortnight from a
+    // dead site, and this is the sentence that lets them.
+    expect(await screen.findByText(/some carry none/i)).toBeTruthy();
   });
 
   it('offers it on a quiet day too, which is when it matters most', async () => {

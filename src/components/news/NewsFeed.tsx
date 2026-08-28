@@ -228,9 +228,9 @@ export default function NewsFeed() {
           <section className="news-border news-panel mt-6 rounded-xl border px-6 py-4">
             <h2 className="news-fg text-callout font-semibold">Keep up with this</h2>
             <p className="news-muted mt-2 text-ui">
-              We publish when the data warrants it, which is not every day. Two feeds, one weekly
-              review, and no email list: we do not collect addresses, so there is nothing to
-              unsubscribe from.
+              Some days carry several stories and some carry none, so a feed is the only reliable
+              way to catch the ones you want. There is no email list: we do not collect addresses,
+              so there is nothing to unsubscribe from.
             </p>
             <p className="mt-3 text-ui">
               <Link to="/follow" className="news-link underline underline-offset-4">
