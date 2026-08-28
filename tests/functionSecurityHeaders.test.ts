@@ -47,6 +47,7 @@ import { readdirSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
+import { transportsUsedByApi } from './apiTransports';
 
 const require = createRequire(import.meta.url);
 const ROOT = resolve(__dirname, '..');
@@ -93,11 +94,8 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 const https = require('node:https') as { get: unknown; request: unknown };
-const http = require('node:http') as { get: unknown; request: unknown };
 const realHttpsGet = https.get;
 const realHttpsRequest = https.request;
-const realHttpGet = http.get;
-const realHttpRequest = http.request;
 const realFetch = globalThis.fetch;
 
 /**
@@ -133,8 +131,6 @@ function breakTheNetwork() {
   };
   https.get = failing as unknown;
   https.request = failing as unknown;
-  http.get = failing as unknown;
-  http.request = failing as unknown;
   globalThis.fetch = (() =>
     Promise.reject(new Error('network disabled for this test'))) as typeof fetch;
 }
@@ -144,8 +140,6 @@ beforeAll(() => breakTheNetwork());
 afterAll(() => {
   https.get = realHttpsGet;
   https.request = realHttpsRequest;
-  http.get = realHttpGet;
-  http.request = realHttpRequest;
   globalThis.fetch = realFetch;
 });
 
@@ -238,6 +232,41 @@ describe('the failure response', () => {
   }
 });
 
+describe('breakTheNetwork covers what the handlers actually use', () => {
+  // The claim in the docblock above used to be false, and that is what made
+  // this file flaky: `https.request` was the transport two handlers use and the
+  // one nothing patched. Fixing the list is not enough — a list drifts from the
+  // thing it describes, silently, in the direction that reports success.
+  //
+  // So the set is derived from `api/**` (shared with `noNetwork.test.ts`, one
+  // enumeration rather than two) and matched against what this file has
+  // measurably patched. The `http` module is deliberately no longer patched
+  // here: nothing under `api/` uses it. The day something does, this fails and
+  // names it, which is precisely the property that made the removal safe.
+  const patched: Record<string, () => boolean> = {
+    'https.get': () => https.get !== realHttpsGet,
+    'https.request': () => https.request !== realHttpsRequest,
+    fetch: () => globalThis.fetch !== realFetch,
+  };
+
+  it('finds the transports at all', () => {
+    // Guard the guard: an empty set would make the assertion below vacuous.
+    expect(transportsUsedByApi().size).toBeGreaterThan(0);
+  });
+
+  it('patches every transport, and each patch is verified rather than listed', () => {
+    const unpatched = [...transportsUsedByApi()].sort().filter((name) => {
+      const isPatched = patched[name];
+      return !isPatched || !isPatched();
+    });
+
+    expect(
+      unpatched,
+      `breakTheNetwork does not disable ${unpatched.join(', ')}, so a handler ` +
+        'using it would reach the real internet from this suite',
+    ).toEqual([]);
+  });
+});
 describe('the headers themselves', () => {
   it('include the one that actually carries weight for a JSON response', () => {
     // No endpoint reflects raw input today — `business-search` and
