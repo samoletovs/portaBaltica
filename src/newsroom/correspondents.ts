@@ -44,7 +44,26 @@ export interface Correspondent {
   summary: string;
   noticesFirst: string;
   characteristicMove: string;
-  /** Datasets this correspondent is permitted to work from, by source id. */
+  /**
+   * Datasets this correspondent is permitted to work from, by source id.
+   *
+   * **Every id here must be one the newsroom pipeline actually fetches.** The
+   * page renders this under the heading "Works only from these datasets", on
+   * the page a reader visits precisely to check whether an AI byline is honest,
+   * so it is a public and checkable claim rather than a description.
+   *
+   * A permission is only a permission if exercising it is possible. Five ids
+   * were listed here that no collector requests — `datagovlv`, `statee`,
+   * `datagovlt`, `ecb` and `openmeteo` — so "permitted to work from Statistics
+   * Estonia" could never have become true, and the list implied a breadth of
+   * sourcing that did not exist. Being registered in `sources.yaml` is not the
+   * test: `collect_open_data` fetches `eurostat` and `elering` and nothing
+   * else, and `collect_feeds` fetches only enabled tier B and C sources.
+   *
+   * `newsroom/tests/pipeline/test_correspondent_datasets.py` enforces this by
+   * *running* both collectors against a recording fake and comparing, so it
+   * cannot drift the way a hand-maintained list would.
+   */
   datasets: { sourceId: string; label: string }[];
   /** Indicator ids on /data this beat routinely reports against. */
   indicators: string[];
@@ -75,9 +94,6 @@ export const CORRESPONDENTS: Correspondent[] = [
       'Sets the latest figure against the same month a year earlier, then against the pre-2020 trend.',
     datasets: [
       { sourceId: 'eurostat', label: 'Eurostat — GDP, HICP, labour cost, unemployment' },
-      { sourceId: 'datagovlv', label: 'data.gov.lv — VID registrations, business suspensions' },
-      { sourceId: 'statee', label: 'Statistics Estonia PxWeb' },
-      { sourceId: 'datagovlt', label: 'data.gov.lt' },
     ],
     indicators: ['gdp', 'cpi', 'unemployment', 'salary', 'retail_sales'],
     hue: 38,
@@ -104,7 +120,6 @@ export const CORRESPONDENTS: Correspondent[] = [
       'Translates a wholesale price move into what it means for an industrial consumer’s scheduling decision.',
     datasets: [
       { sourceId: 'elering', label: 'Elering / Nord Pool — day-ahead electricity prices' },
-      { sourceId: 'ecb', label: 'European Central Bank — reference rates' },
       { sourceId: 'eurostat', label: 'Eurostat — energy prices, renewable share' },
     ],
     indicators: ['renewable_share', 'ppi', 'industrial'],
@@ -133,7 +148,6 @@ export const CORRESPONDENTS: Correspondent[] = [
     datasets: [
       { sourceId: 'eurostat', label: 'Eurostat — port cargo tonnage, sea passengers, vessel arrivals' },
       { sourceId: 'eurostat', label: 'Eurostat — exports, imports, trade balance' },
-      { sourceId: 'openmeteo', label: 'Open-Meteo Marine — sea state at the ports' },
     ],
     indicators: ['exports', 'imports', 'trade_balance'],
     hue: 210,
@@ -159,8 +173,6 @@ export const CORRESPONDENTS: Correspondent[] = [
     characteristicMove:
       'Anchors every reading to a multi-year normal before calling anything unusual.',
     datasets: [
-      { sourceId: 'openmeteo', label: 'Open-Meteo — weather, air quality' },
-      { sourceId: 'datagovlv', label: 'data.gov.lv — BVKB construction permits, energy certificates' },
       { sourceId: 'eurostat', label: 'Eurostat — house prices, construction output' },
     ],
     indicators: ['house_prices', 'construction_output', 'population'],
@@ -187,7 +199,6 @@ export const CORRESPONDENTS: Correspondent[] = [
     characteristicMove:
       'Traces an allocated sum from the instrument that authorised it to the body that must spend it.',
     datasets: [
-      { sourceId: 'datagovlv', label: 'data.gov.lv — EU Recovery Fund projects, UBO register' },
       { sourceId: 'eurostat', label: 'Eurostat — government debt, revenue, population' },
       { sourceId: 'ec_presscorner', label: 'European Commission Press Corner (tier B, verbatim)' },
     ],
