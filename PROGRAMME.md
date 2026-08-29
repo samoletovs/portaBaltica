@@ -890,7 +890,31 @@ records a decline, and each was two turns of measurement that saved a session.
    registry rather than the one it was found in. Building permits are still
    graded and the same three-party test plausibly fails.
 
-5. **Only articles are server-rendered.** Measured `2026-08-28T14:50Z` against
+5. **~~Only articles are server-rendered.~~ CLOSED — and the way this entry was
+   wrong is the most expensive kind.** The measurement below was taken
+   `2026-08-28T14:50Z`; `#228` merged at **16:04:37Z**, 74 minutes later, and
+   fixed it. The entry was written from a reading that was true when taken and
+   false before the document was finished.
+
+   **It cost a session.** Re-measured `2026-08-29T08:44Z` on production, raw HTML,
+   no JavaScript, build `index-bmgjCV0L.js`: **124 of 124 sitemap URLs carry their
+   own title, canonical and `og:title`; 124 distinct titles; 0 offenders in every
+   category.** Eleven `page-shell` rules are deployed plus `/article/*`. The
+   control fires — `/utterly-invented-page` returns the generic head, so the zeros
+   are a reading rather than a blind probe.
+
+   Also corrected: **`/correspondent/:slug` is not a route.** `main.tsx` declares
+   `/newsroom/:id`, with `/correspondents/:id` as a legacy redirect. Wiring the
+   singular would create a URL, not fix one.
+
+   **The lesson, since the entry is otherwise useless now:** a task list written
+   during a run dates faster than the run finishes. Before starting anything here,
+   **re-measure the claim that says it is open** — the brief's own rule about
+   controls decaying applies to the brief. Residual, small and real: legacy
+   `/economy` and `/correspondents` answer 200 with `canonical=/` rather than
+   redirecting to their destinations.
+
+   The original entry follows, for the record. Measured `2026-08-28T14:50Z` against
    raw HTML with no JS: **21 of the 22 sitemap URLs ship the home page's
    canonical, title and `og:title`.** `#209` fixed the *rendered* canonical with
    `usePageMeta`, which is correct for Google and invisible to every crawler
