@@ -56,6 +56,7 @@ from collections.abc import Sequence as AbcSequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence
 
+from newsroom import numeric_scan
 from newsroom.pipeline import units
 from newsroom.pipeline import field_meanings
 from newsroom.pipeline.context import COUNTRY_NAMES, ContextPack
@@ -355,12 +356,18 @@ class AnalystBrief:
     #: Mechanisms the grounding rule threw away, kept for the audit trail. A
     #: rising count here is the signal that the analyst prompt needs work.
     discarded: tuple[str, ...] = ()
+    #: Why the threshold was dropped, when it named a number the newsroom does
+    #: not hold. Its own field rather than an entry in ``discarded``, because
+    #: that tuple is reported as ``mechanisms_discarded`` — a count OF
+    #: MECHANISMS — and folding a threshold into it would make a published
+    #: number mean something it does not. Empty is the ordinary case.
+    threshold_discarded: str = ""
 
     def __bool__(self) -> bool:
         return bool(self.angle or self.significance or self.mechanisms)
 
     def to_provenance(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "prompt_version": ANALYST_PROMPT_VERSION,
             "expert": self.expert,
             "discipline": self.discipline,
@@ -371,6 +378,12 @@ class AnalystBrief:
             "caveats": list(self.caveats),
             "mechanisms_discarded": len(self.discarded),
         }
+        # Present only when it fired, so absence means "the desk named a
+        # threshold we hold, or named none" rather than "nobody looked". A key
+        # that is always there with an empty value cannot distinguish those.
+        if self.threshold_discarded:
+            payload["threshold_discarded"] = self.threshold_discarded
+        return payload
 
     def prompt_section(self, *, panel_has_hypotheses: bool = False) -> str:
         """The brief as the writer sees it, with the confidence rules attached.
@@ -555,10 +568,15 @@ OUTPUT — a single JSON object, no markdown, no commentary:
   "affected": ["specific groups, sectors or decisions"],
   "what_to_watch": "the value or threshold a named future reading would have to
                     show for this conclusion to change — NOT merely that a
-                    release is due. 'A second quarter above 2691 thousand tonnes
-                    would make this a level shift' is useful; 'the next release,
-                    to see if the trend continues' is not, because every trend
-                    either continues or does not",
+                    release is due. THE THRESHOLD MUST BE ONE OF THE VERIFIED
+                    FIGURES ABOVE, QUOTED EXACTLY. The correspondent has to
+                    declare every numeral against a retrieved figure, so a
+                    round number of your own — '400000 nights', 'above 2.00%' —
+                    cannot be published at all and costs the article. Quote
+                    2691 from the table, not 2700. 'A second quarter above 2691
+                    thousand tonnes would make this a level shift' is useful;
+                    'the next release, to see if the trend continues' is not,
+                    because every trend either continues or does not",
   "caveats": ["a definitional trap the correspondent must not fall into"]
 }}
 
@@ -778,6 +796,62 @@ def _strings(value: Any, *, limit: int) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in value if str(item).strip())[:limit]
 
 
+def _untraceable_threshold(
+    what_to_watch: str, fields: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Numbers in the brief's threshold that are not figures the newsroom holds.
+
+    WHY THIS IS CHECKED AT ALL
+    --------------------------
+    ``_ground`` validates the field *names* a mechanism cites. Nothing validated
+    the *numbers* in the desk's own prose — and ``what_to_watch`` is the one
+    field whose prose reaches the page as a numeral, because house style asks
+    every piece to close on what the next release would have to show, and the
+    prompt says outright that "the correspondent quotes your claims almost
+    verbatim". Measured on the run of 2026-08-28, it does:
+
+        desk:   "A reading below 4000 thousand passengers in the next quarter"
+        writer: "A reading below 4000 thousand passengers in the next quarter,
+                 indicating whether the current demand is sustainable"
+
+    4000 is not a figure this newsroom retrieved. The writer declared it against
+    ``baseline_years`` (9.0), ``figures_traceable`` refused it, and **that was
+    the article's only fault** — one whole piece lost to a paragraph house style
+    had asked for. Four of the eight briefs that run named a threshold that was
+    not a verified figure; three of the four damaged the draft at exactly that
+    paragraph, and the fourth survived only because the writer silently repaired
+    it. A number the desk invents is one the correspondent cannot publish.
+
+    The writer is not the culprit and hardening it would not help: given an
+    untraceable threshold its options are to print it (rejected by
+    ``figures_traceable``), to leave it undeclared (rejected by
+    ``no_invented_numbers``), or to throw the closing away. It is trapped in the
+    paragraph it was told to write.
+
+    WHY IT USES THE VALIDATOR'S OWN PRIMITIVES
+    ------------------------------------------
+    ``numeric_scan.scan`` and ``value_justifies`` are what ``no_invented_numbers``
+    resolves prose against, so this asks the identical question one stage
+    earlier and cannot answer it differently. Re-deriving "is this number ours?"
+    here would be a second implementation that agrees today and drifts later.
+    That also buys the exclusions for free: a bare year, a date, a quarter label
+    and a named entity are not magnitudes and ``scan`` already ignores them, so
+    "the next June" and "2026-Q2" are not thresholds to resolve.
+    """
+    if not what_to_watch:
+        return ()
+    values = [
+        float(value)
+        for value in fields.values()
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    return tuple(
+        token.text
+        for token in numeric_scan.scan(what_to_watch)
+        if not any(numeric_scan.value_justifies(token, value) for value in values)
+    )
+
+
 def analyse(
     signal: Signal,
     writer: "LlmWriter",
@@ -836,6 +910,24 @@ def analyse(
             "; ".join(discarded),
         )
 
+    what_to_watch = str(payload.get("what_to_watch") or "").strip()
+    # The threshold has to be a figure we hold, because the correspondent quotes
+    # it and every numeral in the prose must resolve. Dropped rather than
+    # repaired: snapping it to the nearest verified value would silently change
+    # what the desk said, and the writer composes a perfectly good closing from
+    # the figure table when it is handed none.
+    unresolved = _untraceable_threshold(what_to_watch, signal.fields)
+    threshold_discarded = ""
+    if unresolved:
+        threshold_discarded = (
+            f"the desk named {', '.join(repr(t) for t in unresolved)}, which "
+            f"{'are' if len(unresolved) > 1 else 'is'} not among the figures "
+            f"retrieved for this finding, so the correspondent could not have "
+            f"published the threshold"
+        )
+        log.info("analyst: dropped the threshold for %s — %s", signal.id, threshold_discarded)
+        what_to_watch = ""
+
     return AnalystBrief(
         expert=expert.name,
         discipline=expert.discipline,
@@ -843,9 +935,10 @@ def analyse(
         significance=str(payload.get("significance") or "").strip(),
         mechanisms=tuple(mechanisms[:3]),
         affected=_strings(payload.get("affected"), limit=4),
-        what_to_watch=str(payload.get("what_to_watch") or "").strip(),
+        what_to_watch=what_to_watch,
         caveats=_strings(payload.get("caveats"), limit=3),
         discarded=tuple(discarded),
+        threshold_discarded=threshold_discarded,
     )
 
 
