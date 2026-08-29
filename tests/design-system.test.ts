@@ -934,26 +934,58 @@ const EXCLUDED_FROM_CHART_DESCRIPTION: string[] = [];
 /**
  * Chart components whose surface is still an unnamed `role="application"`.
  *
- * Recharts 3 turns `accessibilityLayer` on by default, giving every chart
- * `role="application"` and `tabIndex={0}`. Measured in Chromium against the
- * real build, `/data/economy` had **80 tab stops, 27 of them chart surfaces**,
- * every one announcing as an unnamed "application" — the heaviest role in
- * ARIA, which tells a screen reader to hand it every keystroke.
+ * Empty, and it is an equality rather than a filter so that it had to be
+ * emptied by hand when the last one was fixed. It held five entries — every
+ * chart component except `IndicatorTable` — recorded when they were in files
+ * that pass did not own.
  *
- * `IndicatorTable` is fixed and absent from this list. The rest are named here
- * rather than filtered out, because they are in files this pass did not own.
- * `tests/chartKeyboard.test.tsx` proves the two remedies against the library
- * rather than describing them: a chart may pass `role="img"` and `aria-label`
- * to name its surface in place, or `accessibilityLayer={false}` to leave the
- * tab order entirely.
+ * Measured in Chromium against the real build, before and after, same session:
+ *
+ *     /data/economy    74 tab stops, 19 chart surfaces, 19 of them unnamed
+ *                  ->  66 tab stops, 10 chart surfaces,  0 of them unnamed
+ *     /indicator/gdp   38 tab stops,  2 chart surfaces,  2 of them unnamed
+ *                  ->  38 tab stops,  2 chart surfaces,  0 of them unnamed
  */
-const CHARTS_WITH_UNNAMED_APPLICATION_LAYER = [
-  'BalticCompareChart.tsx',
-  'EconomyTile.tsx',
-  'GridStatePanel.tsx',
-  'IndicatorCard.tsx',
-  'PowerMarketCard.tsx',
-];
+const CHARTS_WITH_UNNAMED_APPLICATION_LAYER: string[] = [];
+
+/**
+ * Does this chart carry an accessible name, by either legitimate route?
+ *
+ * One predicate, used by every check below, because two enumerations of "named"
+ * would drift and the drift would be silent in the direction that reports
+ * success — `AGENTS.md`'s rule about a guard walking a different set from its
+ * subject, applied to a definition rather than a population.
+ *
+ * The two routes are not stylistic variants; which one is correct is a measured
+ * property of the chart:
+ *
+ *   on the element    `aria-label` on the chart itself. The surface stays a
+ *                     focusable `role="application"`, which is what lets
+ *                     recharts' arrow-key walk through the series work — and
+ *                     that walk is real: its tooltip is a
+ *                     `role="status" aria-live="assertive"` region and Chromium
+ *                     exposes each reading as it moves.
+ *
+ *   on the wrapper    `role="img"` + `aria-label` on the enclosing div, for a
+ *                     chart that has left the tab order. Required where the
+ *                     chart is nested inside another control, and where
+ *                     recharts offers no navigation to keep.
+ *
+ * Naming the *wrapper* while the surface stays focusable is the state this
+ * replaced, and it is the worst of the three: a browsing reader hears the
+ * description and a tabbing one lands on an unnamed application.
+ */
+function hasAccessibleName({ enclosing, element }: { enclosing: string; element: string }): boolean {
+  // `(?<![-\w])` and not `\b`: a hyphen is a word boundary, so `\brole="img"`
+  // also matches `data-role="img"`. A planted fault proved it — renaming the
+  // wrapper's attribute to `data-role` left this green, because the substring
+  // survived. The same trap applies to `aria-label`, which `data-aria-label`
+  // would satisfy.
+  const attr = (name: string) => new RegExp(`(?<![-\\w])${name}=`);
+  const onElement = attr('aria-label').test(element);
+  const onWrapper = /(?<![-\w])role="img"/.test(enclosing) && attr('aria-label').test(enclosing);
+  return onElement || onWrapper;
+}
 
 /**
  * The markup between a chart's enclosing `<div` and the chart itself — which
@@ -982,37 +1014,114 @@ function chartContext(text: string, index: number): string {
     .replace(/\/\/[^\n]*/g, '');
 }
 
-/** Every chart in a file, as `{ enclosing markup, the chart element's own props }`. */
+/**
+ * Every chart in a file, as `{ enclosing markup, the chart element's own props }`.
+ *
+ * Two failures shaped this, both of which made a *correct* chart look wrong.
+ *
+ * The window was 300 characters after `<ResponsiveContainer`. `PowerMarketCard`
+ * carries a long comment on its chart tag explaining why its label is bespoke,
+ * which pushed the props past that — so the element came back **empty**, and an
+ * empty element satisfies every "does not contain" filter at once. The first
+ * test in `operability` is the control that would now catch it.
+ *
+ * And the props scan stopped at the first `>`, which is inside `=>`: every
+ * label here is built from a formatter such as `(v) => formatValue(v, unit)`.
+ * `BalticCompareChart` passed only because its `aria-label` happened to precede
+ * the first arrow function. Comments are stripped *before* the scan rather than
+ * after, so an apostrophe in prose cannot open a quote and swallow the file —
+ * the failure an earlier depth-tracking scanner had here.
+ */
 function chartsIn(text: string): { enclosing: string; element: string }[] {
+  const withoutComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   const found: { enclosing: string; element: string }[] = [];
   for (const match of text.matchAll(/<ResponsiveContainer\b/g)) {
     const index = match.index!;
     // The chart element recharts renders into, which is where
-    // `accessibilityLayer` and an in-place `role` are written.
-    const after = text.slice(index, index + 600);
+    // `accessibilityLayer` and an in-place `aria-label` are written.
     const element =
-      after.match(/<(?:Area|Line|Bar|Composed|Pie|Radar|Scatter|Radial)[A-Za-z]*Chart\b[\s\S]{0,300}?>/)?.[0] ?? '';
+      withoutComments(text.slice(index, index + 4000)).match(
+        /<(?:Area|Line|Bar|Composed|Pie|Radar|Scatter|Radial)[A-Za-z]*Chart\b(?:[^>]|=>)*?>/,
+      )?.[0] ?? '';
     found.push({ enclosing: chartContext(text, index), element });
   }
   return found;
 }
 
 describe('operability', () => {
+  it('extracts every chart element, so the check below can fail', () => {
+    // The control, and it is not ceremony. `chartsIn` used to take a 300-char
+    // window after `<ResponsiveContainer`, and `PowerMarketCard`'s chart tag
+    // now carries a longer comment than that — so the extraction came back
+    // **empty**, which reads to every attribute test as "no aria-label, no
+    // accessibilityLayer" and would have reported a correctly-named chart as
+    // an offender. An absent extraction must not resolve to a verdict.
+    const charts = components().flatMap(({ file, text }) =>
+      chartsIn(text).map((c) => ({ file, ...c })));
+
+    expect(charts.length, 'no charts found at all — the scanner is broken').toBeGreaterThan(0);
+    expect(charts.filter((c) => !c.element).map((c) => c.file),
+      'a chart whose element could not be read; the guard cannot judge it')
+      .toEqual([]);
+  });
+
   it('leaves no chart surface an unnamed application', () => {
+    // Recharts 3 turns `accessibilityLayer` on by default, giving every chart
+    // `role="application"` and `tabIndex={0}` — the heaviest role in ARIA,
+    // which tells a screen reader to hand it every keystroke. Unnamed, it is a
+    // mode switch into nothing.
+    //
+    // Two remedies, and which one is right is a measured property of the chart
+    // rather than a preference. `tests/chartKeyboard.test.tsx` proves both
+    // against the library:
+    //
+    //   aria-label on the element      the surface is named in place, and
+    //                                  recharts' arrow-key walk survives
+    //   accessibilityLayer={false}     the surface leaves the tab order, and
+    //                                  a wrapper carries the description
+    //
+    // The second is required where the chart sits inside another control —
+    // `IndicatorCard`'s card sparkline is inside the card's own `<button>`,
+    // and a focusable control nested in a control is an ARIA violation — and
+    // where recharts offers no navigation to preserve, which is the case for
+    // `EconomyTile`'s `BarChart`: measured on master and on this branch, three
+    // ArrowRights left the reading at "Today 03:00, €2.00/MWh", and recharts
+    // says why in `state/keyboardEventsMiddleware.js` — "TODO this is lacking
+    // index for charts that do not support numeric indexes".
+    //
+    // The check is on the chart *element*, not the file: a file-scoped regex
+    // lets one named chart excuse an unnamed sibling, and `IndicatorCard` has
+    // exactly that pair.
+    const offenders = components().flatMap(({ file, text }) =>
+      chartsIn(text)
+        .filter(({ element }) => element)
+        .filter(({ element }) => !/accessibilityLayer=\{false\}/.test(element))
+        .filter(({ element }) => !/\baria-label=/.test(element))
+        .map(() => file));
+
     // The equality is the point. `expect(offenders.filter(notKnown)).toEqual([])`
     // passes today and goes on passing forever once a component is fixed,
     // matching nothing and reporting success — so a fix would never prune the
     // list. This way the list cannot outlive the defect it records.
-    const offenders = components()
-      .filter(({ text }) => /<ResponsiveContainer\b/.test(text))
-      .filter(({ text }) => !/accessibilityLayer=\{false\}/.test(text))
-      // Naming the surface in place also settles it: the role stops being
-      // `application` because recharts prefers an explicit `role` prop.
-      .filter(({ text }) => !/<(?:Area|Line|Bar|Composed|Pie|Radar|Scatter)Chart[^>]*\brole="img"/.test(text))
-      .map(({ file }) => file);
-
     expect(offenders.sort(), 'a chart that is a focusable unnamed application')
       .toEqual([...CHARTS_WITH_UNNAMED_APPLICATION_LAYER].sort());
+  });
+
+  it('describes every chart that leaves the tab order', () => {
+    // The companion the check above cannot make. `accessibilityLayer={false}`
+    // satisfies "not an unnamed application" by removing the name's subject
+    // entirely — so on its own it would let a chart be silent rather than
+    // anonymous, which is worse. A chart that is not focusable must still be
+    // announced, and here that is the enclosing `role="img"` wrapper.
+    const silent = components().flatMap(({ file, text }) =>
+      chartsIn(text)
+        .filter(({ element }) => /accessibilityLayer=\{false\}/.test(element))
+        .filter(({ enclosing }) => !/aria-hidden="true"/.test(enclosing))
+        .filter((chart) => !hasAccessibleName(chart))
+        .map(() => file));
+
+    expect(silent, 'a chart out of the tab order and undescribed').toEqual([]);
   });
 
   it('gives controls a real touch target', () => {
@@ -1086,20 +1195,15 @@ describe('operability', () => {
     const undescribed: string[] = [];
     for (const { file, text } of charts) {
       if (EXCLUDED_FROM_CHART_DESCRIPTION.includes(file)) continue;
-      for (const { enclosing, element } of chartsIn(text)) {
+      for (const chart of chartsIn(text)) {
         // Element-scoped, not file-scoped. Both halves must be true of *this*
         // chart: hidden from the tree, and out of the tab order.
-        const hidden = /aria-hidden="true"/.test(enclosing);
-        const unfocusable = /accessibilityLayer=\{false\}/.test(element);
+        const hidden = /aria-hidden="true"/.test(chart.enclosing);
+        const unfocusable = /accessibilityLayer=\{false\}/.test(chart.element);
         if (hidden && unfocusable) continue;
 
-        const named = /role="img"/.test(enclosing) || /role="img"/.test(element);
-        if (!named) {
+        if (!hasAccessibleName(chart)) {
           undescribed.push(`${file}: a chart that is neither named nor hidden`);
-          continue;
-        }
-        if (!/aria-label=/.test(enclosing) && !/aria-label=/.test(element)) {
-          undescribed.push(`${file}: has role="img" but no aria-label`);
         }
       }
     }
@@ -1122,11 +1226,11 @@ describe('operability', () => {
 
     const stillUndescribed = charts.filter((file) => {
       const text = components().find((c) => c.file === file)!.text;
-      return chartsIn(text).some(({ enclosing, element }) => {
-        if (/aria-hidden="true"/.test(enclosing) && /accessibilityLayer=\{false\}/.test(element)) {
+      return chartsIn(text).some((chart) => {
+        if (/aria-hidden="true"/.test(chart.enclosing) && /accessibilityLayer=\{false\}/.test(chart.element)) {
           return false;
         }
-        return !/role="img"/.test(enclosing) && !/role="img"/.test(element);
+        return !hasAccessibleName(chart);
       });
     });
 

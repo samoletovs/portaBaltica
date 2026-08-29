@@ -382,20 +382,26 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
         </div>
       </div>
 
-      <div
-        className={compact ? 'h-32' : 'h-52'}
-        role="img"
-        aria-label={describeComparison(
-          title ?? data.title,
-          COUNTRY_ORDER.map((geo) => ({
-            label: COUNTRY_META[geo].label,
-            points: (data.countries[geo]?.series ?? []) as { period: string; value: number | null }[],
-          })),
-          (v) => formatValue(v, data.unit),
-        )}
-      >
+      {/* The name goes on the chart surface, not on a wrapper: that is the node
+          focus lands on, and recharts' `accessibilityLayer` makes it a focusable
+          `role="application"`. Wrapping instead announces the description to a
+          browsing reader and nothing at all to a tabbing one — measured on
+          `/data/economy`, where 10 of the 19 focusable chart surfaces were this
+          component, every one unnamed inside a well-named wrapper. */}
+      <div className={compact ? 'h-32' : 'h-52'}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 4, right: axisInset, bottom: 0, left: axisInset }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 4, right: axisInset, bottom: 0, left: axisInset }}
+            aria-label={describeComparison(
+              title ?? data.title,
+              COUNTRY_ORDER.map((geo) => ({
+                label: COUNTRY_META[geo].label,
+                points: (data.countries[geo]?.series ?? []) as { period: string; value: number | null }[],
+              })),
+              (v) => formatValue(v, data.unit),
+            )}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis
               dataKey="period"

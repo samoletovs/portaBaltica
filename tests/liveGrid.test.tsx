@@ -32,6 +32,27 @@ vi.mock('../src/api', () => ({
   fetchLiveGrid: (...args: unknown[]) => fetchLiveGrid(...args),
 }));
 
+/**
+ * Give `ResponsiveContainer` a size, so the chart actually draws here.
+ *
+ * jsdom reports every element as 0×0, so recharts renders **nothing** — and
+ * every query against a chart then returns null, which reads as "the attribute
+ * is missing" rather than "there is no chart". `AGENTS.md` records a session
+ * nearly filing a false bug report on exactly that.
+ *
+ * It mattered the moment the chart's accessible name moved from the wrapping
+ * div onto the chart element itself: the wrapper is plain DOM and always
+ * present, the surface only exists once recharts has a box to draw in. Without
+ * this the assertion below could not see the name it is about.
+ */
+vi.mock('recharts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('recharts')>();
+  const Sized = ({ children }: { children: React.ReactNode }) => (
+    <actual.ResponsiveContainer width={600} height={300}>{children}</actual.ResponsiveContainer>
+  );
+  return { ...actual, ResponsiveContainer: Sized };
+});
+
 import { GridStatePanel } from '../src/components/GridStatePanel';
 
 /** Elering's real payload shape: `data` is an object, not an array of one. */
@@ -58,18 +79,28 @@ async function callApi(payload: unknown, opts: { fail?: boolean } = {}) {
   const cache = require('../api/shared/cache.js');
   cache.clear();
   const original = es.httpJson;
-  es.httpJson = () => opts.fail
-    ? Promise.reject(new Error('HTTP 503 from dashboard.elering.ee'))
-    : Promise.resolve(payload);
+  let requested: string | null = null;
+  es.httpJson = (url: string) => {
+    requested = url;
+    return opts.fail
+      ? Promise.reject(new Error('HTTP 503 from dashboard.elering.ee'))
+      : Promise.resolve(payload);
+  };
   try {
     delete require.cache[require.resolve('../api/live-grid/index.js')];
     const handler = require('../api/live-grid/index.js');
     const ctx: { res?: { body: string; status: number } } = {};
     await handler(ctx, { query: {}, headers: {} });
-    return { status: ctx.res!.status, body: JSON.parse(ctx.res!.body) };
+    return { status: ctx.res!.status, body: JSON.parse(ctx.res!.body), requested };
   } finally {
     es.httpJson = original;
   }
+}
+
+/** Hours of history the handler actually asked Elering for. */
+function requestedSpanHours(url: string | null) {
+  const q = new URLSearchParams(url!.split('?')[1]);
+  return (Date.parse(q.get('end')!) - Date.parse(q.get('start')!)) / 3600000;
 }
 
 describe('/api/live-grid', () => {
@@ -126,9 +157,112 @@ describe('/api/live-grid', () => {
   });
 
   it('computes renewable share against generation, not demand', async () => {
+    // Solar is stated rather than left at the fixture's null, so this test
+    // keeps measuring its own subject — the denominator — now that an absent
+    // solar reading makes the share unknown.
     const { body } = await callApi(eleringPayload(
-      [row(60, { production: 500, production_renewable: 125 })], []));
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: 0 })], []));
     expect(body.latest.renewableShare).toBe(25);
+  });
+
+  it('folds solar into the renewable share, because production_renewable excludes it', async () => {
+    // Measured against 668 live readings: solar exceeds production_renewable in
+    // 331 of them, and a component cannot exceed its total. Dividing the
+    // solar-excluding numerator by the solar-including denominator understated
+    // the share by a mean of 28.4 percentage points.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: 125 })], []));
+    expect(body.latest.renewableShare).toBe(50);
+  });
+
+  it('reports solar, and does not turn an absent reading into a zero', async () => {
+    const { body: known } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: 42.5 })], []));
+    expect(known.latest.solar).toBe(42.5);
+
+    const { body: absent } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: null })], []));
+    expect(absent.latest.solar).toBeNull();
+  });
+
+  it('says the share is unknown when solar is missing, rather than understating it', async () => {
+    // The gaps are not night — they fall in a contiguous stretch across hours
+    // with sun — so an absent solar reading cannot be read as no solar.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: null })], []));
+    expect(body.latest.renewableShare).toBeNull();
+    // Specifically not the solar-excluding figure, which is the number that shipped.
+    expect(body.latest.renewableShare).not.toBe(25);
+  });
+
+  it('refuses a share above 100 rather than clamping it to a certainty', async () => {
+    // One row in 624 had renewable + solar exceeding production, where solar
+    // rose while production fell between two neighbours that both agree — a
+    // single-interval metering artefact, not a reading to publish.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 300, solar_energy_production: 300 })], []));
+    expect(body.latest.renewableShare).toBeNull();
+  });
+
+  it('reports the renewable share with its own age, because solar is a slower clock', async () => {
+    // Solar is filed a day at a time, so the newest interval almost never has
+    // it. Measured over 763 readings: 44 nulls in one unbroken run at the
+    // newest end, nothing missing beyond 12.3 hours old.
+    const { body } = await callApi(eleringPayload([
+      row(200, { production: 500, production_renewable: 125, solar_energy_production: 125 }),
+      row(60, { production: 600, production_renewable: 60, solar_energy_production: null }),
+    ], []));
+
+    // `latest` is the newest metered interval, and its share is honestly unknown.
+    expect(body.latest.renewableShare).toBeNull();
+    expect(body.minutesBehind).toBeLessThan(120);
+
+    // The share we can stand behind is the older one, and it says how old it is.
+    expect(body.renewableLatest.share).toBe(50);
+    expect(body.renewableLatest.time).toBe(body.actual[0].time);
+    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(body.minutesBehind);
+  });
+
+  it('reports an absent renewable share as absent, not as a missing key', async () => {
+    const { body } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: null })], []));
+    expect(body.renewableLatest.share).toBeNull();
+    expect(body.renewableLatest.time).toBeNull();
+    expect(body.renewableLatest.minutesBehind).toBeNull();
+  });
+
+  it('asks for more history than it plots, so solar is reachable behind its lag', async () => {
+    // Measured: solar is filed a day at a time, so the newest reading is up to
+    // ~24h old. A request no longer than the plotted window finds none — which
+    // is how this endpoint came to state in its own docstring that the field is
+    // empty on actuals. The request must clear a full day, not merely the 12.3h
+    // lag observed on one afternoon.
+    const { requested } = await callApi(eleringPayload([row(60)], []));
+    expect(requestedSpanHours(requested)).toBeGreaterThanOrEqual(24);
+
+    // And the request must genuinely exceed what is plotted: a 20h-old row is
+    // inside the request and outside the chart.
+    const wide = await callApi(eleringPayload([row(20 * 60), row(60)], []));
+    expect(requestedSpanHours(wide.requested)).toBeGreaterThan(20);
+    expect(wide.body.actual).toHaveLength(1);
+  });
+
+  it('reaches solar behind its lag without plotting the extra history', async () => {
+    // The whole reason the request is longer than the window: at midday the
+    // newest solar reading is ~12h old, so a 12h request finds none and the
+    // field looks dead. Serving that history would triple the chart's x-range.
+    const { body } = await callApi(eleringPayload([
+      row(20 * 60, { production: 500, production_renewable: 125, solar_energy_production: 125 }),
+      row(60, { production: 600, production_renewable: 60, solar_energy_production: null }),
+    ], []));
+
+    // Plotted series holds only the recent window.
+    expect(body.actual).toHaveLength(1);
+    expect(body.actual[0].solar).toBeNull();
+
+    // The share is still found, from history that was fetched but not plotted.
+    expect(body.renewableLatest.share).toBe(50);
+    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(19 * 60);
   });
 
   it('answers 502 when Elering is down, rather than an empty-looking success', async () => {
@@ -206,7 +340,22 @@ describe('GridStatePanel', () => {
 
   it('describes the chart, and leaves the panel figures as text', async () => {
     await renderWith(payload);
-    const label = screen.getByRole('img').getAttribute('aria-label') ?? '';
+
+    // Queried by *outcome* rather than by role, which is what the comment below
+    // has always claimed and what the query did not do. It used to be
+    // `getByRole('img')`, pinning the description to a wrapping div; the name
+    // now sits on the chart surface itself, where focus lands, so a role-bound
+    // query broke on a change that improved the thing it was guarding.
+    //
+    // The control comes first: if the chart did not render, every `aria-label`
+    // query returns nothing and the assertions below would pass vacuously on an
+    // empty string.
+    const labelled = [...document.querySelectorAll('[aria-label]')]
+      .map((n) => n.getAttribute('aria-label') ?? '');
+    expect(labelled.length, 'no labelled element at all — the chart did not draw').toBeGreaterThan(0);
+
+    const label = labelled.find((l) => /generation against demand/i.test(l)) ?? '';
+    expect(label, 'the chart carries no description').not.toBe('');
 
     // This used to assert the chart's `aria-label` recited the net flow and
     // the renewable share. It was renamed and rewritten rather than deleted,

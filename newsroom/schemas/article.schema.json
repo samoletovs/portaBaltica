@@ -256,7 +256,8 @@
             },
             "what_to_watch": { "type": "string" },
             "caveats": { "type": "array", "items": { "type": "string" } },
-            "mechanisms_discarded": { "type": "integer", "minimum": 0 }
+            "mechanisms_discarded": { "type": "integer", "minimum": 0 },
+            "threshold_discarded": { "type": "string", "description": "Why what_to_watch was dropped: the desk named a threshold that is not among the figures retrieved for this finding, which the correspondent could not have published because every numeral in the prose must resolve to one. Present only when it fired, so its absence means the desk named a figure we hold or named none — never that nobody checked." }
           }
         },
         "hypotheses": {
