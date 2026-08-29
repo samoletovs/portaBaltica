@@ -74,6 +74,28 @@ const POLARITY: Record<string, Polarity> = {
   tourist_arrivals: 'higher-better',
   hotel_occupancy: 'higher-better',
 
+  // Decided here rather than in a JSX prop, which is where these six lived.
+  //
+  // `RankedComparison` takes `higherIsBetter: boolean` and has its own
+  // `sentimentOfChange` — a second implementation of this module, driven by a
+  // prop and never consulting the map. All six of its call sites were
+  // `neutral` here while being drawn green-and-red on the page, so the
+  // polarity decision for them was made in three tile files and nothing could
+  // check it.
+  //
+  // A boolean also cannot express `neutral`, so `DELIBERATELY_NEUTRAL` was
+  // unreachable by construction for anything that component renders: a future
+  // `<RankedComparison indicator="house_prices" higherIsBetter />` would have
+  // coloured a series this file explicitly declines, and no test here could
+  // see it. `tests/polarityAdmission.test.ts` now requires every such prop to
+  // name an id in this map and to agree with it.
+  gdp_per_capita: 'higher-better',
+  life_expectancy: 'higher-better',
+  rd_spending: 'higher-better',
+  renewables: 'higher-better',
+  inequality: 'lower-better',
+  gov_debt_gdp: 'lower-better',
+
   // Lower is better. These are the twelve that flip: a rise is drawn red and
   // a fall green, because drawing rising unemployment in green is the one
   // thing a dashboard on this site must not do.

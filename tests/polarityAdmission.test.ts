@@ -37,6 +37,11 @@ import {
 const polaritySource = readFileSync(resolve('src/utils/polarity.ts'), 'utf8');
 
 /** Every id the map grades, read from the map rather than restated. */
+/** Every id the map names explicitly — distinct from polarityOf defaulting to neutral. */
+const MAPPED = new Set(
+  [...polaritySource.matchAll(/^ {2}(\w+): '(?:higher-better|lower-better)',$/gm)].map((m) => m[1]),
+);
+
 const GRADED = [...polaritySource.matchAll(/^ {2}(\w+): '(higher-better|lower-better)',$/gm)]
   .map((m) => ({ id: m[1], polarity: m[2] }));
 
@@ -161,13 +166,19 @@ describe('building permits and construction output', () => {
       'exports',
       'food_inflation',
       'gdp',
+      'gdp_per_capita',
       'goods_inflation',
       'gov_debt',
+      'gov_debt_gdp',
       'home_energy_inflation',
       'hotel_occupancy',
       'industrial',
+      'inequality',
       'inflation',
+      'life_expectancy',
+      'rd_spending',
       'renewable_share',
+      'renewables',
       'retail_sales',
       'salary',
       'services_inflation',
@@ -205,6 +216,14 @@ describe('the map against what the dashboard actually renders', () => {
       for (const m of text.matchAll(/^ {2}\{ id: '([a-z_]+)'/gm)) ids.add(m[1]);
       const list = text.match(/const INDICATORS = \[([^\]]+)\]/);
       if (list) for (const m of list[1].matchAll(/'([^']+)'/g)) ids.add(m[1]);
+      // `RankedComparison` colours its rows too — it calls `sentimentColor` on
+      // a sentiment it computes itself. Omitting it made this sweep's
+      // population narrower than its subject: the six ids it renders would
+      // have been reported as *dormant*, meaning "graded but colouring
+      // nothing", when they colour six comparisons on three tiles. The
+      // guard would have been correct about everything it looked at and blind
+      // to a sixth of the graded map.
+      for (const m of text.matchAll(/<RankedComparison[^>]*\bindicator="([^"]+)"/g)) ids.add(m[1]);
     }
     return ids;
   }
@@ -328,6 +347,61 @@ describe('the map against what the dashboard actually renders', () => {
     // this cannot pass merely because the component was reworded.
     const wrong = [...DELIBERATELY_NEUTRAL].filter((id) => polarityOf(id) === 'lower-better');
     expect(wrong, 'a declined id that is also graded').toEqual([]);
+  });
+
+  it('does not let a JSX prop decide a polarity the map cannot see', () => {
+    // The seam this closes is the one `#240` closed at the other end: a
+    // *second implementation* of this module, living in a component.
+    //
+    // `RankedComparison` takes `higherIsBetter: boolean` and computes its own
+    // sentiment from it, never calling `polarityOf`. Measured before the fix,
+    // all six of its call sites resolved to `neutral` in the map while being
+    // drawn green-and-red on the page — so the decision was made in three tile
+    // files and no test here could reach it.
+    //
+    // The sharper half is that a **boolean cannot express `neutral`**. For
+    // anything that component renders, `DELIBERATELY_NEUTRAL` was unreachable
+    // by construction: `<RankedComparison indicator="house_prices"
+    // higherIsBetter />` would colour a series this file explicitly declines,
+    // and every polarity test would stay green.
+    //
+    // So the prop is not banned — it is required to *agree with* the map, and
+    // the id is required to be in it. An id that merely defaults to `neutral`
+    // fails, because that is the omission this whole file exists to abolish.
+    const sites: { file: string; id: string; higherIsBetter: boolean }[] = [];
+    for (const { file, text } of componentFiles()) {
+      for (const m of text.matchAll(/<RankedComparison[^>]*?indicator="([^"]+)"[^>]*?>/g)) {
+        sites.push({
+          file,
+          id: m[1],
+          // `higherIsBetter` bare is true; `higherIsBetter={false}` is false.
+          higherIsBetter: !/higherIsBetter=\{false\}/.test(m[0]),
+        });
+      }
+    }
+
+    // Control: an empty sweep would pass every assertion below and prove
+    // nothing, which is this repository's most reproduced failure.
+    expect(sites.length, 'no RankedComparison call sites found — the scan is broken').toBeGreaterThanOrEqual(6);
+    expect(sites.map((s) => s.id)).toContain('gdp_per_capita');
+
+    const undeclared = sites.filter((s) => !MAPPED.has(s.id)).map((s) => `${s.id} in ${s.file}`).sort();
+    expect(
+      undeclared,
+      'this indicator is coloured by a prop but is absent from POLARITY, so it defaults to ' +
+        'neutral there while rendering green-and-red here. Declare it in the map — and if it ' +
+        'fails the three-party test, it cannot be rendered by this component at all, because ' +
+        'a boolean has no way to say "neutral".',
+    ).toEqual([]);
+
+    const disagreeing = sites
+      .filter((s) => polarityOf(s.id) !== (s.higherIsBetter ? 'higher-better' : 'lower-better'))
+      .map((s) => `${s.id}: prop says ${s.higherIsBetter ? 'higher' : 'lower'}-better, map says ${polarityOf(s.id)}`)
+      .sort();
+    expect(
+      disagreeing,
+      'the prop and the map are two decisions about one quantity, and they disagree',
+    ).toEqual([]);
   });
 });
 
