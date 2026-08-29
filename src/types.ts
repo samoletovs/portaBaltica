@@ -95,7 +95,6 @@ export interface EnergyCertDistribution {
 export interface PropertyData {
   constructionPermits: ConstructionPermit[];
   totalPermits: number;
-  permitsTrend: number; // % change vs previous period
   energyCerts: EnergyCertDistribution[];
   totalCerts: number;
   fetchedAt: string;
@@ -179,7 +178,12 @@ export interface UBOCompany {
 
 export interface BusinessSearchResult {
   query: string;
+  /** Rows matching in the registry, as the datastore counts them — not the page size. */
   totalMatches: number;
+  /** True when the registry holds more matches than `companies` carries. */
+  truncated?: boolean;
+  /** How many owner rows this response was built from. */
+  returned?: number;
   companies: UBOCompany[];
   source: string;
   fetchedAt: string;
