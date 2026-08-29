@@ -15,9 +15,18 @@
  * tell. A real count does not do that.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
+
+const searchBusinessOwners = vi.fn();
+vi.mock('../src/api', () => ({
+  searchBusinessOwners: (...args: unknown[]) => searchBusinessOwners(...args),
+  searchAddress: () => Promise.resolve(null),
+}));
+
+import { BusinessTile } from '../src/components/BusinessTile';
+import { CountryProvider } from '../src/CountryContext';
 
 const require = createRequire(import.meta.url);
 const https = require('https');
@@ -27,7 +36,7 @@ let originalGet: typeof https.get;
 
 function stubHttps() {
   originalGet = https.get;
-  https.get = (url: string, opts: unknown, cb?: (r: unknown) => void) => {
+  https.get = (_url: string, opts: unknown, cb?: (r: unknown) => void) => {
     const done = typeof opts === 'function' ? (opts as (r: unknown) => void) : cb!;
     const res = new EventEmitter() as EventEmitter & { statusCode: number; resume: () => void };
     res.statusCode = reply.status || 200;
@@ -97,40 +106,33 @@ describe('/api/business-search counts matches, not rows returned', () => {
 });
 
 describe('BusinessTile tells the reader the list stops', () => {
-  beforeEach(() => { vi.resetModules(); });
-
-  async function renderWith(result: Record<string, unknown>) {
-    vi.doMock('../src/api', () => ({
-      searchBusinessOwners: () => Promise.resolve(result),
-      searchAddress: () => Promise.resolve(null),
-    }));
-    const { BusinessTile } = await import('../src/components/BusinessTile');
-    const { CountryProvider } = await import('../src/CountryContext');
-    render(
-      <CountryProvider>
-        <BusinessTile euFunds={null} euLoading={false} />
-      </CountryProvider>,
-    );
-  }
+  beforeEach(() => { searchBusinessOwners.mockReset(); });
 
   it('renders the registry count, not the number of rows on screen', async () => {
     const companies = Array.from({ length: 48 }, (_, i) => ({
       registrationNumber: 'REG' + i, owners: [{ forename: 'A', surname: 'Bērziņš' }],
     }));
-    await renderWith({
+    searchBusinessOwners.mockResolvedValue({
       query: 'Bērziņš', totalMatches: 904, returned: 50, truncated: true,
       companies, source: 'PLG', fetchedAt: '2026-08-29T00:00:00Z',
     });
-    const input = screen.getByLabelText(/search beneficial owners/i);
-    const { fireEvent } = await import('@testing-library/react');
-    fireEvent.change(input, { target: { value: 'Bērziņš' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
+    render(
+      <CountryProvider>
+        <BusinessTile euFunds={null} euLoading={false} />
+      </CountryProvider>,
+    );
 
-    const line = await screen.findByText(/904 matches/);
+    const input = screen.getByLabelText(/search beneficial owners/i);
+    fireEvent.change(input, { target: { value: 'Bērziņš' } });
+    // Drained rather than waited on: the search resolves an already-settled
+    // promise, so flushing microtasks is deterministic where a timeout is not.
+    await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); });
+
+    const line = screen.getByText(/904 matches/);
     expect(line.textContent).toMatch(/904 matches/);
     // A corrected count beside ten rows must not imply the ten are the answer.
     expect(line.textContent).toMatch(/showing 10/);
     // And the old behaviour — the cap as the count — must be gone.
-    expect(line.textContent).not.toMatch(/^\s*50 matches/);
+    expect(line.textContent).not.toMatch(/\b50 matches/);
   });
 });

@@ -109,7 +109,9 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                 published as the count.
               */}
               <p className="text-caption dash-muted mb-2">
-                {searchResult.totalMatches.toLocaleString()} matches for &quot;{searchResult.query}&quot;
+                {finite(searchResult.totalMatches) === null
+                  ? '—'
+                  : finite(searchResult.totalMatches)!.toLocaleString()} matches for &quot;{searchResult.query}&quot;
                 {shownCompanies.length < list(searchResult.companies).length
                   || searchResult.truncated
                   ? ` — showing ${shownCompanies.length}`
