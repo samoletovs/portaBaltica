@@ -35,13 +35,20 @@ from __future__ import annotations
 
 from newsroom.pipeline.revisions import append_correction, scope_correction_note
 
-#: The one article the measurement condemned, with its real numbers.
+#: The one article the measurement condemned, with its real numbers. Measured
+#: 2026-08-29T10:23Z against `prc_hicp_minr?coicop18=FOOD&unit=RCH_A&geo=LV`,
+#: the URL recorded in the article's own provenance, with `lastTimePeriod`
+#: stripped: 355 observations from 1997-01, minimum -3.7% at 2010-02, and
+#: exactly three readings below the -2.0 the headline called a record —
+#: 2010-01 (-2.3), 2010-02 (-3.7), 2010-03 (-2.2).
 FOOD = dict(
     claim='Latvia\'s food inflation had dropped to a "record low" of -2% in July 2026',
     window="60 observations since 2021-08",
+    series_start="1997-01",
     true_extreme="-3.7%",
     true_period="2010-02",
     beaten=3,
+    claims_low=True,
 )
 
 
@@ -53,13 +60,28 @@ class TestTheNoteSaysWhatAReaderNeeds:
         assert text.startswith("CORRECTED.")
         assert "record low" in text
         assert "60 observations since 2021-08" in text
+        assert "1997-01" in text
         assert "-3.7%" in text and "2010-02" in text
         assert note["corrected_at"] == "2026-08-29T10:00:00Z"
 
+    def test_it_says_which_direction_beats_the_claim(self):
+        """"three earlier readings are beyond it" is vague in a way a
+        correction cannot afford: a low is beaten by something LOWER.
+
+        MUTATION THIS CATCHES: hardcoding one direction, which prints "higher"
+        on a record-low correction and reads as the opposite of the truth.
+        """
+        low = scope_correction_note(**FOOD)["description"]
+        high = scope_correction_note(**{**FOOD, "claims_low": False})["description"]
+
+        assert "readings are lower" in low and "the lowest being" in low
+        assert "readings are higher" in high and "the highest being" in high
+
     def test_it_says_the_figure_itself_still_stands(self):
-        """The -2% is correct and traceable. A notice that left a reader unsure
-        whether the number was wrong would be a worse artefact than the
-        headline it corrects.
+        """The -2% is correct and traceable, and is genuinely the lowest of the
+        60 observations we held. A notice that left a reader unsure whether the
+        number was wrong would be a worse artefact than the headline it
+        corrects.
         """
         text = scope_correction_note(**FOOD)["description"]
 
@@ -77,8 +99,76 @@ class TestTheNoteSaysWhatAReaderNeeds:
     def test_one_earlier_reading_reads_as_singular(self):
         text = scope_correction_note(**{**FOOD, "beaten": 1})["description"]
 
-        assert "1 earlier reading is" in text
+        assert "One earlier reading is lower" in text
         assert "readings are" not in text
+
+    def test_a_small_count_is_spelled_at_the_head_of_a_sentence(self):
+        """A numeral opening a sentence reads as a typo, and this note is the
+        one piece of newsroom prose a reader meets while already doubting us."""
+        assert ". Three earlier readings are lower" in scope_correction_note(**FOOD)["description"]
+        assert ". 23 earlier readings are lower" in (
+            scope_correction_note(**{**FOOD, "beaten": 23})["description"]
+        )
+
+
+class TestApplyingItWritesOnceAndSaysSo:
+    """The read-modify-write, against a local store rather than production."""
+
+    @staticmethod
+    def _store(tmp_path):
+        from newsroom.pipeline.publish import ArticleStore
+
+        return ArticleStore(local_dir=tmp_path, account_url="")
+
+    async def test_it_appends_the_note_and_leaves_the_article_servable(self, tmp_path):
+        import json
+
+        from newsroom.pipeline.revisions import apply_scope_correction
+        from newsroom.validator import CHECK_NAMES, is_servable
+
+        store = self._store(tmp_path)
+        document = {
+            "slug": "s",
+            "status": "published",
+            "provenance": {
+                "validator": {
+                    "passed": True,
+                    "checks": [{"name": n, "passed": True} for n in CHECK_NAMES],
+                }
+            },
+        }
+        (tmp_path / "s.json").write_text(json.dumps(document), encoding="utf-8")
+
+        note = scope_correction_note(**FOOD)
+        updated = await apply_scope_correction(store, "s", note)
+
+        assert updated is not None
+        stored = json.loads((tmp_path / "s.json").read_text(encoding="utf-8"))
+        assert len(stored["corrections"]) == 1
+        assert stored["status"] == "published"
+        assert is_servable(stored), "the page the notice appears on must survive"
+
+    async def test_running_it_twice_writes_once(self, tmp_path):
+        """Safe to re-run, and it SAYS it did nothing rather than being safe by
+        accident — the difference between an idempotent operation and one that
+        happens not to have broken anything yet."""
+        import json
+
+        from newsroom.pipeline.revisions import apply_scope_correction
+
+        store = self._store(tmp_path)
+        (tmp_path / "s.json").write_text(
+            json.dumps({"slug": "s", "status": "published"}), encoding="utf-8"
+        )
+        note = scope_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
+
+        first = await apply_scope_correction(store, "s", note)
+        second = await apply_scope_correction(store, "s", note)
+
+        assert first is not None
+        assert second is None
+        stored = json.loads((tmp_path / "s.json").read_text(encoding="utf-8"))
+        assert len(stored["corrections"]) == 1
 
     def test_the_note_matches_the_schema(self):
         import json
