@@ -143,7 +143,8 @@ describe('indicator registry', () => {
     // would silently match nothing the day it stopped being true.
     const totals = entries.filter(([, def]) => def.euAggregation === 'sum').map(([id]) => id);
     expect(totals.sort()).toEqual([
-      'air_passengers', 'current_account', 'elec_production', 'elec_renewable_gen',
+      'air_passengers', 'asylum_applications', 'current_account', 'elec_production',
+      'elec_renewable_gen',
       'exports', 'financial_services', 'ghg_emissions', 'goods_balance', 'gov_deficit',
       'gov_revenue', 'ict_services', 'imports', 'other_business_services', 'population',
       'rail_freight', 'rail_passengers', 'road_freight', 'road_freight_tkm',

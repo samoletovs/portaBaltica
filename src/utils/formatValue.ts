@@ -109,6 +109,7 @@ export function formatValue(v: number | null, unit: string): string {
   if (unit === 'nights') return sign(v, `${compact(v)} nights`);
   if (unit === 'passengers/quarter') return sign(v, `${compact(v)} passengers`);
   if (unit === 'deaths/week') return sign(v, `${compact(v)} deaths`);
+  if (unit === 'applications/month') return sign(v, `${compact(v)} applications`);
   if (unit === 'k passengers') return sign(v, `${compact(v, 1e3)} passengers`);
   if (unit === 'thousands') return sign(v, compact(v, 1e3));
 
@@ -139,6 +140,7 @@ export const HANDLED_UNITS: readonly string[] = [
   'per 1000', 'per 1000 inhabitants',
   'balance', 'years',
   'persons', 'nights', 'passengers/quarter', 'deaths/week', 'k passengers', 'thousands',
+  'applications/month',
   'GWh', 'k tonnes', 'M tonne-km', 'thousand tonnes CO2-eq',
 ];
 
