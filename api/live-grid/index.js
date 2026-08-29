@@ -33,9 +33,15 @@ const { withCache } = require('../shared/responseCache.js');
  *   2. **`frequency` is nominal.** Every row returns exactly 50, in every
  *      sample taken. It is a constant, not a measurement, and showing it as
  *      live telemetry would be inventing a signal. It is dropped here.
- *   3. **`solar_energy_production` is empty on actuals.** Solar appears only in
- *      the forecast, so actual solar output is not reported and this endpoint
- *      does not pretend otherwise.
+ *   3. **`solar_energy_production` runs on a slower clock than the rest of the
+ *      row.** This endpoint used to state that the field "is empty on actuals",
+ *      and that was an artefact of the probe: it requested twelve hours, solar
+ *      is filed a day at a time, and at midday every row inside twelve hours is
+ *      legitimately null. Measured over 763 readings across eight days it is
+ *      94.2% populated, with all 44 nulls in ONE unbroken run at the newest end
+ *      and nothing missing beyond 12.3 hours old. So the response reports solar
+ *      per interval, and reports the renewable share with its own timestamp and
+ *      lag rather than attaching a half-day-old figure to `meteredTo`.
  *
  * `system_balance` is verified as production minus consumption, to the second
  * decimal, across every sampled row — so a negative balance is a net import.
@@ -47,8 +53,25 @@ const { withCache } = require('../shared/responseCache.js');
 
 const ELERING_SYSTEM = 'https://dashboard.elering.ee/api/system/with-plan';
 
-/** Hours of history to request. Enough to show a shape, small enough to be cheap. */
+/** Hours of history to plot. Enough to show a shape, small enough to be cheap. */
 const WINDOW_HOURS = 12;
+
+/**
+ * Hours of history to REQUEST, which is longer than the window we plot.
+ *
+ * Solar is filed a day at a time, so at midday the newest solar reading is
+ * around twelve hours old — just outside a twelve-hour request. That is how
+ * this endpoint came to state, in its own docstring, that solar "is empty on
+ * actuals": the sample window was shorter than the publication lag, so every
+ * row in it was legitimately null and the field looked dead. Measured over an
+ * eight-day window it is 94.2% populated, with the 44 nulls in one unbroken run
+ * at the newest end.
+ *
+ * Thirty-six hours clears a full day's lag with margin, costs one request
+ * rather than two, and does not change what is plotted: `actual` is still
+ * trimmed to WINDOW_HOURS.
+ */
+const REQUEST_HOURS = 36;
 
 /**
  * The source refreshes every fifteen minutes and lags over an hour, so asking
@@ -65,27 +88,90 @@ function num(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-/** One metered or forecast interval, with only the fields we can stand behind. */
+/**
+ * One metered or forecast interval, with only the fields we can stand behind.
+ *
+ * WHAT ELERING SENDS AND WHAT WE TAKE. The feed carries nine fields per row and
+ * this reads five. The four it leaves are left deliberately, measured over 668
+ * readings across seven days:
+ *
+ *   losses                   0% populated. Nothing to read.
+ *   frequency                100% populated, ONE distinct value (50.0) across
+ *                            every reading. Fully populated and carrying no
+ *                            information, which is not the same as missing.
+ *   ac_balance               100% populated and genuinely varying, but it
+ *                            shares a sign with `system_balance` in only 44 of
+ *                            668 rows, so it is not the interconnector share of
+ *                            the balance or any other reading we could state.
+ *                            Undocumented and unresolved: not published rather
+ *                            than published with a guessed meaning.
+ *   solar_energy_production  now read. See below.
+ */
 function point(row, kind) {
   const production = num(row.production);
   const consumption = num(row.consumption);
   const renewable = num(row.production_renewable);
+  const solar = num(row.solar_energy_production);
+  // `production_renewable` EXCLUDES solar, and `production` includes it.
+  //
+  // That is measured, not assumed, because the field names imply the opposite
+  // and reading them the obvious way is what shipped a wrong number. Over 668
+  // readings:
+  //
+  //   solar exceeds production_renewable in 331 of 668 rows, and a component
+  //     cannot exceed its total;
+  //   production averages 698 MW when solar is highest against 348 MW when
+  //     solar is near zero — it doubles, so solar is inside it;
+  //   production minus solar is never negative, in 624 of 624 rows;
+  //   production_renewable averages just 39.5 MW when solar is at its highest,
+  //     where a solar-inclusive figure would be near 570.
+  //
+  // So the renewable total is renewable + solar, and dividing the
+  // solar-EXCLUDING numerator by the solar-INCLUDING denominator — which is
+  // what this did — understated the share by a mean of 28.4 percentage points
+  // and a maximum of 95.8. At 11:30 on 2026-08-26 it reported 1.6% while solar
+  // alone was 601.7 MW of 666.0 MW generated.
+  const renewableTotal = renewable !== null && solar !== null
+    ? renewable + solar
+    : null;
   return {
     time: new Date(row.timestamp * 1000).toISOString(),
     kind: kind,
     production: production,
     consumption: consumption,
     renewable: renewable,
-    // Recomputed rather than read: `system_balance` agrees to the second
-    // decimal on every sampled row, and deriving it means the sign convention
-    // is ours and stated rather than assumed from an undocumented field.
+    // Reported separately as well as folded into the share, because it is the
+    // larger half of Estonian renewable generation for most of a summer day
+    // and the reader cannot recover it from a percentage.
+    solar: solar,
+    // Recomputed rather than read. `system_balance` tracks production minus
+    // consumption closely but NOT exactly — measured across 668 rows the two
+    // differ by a mean of 0.31 MW and a maximum of 4.72 — so deriving it means
+    // the sign convention and the arithmetic are both ours and stated, rather
+    // than assumed from an undocumented field that does not quite agree.
     balance: production !== null && consumption !== null
       ? +(production - consumption).toFixed(2)
       : null,
-    renewableShare: production !== null && renewable !== null && production > 0
-      ? +((renewable / production) * 100).toFixed(1)
-      : null,
+    renewableShare: renewableShare(production, renewableTotal),
   };
+}
+
+/**
+ * Renewable generation as a percentage of all generation, or null.
+ *
+ * Null in two cases, both deliberate. Solar is absent from 6.6% of readings and
+ * those gaps are NOT night — measured, they fall in a contiguous stretch across
+ * hours a reader would expect sun — so treating an absent solar reading as zero
+ * would print a confident, badly understated number. And a total above
+ * generation is internally inconsistent: it happened in 1 of 624 rows, where
+ * solar rose while production fell between two neighbours that both agree, so
+ * it is a single-interval metering artefact. Clamping it to 100 would publish a
+ * certainty the reading does not support.
+ */
+function renewableShare(production, renewableTotal) {
+  if (production === null || renewableTotal === null || production <= 0) return null;
+  if (renewableTotal > production) return null;
+  return +((renewableTotal / production) * 100).toFixed(1);
 }
 
 function newestWithProduction(points) {
@@ -95,9 +181,35 @@ function newestWithProduction(points) {
   return null;
 }
 
+/**
+ * The newest interval whose renewable share is actually known.
+ *
+ * Solar is metered on a SLOWER CLOCK than the rest of the row, so this is not
+ * the same instant as `latest` and must not be stamped with its time. Measured
+ * over 763 readings across eight days: 44 nulls, in ONE unbroken run at the
+ * newest end, nothing missing beyond 12.3 hours old. The run begins at the
+ * first interval of the Estonian local day and the last populated reading is
+ * the local day's final interval — so solar is filed a day at a time, and the
+ * renewable share is never current, by construction rather than by outage.
+ *
+ * That is why the share is reported with its own boundary instead of being
+ * attached to `latest`: a 12-hour-old figure printed under a 77-minute-old
+ * timestamp is the same fault as reading a forecast as a reading.
+ */
+function newestWithRenewableShare(points) {
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (points[i].renewableShare !== null) return points[i];
+  }
+  return null;
+}
+
+function minutesSince(time) {
+  return time ? Math.max(0, Math.round((Date.now() - Date.parse(time)) / 60000)) : null;
+}
+
 const handler = async function (context, req) {
   const end = new Date();
-  const start = new Date(end.getTime() - WINDOW_HOURS * 3600 * 1000);
+  const start = new Date(end.getTime() - REQUEST_HOURS * 3600 * 1000);
   const url = ELERING_SYSTEM +
     '?start=' + encodeURIComponent(start.toISOString()) +
     '&end=' + encodeURIComponent(end.toISOString());
@@ -120,14 +232,29 @@ const handler = async function (context, req) {
     // that auto-wraps a single object into a collection made it look like an
     // array during exploration, and indexing it as one silently yields nothing.
     const block = (payload && payload.data) || {};
-    const actual = Array.isArray(block.real) ? block.real.map(function (r) { return point(r, 'actual'); }) : [];
+    const fetched = Array.isArray(block.real) ? block.real.map(function (r) { return point(r, 'actual'); }) : [];
     const forecast = Array.isArray(block.plan) ? block.plan.map(function (r) { return point(r, 'forecast'); }) : [];
+
+    // Plot the recent window. The rest of the request exists only so the
+    // renewable share is reachable behind solar's publication lag, and serving
+    // it would silently triple the chart's x-range.
+    const plotFrom = new Date(Date.now() - WINDOW_HOURS * 3600 * 1000).toISOString();
+    const actual = fetched.filter(function (p) { return p.time >= plotFrom; });
 
     const latest = newestWithProduction(actual);
     const meteredTo = latest ? latest.time : null;
-    const minutesBehind = meteredTo
-      ? Math.max(0, Math.round((Date.now() - Date.parse(meteredTo)) / 60000))
-      : null;
+    const minutesBehind = minutesSince(meteredTo);
+
+    // Reported separately because solar arrives on a slower clock, so this is
+    // routinely half a day older than `meteredTo`. Null rather than absent when
+    // no interval in the window has a share, so a consumer reading `.share`
+    // gets an absent reading rather than a TypeError.
+    const renewablePoint = newestWithRenewableShare(fetched);
+    const renewableLatest = {
+      share: renewablePoint ? renewablePoint.renewableShare : null,
+      time: renewablePoint ? renewablePoint.time : null,
+      minutesBehind: renewablePoint ? minutesSince(renewablePoint.time) : null,
+    };
 
     // Forecast intervals that are still ahead of the newest actual, so the two
     // series meet rather than overlap.
@@ -151,6 +278,12 @@ const handler = async function (context, req) {
         latest: latest,
         meteredTo: meteredTo,
         minutesBehind: minutesBehind,
+        // The renewable share and the time it belongs to. `latest.renewableShare`
+        // is the share AT `meteredTo`, which is usually null because solar has
+        // not been filed for that interval yet; this is the newest one we can
+        // actually stand behind, carrying its own age so it is never mistaken
+        // for a current reading.
+        renewableLatest: renewableLatest,
         actual: actual,
         forecast: ahead,
         // True when the answer came from cache after a failed fetch, so the UI
