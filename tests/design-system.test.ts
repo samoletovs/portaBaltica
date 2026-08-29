@@ -1244,11 +1244,25 @@ describe('direction is not sentiment', () => {
     expect(contradicted, 'these are listed as ungraded and also graded').toEqual([]);
   });
 
-  it('flips the twelve series where a rise is unambiguously bad', async () => {
+  it('flips the fourteen series where a rise is unambiguously bad', async () => {
     const { sentimentOf, polarityOf } = await import('../src/utils/polarity');
 
+    // Twelve became fourteen, and the arithmetic is worth stating because two
+    // different rules moved it. `youth_unemployment`, `admin_prices` and
+    // `home_energy_inflation` joined: each is a *slice* of a series already in
+    // this list, so it is the same statistic cut smaller and cannot carry a
+    // different sign — see `tests/polarityComposition.test.ts`, which derives
+    // that from the containment table rather than listing it.
+    //
+    // `ppi` left, on the admission test rather than on arithmetic. Measured
+    // live over five years, 167 of 200 observations sit below 2% and 73 are
+    // outright negative, with LV at 0.0, EE at -0.3 and LT at -2.4 — so a fall
+    // was being drawn green and spoken as "favourable" while producer prices
+    // were already contracting. A rise in it is not *unambiguously* bad, which
+    // is the standing this list requires.
     const worseWhenRising = [
       'unemployment',
+      'youth_unemployment',
       'cpi',
       'inflation',
       'core_inflation',
@@ -1256,7 +1270,8 @@ describe('direction is not sentiment', () => {
       'energy_inflation',
       'services_inflation',
       'goods_inflation',
-      'ppi',
+      'admin_prices',
+      'home_energy_inflation',
       'gov_debt',
       'energy_price_gas',
       'bankruptcies',
@@ -1329,7 +1344,7 @@ describe('direction is not sentiment', () => {
     }
   });
 
-  it('explains the twelve series where the colour contradicts the arrow', async () => {
+  it('explains the fourteen series where the colour contradicts the arrow, and the abstentions', async () => {
     // On a `lower-better` series a fall is drawn green, which is correct and is
     // the point of the polarity module. But put it next to a red ▼ on a card
     // that is also falling — imports and producer prices, both on the overview
@@ -1349,13 +1364,28 @@ describe('direction is not sentiment', () => {
     const { polarityNote } = await import('../src/utils/polarity');
 
     expect(polarityNote('unemployment')).toBe('Lower is better');
-    expect(polarityNote('ppi')).toBe('Lower is better');
-    // Only where the colour is surprising. On `higher-better` and `neutral` a
-    // rise is already green, which is what an unprimed reader assumes, so a
-    // note would be noise explaining the obvious.
+    expect(polarityNote('youth_unemployment')).toBe('Lower is better');
+    // Only where the colour is surprising. On `higher-better` a rise is already
+    // green, which is what an unprimed reader assumes, so a note there would be
+    // noise explaining the obvious.
     expect(polarityNote('gdp')).toBeNull();
-    expect(polarityNote('imports')).toBeNull();
     expect(polarityNote('nonsense_indicator')).toBeNull();
+
+    // A **declined** series is the third case, and it was missing.
+    //
+    // It is drawn by direction exactly like `higher-better`, so nothing on the
+    // card separates "we weighed this and abstained" from "nobody thought about
+    // it" — and beside a neighbour reading "Lower is better", an unexplained
+    // grey reads as an oversight. That became live when `ppi` moved out of
+    // `lower-better`: its colour inverted and its caption vanished in the same
+    // change, on a tile where the series either side kept theirs.
+    //
+    // So an abstention that a reader can *see* says why. One that nothing
+    // colours gets nothing, because a caption nobody can read is not a
+    // decision anyone can check; `tests/polarityAdmission.test.ts` asserts that
+    // correspondence in both directions as an equality.
+    expect(polarityNote('ppi')).toBe('Not graded: a fall is disinflation or it is contraction');
+    expect(polarityNote('imports')).toBe('Not graded: a rise is domestic demand or it is dependency');
 
     for (const file of ['IndicatorCard.tsx', 'IndicatorTable.tsx']) {
       const text = components().find((component) => component.file === file)!.text;
