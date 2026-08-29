@@ -1124,6 +1124,48 @@ describe('operability', () => {
     expect(silent, 'a chart out of the tab order and undescribed').toEqual([]);
   });
 
+  it('offers an export on every series it draws', () => {
+    // `/api-docs` sells "CSV and JSON export on every series" in the Free tier.
+    // #187 shipped that to the *indicator* surfaces — `IndicatorCard`,
+    // `IndicatorTable`, `BalticCompareChart` — and the sentence was false from
+    // that day for every charted series that is not an indicator: the day-ahead
+    // price on `EconomyTile` and `PowerMarketCard`, and the grid trace on
+    // `GridStatePanel`. A claim on a pricing page is a promise.
+    //
+    // The population is **derived**, not listed, and `<ResponsiveContainer` is
+    // the marker because it is what recharts requires to draw into a sized box.
+    // The count assertion is the control: a marker that stops identifying
+    // charts would otherwise let this pass over an empty set, which is the
+    // failure the whole rule is about.
+    //
+    // "Draws a chart" and "renders a series" are not the same set, and picking
+    // the smaller one is what `AGENTS.md` calls the quieter sibling. Seven
+    // surfaces mention a period and draw a **cross-section** — one period, no
+    // time axis — and each was read before being left out: `RankedComparison`
+    // ("three countries, latest value, ranked"), `PropertyTile`
+    // (`series[series.length - 1]`), `FreightModalSplit` (one split per
+    // country), `PortPanelParts` (`valueAt(p, measure.latest)` across ports),
+    // `CargoPanel`, `MaritimeTile`, `ProvenanceBlock`. An export for those
+    // would be a file of one row.
+    const charts = components().filter(({ text }) => /<ResponsiveContainer\b/.test(text));
+
+    expect(charts.length, 'no chart components found — the derivation is broken')
+      .toBeGreaterThanOrEqual(6);
+
+    const withoutExport = charts
+      // `<DownloadMenu` and not `DownloadMenu`: the loose form is satisfied by
+      // an import that is never rendered, and by a comment mentioning the
+      // control. A plant proved it — renaming the import to `DownloadMenuX`
+      // left this green, because the substring survived in both the import and
+      // the JSX. Same trap as `data-role="img"` satisfying `/role="img"/`.
+      .filter(({ text }) => !/<DownloadMenu\b/.test(text))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(withoutExport, 'a series a reader cannot download, on a site that promises they can')
+      .toEqual([]);
+  });
+
   it('gives controls a real touch target', () => {
     // Measured across the dashboard, 43 of 43 interactive elements were under
     // 44px, with the country and range chips at 26px tall. WCAG 2.2 SC 2.5.8
