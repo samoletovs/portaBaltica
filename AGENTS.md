@@ -20,7 +20,8 @@ Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard
   still probed by `/api/system-status` as an optional source so that a recovery
   is noticed.
 - CSP PxWeb `RUI020m` (industrial production) and `RCI020m` (producer prices) —
-  the MIG_* codes return all-null series and every aggregate code is rejected
+  the five `MIG_*` codes answer HTTP 200 with an all-null series, and the **35
+detailed NACE codes** (`B`, `C`, `C10` …) are the ones rejected
   with HTTP 400. Both indicators fall back to Eurostat.
 - data.gov.lv maritime — the three port datasets
   (`ar-juras-parvadajumiem-...`, `pasazieru-parvadajumu-...`,
