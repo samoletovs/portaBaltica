@@ -216,6 +216,14 @@ export function explainNoReview(
   // threshold and so cannot raise the alarm. Stated because the arithmetic is
   // what makes it safe rather than a guard: `>` on a negative number is the
   // whole defence, and rewriting this as `Math.abs` would break it silently.
+  //
+  // That sentence was a claim about behaviour that nothing executed, which is
+  // what `AGENTS.md` warns about for examples in guidance -- and it was wrong
+  // about "silently" only because nobody had tried. `Math.abs` here leaves 14 of
+  // 14 tests green. It is now pinned by "is not fooled by a clock further ahead
+  // than the whole allowance" in `tests/weeklyRunReport.test.tsx`, which needs a
+  // skew larger than the allowance to tell the two apart: the obvious one-hour
+  // case cannot fail the mutation it looks like it is about.
   if (days > WEEKLY_REVIEW_OVERDUE_DAYS) {
     return { reason: 'not-run', since: report.finishedAt };
   }

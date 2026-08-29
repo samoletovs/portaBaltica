@@ -158,6 +158,29 @@ describe('explainNoReview', () => {
       .toBe('withdrawn');
   });
 
+  it('is not fooled by a clock further ahead than the whole allowance', () => {
+    // The case above cannot fail the mutation it was written about. One hour
+    // ahead is 0.04 days, and `Math.abs(0.04) > 8` is false, so rewriting the
+    // comparison as `Math.abs(days) > WEEKLY_REVIEW_OVERDUE_DAYS` leaves every
+    // assertion in this file green -- measured, 14 passed. The comment at that
+    // line names `Math.abs` as the mutation that would break it silently, and
+    // named it without executing it, which is the failure `AGENTS.md` describes
+    // for examples in guidance arriving in a code comment.
+    //
+    // So the skew here is deliberately larger than the allowance: only then do
+    // the correct arithmetic and the mutation disagree. Not synthetic either --
+    // a reader whose device clock is set to the wrong month is ordinary, and it
+    // must not make our newsroom accuse itself of a dead cron.
+    const wayAhead = new Date(
+      NOW.getTime() + (WEEKLY_REVIEW_OVERDUE_DAYS + 22) * 86_400_000,
+    ).toISOString();
+    expect(
+      explainNoReview({ outcome: 'not_enough_findings', finishedAt: wayAhead, slug: '' }, NOW)
+        .reason,
+      'a report from the future is not a report that never arrived',
+    ).toBe('nothing-to-review');
+  });
+
   it('reports a withdrawal as fact when the run published and the reader cannot see it', () => {
     expect(explainNoReview({ outcome: 'published', finishedAt: daysBefore(2), slug: 'x' }, NOW))
       .toEqual({ reason: 'withdrawn' });

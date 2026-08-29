@@ -830,6 +830,34 @@ async def write_weekly(
 #: other's history and doing arithmetic on timestamps.
 WEEKLY_REPORT_BLOB = "runs/weekly-latest.json"
 
+#: What started a run, and the only field that answers "did the cron fire?".
+#:
+#: ``WeeklyOutcome`` explains that an *absent* report means the trigger did not
+#: fire. These two values carry the other half, which absence cannot: a report
+#: that exists still has to say whether the schedule produced it or a person did.
+#:
+#:     timer    the Sunday 15:00Z schedule ran it. The cron works.
+#:     manual   an operator POSTed /api/newsroom/weekly. Says nothing either way
+#:              about the schedule, and will sit there looking like a healthy
+#:              week while the timer stays dead.
+#:
+#: Both blobs are world-readable on the articles container, so this is answerable
+#: with an unauthenticated GET and no Azure access at all:
+#:
+#:     https://<account>.blob.core.windows.net/articles/runs/weekly-<YYYY-MM-DD>.json
+#:
+#: Written here rather than only in a pull request, because the question it
+#: settles is asked days later by someone who was not in that conversation.
+#:
+#: ``function_app.py`` passes these literals from its two entry points and
+#: nothing imports this tuple -- a Functions app binds its triggers by
+#: decorator, so the call sites cannot be collapsed into one. They are asserted
+#: instead, by ``test_weekly_trigger_vocabulary.py``: the value the timer passes
+#: is the value this documentation claims, or the diagnosis above is wrong in
+#: the one direction that cannot be noticed, because a mislabelled report is
+#: still a perfectly well-formed report.
+WEEKLY_TRIGGERS = ("timer", "manual")
+
 
 async def write_weekly_report(
     store: Any, outcome: WeeklyOutcome, *, trigger: str, finished_at: str | None = None
@@ -839,6 +867,12 @@ async def write_weekly_report(
     Written to a stable name and to a dated history, matching the daily report.
     The dated copy is what makes a missed week visible: ``weekly-latest`` alone
     cannot distinguish "ran today and found nothing" from "last ran in March".
+
+    ``trigger`` is one of :data:`WEEKLY_TRIGGERS`, and is not validated here on
+    purpose: this function's job is to leave a record, and refusing to write one
+    because a label was unfamiliar would destroy the very artefact the record
+    exists to preserve. The vocabulary is enforced at the call sites instead,
+    where an unknown value is a bug rather than a reason to lose a week.
     """
     document = outcome.to_json()
     document["trigger"] = trigger
@@ -868,6 +902,7 @@ __all__ = [
     "week_bounds",
     "SECTION_LABELS_ALLOWED",
     "WEEKLY_FORMAT",
+    "WEEKLY_TRIGGERS",
     "WeeklyOutcome",
     "WEEKLY_REPORT_BLOB",
     "write_weekly",
