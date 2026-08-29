@@ -297,6 +297,16 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
 - **PowerShell's `..` range operator eats a git revision range.**
   `git rev-list --count $rev..origin/master` returned a confident **0** —
   "fully deployed" — where `"$rev..origin/master"` returned **5**. Always quote.
+- **`git rev-list --count origin/master..<branch> > 0` does not mean the branch
+  holds unmerged work.** Squash merging guarantees it is non-zero for *every*
+  merged branch, so a sweep built on it reports each one as stranded. Measured:
+  a worktree sweep on 2026-08-29 flagged five sessions as "stuck with unpushed
+  commits"; all five branches were already pushed, all five PRs were **merged**,
+  and every file was on master. This is the same fault as `git branch --merged`
+  wearing a different command, and it survived being written down in that form —
+  so settle it on the PR record (`gh pr list --head <branch> --state all`) or on
+  the **content** (`git cat-file -e origin/master:<path>`), with a control that
+  must come back false.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
