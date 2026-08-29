@@ -37,12 +37,21 @@ function buildNordPoolProbeUrl() {
 /**
  * A short window ending now, for the grid-state probe.
  *
- * Deliberately narrow. The consumer asks for twelve hours because it draws a
- * shape; the probe only needs to know whether metering is still arriving, and
- * a six-hour window is four times the worst observed lag while returning a
- * couple of dozen rows rather than a couple of hundred. It also has to reach
- * *back*: asking for the last thirty minutes of a feed that runs an hour behind
- * would return nothing and read as an outage.
+ * Deliberately narrow, and narrower than the consumer's own request on purpose.
+ * `/api/live-grid` asks for thirty-six hours because it has to reach *solar*,
+ * which Elering files a day at a time; this probe only needs to know whether
+ * metering is still arriving, and six hours is four times the worst observed
+ * metering lag while returning a couple of dozen rows rather than a couple of
+ * hundred.
+ *
+ * It also has to reach *back*: asking for the last thirty minutes of a feed
+ * that runs an hour behind would return nothing and read as an outage. That is
+ * the same failure that made `/api/live-grid` state in its own docstring that
+ * solar "is empty on actuals" — a window shorter than the field's publication
+ * lag makes a live field indistinguishable from a dead one. **Any window here
+ * must exceed the lag of the thing it is asking about**, which for metering is
+ * 83 minutes and for solar would be a full day. This probe reads metering, so
+ * six hours is right; it would be wrong for a probe that judged solar.
  */
 function buildGridStateProbeUrl() {
   const end = new Date();
