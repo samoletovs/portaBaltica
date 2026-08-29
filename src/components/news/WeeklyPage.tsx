@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
-import { fetchArticleIndex, weeklyWraps } from '../../news-api';
+import {
+  fetchArticleIndex,
+  fetchWeeklyReport,
+  weeklyWraps,
+  explainNoReview,
+  type WeeklyAbsence,
+} from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
 import { ArticleCard } from './NewsCard';
+
+/** The same long form the archive list uses, so one page speaks one way. */
+function longDate(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 /**
  * The weekly review, and the archive of the ones before it.
@@ -52,23 +65,62 @@ function WhatItIs() {
 }
 
 /**
- * No current review, and why.
+ * No current review, and why — from the run's own record where there is one.
  *
- * States the mechanism rather than the incident. A page naming the particular
- * wrap that was withdrawn is true today and stale the moment another is
- * published; the reason a week can be empty is true permanently.
+ * The generic text is the fallback rather than the answer. It states the
+ * mechanism instead of an incident, because a page naming the particular wrap
+ * that was withdrawn is true today and stale the moment another is published.
+ * But stating only the mechanism left the page asserting an exhaustive "either
+ * ... or" that excluded the case a reader most needs to know about: that the
+ * review has stopped running. `explainNoReview` reads `runs/weekly-latest.json`
+ * to tell those apart, and falls back to this wording whenever it cannot.
  */
-function NoReview() {
+function NoReview({ absence }: { absence: WeeklyAbsence }) {
   return (
     <div className="news-border news-panel mt-8 rounded-xl border px-6 py-8">
       <h2 className="balance-text news-fg text-title font-semibold tracking-tight">
         No weekly review is published at the moment
       </h2>
-      <p className="pretty-text news-muted mt-3 text-callout">
-        Either the week did not produce enough to review, or a review that was published has since
-        been withdrawn. A withdrawn piece leaves this page and the feeds at once, and the reason is
-        recorded in the corrections log rather than quietly dropped.
-      </p>
+
+      {absence.reason === 'not-run' && (
+        /*
+          The state nothing could previously say. A cron that stops firing
+          renders as a quiet week for as long as it stays stopped, and neither a
+          reader nor an audit can tell the difference -- an audit did in fact
+          record this page as "renders but is unpopulated", which is what both
+          look like. `role="status"` rather than `alert`: it is a disclosure
+          about our own machinery, not an emergency for the reader.
+        */
+        <p role="status" className="pretty-text news-warning mt-3 text-callout">
+          The review has not run since{' '}
+          <time dateTime={absence.since}>{longDate(absence.since)}</time>. That is longer than its
+          weekly schedule allows, so this is a fault on our side rather than a quiet week.
+        </p>
+      )}
+
+      {absence.reason === 'withdrawn' && (
+        <p className="pretty-text news-muted mt-3 text-callout">
+          The most recent review has been withdrawn. A withdrawn piece leaves this page and the
+          feeds at once, and the reason is recorded in the corrections log rather than quietly
+          dropped.
+        </p>
+      )}
+
+      {absence.reason === 'nothing-to-review' && (
+        <p className="pretty-text news-muted mt-3 text-callout">
+          The review ran and did not write one: the week did not produce enough findings to be worth
+          reviewing.
+        </p>
+      )}
+
+      {absence.reason === 'unknown' && (
+        <p className="pretty-text news-muted mt-3 text-callout">
+          Either the week did not produce enough to review, or a review that was published has since
+          been withdrawn. A withdrawn piece leaves this page and the feeds at once, and the reason is
+          recorded in the corrections log rather than quietly dropped.
+        </p>
+      )}
+
       <p className="mt-4 text-ui">
         <Link to="/corrections" className="news-link underline underline-offset-4">
           Read the corrections log →
@@ -102,6 +154,7 @@ function CouldNotLoad() {
 
 export default function WeeklyPage() {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
+  const [absence, setAbsence] = useState<WeeklyAbsence>({ reason: 'unknown' });
 
   usePageMeta({
     title: 'The weekly review | portaBaltica',
@@ -117,6 +170,19 @@ export default function WeeklyPage() {
       .catch(() => {
         if (!controller.signal.aborted) setLoad({ state: 'failed' });
       });
+
+    // Fetched separately and failing separately, on purpose. The report only
+    // ever refines the sentence under "no review"; if it cannot be read the page
+    // must still show the archive it did load. Folding this into the promise
+    // above would let a 500 on a diagnostic blob take down the article list,
+    // which is the more important artefact by far.
+    fetchWeeklyReport(controller.signal)
+      .then((report) => setAbsence(explainNoReview(report)))
+      .catch(() => {
+        // Deliberately silent: `unknown` is already the initial state, and it is
+        // the honest answer when we could not find out.
+      });
+
     return () => controller.abort();
   }, []);
 
@@ -141,7 +207,7 @@ export default function WeeklyPage() {
 
       {load.state === 'failed' && <CouldNotLoad />}
 
-      {load.state === 'ok' && !latest && <NoReview />}
+      {load.state === 'ok' && !latest && <NoReview absence={absence} />}
 
       {latest && (
         <section aria-label="The latest weekly review" className="mt-8">

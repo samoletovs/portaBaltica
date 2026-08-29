@@ -137,6 +137,100 @@ export function weeklyWraps(articles: readonly ArticleSummary[]): ArticleSummary
 }
 
 /**
+ * What the last weekly run did, as the run itself recorded it.
+ *
+ * `weekly.py` writes this to `runs/weekly-latest.json` on every run, whatever
+ * the outcome, and its own comment says why: "a weekly cron that never fires and
+ * a week with nothing worth wrapping produce the same artefact", so the report
+ * exists to tell those two apart. Nothing read it. It was written by one file
+ * and consumed by nobody — the answer was computed and dropped at the seam.
+ */
+export interface WeeklyRunReport {
+  /** `published`, `not_enough_findings` or `draft_refused`. */
+  outcome: string;
+  /** ISO instant the run finished. */
+  finishedAt: string;
+  /** The wrap's slug, when one was published. */
+  slug: string;
+}
+
+/**
+ * A weekly review is due every seven days, and this allows one more.
+ *
+ * The timer is `0 0 15 * * 0` — Sundays at 15:00Z — so two consecutive reports
+ * are seven days apart. A report older than eight days means a scheduled Sunday
+ * came and went and left no record at all: not a wrap, and not even a run
+ * saying it declined to write one. The extra day is slack for a late or retried
+ * run, so an alarm means a missed week rather than a slow afternoon.
+ */
+export const WEEKLY_REVIEW_OVERDUE_DAYS = 8;
+
+export async function fetchWeeklyReport(signal?: AbortSignal): Promise<WeeklyRunReport | null> {
+  const raw = await getJson(`${BASE}/runs/weekly-latest.json`, signal);
+  // `getJson` returns null on 404 and throws on anything else, and both are
+  // handled here rather than being allowed to look like an outcome. A report we
+  // cannot read must not become a claim about what the newsroom did.
+  if (!isRecord(raw)) return null;
+  if (typeof raw.outcome !== 'string' || !raw.outcome) return null;
+  if (typeof raw.finished_at !== 'string' || !raw.finished_at) return null;
+  return {
+    outcome: raw.outcome,
+    finishedAt: raw.finished_at,
+    slug: typeof raw.slug === 'string' ? raw.slug : '',
+  };
+}
+
+/**
+ * Why there is no weekly review to show, distinguished rather than guessed.
+ *
+ * The page already keeps "we do not know yet", "we could not find out" and
+ * "there is none" apart, and says so in its own docblock. It collapsed a fourth
+ * distinction inside the last of those: **we ran and found nothing** and **we
+ * never ran** rendered the same sentence. That is the same failure the file was
+ * built to avoid, one axis over — and it is the one that matters here, because
+ * a cron that silently stops produces a page that reads exactly like a quiet
+ * week, forever.
+ *
+ * `unknown` is the honest default and every unreadable case lands on it. An
+ * absent or illegible report must never resolve to a statement about the
+ * newsroom's editorial decisions.
+ */
+export type WeeklyAbsence =
+  | { reason: 'unknown' }
+  | { reason: 'withdrawn' }
+  | { reason: 'nothing-to-review' }
+  | { reason: 'not-run'; since: string };
+
+export function explainNoReview(
+  report: WeeklyRunReport | null,
+  now: Date = new Date(),
+): WeeklyAbsence {
+  if (!report) return { reason: 'unknown' };
+
+  const finished = Date.parse(report.finishedAt);
+  if (Number.isNaN(finished)) return { reason: 'unknown' };
+
+  const days = (now.getTime() - finished) / 86_400_000;
+  // A report stamped ahead of the reader -- clock skew between the Function App
+  // and a browser -- gives a negative age, which is not greater than the
+  // threshold and so cannot raise the alarm. Stated because the arithmetic is
+  // what makes it safe rather than a guard: `>` on a negative number is the
+  // whole defence, and rewriting this as `Math.abs` would break it silently.
+  if (days > WEEKLY_REVIEW_OVERDUE_DAYS) {
+    return { reason: 'not-run', since: report.finishedAt };
+  }
+
+  // The run published one and the reader cannot see it. The only way that
+  // happens is a withdrawal: `drop_from_index` removes a retracted article, so
+  // the index no longer carries it while the run report still says it went out.
+  // Stated as fact here, where the page previously offered it as one half of a
+  // guess.
+  if (report.outcome === 'published') return { reason: 'withdrawn' };
+
+  return { reason: 'nothing-to-review' };
+}
+
+/**
  * One entry in the public corrections log.
  *
  * Flattened from `Article.corrections` by the pipeline into an append-only
