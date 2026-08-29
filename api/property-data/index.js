@@ -34,51 +34,102 @@ async function getLatestActiveResource(datasetId) {
   }
 }
 
-async function fetchDatastoreRecords(resourceId, limit) {
+/**
+ * How many rows the resource holds, as the datastore itself reports them.
+ *
+ * `datastore_search` returns `total` for the whole table regardless of how many
+ * rows it hands back, so this is one cheap call rather than a scan. It is a
+ * separate question from how many rows we read, and conflating the two is what
+ * this endpoint used to do: it published `records.length` — the page size, a
+ * flat 500 — as the number of construction cases in Latvia, against a real
+ * 324,119. A reader saw "500" and it was rendered with `toLocaleString()`,
+ * which is to say it was presented as a count worth punctuating.
+ */
+async function datastoreTotal(resourceId) {
   try {
-    const data = await jsonGet(CKAN_API + '/datastore_search?resource_id=' + resourceId + '&limit=' + (limit || 500));
-    return (data.result && data.result.records) || [];
+    const data = await jsonGet(CKAN_API + '/datastore_search?resource_id=' + resourceId + '&limit=1');
+    const total = data.result && data.result.total;
+    return typeof total === 'number' ? total : null;
   } catch (e) {
-    return [];
+    return null;
+  }
+}
+
+/**
+ * Count rows per distinct value of one column, across the WHOLE table.
+ *
+ * The alternative — tallying a page of records in JavaScript — does not sample
+ * the table, it takes a contiguous block from one end of it. `datastore_search`
+ * returns rows in `_id` order, so a 500-row page of the construction dataset is
+ * `_id` 1..500 of 324,119: the oldest 0.15%, and not a sample in any sense that
+ * would license a ranking.
+ *
+ * Measured, that ranking was not merely imprecise, it was wrong about the
+ * subject. The oldest 500 rows put Ādaži first with 189 cases. Across all
+ * 324,119 the leader is Rīga with 52,033 — four times the next authority — and
+ * Rīga does not appear in the published list at all, while Ādaži is eighth.
+ *
+ * Returns null rather than a guess when the datastore will not aggregate, so
+ * the caller can omit the ranking instead of falling back to the block-of-500
+ * tally this exists to replace. CKAN answers HTTP 200 with `success: false` for
+ * an action it does not have, so `success` is checked rather than the status
+ * code — and its SQL endpoint refuses casts and `FILTER` with 403/500, so this
+ * stays to a plain `GROUP BY`.
+ */
+async function countByColumn(resourceId, column, limit) {
+  const sql = 'SELECT "' + column + '" AS k, COUNT(*) AS n FROM "' + resourceId
+    + '" GROUP BY k ORDER BY n DESC LIMIT ' + (limit || 20);
+  try {
+    const data = await jsonGet(CKAN_API + '/datastore_search_sql?sql=' + encodeURIComponent(sql));
+    if (!data || data.success !== true) return null;
+    const rows = (data.result && data.result.records) || [];
+    return rows.map(function (r) {
+      const key = r.k === null || r.k === undefined || String(r.k).trim() === ''
+        ? 'Unknown' : String(r.k).trim();
+      return { key: key, count: Number(r.n) };
+    });
+  } catch (e) {
+    return null;
   }
 }
 
 async function fetchConstructionPermits() {
   const resource = await getLatestActiveResource('bis_jlyakg7hgslonjnwyrwc6w');
-  if (!resource) return { permits: [], total: 0 };
-  const records = await fetchDatastoreRecords(resource.id, 500);
-  var byMunicipality = {};
-  for (var i = 0; i < records.length; i++) {
-    var rec = records[i];
-    var municipality = rec['Atbildigas_iestades_nosaukums'] || 'Unknown';
-    // Clean up: remove "būvvalde" suffix for shorter labels
-    municipality = municipality.replace(/ būvvalde$/i, '').replace(/ novada$/i, ' nov.').trim();
-    byMunicipality[municipality] = (byMunicipality[municipality] || 0) + 1;
-  }
-  var permits = Object.entries(byMunicipality)
-    .map(function (e) { return { municipality: e[0], count: e[1] }; })
-    .sort(function (a, b) { return b.count - a.count; })
+  if (!resource) return { permits: [], total: null };
+  const [grouped, total] = await Promise.all([
+    countByColumn(resource.id, 'Atbildigas_iestades_nosaukums', 20),
+    datastoreTotal(resource.id),
+  ]);
+  if (!grouped) return { permits: [], total: total };
+  var permits = grouped
+    .map(function (g) {
+      // Shorten the authority's name for a label, without merging two of them:
+      // only the trailing office word goes.
+      var name = g.key.replace(/ būvvalde$/i, '').replace(/ novada$/i, ' nov.').trim();
+      return { municipality: name || 'Unknown', count: g.count };
+    })
     .slice(0, 15);
-  return { permits: permits, total: records.length };
+  return { permits: permits, total: total };
 }
 
 async function fetchEnergyCerts() {
-  // Use energy usage dataset (has 42K records with energy carriers per building)
-  // Group by energy carrier type to show Latvia's building energy profile
+  // Building energy certificates, grouped by the energy carrier recorded
+  // against each one — Latvia's building energy profile.
   const resource = await getLatestActiveResource('bis_yjv2q8uzi-oidtg81mkifg');
-  if (!resource) return { certs: [], total: 0 };
-  const records = await fetchDatastoreRecords(resource.id, 500);
-  var byCarrier = {};
-  for (var i = 0; i < records.length; i++) {
-    var rec = records[i];
-    var carrier = rec['Energonesejs'] || 'Unknown';
-    byCarrier[carrier] = (byCarrier[carrier] || 0) + 1;
-  }
-  var certs = Object.entries(byCarrier)
-    .map(function (e) { return { rating: e[0], count: e[1] }; })
-    .sort(function (a, b) { return b.count - a.count; })
+  if (!resource) return { certs: [], total: null };
+  const [grouped, total] = await Promise.all([
+    countByColumn(resource.id, 'Energonesejs', 12),
+    datastoreTotal(resource.id),
+  ]);
+  if (!grouped) return { certs: [], total: total };
+  // `Unknown` is kept rather than dropped: 21,037 of 48,269 certificates record
+  // no carrier, so removing it would show a profile of the 57% that do and
+  // imply it was the whole. It was invisible before only because the oldest 500
+  // rows happen to carry a carrier.
+  var certs = grouped
+    .map(function (g) { return { rating: g.key, count: g.count }; })
     .slice(0, 8);
-  return { certs: certs, total: records.length };
+  return { certs: certs, total: total };
 }
 
 const handler = async function (context, req) {
@@ -94,6 +145,11 @@ const handler = async function (context, req) {
       body: JSON.stringify({
         constructionPermits: construction.permits,
         totalPermits: construction.total,
+        // Not computed, and nothing reads it: `src/types.ts` declares it and
+        // `PropertyTile` never touches it, so this zero has never reached a
+        // reader. It stays only because the type requires it. Producer-only
+        // field — flagged for removal alongside the type, which is not this
+        // endpoint's to change.
         permitsTrend: 0,
         energyCerts: energy.certs,
         totalCerts: energy.total,
