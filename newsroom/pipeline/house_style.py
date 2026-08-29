@@ -319,6 +319,96 @@ _STATES_A_LIMIT = re.compile(
 )
 
 
+#: Sentence boundaries, for rules that are about a sentence rather than a
+#: paragraph. Deliberately identical to ``validator._SENTENCE_SPLIT``: the two
+#: modules do not import each other, so this is a second copy, and
+#: ``test_record_window.py`` asserts the two patterns are equal so the day they
+#: diverge is a failing test rather than a silent disagreement about where a
+#: sentence ends. The lookbehind on ``[.!?]`` requires whitespace after, so a
+#: decimal point inside "2.4%" is not a boundary.
+_SENTENCES: Final[re.Pattern[str]] = re.compile(r"(?<=[.!?])\s+")
+
+#: A claim that this is the biggest or smallest reading there has ever been.
+_CLAIMS_A_RECORD: Final[re.Pattern[str]] = re.compile(
+    r"\brecord\s+(?:high|low)\b|\ba\s+record\b|\bset\s+a?\s*record\b|"
+    r"\ball[-\s]time\s+(?:high|low)\b|\b(?:highest|lowest)\s+ever\b|"
+    r"\bnever\s+been\s+(?:higher|lower)\b|\bon\s+record\b",
+    re.IGNORECASE,
+)
+
+#: And the phrase that makes such a claim true: the window it is a record over.
+#: ``detect_record_extreme`` supplies exactly this in its comparison basis --
+#: "across 48 observations since 2014-Q1" -- so the writer is never asked to
+#: invent it, only to keep it.
+#:
+#: A bound needs a COUNT or a DATE. The bare nouns are deliberately not here:
+#: an early version admitted ``\breadings?\b``, and "this is the highest ever
+#: READING for the metric" then bounded itself with the word for the thing
+#: being counted. A window is how many or since when, never merely what.
+_BOUNDS_THE_RECORD: Final[re.Pattern[str]] = re.compile(
+    r"\bsince\s+\w*\s*\d{4}\b|\bsince\s+(?:the\s+)?(?:series|records?\s+began)\b|"
+    r"\b\d[\d,]*\s+(?:observations?|readings?|quarters?|months?|years?|weeks?)\b|"
+    r"\b\d+[-\s](?:quarter|year|month|week|day)\b|"
+    r"\b(?:of|in)\s+(?:this|the)\s+series\b|\bseries\s+began\b",
+    re.IGNORECASE,
+)
+
+
+def record_claim_problems(text: str, *, where: str) -> list[str]:
+    """A record claim must say what window it is a record over.
+
+    THE FAILURE THIS CATCHES
+    ------------------------
+    Published, live, and false::
+
+        "Latvia's food inflation drops to record low of -2% in July 2026"
+
+    Measured against Eurostat's full ``prc_hicp_manr`` series for LV/CP011:
+    348 observations from 1997-01, and the true all-time low is **-8.6% in
+    2010-01**. Eighteen observations outside the window we fetched are below
+    -2%. It is not a record low; it is the lowest in the five years we asked
+    for.
+
+    WHY EVERY STAGE BEHAVED CORRECTLY AND THE HEADLINE WAS STILL FALSE
+    ------------------------------------------------------------------
+    The collector requests a fixed window -- ``periods=60`` here. The detector
+    then reports honestly, and its comparison basis says so in the construction
+    this repo already praises: "across 60 observations since 2021-08" counts
+    observations, calls them observations, and claims no time unit. The writer
+    drops the qualifier and keeps the noun.
+
+    And the gate that should have asked for the missing basis is the one that
+    blesses it: ``record high|low`` sits in the validator's own
+    ``_BASIS_PATTERNS``, so "drops to record low" *satisfies*
+    ``comparison_basis_stated``. The phrase that needs bounding is treated as
+    self-bounding.
+
+    Measured across the 27 tier A articles published to 2026-08-29: all three
+    ``record_extreme`` pieces claim a record in the headline, and all three sit
+    on an observation count exactly equal to a collector window -- 60, 48, 48.
+    A series that ended where we cut it did not begin there; we began there.
+
+    WHY THIS IS A STYLE VIOLATION AND NOT A VALIDATOR GATE
+    -----------------------------------------------------
+    Because the honest form already exists in the corpus: 7 of the 20 record
+    sentences published name their window, so a hard gate would be tightening a
+    rule the writer half keeps rather than teaching one it does not know. The
+    proximate cause is the prompt, which *required* the phrase "record high" or
+    "record low"; that is fixed at the same time. This feeds the revision loop
+    while the writer still has an attempt left, which is what house style is
+    for -- and it cannot destroy a correct article, which a gate could.
+    """
+    if not text or not _CLAIMS_A_RECORD.search(text):
+        return []
+    if _BOUNDS_THE_RECORD.search(text):
+        return []
+    return [
+        f"{where}: claims a record without saying over what window. The series "
+        f"is the slice the newsroom fetched, not all of history, so name it — "
+        f'"the lowest in the 60 observations since 2021-08" — or drop the word'
+    ]
+
+
 def closing_problems(text: str, *, where: str = "the closing") -> list[str]:
     """Violations in the paragraph a piece ends on.
 
@@ -714,9 +804,13 @@ def apply_house_style(
         article.headline = fixed
     report.corrections.extend(corrections)
     report.violations.extend(violations)
+    # The headline is where the false record claim actually shipped, so it is
+    # checked here rather than only in the body scan below.
+    report.violations.extend(record_claim_problems(article.headline or "", where="headline"))
 
     if article.dek:
         report.violations.extend(check_prose(article.dek, where="dek"))
+        report.violations.extend(record_claim_problems(article.dek, where="dek"))
 
     # BEFORE the per-block scan below, not after, so a paragraph that is cut is
     # not also reported as a violation the desk should act on. The desk would
@@ -728,6 +822,14 @@ def apply_house_style(
     for index, block in enumerate(article.body or []):
         if block.text:
             report.violations.extend(check_prose(block.text, where=f"body[{index}]"))
+            # Sentence by sentence: a paragraph may state the record in one
+            # sentence and its window in the next, and reading the paragraph
+            # whole would accept that. It is a reader's sentence that has to be
+            # true, not their paragraph.
+            for sentence in _SENTENCES.split(block.text):
+                report.violations.extend(
+                    record_claim_problems(sentence, where=f"body[{index}]")
+                )
 
     # And how it ends, which is a different question from how it reads. Applied
     # to the last prose paragraph only: a forward reference in the middle of a

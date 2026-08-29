@@ -327,7 +327,15 @@ keeps it legal — put that exact phrase in that paragraph:
   2. PLACEMENT. Where this reading sits in the series' own history. Is it a
      record, or ordinary movement in a series that moves? The DETERMINISTIC
      OBSERVATIONS are computed from the data and you may state them as fact.
-     REQUIRED PHRASE: "record high" or "record low" or "since"
+     A RECORD IS ALWAYS A RECORD OVER A WINDOW, AND YOU MUST NAME IT. The
+     series you were given is the slice this newsroom fetched, not all of
+     history: "record low" alone published a Latvian food-inflation headline
+     whose true all-time low, four times lower, sat outside the window. The
+     window is in "measured against" above — keep it.
+     REQUIRED PHRASE: "since" or "observations"
+       GOOD: "the lowest in the 60 observations since 2021-08"
+       GOOD: "the highest since the series began in 2014"
+       BAD:  "a record low"   BAD: "an all-time high"
 
   3. THE NEIGHBOURS. How the other Baltic states stand on the same measure,
      and what the gap between them is doing. This is usually the most
