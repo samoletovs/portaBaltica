@@ -806,8 +806,8 @@ records a decline, and each was two turns of measurement that saved a session.
 > "only articles are server-rendered"    closed by #228, 74 min AFTER the
 >                                        measurement this list quotes
 > "nothing offers a reader a file"       closed by #187, DURING the run
-> "IndicatorCard has 16 unnamed tab      closed: role="img" + computed
->  stops of 19"                          aria-label, role="group" on controls
+> "IndicatorCard has 16 unnamed tab      NOT CLOSED -- see below. I marked this
+>  stops of 19"                          done from a source grep and was wrong.
 > "building permits are still graded"    closed: all three variants are in
 >                                        polarity.ts DELIBERATELY_NEUTRAL
 > "/weekly is unpopulated"               the whole system EXISTS -- timer,
@@ -818,6 +818,38 @@ records a decline, and each was two turns of measurement that saved a session.
 > **The list dated faster than the run that wrote it.** Not one entry was
 > careless; each was true when measured and false before the document was
 > finished, because the run kept closing its own items. So:
+>
+> **And the correction to that, which cost less than the four but matters more:
+> one of the five was NOT done, and I only thought so because I searched the
+> source for a defect that is injected at runtime.**
+>
+> ```
+> grep src for role="application"        1 hit
+>   -> the hit is PROSE, inside the comment explaining the FIX
+> real JSX role="application" in source  0      <- recharts injects it at runtime
+>
+> measured in Chromium, /data/economy:
+>   74 tab stops · 19 role="application" · 19 of 19 UNNAMED
+>   control: 30 buttons, 25 links seen  <- probe not blind
+>   attribution: BalticCompareChart 10, IndicatorCard 8, PowerMarketCard 1
+> ```
+>
+> `IndicatorCard`'s well-named `role="img"` wrapper is real — and the unnamed
+> focusable `application` sits **inside** it, so a source read sees the good half.
+> **The fix's own documentation matched a grep for the defect**, which is the
+> concealing-sibling shape arriving inside an instrument.
+>
+> Two rules, and the second is the one I did not have:
+> **a defect injected at runtime is invisible to a source search**, so "already
+> fixed" claims about *runtime* behaviour stay unmeasured until something renders;
+> and **once four tasks in a row come back closed you are primed to find the
+> fifth closed too.** The prior was right three times and wrong here, and what
+> separated them was a browser rather than a tree.
+>
+> Also measured there and worth knowing before anyone reaches for the obvious
+> remedy: `accessibilityLayer` is **not** decorative. The tooltip is
+> `role="status" aria-live="assertive"`, arrow keys walk the series, and Chromium
+> exposes the readings. Switching it off removes a working announced feature.
 >
 > **Re-measure the claim that says a task is open, before you start it.** One
 > command, against master or production, with a control that must fail. If it is
