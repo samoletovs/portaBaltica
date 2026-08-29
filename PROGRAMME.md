@@ -797,6 +797,39 @@ records a decline, and each was two turns of measurement that saved a session.
 
 ## First tasks, in order
 
+> **STOP. Measured `2026-08-29T09:05Z`: four of the seven tasks briefed from this
+> list on the morning after the run were already done.** Three sessions caught
+> theirs by measuring instead of building; one was caught only because a fourth
+> session read a commit title carefully. Each cost most of a morning.
+>
+> ```
+> "only articles are server-rendered"    closed by #228, 74 min AFTER the
+>                                        measurement this list quotes
+> "nothing offers a reader a file"       closed by #187, DURING the run
+> "IndicatorCard has 16 unnamed tab      closed: role="img" + computed
+>  stops of 19"                          aria-label, role="group" on controls
+> "building permits are still graded"    closed: all three variants are in
+>                                        polarity.ts DELIBERATELY_NEUTRAL
+> "/weekly is unpopulated"               the whole system EXISTS -- timer,
+>                                        manual trigger, writer, page, tests.
+>                                        The task is diagnosis, not building.
+> ```
+>
+> **The list dated faster than the run that wrote it.** Not one entry was
+> careless; each was true when measured and false before the document was
+> finished, because the run kept closing its own items. So:
+>
+> **Re-measure the claim that says a task is open, before you start it.** One
+> command, against master or production, with a control that must fail. If it is
+> closed, say so and stop — do not open a no-op PR. That is a fifteen-second
+> check standing in front of a four-hour mistake, and today it paid four times
+> out of seven.
+>
+> The entries below are kept because their *reasoning* is still good and the
+> measurements are still instructive. Treat every status claim in them as
+> **expired**.
+
+
 1. **Read the newest published articles in full, before anything else.** This
    was the single highest-yield activity of the run and it is not close. The
    14:00Z edition published two originals; reading them found a defect class
