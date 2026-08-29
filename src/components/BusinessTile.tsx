@@ -47,6 +47,14 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
     }
   }
 
+  // The registry holds up to 904 matches for a common surname; this shows ten
+  // of them. Derived once so the line above the list and the list itself cannot
+  // disagree about how many are on screen.
+  const shownCompanies = list<{
+    registrationNumber: string;
+    owners: { forename: string; surname: string; nationality?: string }[];
+  }>(searchResult?.companies).slice(0, 10);
+
   return (
     <section>
       <TileHeader
@@ -92,11 +100,23 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
           {searchResult && (
             <div>
+              {/*
+                The count comes from the registry, the list does not. Saying
+                only "904 matches" above ten rows would imply the ten are the
+                answer — so when the registry holds more than this response
+                carries, the line says the list stops. It used to read "50
+                matches" for every common surname, because the page cap was
+                published as the count.
+              */}
               <p className="text-caption dash-muted mb-2">
-                {searchResult.totalMatches} matches for &quot;{searchResult.query}&quot;
+                {searchResult.totalMatches.toLocaleString()} matches for &quot;{searchResult.query}&quot;
+                {shownCompanies.length < list(searchResult.companies).length
+                  || searchResult.truncated
+                  ? ` — showing ${shownCompanies.length}`
+                  : ''}
               </p>
               <div className="space-y-3 max-h-60 overflow-y-auto">
-                {list<{ registrationNumber: string; owners: { forename: string; surname: string; nationality?: string }[] }>(searchResult.companies).slice(0, 10).map((company) => (
+                {shownCompanies.map((company) => (
                   <div key={company.registrationNumber} className="dash-raised rounded-lg p-3">
                     <p className="text-ui font-mono dash-body mb-1">
                       Reg# {company.registrationNumber}
