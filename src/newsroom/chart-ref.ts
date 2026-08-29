@@ -52,7 +52,7 @@ export const DASHBOARD_INDICATORS = new Set([
   'employment_rate', 'job_vacancy', 'salary', 'wages_mfg', 'wages_it',
   'minimum_wage', 'gov_debt_gdp', 'gov_revenue', 'gov_deficit', 'inequality',
   'poverty_risk', 'life_expectancy', 'weekly_deaths', 'population',
-  'net_migration',
+  'net_migration', 'asylum_applications',
   'birth_rate', 'rd_spending', 'digital_skills', 'online_shoppers',
   'exports', 'imports', 'trade_balance', 'goods_balance', 'services_balance',
   'transport_services', 'financial_services', 'ict_services',

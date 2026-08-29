@@ -482,6 +482,52 @@ const INDICATORS = {
     euAggregation: 'average',
     sanity: [-40, 40],
   },
+  /**
+   * First-time asylum applications, monthly.
+   *
+   * `AGENTS.md` recorded this cube as "newsworthy; codes unresolved" after it
+   * answered HTTP 413 unpinned and 400 pinned. The blocker was `citizen`, which
+   * carries **206** values — every nationality plus five aggregates — and was
+   * never going to be guessed. Asking the cube for its own codes settles it in
+   * one call:
+   *
+   *     ?format=JSON&geo=LV&lastTimePeriod=1   ->  200, ~9.6KB
+   *     dimensions  freq unit citizen sex applicant age geo time
+   *     citizen aggregates  EU27_2020 EXT_EU27_2020 STLS TOTAL UNK
+   *
+   * That generalises to every future 413: the metadata call is cheap and the
+   * cube will tell you what it accepts.
+   *
+   * Measured 2026-08-29 through `buildUrl`/`parseJsonStat`, five paced runs:
+   * 5/5 OK, `assumptions` empty every time, 79 observations per country over
+   * `sinceTimePeriod=2020-01`, newest reading `2026-06`, newest eight
+   * contiguous for all three, observed step one month — so `freq: 'M'` is
+   * honest and no `maxAgeMonths` override is owed.
+   *
+   * **The recorded 413 no longer reproduces**: unpinned `citizen` now answers
+   * 200 in ~122ms. Pinning still matters, but for the quieter reason — the
+   * parser would otherwise choose a nationality on our behalf and say so in
+   * `assumptions`. A reader who tests for a refusal will not find one.
+   *
+   * `applicant=FRST` rather than `TOTAL`: first-time applications are the
+   * headline Eurostat and the Commission report, whereas `TOTAL` folds in
+   * repeat applications, which track case processing rather than arrivals.
+   *
+   * The floor is 0 because Estonia genuinely files zero months; a floor of 1
+   * would reject real data. The ceiling sits above any Baltic month observed
+   * (max 1460) and below an EU-wide monthly figure, which runs to tens of
+   * thousands — so a drift onto the `EU27_2020` aggregate is caught rather
+   * than plotted.
+   */
+  asylum_applications: {
+    dataset: 'migr_asyappctzm',
+    params: 'freq=M&unit=PER&citizen=TOTAL&sex=T&applicant=FRST&age=TOTAL',
+    freq: 'M',
+    title: 'First-time asylum applications',
+    unit: 'applications/month',
+    euAggregation: 'sum',
+    sanity: [0, 50000],
+  },
   birth_rate: {
     dataset: 'demo_gind',
     params: 'freq=A&indic_de=GBIRTHRT',
