@@ -284,7 +284,50 @@ describe('the map against what the dashboard actually renders', () => {
     // failure, and the reason `ppi` is named here rather than counted.
     expect(visibleAbstentions.length, 'no declined id renders, so the rule above is empty').toBeGreaterThan(0);
     expect(visibleAbstentions, 'the abstention this rule was written for').toContain('ppi');
-    expect(polarityNote('ppi')).toMatch(/^Not graded:/);
+  });
+
+  it('does not let a note be read as a polarity claim', () => {
+    // This is a regression guard for a defect that shipped, and the shape is
+    // worth naming because it is this repository's own rule arriving in a
+    // component: **the condition tested a symptom of the property rather than
+    // the property.**
+    //
+    // `IndicatorTable` prints a hardcoded "↓ better" and gated it on
+    // `polarityNote(row.id)` — the note's *existence* as a proxy for
+    // `lower-better`. Correct only while the two coincided. Widening the note
+    // to explain abstentions broke it silently, and not hypothetically:
+    // measured on the merged tree, two of the eight rows that table renders are
+    // declined, so `house_prices` and `population` each printed "↓ better".
+    // A falling population captioned as an improvement, on the one series the
+    // map declines because that story is explicitly not ours to grade.
+    //
+    // Every test stayed green throughout, because the tests asserted the note
+    // and nothing asserted what the *component* did with it.
+    const tableRaw = readFileSync(resolve('src/components/IndicatorTable.tsx'), 'utf8');
+    // Comments stripped before scanning. The first version of this guard went
+    // red against the fixed component, because the comment *explaining* the fix
+    // quotes the old condition — a scanner matching its own documentation,
+    // which is the same error `#220` records me making with a grep.
+    const table = tableRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    // The control first: the guard is worthless if it cannot see the file.
+    expect(tableRaw.length, 'IndicatorTable.tsx did not load').toBeGreaterThan(1000);
+    expect(tableRaw, 'the glyph this is about has gone; re-point the guard').toMatch(/↓ better/);
+
+    expect(
+      /\bpolarityNote\([^)]*\)\s*&&/.test(table),
+      'the "↓ better" glyph must be gated on polarityOf(...) === \'lower-better\', not on the ' +
+        'existence of a note. A note now also explains an abstention, so gating on it prints ' +
+        'a polarity claim for series the map deliberately refused to grade.',
+    ).toBe(false);
+
+    expect(table, 'the glyph must be gated on the polarity itself')
+      .toMatch(/polarityOf\([^)]*\)\s*===\s*'lower-better'/);
+
+    // And the property the proxy was standing in for, asserted directly, so
+    // this cannot pass merely because the component was reworded.
+    const wrong = [...DELIBERATELY_NEUTRAL].filter((id) => polarityOf(id) === 'lower-better');
+    expect(wrong, 'a declined id that is also graded').toEqual([]);
   });
 });
 

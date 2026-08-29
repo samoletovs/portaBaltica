@@ -6,7 +6,7 @@ import { useFilter } from '../FilterContext';
 import { useTheme } from '../ThemeContext';
 import { formatValue } from '../utils/formatValue';
 import { fetchBalticCompare } from '../api';
-import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed } from '../utils/polarity';
+import { changeDescription, polarityOf, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod } from '../dataFreshness';
 import { DownloadMenu } from './DownloadMenu';
@@ -198,7 +198,16 @@ export function IndicatorTable() {
                   down are both correct and, without this, indistinguishable in
                   meaning. Abbreviated rather than omitted — the spoken
                   description on the delta still says it in full. */}
-              {polarityNote(row.id) && (
+              {/* Tested on the polarity, not on the note.
+                  This read `polarityNote(row.id) &&` — using the note's
+                  *existence* as a proxy for `lower-better`. That held only
+                  while the two coincided, and stopped the moment the note was
+                  widened to explain abstentions: measured on master, two of
+                  the eight rows here are declined, so `house_prices` and
+                  `population` each printed "↓ better" — a falling population
+                  captioned as an improvement, on the series the map declines
+                  precisely because that story is not ours to grade. */}
+              {polarityOf(row.id) === 'lower-better' && (
                 <span className="text-caption dash-subtle shrink-0 hidden sm:inline" aria-hidden="true">
                   ↓ better
                 </span>
