@@ -58,18 +58,28 @@ async function callApi(payload: unknown, opts: { fail?: boolean } = {}) {
   const cache = require('../api/shared/cache.js');
   cache.clear();
   const original = es.httpJson;
-  es.httpJson = () => opts.fail
-    ? Promise.reject(new Error('HTTP 503 from dashboard.elering.ee'))
-    : Promise.resolve(payload);
+  let requested: string | null = null;
+  es.httpJson = (url: string) => {
+    requested = url;
+    return opts.fail
+      ? Promise.reject(new Error('HTTP 503 from dashboard.elering.ee'))
+      : Promise.resolve(payload);
+  };
   try {
     delete require.cache[require.resolve('../api/live-grid/index.js')];
     const handler = require('../api/live-grid/index.js');
     const ctx: { res?: { body: string; status: number } } = {};
     await handler(ctx, { query: {}, headers: {} });
-    return { status: ctx.res!.status, body: JSON.parse(ctx.res!.body) };
+    return { status: ctx.res!.status, body: JSON.parse(ctx.res!.body), requested };
   } finally {
     es.httpJson = original;
   }
+}
+
+/** Hours of history the handler actually asked Elering for. */
+function requestedSpanHours(url: string | null) {
+  const q = new URLSearchParams(url!.split('?')[1]);
+  return (Date.parse(q.get('end')!) - Date.parse(q.get('start')!)) / 3600000;
 }
 
 describe('/api/live-grid', () => {
@@ -198,6 +208,22 @@ describe('/api/live-grid', () => {
     expect(body.renewableLatest.share).toBeNull();
     expect(body.renewableLatest.time).toBeNull();
     expect(body.renewableLatest.minutesBehind).toBeNull();
+  });
+
+  it('asks for more history than it plots, so solar is reachable behind its lag', async () => {
+    // Measured: solar is filed a day at a time, so the newest reading is up to
+    // ~24h old. A request no longer than the plotted window finds none — which
+    // is how this endpoint came to state in its own docstring that the field is
+    // empty on actuals. The request must clear a full day, not merely the 12.3h
+    // lag observed on one afternoon.
+    const { requested } = await callApi(eleringPayload([row(60)], []));
+    expect(requestedSpanHours(requested)).toBeGreaterThanOrEqual(24);
+
+    // And the request must genuinely exceed what is plotted: a 20h-old row is
+    // inside the request and outside the chart.
+    const wide = await callApi(eleringPayload([row(20 * 60), row(60)], []));
+    expect(requestedSpanHours(wide.requested)).toBeGreaterThan(20);
+    expect(wide.body.actual).toHaveLength(1);
   });
 
   it('reaches solar behind its lag without plotting the extra history', async () => {
