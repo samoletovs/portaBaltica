@@ -14,7 +14,16 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { freshnessOf, formatPeriod, periodCoverage, PORT_DATA_STALE_AFTER_MONTHS } from '../src/dataFreshness';
+import {
+  freshnessOf,
+  formatPeriod,
+  periodCoverage,
+  PORT_DATA_STALE_AFTER_MONTHS,
+  STALE_AFTER_MONTHS,
+  WARN_AFTER_MONTHS,
+  type Cadence,
+} from '../src/dataFreshness';
+import { createRequire } from 'node:module';
 
 // End of August 2026.
 const NOW = Date.parse('2026-08-25T00:00:00Z');
@@ -159,5 +168,102 @@ describe('which bound decides staleness', () => {
     // current; naming only the newest is what hid the problem.
     const coverage = periodCoverage('2022-Q4', '2026-Q1');
     expect(coverage).toEqual({ label: 'Q4 2022 to Q1 2026', spans: true });
+  });
+});
+
+/**
+ * The reader-facing threshold: is this later than a reader should assume?
+ *
+ * A different question from `stale`, which asks whether the feed is dead, and
+ * the distinction is the whole point of this block. Measured against
+ * production on 2026-08-29, **0 of 213 series were stale** by the failover
+ * verdict while nine sat twenty months old under the word "Latest". A warning
+ * built on the failover bound would have been silent for ever.
+ */
+describe('lateness, which is not staleness', () => {
+  // Real cadences and real ages, taken from the sweep rather than invented.
+  // `now` is fixed so these do not decay into passing for the wrong reason.
+  const AT = Date.parse('2026-08-29T00:00:00Z');
+
+  it('flags the nine twenty-month series that motivated this', () => {
+    // life_expectancy / rd_spending / hotel_occupancy, all annual, newest 2024.
+    // Thirty-nine other annual series reached 2025 -- that peer comparison is
+    // what makes twenty months a statement about these rather than about
+    // annual statistics.
+    const f = freshnessOf('2024', undefined, AT)!;
+    expect(f.cadence).toBe('A');
+    expect(f.monthsBehind).toBe(20);
+    expect(f.late, 'twenty months must warn a reader').toBe(true);
+    expect(f.stale, 'but the feed is not dead, and must not be called dead').toBe(false);
+  });
+
+  it('does not flag an annual series that reached last year', () => {
+    // The 39. Eight months after a year closes is ordinary for annual data.
+    const f = freshnessOf('2025', undefined, AT)!;
+    expect(f.monthsBehind).toBe(8);
+    expect(f.late).toBe(false);
+  });
+
+  it('does not cry wolf on weekly deaths, whose seven-week lag is normal', () => {
+    // The measure this replaces -- "more than 2 publication periods behind" --
+    // flagged all three of these at 7.8 periods while missing all nine above at
+    // 1.67. Precisely inverted: loud on one of the freshest feeds, silent on
+    // the oldest data on the dashboard.
+    const f = freshnessOf('2026-W27', undefined, AT)!;
+    expect(f.cadence).toBe('W');
+    expect(f.late, 'a normal weekly lag must not warn').toBe(false);
+  });
+
+  it('flags a quarterly series at 2.5 periods and not one at 1.5', () => {
+    // The manager's acceptance criterion, in the cadence it was posed for.
+    // Q threshold is 6 months: 2025-Q4 is 8 months behind, 2026-Q1 is 5.
+    expect(freshnessOf('2025-Q4', undefined, AT)!.monthsBehind).toBe(8);
+    expect(freshnessOf('2025-Q4', undefined, AT)!.late, '8 months, above the 6-month line').toBe(true);
+    expect(freshnessOf('2026-Q1', undefined, AT)!.monthsBehind).toBe(5);
+    expect(freshnessOf('2026-Q1', undefined, AT)!.late, '5 months, below it').toBe(false);
+  });
+
+  it('is decided by the reader table even when a caller overrides the failover bound', () => {
+    // The maritime banner passes its own `staleAfterMonths`. That argument
+    // answers "is this feed dead" and must not silently redefine "is this
+    // later than a reader should assume" as well.
+    const f = freshnessOf('2024', 99, AT)!;
+    expect(f.stale, 'the caller raised the failover bound').toBe(false);
+    expect(f.late, 'but lateness is not theirs to move').toBe(true);
+  });
+
+  it('never warns after it has already given up', () => {
+    // `late` must be reachable before `stale` for every cadence, or the warning
+    // is unreachable and the feature is decoration. W is deliberately equal --
+    // one weekly indicator and three series is too thin to site a line on --
+    // and that exception is asserted rather than tolerated by an inequality
+    // loose enough to hide a real inversion.
+    for (const cadence of Object.keys(WARN_AFTER_MONTHS) as Cadence[]) {
+      expect(
+        WARN_AFTER_MONTHS[cadence],
+        `${cadence}: a reader would be warned only once the feed was already abandoned`,
+      ).toBeLessThanOrEqual(STALE_AFTER_MONTHS[cadence]);
+    }
+    const equal = (Object.keys(WARN_AFTER_MONTHS) as Cadence[])
+      .filter((c) => WARN_AFTER_MONTHS[c] === STALE_AFTER_MONTHS[c]);
+    expect(equal, 'only the weekly bound may coincide with its failover bound').toEqual(['W']);
+  });
+
+  it('covers exactly the cadences the failover table covers', () => {
+    // Two tables over one vocabulary. A cadence present in one and absent from
+    // the other would read as `monthsBehind > undefined`, which is false for
+    // every age -- the absence-resolves-to-success failure, in the table whose
+    // job is to prevent it.
+    expect(Object.keys(WARN_AFTER_MONTHS).sort()).toEqual(Object.keys(STALE_AFTER_MONTHS).sort());
+  });
+
+  it('agrees with the copy the API serves', () => {
+    // A threshold in two places is a threshold that will drift, so the two are
+    // compared rather than described as identical.
+    const require = createRequire(import.meta.url);
+    const apiFreshness = require('../api/shared/freshness.js') as {
+      WARN_AFTER_MONTHS: Record<string, number>;
+    };
+    expect(apiFreshness.WARN_AFTER_MONTHS).toEqual(WARN_AFTER_MONTHS);
   });
 });

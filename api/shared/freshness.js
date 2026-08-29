@@ -333,11 +333,124 @@ const extract = {
   },
 };
 
+/**
+ * How late a published series may be before a *reader* is warned about it.
+ *
+ * WHY THIS IS NOT `MAX_AGE_MONTHS`, WHICH IS THE WHOLE POINT
+ * ----------------------------------------------------------
+ * `MAX_AGE_MONTHS` in `eurostat.js` answers "is this feed **dead**" — it is a
+ * failover threshold, sized at roughly twice the worst real publication lag so
+ * that `/api/historical-data` can decide to abandon a source. Measured against
+ * production on 2026-08-29, **nothing on the dashboard comes within a third of
+ * it**: 0 of 213 series are stale by that verdict and the worst sits at 67% of
+ * its own allowance. Reusing it to decide what a reader sees would light up
+ * nothing, for ever, while nine series twenty months old were presented as
+ * current.
+ *
+ * "Should a reader see a warning" is a different question and needs its own
+ * numbers.
+ *
+ * WHY NOT A FRACTION OF THE FAILOVER TABLE
+ * ----------------------------------------
+ * The obvious economy — warn at some percentage of `MAX_AGE_MONTHS` — was
+ * measured and rejected. That table is not a uniform multiple of normal lag,
+ * so a single percentage means something different for each cadence. Median
+ * observed age as a fraction of the failover allowance, 213 series:
+ *
+ *     W 60%      M 17%      Q 42%      S 44%      A 27%
+ *
+ * A line at 60% would therefore flag the *median weekly series* while leaving
+ * monthly data untouched until it was three times its typical age.
+ *
+ * WHY NOT "MORE THAN N PUBLICATION PERIODS BEHIND"
+ * -----------------------------------------------
+ * That was this work's own first recommendation and re-measuring inverted it.
+ * Publication lag does not scale with cadence: annual statistics arrive under
+ * one period after the period closes, provisional weekly mortality arrives
+ * seven. So `> 2 periods` flags **0 of the 9** twenty-month series that
+ * motivated the exercise (they are 1.67 periods behind) and **3 of 3**
+ * `weekly_deaths` series, whose seven-week lag `AGENTS.md` documents as normal.
+ * Precisely inverted: silent on the oldest thing on the dashboard, loud on one
+ * of the freshest.
+ *
+ * WHERE THESE NUMBERS COME FROM
+ * -----------------------------
+ * Each is sited in an empty gap in the observed distribution, so the line
+ * separates clusters rather than cutting one. Ages in months, 213 series,
+ * measured 2026-08-29:
+ *
+ *     A   39 series at 8 ····· 12 months of empty space ····· 9 at 20     -> 14
+ *     Q   21 at 2, 60 at 5 ···· 3 months empty ···· 9 at 8               ->  6
+ *     M   4 at 0, 32 at 1, 20 at 2, 2 at 3 ····· 2 at 4                  ->  3
+ *     S   3 at -4 (published ahead) ····· 9 at 8, which is all of them   -> 12
+ *     W   3 series, 1.6 to 1.8                                           ->  3
+ *
+ * The justification is a peer comparison rather than an invented constant:
+ * within one cadence, 39 annual series reach 8 months, which is what makes 20
+ * a statement about those nine rather than about annual statistics.
+ *
+ * `W` is deliberately equal to its failover bound rather than below it. There
+ * is one weekly indicator and three series — too thin a population to site a
+ * separate line on, and `MAX_AGE_MONTHS.W` is already tighter than the others
+ * relative to normal lag (3 months against a 1.8-month median). A weekly series
+ * therefore warns exactly when it fails over, and that is a stated decision
+ * rather than an oversight. Revisit it when there is more than one weekly feed.
+ *
+ * `S` sits above every observed semi-annual series on purpose: all twelve are
+ * at 8 months, which is the normal state for a semester table, so a line below
+ * that would fire permanently on every one of them.
+ */
+const WARN_AFTER_MONTHS = { W: 3, M: 3, Q: 6, S: 12, A: 14 };
+
+/**
+ * Is this series late enough that a reader should be told?
+ *
+ * Built on `es.isSeriesStale`, so the newest observation is selected once, by
+ * the code that already does it correctly — including skipping nulls, and
+ * ordering weeks by week rather than by the month four of them share.
+ *
+ * Returns null when the age cannot be established, which callers must render as
+ * "unknown" rather than as "current". A series whose period we cannot read is
+ * not evidence that it is fresh.
+ */
+function judgeSeriesLateness(series, now) {
+  const verdict = es.isSeriesStale(series, now);
+  if (!verdict) return null;
+
+  const warnAfter = WARN_AFTER_MONTHS[verdict.cadence];
+  // No bound, no verdict. `judge` above documents the same contract and for the
+  // same reason: `age > undefined` is false for every age, so a missing entry
+  // would silently report every series of that cadence as timely for ever.
+  if (typeof warnAfter !== 'number') {
+    return {
+      period: verdict.period,
+      monthsBehind: verdict.age,
+      cadence: verdict.cadence,
+      late: null,
+      stale: verdict.stale,
+      reason: 'no reader-facing bound is declared for cadence ' + verdict.cadence,
+    };
+  }
+
+  return {
+    period: verdict.period,
+    monthsBehind: verdict.age,
+    cadence: verdict.cadence,
+    warnAfterMonths: warnAfter,
+    staleAfterMonths: verdict.allowed,
+    late: verdict.age > warnAfter,
+    stale: verdict.stale,
+    reason: null,
+  };
+}
+
 module.exports = {
   UNIT_MS: UNIT_MS,
   CADENCES: CADENCES,
   CADENCE_NAME: CADENCE_NAME,
+  WARN_AFTER_MONTHS: WARN_AFTER_MONTHS,
   ageInUnits: ageInUnits,
   judge: judge,
+  judgeSeriesLateness: judgeSeriesLateness,
   extract: extract,
 };
