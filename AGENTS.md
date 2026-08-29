@@ -877,9 +877,43 @@ question rather than an open one:
 | `hlth_cd_asdr2` causes of death | 31.9-month lag, 3647ms, 93 ICD codes | Permanently retrospective |
 | `crim_off_cat`, `env_wat_cat`, `nrg_ind_id` | 19.9-month lag | Permanently retrospective |
 | `isoc_ci_ifp_iu` internet use | 182 `ind_type` values, 7.9-month lag | Unpinnable at reasonable cost |
-| `migr_asyappctzm` monthly asylum | HTTP 413 unpinned, 400 pinned | Newsworthy; codes unresolved. Worth another attempt. |
+| `migr_asyappctzm` monthly asylum | **RESOLVED 2026-08-29** — see below | Codes resolved, definition measured. Needs one pass across four files. |
 | Statistics Estonia (`andmed.stat.ee`) | HTTP 200, 224–518ms, **PxWeb** — the protocol `api/historical-data` already speaks | Technically cheap, strategically wrong: buys depth in one country and manufactures the asymmetry the Baltic grid exists to avoid |
 | Statistics Lithuania (`osp-rs.stat.gov.lt`) | HTTP 200, 2386ms, **SDMX 2.1**, 7.3 MB dataflow catalogue | Different protocol entirely, for the same strategic cost |
+
+**`migr_asyappctzm` — the recorded blocker is resolved, and the recorded
+*symptom* no longer reproduces.** Both halves matter, because a session testing
+for the old symptom will not find it and may conclude the whole note is wrong.
+
+```
+recorded    "HTTP 413 unpinned, 400 pinned"
+measured 2026-08-29
+  unpinned citizen   HTTP 200, 2370ms, 461,984 bytes,  assumptions = 1
+  fully pinned       HTTP 200,  506ms,  12,462 bytes,  assumptions = 0
+```
+
+**Pinning still matters — but for a different reason than the note implies.** The
+query is not refused; the parser silently *chooses a nationality on our behalf*
+and confesses it in `assumptions`. That is a worse failure than a 413, because a
+refusal stops you and a guess does not.
+
+The blocker was `citizen`, which carries **206 values** — every nationality plus
+five aggregates. **Asking the cube for its own dimension codes settles it in one
+metadata call**; they were never going to be guessed. That move generalises to
+any oversized dimension.
+
+```
+freq=M unit=PER citizen=TOTAL sex=T applicant=FRST age=TOTAL
+79 observations over sinceTimePeriod=2020-01 · newest READING 2026-06
+5 of 5 paced runs OK, assumptions 0 every run, 47/56/164ms min/med/max
+```
+
+`FRST` over `TOTAL`: repeat applications track case processing, not arrivals.
+
+⚠️ **`2026-07` exists as a coordinate and is null.** A tail read of the time
+dimension reports it and overstates freshness by a month — the `demo_r_mwk_ts`
+trap again. `eurostat.js` already skips nulls, so nothing downstream is wrong;
+the hazard is in probes written to check it.
 
 **Candidates measured and worth adding** — ~~in order~~ **all three shipped in
 `#189` on 2026-08-28.** Kept because re-measuring them on the way in corrected
