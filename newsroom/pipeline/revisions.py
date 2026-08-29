@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import isoformat, utcnow
@@ -203,4 +203,85 @@ def annotate(document: dict, revision: Revision) -> dict | None:
     return updated
 
 
-__all__ = ["Revision", "already_recorded", "annotate", "find_revisions"]
+def scope_correction_note(
+    *,
+    claim: str,
+    window: str,
+    true_extreme: str,
+    true_period: str,
+    beaten: int,
+    corrected_at: str | None = None,
+) -> dict[str, str]:
+    """The public notice for a record that was only a record over our window.
+
+    A DIFFERENT KIND OF WRONG FROM A REVISION
+    -----------------------------------------
+    :class:`Revision` covers the case where the statistical office restated a
+    figure we had printed: our number was right when we printed it and the
+    source moved. This covers the opposite — the source never moved, our
+    *figure* is still correct, and what was wrong is the **characterisation**.
+
+    "Latvia's food inflation drops to record low of -2% in July 2026" shipped
+    on a series the collector had cut to 60 observations. The -2% is right. The
+    word "record" is not: the source holds 355 observations back to 1997-01,
+    the true minimum is -3.7% in 2010-02, and three earlier readings are lower.
+
+    So the note says what was claimed, what the newsroom could actually see,
+    and what is true — in that order, because a reader who met the headline
+    needs the correction to name the thing they were told before it names the
+    thing that is so.
+
+    ``status`` is left alone by the caller for the reason ``annotate`` gives at
+    length: both ``is_servable`` and the frontend require ``published``, so
+    changing it would delete the page a correction notice exists to be read on.
+    """
+    description = (
+        f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+        f"That was a record only over the data the newsroom had retrieved — "
+        f"{window.strip().rstrip('.')} — and not over the series. The source "
+        f"holds a {true_extreme} reading in {true_period}, and "
+        f"{beaten} earlier reading{'' if beaten == 1 else 's'} "
+        f"{'is' if beaten == 1 else 'are'} beyond the figure we called a record. "
+        "The figure itself is unchanged and correct; the description of it was "
+        "not, and a record claim on this wire now has to name the window it is "
+        "measured over."
+    )
+    return {
+        "corrected_at": corrected_at or isoformat(utcnow()),
+        "description": description,
+    }
+
+
+def append_correction(document: dict, note: Mapping[str, str]) -> dict | None:
+    """Append a note to a stored article, or ``None`` if it is already there.
+
+    Idempotent on the description rather than on a timestamp, so re-running the
+    same correction is a no-op while a genuinely different note still lands. A
+    corrections log that repeats itself every run buries the real entries and
+    makes the article look chaotically wrong.
+
+    Returns a new document rather than mutating, so a caller that decides not
+    to write cannot have already changed the record — the same contract as
+    :func:`annotate`, and for the same reason.
+    """
+    corrections = list(document.get("corrections") or [])
+    incoming = str(note.get("description") or "").strip()
+    if not incoming:
+        return None
+    for existing in corrections:
+        if str(existing.get("description") or "").strip() == incoming:
+            return None
+    corrections.append(dict(note))
+    updated = dict(document)
+    updated["corrections"] = corrections
+    return updated
+
+
+__all__ = [
+    "Revision",
+    "already_recorded",
+    "annotate",
+    "append_correction",
+    "find_revisions",
+    "scope_correction_note",
+]
