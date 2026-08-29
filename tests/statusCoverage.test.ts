@@ -136,9 +136,10 @@ describe('the registry covers the endpoint live-grid actually calls', () => {
     // running late, and reads as an outage. So the window must strictly exceed
     // the lag the check has already declared it will forgive.
     const HOURS: Record<string, number> = { H: 1, D: 24, W: 168, M: 730, Q: 2192, A: 8766 };
-    const windowed = registry.CHECKS
+    type Windowed = { name: string; spanHours: number; toleratedHours: number | null };
+    const windowed: Windowed[] = registry.CHECKS
       .filter((c: { url?: string }) => /[?&]start=/.test(c.url || ''))
-      .map((c: { name: string; url: string; cadence: string | null; maxLag: number }) => {
+      .map((c: { name: string; url: string; cadence: string | null; maxLag: number }): Windowed => {
         const q = new URLSearchParams(c.url.split('?')[1]);
         return {
           name: c.name,
@@ -149,7 +150,7 @@ describe('the registry covers the endpoint live-grid actually calls', () => {
 
     // The population is named, so a probe that stops carrying a window — or a
     // new one that starts — fails this rather than silently leaving the set.
-    expect(windowed.map((w) => w.name).sort())
+    expect(windowed.map((w: Windowed) => w.name).sort())
       .toEqual(['Elering grid state', 'NordPool Electricity']);
 
     for (const w of windowed) {
