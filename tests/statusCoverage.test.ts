@@ -121,6 +121,44 @@ describe('the registry covers the endpoint live-grid actually calls', () => {
     expect(check.cadence).toBe('H');
     expect(check.maxLag).toBeGreaterThan(1.4);
   });
+
+  it('asks every windowed probe for more history than the lag it tolerates', () => {
+    // A window shorter than a field's publication lag makes a LIVE field
+    // indistinguishable from a DEAD one. That is not hypothetical here:
+    // `/api/live-grid` requested twelve hours, solar is filed a day at a time,
+    // so every row in the window was legitimately null — and the endpoint
+    // recorded in its own docstring that the field "is empty on actuals". The
+    // renewable share was then built on that, understating by up to 95.8
+    // percentage points until #234.
+    //
+    // The probes here carry the same risk in the other direction: a window
+    // narrower than `maxLag` returns nothing for a source that is merely
+    // running late, and reads as an outage. So the window must strictly exceed
+    // the lag the check has already declared it will forgive.
+    const HOURS: Record<string, number> = { H: 1, D: 24, W: 168, M: 730, Q: 2192, A: 8766 };
+    type Windowed = { name: string; spanHours: number; toleratedHours: number | null };
+    const windowed: Windowed[] = registry.CHECKS
+      .filter((c: { url?: string }) => /[?&]start=/.test(c.url || ''))
+      .map((c: { name: string; url: string; cadence: string | null; maxLag: number }): Windowed => {
+        const q = new URLSearchParams(c.url.split('?')[1]);
+        return {
+          name: c.name,
+          spanHours: (Date.parse(q.get('end')!) - Date.parse(q.get('start')!)) / 3600000,
+          toleratedHours: c.cadence ? c.maxLag * HOURS[c.cadence] : null,
+        };
+      });
+
+    // The population is named, so a probe that stops carrying a window — or a
+    // new one that starts — fails this rather than silently leaving the set.
+    expect(windowed.map((w: Windowed) => w.name).sort())
+      .toEqual(['Elering grid state', 'NordPool Electricity']);
+
+    for (const w of windowed) {
+      expect(w.toleratedHours, w.name + ' must declare a cadence to be judged').not.toBeNull();
+      expect(w.spanHours, w.name + ' asks for ' + w.spanHours
+        + 'h but forgives a lag of ' + w.toleratedHours + 'h').toBeGreaterThan(w.toleratedHours!);
+    }
+  });
 });
 
 /**
