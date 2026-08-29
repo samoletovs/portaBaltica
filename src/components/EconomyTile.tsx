@@ -10,6 +10,8 @@ import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
 import { chartTick, chartTooltip, tickInterval } from '../utils/chartType';
 import { describeSeries } from '../utils/chartAccessibility';
+import { optionalString } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -158,6 +160,35 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                       <Bar dataKey="price" fill={chartColors.seriesDefault} radius={[2, 2, 0, 0]} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+                {/* `/api-docs` sells "CSV and JSON export on every series" in the
+                    Free tier. It was true of the indicator surfaces and false of
+                    every charted series that is not an indicator, of which this
+                    is one.
+
+                    The period is the ISO timestamp the feed carries, not the
+                    `HH:mm` the axis shows: the axis label repeats every day, and
+                    this tile deliberately renders only one day of it, so a file
+                    keyed on the label would be ambiguous the moment anyone
+                    concatenated two of them. */}
+                <div className="mt-2">
+                  <DownloadMenu
+                    data={{
+                      indicator: 'electricity-price',
+                      title: "Day-ahead electricity price, today",
+                      unit: 'EUR/MWh',
+                      source: 'Elering (Nord Pool day-ahead)',
+                      retrievedAt: optionalString(data, 'fetchedAt'),
+                      exportedAt: new Date().toISOString(),
+                      series: [{
+                        label: 'Price',
+                        observations: prices.map((p) => ({
+                          period: String(p.timestamp),
+                          value: finite(p.price),
+                        })),
+                      }],
+                    }}
+                  />
                 </div>
               </>
             );

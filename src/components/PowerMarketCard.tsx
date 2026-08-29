@@ -6,6 +6,8 @@ import { fetchPowerPrices, type PowerPriceData, type PowerPricePoint, type Power
 import { chartTick, chartTooltip, tickInterval, CHART_TICK_SIZE } from '../utils/chartType';
 import { list } from '../utils/payload';
 import { hourFormatter, dayFormatter, firstDayChange } from '../utils/marketClock';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 import { SeriesSwatch } from './SeriesSwatch';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
@@ -88,6 +90,42 @@ export function PowerMarketCard() {
   const decoupledShare = data.totalIntervals > 0
     ? Math.round((data.decoupledIntervals / data.totalIntervals) * 100)
     : 0;
+
+  /**
+   * The four zone curves as a file.
+   *
+   * `/api-docs` sells "CSV and JSON export on every series" in the Free tier.
+   * That was true of the *indicator* surfaces — `IndicatorCard`,
+   * `IndicatorTable`, `BalticCompareChart` — and false of every charted series
+   * that is not an indicator, of which this is one. Wiring the control is the
+   * honest remedy; weakening the sentence to "every indicator series" would
+   * make the page true and the product worse.
+   *
+   * The period is the **instant**, not the axis label. Two days of
+   * quarter-hours carry only 96 distinct `HH:mm` strings, each appearing twice,
+   * so a file keyed on the label would silently pair tomorrow's 03:00 with
+   * today's — the same collision this chart already handles for its reference
+   * line, and the one that told a screen reader Finland was at €1.83.
+   *
+   * A zone with no price at an interval is an empty field, never a zero;
+   * `exportSeries` enforces that and `payload.ts` argues why.
+   */
+  const zones = list<PowerPriceZone>(data.zones);
+  const exportPayload: SeriesExport | null = {
+    indicator: 'power-prices',
+    title: 'Day-ahead electricity price',
+    unit: data.unit,
+    source: data.source,
+    retrievedAt: optionalString(data, 'fetchedAt'),
+    exportedAt: new Date().toISOString(),
+    series: ZONE_ORDER.filter((zone) => zones.some((z) => z.id === zone)).map((zone) => ({
+      label: zones.find((z) => z.id === zone)?.label ?? zone.toUpperCase(),
+      observations: list<PowerPricePoint>(data.series).map((point) => ({
+        period: String(point.time),
+        value: typeof point[zone] === 'number' ? point[zone] : null,
+      })),
+    })),
+  };
 
   // The axis keys on the instant, not on its label. Two days of quarter-hours
   // produce 184 points carrying only 96 distinct `HH:mm` strings — every label
@@ -273,14 +311,17 @@ export function PowerMarketCard() {
         </ResponsiveContainer>
       </div>
 
-      <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
-        {decoupledShare}% of today&apos;s {data.totalIntervals} intervals decoupled
-        {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
-        {data.tomorrowOutlook
-          ? ` · tomorrow published, ${data.tomorrowOutlook.totalIntervals} intervals`
-          : ' · tomorrow not published yet'}
-        {' · '}Source: {data.source}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+          {decoupledShare}% of today&apos;s {data.totalIntervals} intervals decoupled
+          {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
+          {data.tomorrowOutlook
+            ? ` · tomorrow published, ${data.tomorrowOutlook.totalIntervals} intervals`
+            : ' · tomorrow not published yet'}
+          {' · '}Source: {data.source}
+        </p>
+        <DownloadMenu data={exportPayload} />
+      </div>
     </div>
   );
 }

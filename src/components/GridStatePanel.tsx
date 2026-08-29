@@ -4,6 +4,9 @@ import { useTheme } from '../ThemeContext';
 import { fetchLiveGrid, type LiveGridData, type LiveGridPoint } from '../api';
 import { chartTick, chartTooltip, CHART_TICK_SIZE } from '../utils/chartType';
 import { describeComparison } from '../utils/chartAccessibility';
+import { list } from '../utils/payload';
+import { optionalString, type SeriesExport } from '../utils/exportSeries';
+import { DownloadMenu } from './DownloadMenu';
 
 /**
  * What the Estonian grid is physically doing, and what its operator expects
@@ -98,6 +101,53 @@ export function GridStatePanel() {
     planned: p.kind === 'forecast' ? p.consumption : null,
     generated: p.kind === 'actual' ? p.production : null,
   }));
+
+  /**
+   * The three traces as a file, and the measured-versus-forecast distinction
+   * kept rather than flattened.
+   *
+   * `/api-docs` sells "CSV and JSON export on every series", which was true of
+   * the indicator surfaces and false of every charted series that is not an
+   * indicator. This is one of three.
+   *
+   * Demand is **two columns, not one**, for the same reason the chart draws two
+   * lines: past `meteredTo` the figures are Elering's own forecast. A single
+   * "demand" column would hand a reader a file in which a prediction is
+   * indistinguishable from a measurement, which is the export equivalent of the
+   * label defect this panel already carries a comment about — and worse, because
+   * the file travels and nothing travels with it to say which half was observed.
+   *
+   * The period is the ISO instant rather than the clock label the chart uses:
+   * `formatClock` renders `HH:mm`, which repeats across a day boundary.
+   */
+  const exportPayload: SeriesExport = {
+    indicator: 'live-grid',
+    title: `${data.areaLabel ?? 'Estonian'} grid, generation against demand`,
+    unit: data.unit,
+    source: data.operator,
+    retrievedAt: optionalString(data, 'fetchedAt'),
+    exportedAt: new Date().toISOString(),
+    series: [
+      {
+        label: 'Generation',
+        observations: list<LiveGridPoint>(data.actual).map((p) => ({
+          period: String(p.time), value: typeof p.production === 'number' ? p.production : null,
+        })),
+      },
+      {
+        label: 'Demand, metered',
+        observations: list<LiveGridPoint>(data.actual).map((p) => ({
+          period: String(p.time), value: typeof p.consumption === 'number' ? p.consumption : null,
+        })),
+      },
+      {
+        label: 'Demand, forecast',
+        observations: list<LiveGridPoint>(data.forecast).map((p) => ({
+          period: String(p.time), value: typeof p.consumption === 'number' ? p.consumption : null,
+        })),
+      },
+    ],
+  };
 
   // Join the two lines at the boundary by starting the forecast from the last
   // *metered* value, rather than extending the metered line into the future.
@@ -258,10 +308,13 @@ export function GridStatePanel() {
         </ResponsiveContainer>
       </div>
 
-      <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
-        Shaded area is generation, line is demand; dashed past the marker is Elering&apos;s own
-        forecast. Estonia only, not the Baltics. Source: {data.operator}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+          Shaded area is generation, line is demand; dashed past the marker is Elering&apos;s own
+          forecast. Estonia only, not the Baltics. Source: {data.operator}
+        </p>
+        <DownloadMenu data={exportPayload} />
+      </div>
     </div>
   );
 }
