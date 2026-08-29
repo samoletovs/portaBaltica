@@ -359,9 +359,19 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       )}
       {!basis && !note && <div className="mb-2" />}
 
+      {/* The sparkline leaves the tab order, and the reason is structural rather
+          than a preference about verbosity: this whole card is a `<button>`, so
+          recharts' default `accessibilityLayer` — which adds `role="application"`
+          and `tabIndex={0}` — puts a focusable control *inside* another control.
+          Measured on `/data/economy`, 8 of the 19 focusable chart surfaces were
+          nested this way, one per card. The same defect, and the same remedy, as
+          `IndicatorTable`'s row sparklines in #229.
+
+          Nothing is lost: the card states the value, its period and its change in
+          text, and the wrapper below carries the full `describeSeries` summary. */}
       <div className="h-20" role="img" aria-label={describeSeries(title, chartData, fmt, formatPeriod)}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} accessibilityLayer={false}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={areaColor} stopOpacity={0.22} />
@@ -607,10 +617,21 @@ export function IndicatorChart({
         ))}
       </div>
 
-      {/* Main chart */}
-      <div className="h-72 mb-4" role="img" aria-label={describeSeries(data.title, chartData, fmt, formatPeriod)}>
+      {/* Named in place rather than through a wrapper. This chart is
+          free-standing — measured, not assumed: it is not inside a button, so
+          unlike the card sparkline it may legitimately hold focus. Keeping
+          `accessibilityLayer` keeps recharts' arrow-key walk through the series,
+          whose tooltip is a real `role="status" aria-live="assertive"` region;
+          Chromium's AX tree exposes each reading as it moves. Switching the
+          layer off here would have passed every test and silently removed a
+          working, announced feature.
+
+          The name goes on the surface because that is the node focus lands on.
+          A named wrapper around an unnamed focusable application announces the
+          description to a browsing reader and nothing at all to a tabbing one. */}
+      <div className="h-72 mb-4">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} aria-label={describeSeries(data.title, chartData, fmt, formatPeriod)}>
             <defs>
               <linearGradient id={`detail-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity={0.22} />

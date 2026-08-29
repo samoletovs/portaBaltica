@@ -174,10 +174,16 @@ export function PowerMarketCard() {
         Range is today&apos;s low to high
       </p>
 
-      <div
-        className="h-40"
-        role="img"
-        // Bespoke, and the reason is measured rather than stylistic.
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            // The name goes on the surface, not a wrapper: recharts'
+            // `accessibilityLayer` makes this a focusable `role="application"`,
+            // and that is the node focus lands on. Named on the wrapper, tabbing
+            // to the chart announced nothing at all.
+            //
+            // Bespoke, and the reason is measured rather than stylistic.
         //
         // `describeComparison` was tried here first and states something
         // false. It reports the **last** observation of each series under the
@@ -209,9 +215,7 @@ export function PowerMarketCard() {
             : '') +
           `. Current prices per zone are listed above the chart.`
         }
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData}>
+          >
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             {/* Eight labels rather than the shared default of six: this axis has
                 a 40px YAxis beside it and was measured clean at 402px with
