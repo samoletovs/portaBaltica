@@ -1,5 +1,6 @@
 const INDICATORS = require('../shared/indicators.js');
 const es = require('../shared/eurostat.js');
+const freshness = require('../shared/freshness.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
@@ -47,6 +48,39 @@ const REFERENCE_GEO = 'EU27_2020';
  */
 function referenceIsComparable(def) {
   return Boolean(def) && def.euAggregation === 'average';
+}
+
+/**
+ * Attach how late this country's series is, beside the series itself.
+ *
+ * WHY THE ENDPOINT SHIPS THIS RATHER THAN LEAVING IT TO THE CLIENT
+ * ---------------------------------------------------------------
+ * Until now this endpoint carried **no freshness verdict at all** — measured,
+ * the only match for "stale" in the file was a cache flag — so a series last
+ * observed in 2024 arrived indistinguishable from one observed last month. The
+ * client can and does date each figure itself from the period label, and
+ * `src/dataFreshness.ts` is the authority for what a reader is shown. This
+ * field exists so that everything which is *not* the dashboard — the live
+ * contract tests, a monitor, the newsroom — can ask the same question without
+ * reimplementing the judgement in a third place.
+ *
+ * WHY A CACHED AGE IS SAFE HERE, WHICH IS NOT TRUE EVERYWHERE
+ * ----------------------------------------------------------
+ * `src/dataFreshness.ts` computes at render time on purpose, because
+ * `/api/port-data` is cached for hours at the edge and longer in localStorage,
+ * and an age baked into that response would itself go stale. The reasoning does
+ * not carry here: this response is cached for one hour and `monthsBehind` is
+ * quantised to whole months, so no cached copy can outlive the granularity of
+ * its own answer. `period` is the durable fact either way — it describes the
+ * data rather than the clock — and a consumer that wants an age it computed
+ * itself should use that.
+ */
+function withFreshness(country, now) {
+  const verdict = freshness.judgeSeriesLateness(country.series, now);
+  // Absent rather than falsely reassuring. A series whose period cannot be read
+  // is not evidence that it is current, and `freshness: null` says so where a
+  // fabricated `late: false` would not.
+  return Object.assign({}, country, { freshness: verdict });
 }
 
 /**
@@ -139,7 +173,7 @@ const handler = async function (context, req) {
     // fourth series cannot leak into a Baltic comparison by accident.
     const countries = {};
     GEOS.forEach(function (geo) {
-      if (parsed.countries[geo]) countries[geo] = parsed.countries[geo];
+      if (parsed.countries[geo]) countries[geo] = withFreshness(parsed.countries[geo]);
     });
     const reference = wantReference ? buildReference(parsed.countries[REFERENCE_GEO]) : null;
 

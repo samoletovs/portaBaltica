@@ -70,9 +70,51 @@ export interface Freshness {
   /** Cadence read off the label's own shape, which cannot be misdeclared. */
   cadence: Cadence;
   stale: boolean;
+  /**
+   * Later than a reader should have to assume. Distinct from `stale`, which
+   * asks whether the feed is dead — see `WARN_AFTER_MONTHS`.
+   */
+  late: boolean;
   /** Reader-facing age, e.g. "2 quarters behind". */
   label: string;
 }
+
+/**
+ * How late a series may be before a reader is warned, in months.
+ *
+ * WHY THIS IS A SECOND TABLE AND NOT A FRACTION OF THE FIRST
+ * ---------------------------------------------------------
+ * `STALE_AFTER_MONTHS` above answers "is this feed dead" — a failover
+ * threshold, roughly twice the worst real publication lag. Measured against
+ * production on 2026-08-29, nothing on the dashboard reaches even two thirds of
+ * it: **0 of 213 series are stale** and the worst sits at 67% of its own
+ * allowance. A warning built on it would be silent for ever while nine series
+ * twenty months old were shown under the word "Latest".
+ *
+ * A percentage of that table does not work either, because it is not a uniform
+ * multiple of normal lag. Median observed age as a fraction of the failover
+ * bound: `W 60%, M 17%, Q 42%, S 44%, A 27%` — so any single percentage flags
+ * the *typical* weekly series before it says anything about monthly data.
+ *
+ * These are sited in the empty gaps of the observed distribution instead, so
+ * each line separates clusters rather than cutting one. Ages in months, 213
+ * series:
+ *
+ *     A   39 at 8 ····· 12 months of empty space ····· 9 at 20    -> 14
+ *     Q   21 at 2, 60 at 5 ··· 3 months empty ··· 9 at 8          ->  6
+ *     M   4 at 0, 32 at 1, 20 at 2, 2 at 3 ····· 2 at 4           ->  3
+ *     S   3 at -4 (published ahead) ····· 9 at 8, all of them     -> 12
+ *     W   3 series, 1.6 to 1.8                                    ->  3
+ *
+ * `W` equals its failover bound deliberately: one weekly indicator and three
+ * series is too thin a population to site a separate line on. The API side
+ * carries the same table and the same reasoning, and
+ * `tests/dataFreshness.test.ts` asserts the two agree — a threshold in two
+ * places is a threshold that will drift.
+ */
+export const WARN_AFTER_MONTHS: Record<Cadence, number> = {
+  W: 3, M: 3, Q: 6, S: 12, A: 14,
+};
 
 const ISO_WEEK = /^(\d{4})-?W(\d{1,2})$/;
 const DAY_MS = 86400e3;
@@ -210,6 +252,11 @@ export function freshnessOf(
     monthsBehind,
     cadence,
     stale: monthsBehind > limit,
+    // Always judged against the reader-facing table, never against
+    // `staleAfterMonths`. A caller that passes a custom failover bound — the
+    // maritime banner does — is answering "is this feed dead", and it must not
+    // silently redefine "is this later than a reader should assume" as well.
+    late: monthsBehind > WARN_AFTER_MONTHS[cadence],
     label: describeAge(monthsBehind, cadence, weeksBehind(period, now)),
   };
 }
