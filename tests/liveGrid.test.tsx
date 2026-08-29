@@ -173,6 +173,51 @@ describe('/api/live-grid', () => {
     expect(body.latest.renewableShare).toBeNull();
   });
 
+  it('reports the renewable share with its own age, because solar is a slower clock', async () => {
+    // Solar is filed a day at a time, so the newest interval almost never has
+    // it. Measured over 763 readings: 44 nulls in one unbroken run at the
+    // newest end, nothing missing beyond 12.3 hours old.
+    const { body } = await callApi(eleringPayload([
+      row(200, { production: 500, production_renewable: 125, solar_energy_production: 125 }),
+      row(60, { production: 600, production_renewable: 60, solar_energy_production: null }),
+    ], []));
+
+    // `latest` is the newest metered interval, and its share is honestly unknown.
+    expect(body.latest.renewableShare).toBeNull();
+    expect(body.minutesBehind).toBeLessThan(120);
+
+    // The share we can stand behind is the older one, and it says how old it is.
+    expect(body.renewableLatest.share).toBe(50);
+    expect(body.renewableLatest.time).toBe(body.actual[0].time);
+    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(body.minutesBehind);
+  });
+
+  it('reports an absent renewable share as absent, not as a missing key', async () => {
+    const { body } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: null })], []));
+    expect(body.renewableLatest.share).toBeNull();
+    expect(body.renewableLatest.time).toBeNull();
+    expect(body.renewableLatest.minutesBehind).toBeNull();
+  });
+
+  it('reaches solar behind its lag without plotting the extra history', async () => {
+    // The whole reason the request is longer than the window: at midday the
+    // newest solar reading is ~12h old, so a 12h request finds none and the
+    // field looks dead. Serving that history would triple the chart's x-range.
+    const { body } = await callApi(eleringPayload([
+      row(20 * 60, { production: 500, production_renewable: 125, solar_energy_production: 125 }),
+      row(60, { production: 600, production_renewable: 60, solar_energy_production: null }),
+    ], []));
+
+    // Plotted series holds only the recent window.
+    expect(body.actual).toHaveLength(1);
+    expect(body.actual[0].solar).toBeNull();
+
+    // The share is still found, from history that was fetched but not plotted.
+    expect(body.renewableLatest.share).toBe(50);
+    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(19 * 60);
+  });
+
   it('answers 502 when Elering is down, rather than an empty-looking success', async () => {
     // Elering sits behind a Cloudflare tier that returns bursts of 503; the
     // whole host was down for a stretch while this was built.
