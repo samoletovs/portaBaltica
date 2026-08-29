@@ -78,6 +78,13 @@ const POLARITY: Record<string, Polarity> = {
   // a fall green, because drawing rising unemployment in green is the one
   // thing a dashboard on this site must not do.
   unemployment: 'lower-better',
+  // A slice of `unemployment`, and it was missing. `polarityOf` defaults to
+  // `neutral`, so a rise in youth unemployment rendered **green** and was
+  // spoken as a bare "up" — on a card `LabourTile` has been rendering all
+  // along. That is the thing this file's own header says a dashboard on this
+  // site must not do, in the same cube as the indicator the header is about.
+  // Nobody decided it; nobody had asked. See tests/polarityComposition.test.ts.
+  youth_unemployment: 'lower-better',
   cpi: 'lower-better',
   inflation: 'lower-better',
   core_inflation: 'lower-better',
@@ -85,7 +92,10 @@ const POLARITY: Record<string, Polarity> = {
   energy_inflation: 'lower-better',
   services_inflation: 'lower-better',
   goods_inflation: 'lower-better',
-  ppi: 'lower-better',
+  // Two more slices of `inflation` from the same cube, ungraded by the same
+  // omission and rendered by `EnergyTile`. Five of their siblings were graded.
+  admin_prices: 'lower-better',
+  home_energy_inflation: 'lower-better',
   gov_debt: 'lower-better',
   energy_price_gas: 'lower-better',
   bankruptcies: 'lower-better',
@@ -110,6 +120,19 @@ const POLARITY: Record<string, Polarity> = {
   //                         direction, through a series the reader is not told
   //                         is derived. See DERIVED_FROM_A_DECLINED_INPUT
   //                         below: this one is not a judgement, it is forced.
+  //   ppi                 — producer prices, and the one entry here moved out of
+  //                         `lower-better` rather than never added. Measured
+  //                         live over five years: 167 of 200 observations sit
+  //                         below 2% and 73 are outright negative, with LV at
+  //                         0.0, EE at -0.3 and LT at -2.4 today. So the site
+  //                         was drawing a *further* fall green and speaking it
+  //                         as "favourable" while producer prices were already
+  //                         contracting. A finance ministry reads cheaper
+  //                         inputs; a manufacturing union reads margin squeeze
+  //                         and the layoffs behind it; a central bank reads the
+  //                         deflation signal it cuts rates against. Unlike the
+  //                         HICP measures there is no target to be above, so
+  //                         there is not even a level at which the three agree.
 };
 
 /**
@@ -162,10 +185,39 @@ export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
   'building_permits_residential',
   'building_permits_non_residential',
   'trade_balance',
+  'ppi',
   'port_goods',
   'port_passengers',
   'port_vessels',
 ]);
+
+/**
+ * Why a rendered series has no colour when its neighbours do.
+ *
+ * `polarityNote` used to answer only for `lower-better`, so moving an id into
+ * `DELIBERATELY_NEUTRAL` removed its colour *and* the one sentence explaining
+ * the absence. On a tile where the series either side are graded, an
+ * unexplained grey reads as an oversight rather than as a decision — which is
+ * the same confusion this whole file exists to remove, arriving at the reader
+ * instead of at the maintainer.
+ *
+ * Only ids that actually reach a colouring surface need one. An abstention
+ * nobody can see needs no caption, and `tests/polarityAdmission.test.ts`
+ * asserts that correspondence as an equality rather than trusting it.
+ */
+export const ABSTENTION_NOTE: Record<string, string> = {
+  ppi: 'Not graded: a fall is disinflation or it is contraction',
+  trade_balance: 'Not graded: derived from imports, which is not graded',
+  house_prices: 'Not graded: good if you own, bad if you are buying',
+  imports: 'Not graded: a rise is domestic demand or it is dependency',
+  population: 'Not graded: the Baltic depopulation story is not ours to grade',
+  new_vehicles: 'Not graded: more cars is not self-evidently progress',
+  construction_output: 'Not graded: building, or the credit cycle behind it',
+  building_permits: 'Not graded: investment, jobs, or a credit bubble',
+  building_permits_residential: 'Not graded: investment, jobs, or a credit bubble',
+  building_permits_non_residential: 'Not graded: investment, jobs, or a credit bubble',
+  gov_revenue: 'Not graded: receipts are not by themselves good or bad news',
+};
 
 /** The polarity of an indicator. Unknown ids are neutral, which is the safe default. */
 export function polarityOf(id: string): Polarity {
@@ -213,13 +265,20 @@ export function sentimentColor(sentiment: Sentiment): string {
  * not enough; it reads as part of the coloured blob rather than as an
  * independent channel.
  *
- * The fix is to say the thing rather than to imply it. Only `lower-better`
- * needs a note: on `higher-better` and `neutral` a rise is already drawn green,
- * which is what an unprimed reader assumes, so a note there would be noise
- * explaining the obvious.
+ * The fix is to say the thing rather than to imply it. `lower-better` needs a
+ * note because a rise is drawn red where an unprimed reader expects green.
+ *
+ * A **declined** series needs one for the opposite reason: it is drawn by
+ * direction like `higher-better`, so nothing on the card distinguishes "we
+ * weighed this and abstained" from "nobody thought about it". That mattered the
+ * moment `ppi` moved out of `lower-better` — its colour inverted and its
+ * caption vanished in the same change, on a tile where the series either side
+ * of it keep theirs. `higher-better` still gets nothing, because there a rise
+ * is drawn green and a note would explain the obvious.
  */
 export function polarityNote(id: string): string | null {
-  return polarityOf(id) === 'lower-better' ? 'Lower is better' : null;
+  if (polarityOf(id) === 'lower-better') return 'Lower is better';
+  return ABSTENTION_NOTE[id] ?? null;
 }
 
 /**

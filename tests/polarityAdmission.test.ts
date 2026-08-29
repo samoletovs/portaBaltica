@@ -25,6 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import {
+  ABSTENTION_NOTE,
   DELIBERATELY_NEUTRAL,
   changeDescription,
   polarityNote,
@@ -141,12 +142,16 @@ describe('building permits and construction output', () => {
     // and this assertion has to be looked at. Written as an equality: a filter
     // of known-good ids stops matching silently the day one is renamed.
     //
-    // It has already earned that: `trade_balance` left this list when the
-    // derivation guard was added, and the equality is what made its departure
-    // a decision rather than a silent shrink. Twenty-three now, not
-    // twenty-four — see `tests/derivedPolarity.test.ts` for why a balance
-    // cannot carry a grade its own inputs do not.
+    // It has already earned that twice. `trade_balance` left when the
+    // derivation guard was added, and the equality is what made its departure a
+    // decision rather than a silent shrink. Then three arrived and one left at
+    // once: `youth_unemployment`, `admin_prices` and `home_energy_inflation`
+    // are slices of graded wholes and were ungraded only by omission — see
+    // `tests/polarityComposition.test.ts`, which derives that from the
+    // containment table rather than listing it — while `ppi` left on the
+    // three-party test, measured. Twenty-five now.
     expect(GRADED.map((g) => g.id).sort()).toEqual([
+      'admin_prices',
       'bankruptcies',
       'biz_confidence',
       'core_inflation',
@@ -158,10 +163,10 @@ describe('building permits and construction output', () => {
       'gdp',
       'goods_inflation',
       'gov_debt',
+      'home_energy_inflation',
       'hotel_occupancy',
       'industrial',
       'inflation',
-      'ppi',
       'renewable_share',
       'retail_sales',
       'salary',
@@ -170,6 +175,7 @@ describe('building permits and construction output', () => {
       'unemployment',
       'wages_industry',
       'wages_it',
+      'youth_unemployment',
     ]);
   });
 });
@@ -209,29 +215,76 @@ describe('the map against what the dashboard actually renders', () => {
   });
 
   it('names the grades that currently colour nothing, as a list', () => {
-    // Not a defect, and not nothing either. Six inflation series and
-    // bankruptcies are graded and rendered only by `BalticCompareChart`, which
-    // never calls `sentimentOf` — so those entries decide the colour of no
-    // pixel on the site today. Keeping them is right: a card added tomorrow
-    // would otherwise be coloured by direction with nobody having decided
-    // anything, which is the failure `DELIBERATELY_NEUTRAL` exists to prevent
-    // one level up.
+    // Not a defect, and not nothing either. These are graded and rendered only
+    // by `BalticCompareChart`, which never calls `sentimentOf` — so those
+    // entries decide the colour of no pixel on the site today. Keeping them is
+    // right: a card added tomorrow would otherwise be coloured by direction
+    // with nobody having decided anything, which is the failure
+    // `DELIBERATELY_NEUTRAL` exists to prevent one level up.
     //
     // Stated as an equality so the list cannot quietly grow. A map where most
     // entries govern nothing has stopped being a record of live decisions, and
-    // the only way to notice is to count. Seven of twenty-four today.
+    // the only way to notice is to count. Ten of twenty-five today.
+    //
+    // **This assertion earned itself again, against a claim rather than a
+    // defect.** The part/whole guard found `youth_unemployment` ungraded beside
+    // a `lower-better` `unemployment`, and `sentimentOf` really does answer
+    // *positive* — green — for a rise in it. The natural next sentence is that
+    // the dashboard renders rising youth unemployment green, and that sentence
+    // is false: it reaches only a compare chart, which colours nothing. The
+    // equality went red, which is what forced the check. Executing the function
+    // is not executing the surface, and the three arriving here are a
+    // prophylactic fix, not a live one.
     const rendered = renderedIds();
     const dormant = GRADED.map((g) => g.id).filter((id) => !rendered.has(id)).sort();
 
     expect(dormant).toEqual([
+      'admin_prices',
       'bankruptcies',
       'core_inflation',
       'energy_inflation',
       'food_inflation',
       'goods_inflation',
+      'home_energy_inflation',
       'inflation',
       'services_inflation',
+      'youth_unemployment',
     ]);
+  });
+
+  it('explains every abstention a reader can actually see, as an equality', () => {
+    // The companion problem to the dormant list above, from the other side.
+    //
+    // A declined series is drawn by direction, exactly like a `higher-better`
+    // one, so nothing on the card separates *"we weighed this and abstained"*
+    // from *"nobody thought about it"*. On a tile where the neighbours carry
+    // "Lower is better", an unexplained grey reads as an oversight — the same
+    // confusion `DELIBERATELY_NEUTRAL` exists to remove, arriving at the reader
+    // instead of at the maintainer. It became live the moment `ppi` moved out
+    // of `lower-better`: its colour inverted and its caption vanished together.
+    //
+    // Stated as an equality in both directions: a rendered abstention with no
+    // note fails, and a note for something that is no longer declined fails
+    // too, so the map cannot accumulate captions for series nobody colours.
+    const rendered = renderedIds();
+    const visibleAbstentions = [...DELIBERATELY_NEUTRAL].filter((id) => rendered.has(id)).sort();
+
+    expect(
+      visibleAbstentions.filter((id) => !polarityNote(id)),
+      'this series is declined and rendered, so its card is grey with no reason given',
+    ).toEqual([]);
+
+    expect(
+      Object.keys(ABSTENTION_NOTE).filter((id) => !DELIBERATELY_NEUTRAL.has(id)).sort(),
+      'a note explaining an abstention that is no longer an abstention',
+    ).toEqual([]);
+
+    // Vacuity companion. With nothing rendered the first assertion passes over
+    // an empty list and says nothing — this repository's most reproduced
+    // failure, and the reason `ppi` is named here rather than counted.
+    expect(visibleAbstentions.length, 'no declined id renders, so the rule above is empty').toBeGreaterThan(0);
+    expect(visibleAbstentions, 'the abstention this rule was written for').toContain('ppi');
+    expect(polarityNote('ppi')).toMatch(/^Not graded:/);
   });
 });
 
