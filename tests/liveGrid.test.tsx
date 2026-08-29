@@ -32,6 +32,27 @@ vi.mock('../src/api', () => ({
   fetchLiveGrid: (...args: unknown[]) => fetchLiveGrid(...args),
 }));
 
+/**
+ * Give `ResponsiveContainer` a size, so the chart actually draws here.
+ *
+ * jsdom reports every element as 0×0, so recharts renders **nothing** — and
+ * every query against a chart then returns null, which reads as "the attribute
+ * is missing" rather than "there is no chart". `AGENTS.md` records a session
+ * nearly filing a false bug report on exactly that.
+ *
+ * It mattered the moment the chart's accessible name moved from the wrapping
+ * div onto the chart element itself: the wrapper is plain DOM and always
+ * present, the surface only exists once recharts has a box to draw in. Without
+ * this the assertion below could not see the name it is about.
+ */
+vi.mock('recharts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('recharts')>();
+  const Sized = ({ children }: { children: React.ReactNode }) => (
+    <actual.ResponsiveContainer width={600} height={300}>{children}</actual.ResponsiveContainer>
+  );
+  return { ...actual, ResponsiveContainer: Sized };
+});
+
 import { GridStatePanel } from '../src/components/GridStatePanel';
 
 /** Elering's real payload shape: `data` is an object, not an array of one. */
@@ -206,7 +227,22 @@ describe('GridStatePanel', () => {
 
   it('describes the chart, and leaves the panel figures as text', async () => {
     await renderWith(payload);
-    const label = screen.getByRole('img').getAttribute('aria-label') ?? '';
+
+    // Queried by *outcome* rather than by role, which is what the comment below
+    // has always claimed and what the query did not do. It used to be
+    // `getByRole('img')`, pinning the description to a wrapping div; the name
+    // now sits on the chart surface itself, where focus lands, so a role-bound
+    // query broke on a change that improved the thing it was guarding.
+    //
+    // The control comes first: if the chart did not render, every `aria-label`
+    // query returns nothing and the assertions below would pass vacuously on an
+    // empty string.
+    const labelled = [...document.querySelectorAll('[aria-label]')]
+      .map((n) => n.getAttribute('aria-label') ?? '');
+    expect(labelled.length, 'no labelled element at all — the chart did not draw').toBeGreaterThan(0);
+
+    const label = labelled.find((l) => /generation against demand/i.test(l)) ?? '';
+    expect(label, 'the chart carries no description').not.toBe('');
 
     // This used to assert the chart's `aria-label` recited the net flow and
     // the renewable share. It was renamed and rewritten rather than deleted,

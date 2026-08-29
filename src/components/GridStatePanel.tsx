@@ -171,10 +171,34 @@ export function GridStatePanel() {
           part forecast, which is what the dashed segment means — is appended.
           A per-series description cannot say that, because it is a fact about
           the boundary between two series rather than about either. */}
-      <div
-        className="h-40"
-        role="img"
-        aria-label={
+      {/* Described through `chartAccessibility`, like every other chart, and the
+          name goes on the surface rather than a wrapper. Recharts'
+          `accessibilityLayer` makes the surface a focusable
+          `role="application"`, so it is the node focus lands on; a named wrapper
+          around it announces the description to a browsing reader and nothing at
+          all to a tabbing one.
+
+          This carried a hand-written label, and the reason to replace it is
+          not consistency for its own sake — the label was describing the wrong
+          object. It recited generation, demand, net flow and **renewable
+          share**, and renewable share is not plotted here at all: the chart's
+          three `dataKey`s are `generated`, `metered` and `planned`. Every one
+          of those four figures is also already on screen as text, in the three
+          stat boxes immediately above, so a screen-reader user heard them
+          once as content and again as the chart — while the thing a sighted
+          reader actually takes from the chart, the shape over time and where
+          measurement stops and forecast begins, was never stated.
+          
+          So the series go through the shared vocabulary, and the one fact that
+          vocabulary cannot express — that the trace is part measurement and
+          part forecast, which is what the dashed segment means — is appended.
+          A per-series description cannot say that, because it is a fact about
+          the boundary between two series rather than about either. */}
+      <div className="h-40">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={rows}
+            aria-label={
           describeComparison(
             'Estonian grid, generation against demand',
             [
@@ -202,9 +226,7 @@ export function GridStatePanel() {
             ? ` Measured to ${formatClock(boundary)} UTC; the dashed trace after that is ${data.operator}'s own forecast.`
             : '')
         }
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={rows}>
+          >
             <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
             <XAxis dataKey="label" tick={chartTick(chartColors.axis)} tickLine={false}
               axisLine={{ stroke: chartColors.grid }}

@@ -100,6 +100,25 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                 <div
                   className="h-28"
                   role="img"
+                  // Named on the wrapper, and the chart leaves the tab order —
+                  // the opposite of the other panels, on a measurement rather
+                  // than a preference.
+                  //
+                  // Recharts' `accessibilityLayer` gives every chart
+                  // `role="application"` and `tabIndex={0}` so that arrow keys
+                  // can walk the series. Measured on master and on this branch,
+                  // this BarChart does **not** move: the reading stayed at
+                  // "Today 03:00, €2.00/MWh" across three ArrowRights, while the
+                  // LineCharts beside it stepped through their periods. Recharts
+                  // says why in its own middleware — `// TODO this is lacking
+                  // index for charts that do not support numeric indexes`.
+                  //
+                  // So naming the surface here would leave a focusable
+                  // `role="application"` that announces itself and then handles
+                  // no keys, which is a mode switch into nothing. The wrapper
+                  // carries the description instead and the surface leaves the
+                  // tab order.
+                  //
                   // Routed through `describeSeries` rather than hand-written,
                   // so the dashboard has one vocabulary for "what is in this
                   // chart" and a reader who has heard one chart described
@@ -115,7 +134,9 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                   )}
                 >
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={prices.map((p) => ({
+                    <BarChart
+                      accessibilityLayer={false}
+                      data={prices.map((p) => ({
                       // Zero-padded so the labels are a fixed width and the
                       // axis stops jittering between "9:00" and "10:00".
                       hour: `${hourIn.format(new Date(p.timestamp))}:00`,
