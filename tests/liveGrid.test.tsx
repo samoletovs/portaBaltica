@@ -126,9 +126,51 @@ describe('/api/live-grid', () => {
   });
 
   it('computes renewable share against generation, not demand', async () => {
+    // Solar is stated rather than left at the fixture's null, so this test
+    // keeps measuring its own subject — the denominator — now that an absent
+    // solar reading makes the share unknown.
     const { body } = await callApi(eleringPayload(
-      [row(60, { production: 500, production_renewable: 125 })], []));
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: 0 })], []));
     expect(body.latest.renewableShare).toBe(25);
+  });
+
+  it('folds solar into the renewable share, because production_renewable excludes it', async () => {
+    // Measured against 668 live readings: solar exceeds production_renewable in
+    // 331 of them, and a component cannot exceed its total. Dividing the
+    // solar-excluding numerator by the solar-including denominator understated
+    // the share by a mean of 28.4 percentage points.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: 125 })], []));
+    expect(body.latest.renewableShare).toBe(50);
+  });
+
+  it('reports solar, and does not turn an absent reading into a zero', async () => {
+    const { body: known } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: 42.5 })], []));
+    expect(known.latest.solar).toBe(42.5);
+
+    const { body: absent } = await callApi(eleringPayload(
+      [row(60, { solar_energy_production: null })], []));
+    expect(absent.latest.solar).toBeNull();
+  });
+
+  it('says the share is unknown when solar is missing, rather than understating it', async () => {
+    // The gaps are not night — they fall in a contiguous stretch across hours
+    // with sun — so an absent solar reading cannot be read as no solar.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 125, solar_energy_production: null })], []));
+    expect(body.latest.renewableShare).toBeNull();
+    // Specifically not the solar-excluding figure, which is the number that shipped.
+    expect(body.latest.renewableShare).not.toBe(25);
+  });
+
+  it('refuses a share above 100 rather than clamping it to a certainty', async () => {
+    // One row in 624 had renewable + solar exceeding production, where solar
+    // rose while production fell between two neighbours that both agree — a
+    // single-interval metering artefact, not a reading to publish.
+    const { body } = await callApi(eleringPayload(
+      [row(60, { production: 500, production_renewable: 300, solar_energy_production: 300 })], []));
+    expect(body.latest.renewableShare).toBeNull();
   });
 
   it('answers 502 when Elering is down, rather than an empty-looking success', async () => {
