@@ -169,24 +169,80 @@ jobs:
             --settings "NEWSROOM_REVISION=${GITHUB_SHA}" --output none
           echo "NEWSROOM_REVISION=${GITHUB_SHA}"
 
-      - name: Confirm the host came back with the timer registered
+      - name: Confirm the host came back with both timers registered
         # A publish that exits zero and leaves the app unable to load its
-        # functions is the failure this catches. The timer is the one that
-        # matters: if `newsroom_edition` is missing the wire silently stops
-        # publishing, and that is precisely the class of failure that went
-        # unnoticed here before.
+        # functions is the failure this catches. The timers are what matter: if
+        # one is missing that cadence silently stops publishing, and that is
+        # precisely the class of failure that went unnoticed here before.
+        #
+        # BOTH, enumerated. This checked `newsroom_edition` alone, which was
+        # right when it was the only timer and became wrong the moment #108
+        # added `newsroom_weekly` -- the consumer nobody edited, correct for
+        # every case that existed when it was written. A weekly timer that
+        # fails to register is *harder* to notice than a daily one, because
+        # the silence it produces is only visible once a week.
         run: |
           set -euo pipefail
+          required='newsroom_edition newsroom_weekly'
           for attempt in 1 2 3 4 5 6; do
             names="$(az functionapp function list \
               --name portabaltica-func --resource-group portabaltica-rg \
               --query '[].name' -o tsv 2>/dev/null || true)"
             echo "attempt ${attempt}: ${names}"
-            if printf '%s' "${names}" | grep -q 'newsroom_edition'; then
-              echo "newsroom_edition is registered."
+            missing=''
+            for want in ${required}; do
+              printf '%s' "${names}" | grep -q "${want}" || missing="${missing} ${want}"
+            done
+            if [ -z "${missing}" ]; then
+              echo "registered:${required// / }"
               exit 0
             fi
             sleep 20
           done
-          echo "::error::newsroom_edition did not register after publish."
+          echo "::error::timers did not register after publish:${missing}"
           exit 1
+
+      - name: Every templated setting is actually deployed
+        # `main.bicep` says what the app SHOULD carry; nothing in this workflow
+        # applies the template, so the two drift silently and did --
+        # NEWSROOM_WEEKLY_SCHEDULE was declared in #108 and never deployed,
+        # leaving the Bicep parameter a dead knob for three days while the app
+        # ran on a code default that happened to match.
+        #
+        # `test_deployed_settings.py` catches this too, but against a recorded
+        # snapshot: sound, and only as current as the last refresh. This is the
+        # live half. Names only -- two of these settings are secrets.
+        #
+        # One-directional on purpose. Templated-but-not-deployed is a fault;
+        # deployed-but-not-templated is not, because NEWSROOM_REVISION is set
+        # by the step above and the two Telegram secrets are set by hand. An
+        # equality here would fail every run.
+        #
+        # The pattern anchors on `{ name: 'X', value:` -- the appSettings entry
+        # form -- rather than on `name: '[A-Z_]+'`, which was the first version
+        # and matched `_LRS` out of a storage SKU plus an empty string, so it
+        # would have reported two phantom missing settings and failed every
+        # deploy. Measured against the live app before committing: 12 templated,
+        # 12 deployed, 0 missing; and with one dropped from the deployed side it
+        # names exactly that one. The three settings deployed but not templated
+        # -- NEWSROOM_REVISION and the two Telegram secrets -- are correctly
+        # ignored.
+        #
+        # Verifying this on Windows needs `tr -d '\r'` on the deployed side: the
+        # comparison is exact, so a CR makes all twelve look missing. Runners
+        # are Linux and `az -o tsv` emits bare newlines there, so the workflow
+        # needs no such guard -- but a reader reproducing it locally will see
+        # twelve false positives without one.
+        run: |
+          set -euo pipefail
+          deployed="$(az functionapp config appsettings list \
+            --name portabaltica-func --resource-group portabaltica-rg \
+            --query '[].name' -o tsv | sort)"
+          templated="$(grep -oE "\{ name: '[A-Za-z_]+', value:" infrastructure/main.bicep \
+            | sed -E "s/^\{ name: '//; s/', value:$//" | sort -u)"
+          missing="$(comm -23 <(printf '%s\n' "${templated}") <(printf '%s\n' "${deployed}") || true)"
+          if [ -n "${missing}" ]; then
+            echo "::error::declared in main.bicep and not deployed: ${missing}"
+            exit 1
+          fi
+          echo "every templated setting is deployed."
