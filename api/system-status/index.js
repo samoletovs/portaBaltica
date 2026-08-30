@@ -696,7 +696,14 @@ const handler = async function (context, req) {
       },
       selfSustaining: {
         monthlyInfrastructureCost: '~€5-18',
-        subscribers: { free: 0, pro: 0, enterprise: 0 },
+        // `subscribers: { free: 0, pro: 0, enterprise: 0 }` was served here and
+        // is gone. There is no subscriber system, so those zeros were never
+        // counted — and a zero that was never measured is indistinguishable
+        // from one that was. The sibling two keys below already says the same
+        // thing in words that cannot be mistaken for an observation, and
+        // `traffic` immediately after is the pattern: it is omitted entirely
+        // when the counts cannot be read, because "no row" and "no traffic"
+        // must not render alike.
         revenue: '€0 (pre-monetization)',
         status: 'Phase 3 — building value before monetization',
       },

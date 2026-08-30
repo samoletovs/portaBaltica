@@ -436,8 +436,20 @@ function judgeSeriesLateness(series, now) {
     period: verdict.period,
     monthsBehind: verdict.age,
     cadence: verdict.cadence,
-    warnAfterMonths: warnAfter,
-    staleAfterMonths: verdict.allowed,
+    // The two thresholds this verdict was reached against are deliberately NOT
+    // shipped. They were, and nothing read them — not the client, which holds
+    // its own `WARN_AFTER_MONTHS` and `STALE_AFTER_MONTHS` in
+    // `src/dataFreshness.ts`, and not a test. Two assertions pin the client's
+    // tables to these ones by comparing the MODULE CONSTANTS —
+    // `dataFreshness.test.ts` on the warn table and `dashboardCadence.test.tsx`
+    // on the stale table — so a consumer that has the client already has the
+    // numbers, guaranteed equal, and one that does not has `cadence` to look
+    // them up by. Shipping them made six fields per `/api/baltic-compare`
+    // response that no reader could have needed.
+    //
+    // `monthsBehind` and `cadence` stay because they are per-series evidence
+    // for this verdict and cannot be derived from a constant table; a threshold
+    // is a lookup, not a measurement.
     late: verdict.age > warnAfter,
     stale: verdict.stale,
     reason: null,

@@ -211,6 +211,14 @@ async function fetchAirQuality(country) {
       // Which of the six EEA bands this is, so a caller can draw an ordinal
       // meter without knowing the scale.
       rank: band ? band.rank : null,
+      // Kept although no reader in this repo touches it — `EnvironmentTile`
+      // draws the meter from its own `AQI_BAND_COUNT`. It stays because it is
+      // the DENOMINATOR of `rank`, which is read: "band 4" means nothing
+      // without "of 6", and shipping a numerator whose scale a consumer has to
+      // already know is the same defect as publishing a share without its
+      // total. The client duplicating the constant is what makes this look
+      // dead; a consumer that is not our client has no other way to read
+      // `rank`.
       bandCount: airQuality.BAND_COUNT,
       available: aqi !== null,
     };

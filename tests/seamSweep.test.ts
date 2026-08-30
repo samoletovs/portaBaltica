@@ -183,7 +183,15 @@ describe('the instrument does not consume its own subject', () => {
     // The companion half. The assertion above would pass on a sweep that read
     // no files at all; this one fails unless the string below is genuinely
     // present in a file the sweep excludes.
+    //
+    // It named `countries.LV.freshness.warnAfterMonths` until that field was
+    // deleted from `api/shared/freshness.js`. Nothing would have failed: the
+    // assertion only reads this file's own text, so it would have gone on
+    // passing while naming a path no payload contains — and a control that
+    // cannot appear in the subject controls nothing. The replacement is
+    // airQuality.bandCount, which is still served and still an orphan, so the
+    // exclusion is what keeps it one.
     const self = readFileSync(resolve('tests/seamSweep.test.ts'), 'utf8');
-    expect(self).toMatch(/countries\.LV\.freshness\.warnAfterMonths/);
+    expect(self).toMatch(/airQuality\.bandCount/);
   });
 });

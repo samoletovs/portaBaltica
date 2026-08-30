@@ -65,10 +65,24 @@ const PORTS = [
 const DEADLINE_MS = 6000;
 const RETRIES = 1;
 
+/**
+ * The marine query.
+ *
+ * `current` asks for exactly the four readings `PortCard` renders. It used to
+ * ask for two more — `wave_direction` and `wind_wave_height` — which were
+ * parsed, served, and read by nothing in `src/` or `tests/`. The card settled
+ * on a 2x2 grid of wave height, sea temperature, wave period and swell, and
+ * the other two were never wired.
+ *
+ * They are dropped from the QUERY as well as from the response, because this
+ * endpoint exists to stop asking Open-Meteo for things on every visitor's
+ * behalf; continuing to ask for two variables nobody renders would have been a
+ * cosmetic fix. Re-adding either is one word here and one line in `marineOf`.
+ */
 function marineUrl(port) {
   return MARINE_URL +
     '?latitude=' + port.lat + '&longitude=' + port.lon +
-    '&current=wave_height,wave_direction,wave_period,sea_surface_temperature,wind_wave_height,swell_wave_height' +
+    '&current=wave_height,wave_period,sea_surface_temperature,swell_wave_height' +
     '&hourly=wave_height,sea_surface_temperature' +
     '&forecast_days=3&timezone=Europe%2FRiga';
 }
@@ -100,10 +114,8 @@ function marineOf(port, data) {
     portCode: port.code,
     current: {
       waveHeight: num(current.wave_height),
-      waveDirection: num(current.wave_direction),
       wavePeriod: num(current.wave_period),
       seaSurfaceTemp: num(current.sea_surface_temperature),
-      windWaveHeight: num(current.wind_wave_height),
       swellWaveHeight: num(current.swell_wave_height),
     },
     hourly: {

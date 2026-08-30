@@ -286,10 +286,28 @@ const handler = async function (context, req) {
         renewableLatest: renewableLatest,
         actual: actual,
         forecast: ahead,
-        // True when the answer came from cache after a failed fetch, so the UI
-        // can say when we last got through instead of implying a live read.
-        servedFromCache: result.cached === true,
-        readAgoMs: result.ageMs,
+        // `servedFromCache` and `readAgoMs` were served here and are gone, and
+        // not merely because nothing read them: they were WRONG for the one
+        // case they existed for.
+        //
+        // They described the inner `cache.memo` fetch at the moment the body
+        // was built, and the body is then held by `withCache` for the whole
+        // TTL. Measured against production on 2026-08-30, four consecutive
+        // requests:
+        //
+        //   header  X-Cache: hit   Age: 209
+        //   body    servedFromCache: false   readAgoMs: 0
+        //
+        // So a UI using them to say "when we last got through" would have
+        // announced a live read for a response three and a half minutes old.
+        // The distinction that matters: `fetchedAt` is an ABSOLUTE instant and
+        // stays true however long the body is cached, whereas a RELATIVE age
+        // frozen into a cached body becomes a lie the moment it is reused.
+        //
+        // The information itself is not lost. `withCache` already publishes it
+        // correctly, per response rather than per body, as the `Age` and
+        // `X-Cache` headers above — which is where a staleness banner should
+        // read it.
         source: 'Elering system data (with-plan)',
         fetchedAt: new Date().toISOString(),
       }),
