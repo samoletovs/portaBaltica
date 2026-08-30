@@ -78,8 +78,27 @@ log = logging.getLogger(__name__)
 MIN_FINDINGS = 4
 
 #: Above this the piece stops being a read and becomes a table. The cap is on
-#: what reaches the writer, not on what the week produced: the highest-scoring
+#: what reaches the writer, not on what the week produced: the most recent
 #: findings are kept and the rest are simply not cited.
+#:
+#: **Recency, not merit.** This comment said "the highest-scoring findings are
+#: kept" until it was executed. There is no score anywhere in `collect_week` —
+#: it sorts on `published_at` descending and slices — and `collect_week`'s own
+#: docstring says "newest first", correctly, 120 lines below. So a reader who
+#: went to check found an accurate statement and stopped, which is how the
+#: wrong one survived.
+#:
+#: The consequence is worth stating because it is not obvious and nothing else
+#: says it. Measured on a 12-finding week running Monday 24 to Sunday 30 August:
+#:
+#:     kept     the 8 newest, Wednesday through Sunday
+#:     dropped  Monday and Tuesday, entirely
+#:
+#: A busy week's "week in review" therefore omits the start of the week. That
+#: may well be right — later findings are the ones a reader has least likely
+#: seen — but it is a decision, and until now it was an accident of the sort
+#: order rather than a stated one. `test_weekly_cap.py` pins both the boundary
+#: and the rule, so the two cannot drift apart again.
 MAX_FINDINGS = 8
 
 SECTION = "economy"
