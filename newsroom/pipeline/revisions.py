@@ -216,6 +216,7 @@ def record_correction_note(
     window_extreme: str | None = None,
     window_extreme_period: str | None = None,
     claims_low: bool = True,
+    rank: int = 1,
     corrected_at: str | None = None,
 ) -> dict[str, str]:
     """The public notice for a record claim the data does not support.
@@ -252,6 +253,21 @@ def record_correction_note(
                           both scopes are named
     ===================  =============================================
 
+    ``rank`` IS NOT DECORATION
+    --------------------------
+    Not every claim corrected here is a claim of first place. The context
+    builder emits "this is the fourth-highest on record" as readily as "this is
+    the highest reading anywhere in the series", and a **rank claim is only
+    false if the rank is wrong**. Lithuania's construction output really is the
+    fourth-highest of the 40 observations we retrieved — exactly three are
+    higher — and is the fourteenth of the 113 the cube holds. Correcting that
+    to "it was not the highest" would be correcting something the article never
+    said.
+
+    A sweep that treated every superlative as first place called two correctly
+    hedged articles false. Reading the sentences is what caught it, so the rank
+    travels as an argument rather than being assumed to be 1.
+
     WRITTEN FOR A READER, IN THE ORDER THEY NEED IT
     -----------------------------------------------
     What we said, then what is actually so, then what still stands. A reader
@@ -275,35 +291,61 @@ def record_correction_note(
             f"than over the whole series ({beaten_in_series}); the window is a "
             "subset of the series, so one of these was measured wrong"
         )
+    if rank < 1:
+        raise ValueError("rank starts at 1")
+    if rank > 1 and beaten_in_window != rank - 1:
+        raise ValueError(
+            f"a claim of rank {rank} means exactly {rank - 1} reading(s) beat it "
+            f"over the window, but {beaten_in_window} do; either the rank or the "
+            "count is wrong, and a correction cannot rest on whichever it is"
+        )
 
     superlative = "lowest" if claims_low else "highest"
     lower_or_higher = "lower" if claims_low else "higher"
+    described = superlative if rank == 1 else f"{_ordinal(rank)}-{superlative}"
     opening = f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
     closing_note = (
         "The figure itself is unchanged and correct; describing "
         "it as a record was not, and a record claim on this wire now has to name "
         "the window it is measured over."
     )
+    if rank > 1:
+        closing_note = (
+            "The figure itself is unchanged and correct; the placing was not, "
+            "and a claim about where a reading sits on this wire now has to "
+            "name the window it is measured over."
+        )
 
-    if beaten_in_window == 0:
+    if beaten_in_window == 0 or rank > 1:
         # The scope error: true over what we held, false over what exists.
-        # This branch is byte-identical to the note already published on
-        # `latvia-s-food-inflation-drops-to-a-record-low-of-2b7683`, and a test
-        # pins it against that live string. Reword it and a re-run appends a
-        # second, near-duplicate correction to a live article, because
+        # With rank == 1 this branch is byte-identical to the note already
+        # published on `latvia-s-food-inflation-drops-to-a-record-low-of-2b7683`,
+        # and a test pins it against that live string. Reword it and a re-run
+        # appends a second, near-duplicate correction to a live article, because
         # `append_correction` de-duplicates on the description.
+        if rank == 1:
+            placing = (
+                f"{_spelled(beaten_in_series)} earlier "
+                f"reading{_plural(beaten_in_series)} {_verb(beaten_in_series)} "
+                f"{lower_or_higher}, the "
+                f"{superlative} being {true_extreme} in {true_period}."
+            )
+        else:
+            placing = (
+                f"{_spelled(beaten_in_series)} reading{_plural(beaten_in_series)} "
+                f"{_verb(beaten_in_series)} {lower_or_higher}, making it the "
+                f"{_ordinal(beaten_in_series + 1)} rather than the "
+                f"{_ordinal(rank)}; the {superlative} is {true_extreme} in "
+                f"{true_period}."
+            )
         return {
             "corrected_at": corrected_at or isoformat(utcnow()),
             "description": (
                 f"{opening}"
-                f"It was the {superlative} only in the "
+                f"It was the {described} only in the "
                 f"{window.strip().rstrip('.')} that the newsroom had retrieved — not in "
                 f"the series, which runs back to {series_start}. "
-                f"{_spelled(beaten_in_series)} earlier "
-                f"reading{_plural(beaten_in_series)} {_verb(beaten_in_series)} "
-                f"{lower_or_higher}, the "
-                f"{superlative} being {true_extreme} in "
-                f"{true_period}. {closing_note}"
+                f"{placing} {closing_note}"
             ),
         }
 
@@ -333,14 +375,90 @@ def record_correction_note(
     }
 
 
-# Spelled at the head of a sentence, where a numeral reads as a typo. Only the
-# small ones -- "Fifty-five earlier readings" is worse than "55".
+def origin_correction_note(
+    *,
+    claim: str,
+    window_start: str,
+    series_start: str,
+    series_start_value: str,
+    still_stands: str,
+    corrected_at: str | None = None,
+) -> dict[str, str]:
+    """The notice for an article whose record is real and whose origin is not.
+
+    A THIRD SHAPE, AND NOT A PARAMETER ON THE SECOND
+    ------------------------------------------------
+    `lithuania-s-passenger-car-ownership-reaches-record-high-in-2025` says two
+    things. "This reading is the highest in the series" is **true** — 629 cars
+    per thousand inhabitants is the maximum of all 36 readings the cube holds,
+    back to 1990. "The series start value of 490 ... in 2006" is **false**: that
+    is where `lastTimePeriod=20` put our window, and the series begins in 1990
+    at 133.
+
+    Running that through :func:`record_correction_note` would tell the reader
+    the figure "was the highest only in the observations we retrieved", which is
+    itself untrue — a correction asserting a falsehood in order to correct one,
+    which is precisely the fault caught in the rail note arriving from the other
+    direction. The claim being corrected is different in kind: not *this was not
+    a record* but *the series does not begin where we said*.
+
+    ``still_stands`` is required rather than optional because the whole reason
+    this shape exists is that something DOES stand. A reader who meets a
+    correction on an article whose headline is true needs that said plainly, or
+    the notice reads as a retraction of the story.
+    """
+    if not still_stands.strip():
+        raise ValueError(
+            "this shape exists because the record survives; say what stands, or "
+            "the notice reads as a retraction of a true story"
+        )
+    return {
+        "corrected_at": corrected_at or isoformat(utcnow()),
+        "description": (
+            f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+            f"{window_start} is where the newsroom's data window starts, not "
+            f"where the series starts: it runs back to {series_start}, when the "
+            f"figure was {series_start_value}. {still_stands.strip().rstrip('.')}, "
+            "and the figures are unchanged — only the description of where the "
+            "series begins was wrong. A statement about where a series starts on "
+            "this wire now has to rest on the series rather than on the window "
+            "the newsroom retrieved."
+        ),
+    }
+
+
+#: Spelled at the head of a sentence, where a numeral reads as a typo. Only the
+#: small ones -- "Fifty-five earlier readings" is worse than "55".
 _WORDS = {
     1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six",
     7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve",
     13: "Thirteen", 14: "Fourteen", 15: "Fifteen", 16: "Sixteen",
     17: "Seventeen", 18: "Eighteen", 19: "Nineteen", 20: "Twenty",
 }
+
+_ORDINALS = {
+    1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth", 6: "sixth",
+    7: "seventh", 8: "eighth", 9: "ninth", 10: "tenth", 11: "eleventh",
+    12: "twelfth", 13: "thirteenth", 14: "fourteenth", 15: "fifteenth",
+    16: "sixteenth", 17: "seventeenth", 18: "eighteenth", 19: "nineteenth",
+    20: "twentieth", 26: "twenty-sixth",
+}
+
+
+def _ordinal(n: int) -> str:
+    """Words for the small ones; digits with a suffix beyond the table.
+
+    A correction is read by someone already doubting us, so "the twenty-sixth"
+    reads better than "the 26th" -- but inventing an English ordinal for an
+    arbitrary integer is how "the 113rd" gets published, so anything not named
+    falls back to a form that is always right.
+    """
+    if n in _ORDINALS:
+        return _ORDINALS[n]
+    suffix = "th"
+    if n % 100 not in (11, 12, 13):
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
 
 
 def _spelled(n: int) -> str:
