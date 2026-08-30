@@ -764,6 +764,35 @@ def detect_seasonal_deviation(
             # "the 5-year average" beside a deviation of 5.4 gave the token two
             # possible parents, so ``reconcile_figures`` refused to file it and
             # every seasonal article died on a number the pipeline wrote itself.
+            #
+            # ``len(baseline)`` IS A YEAR COUNT, and that is why this is not the
+            # `detect_streak` fault one line below the two detectors it was
+            # fixed in. Those stated a SPAN or a CONTIGUITY from a count of
+            # readings -- "four consecutive monthly moves", "over the preceding
+            # 14 quarters" -- and a hole falsifies both. This states a
+            # CARDINALITY: how many years went into the mean. Nothing here
+            # claims the years are adjacent, and nothing names a window.
+            #
+            # Two readings could only share a year if two distinct periods had
+            # the same season key, and they cannot: a period is exactly
+            # ``year + "-" + season_key`` for every format collected -- monthly
+            # ``08``, quarterly ``Q3``, daily ``08-24``, semi-annual ``S1``,
+            # weekly ``W15`` -- and ``TimeSeries`` rejects duplicate periods
+            # outright. So one year contributes at most one reading here, by
+            # construction rather than by luck.
+            #
+            # Measured rather than argued, because a gapped baseline is not
+            # hypothetical: `tourism/EE` is missing eleven months and IS gapped
+            # at three season keys. Across every collected series -- 282 series,
+            # 10,558 (period, baseline) pairs -- `len(baseline)` equalled the
+            # number of distinct contributing years every time, and all ten
+            # published seasonal articles state a count that matches. The claim
+            # is true at any gappiness.
+            #
+            # What it rests on is `season_key` returning the whole non-year
+            # remainder. Coarsen it and two readings from one year land in the
+            # same baseline, at which point this sentence starts overstating.
+            # test_seasonal_year_count.py holds that line.
             f"the {spell_count(len(baseline))}-year average of "
             f"{units.display_value('seasonal_mean', mean)} {series.unit} "
             f"for the same point in the year, {series.season_label(latest.period)}"
