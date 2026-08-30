@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ReactNode } from 'react';
 // Imported at module scope, not inside a test.
@@ -16,6 +16,7 @@ import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
 import { IndicatorCard, IndicatorChart } from '../src/components/IndicatorCard';
 import { IndicatorTable } from '../src/components/IndicatorTable';
+import { WARN_AFTER_MONTHS, STALE_AFTER_MONTHS } from '../src/dataFreshness';
 
 /**
  * A frozen series must not render as news.
@@ -316,26 +317,242 @@ describe('the key indicators table', () => {
   }, 30_000);
 });
 
+describe('later than usual, but still publishing', () => {
+  /**
+   * The state this change made reachable, and the one the site had never shown.
+   *
+   * `freshnessOf` has always returned two flags. Every one of the 21 gates that
+   * read a verdict read `stale` — "the feed looks dead" — and measured against
+   * production across 72 comparison indicators and 216 series, **0 are stale**.
+   * So the entire apparatus was dormant, while 20 series across 8 indicators sat
+   * between 4 and 20 months behind and rendered as though current.
+   *
+   * A quarterly series at 8 months is past `WARN_AFTER_MONTHS.Q` (6) and well
+   * inside `STALE_AFTER_MONTHS.Q` (14), which is the band these tests exercise.
+   */
+  async function card(last: string) {
+    fetchBalticCompare.mockResolvedValue(payload(last));
+    const view = await shell(<IndicatorCard id="gdp" title="GDP growth rate" unit="% change" />);
+    await settle();
+    return view.container;
+  }
+
+  /** Eight months behind: late for a quarterly series, nowhere near stale. */
+  const LATE_QUARTER = (() => {
+    const d = new Date();
+    d.setUTCMonth(d.getUTCMonth() - 8);
+    return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`;
+  })();
+
+  it('says so, in the shared vocabulary', async () => {
+    const container = await card(LATE_QUARTER);
+
+    expect(container.textContent, 'a late series says nothing about its age')
+      .toMatch(/is later than usual: nothing newer than/);
+
+    // The control, and it is the assertion that makes the one above mean
+    // something: a *fresh* series must stay silent. Without it this passes on a
+    // component that shows the notice unconditionally.
+    const fresh = await card(NOW_QUARTER);
+    expect(fresh.textContent, 'a current series is warned about anyway')
+      .not.toMatch(/is later than usual/);
+  }, 30_000);
+
+  it('does not claim the series has stopped', async () => {
+    // The two sentences are different claims and the weaker one must not
+    // borrow the stronger one's words. "Has published nothing newer than" is a
+    // statement about a dead feed; on a series that publishes again next
+    // quarter it is simply false.
+    const container = await card(LATE_QUARTER);
+
+    expect(container.textContent).not.toMatch(STALE_SENTENCE);
+  }, 30_000);
+
+  it('keeps the change coloured, because the direction is real', async () => {
+    // **The control on the scope of the whole change.** The obvious reading of
+    // "wire `late` into the gates that read `stale`" is to wire it into all of
+    // them, which would grey the change arrow on 20 live series whose direction
+    // is correctly measured and genuinely informative.
+    //
+    // `late` draws attention to the date. `stale` stops asserting direction.
+    // They are different jobs and only the first is widened here.
+    const late = colours(await card(LATE_QUARTER));
+    const fresh = colours(await card(NOW_QUARTER));
+
+    const sentimentOf = (rows: { text: string; colour: string }[]) =>
+      rows.filter((r) => /[▲▼]/.test(r.text)).map((r) => r.colour);
+
+    expect(sentimentOf(fresh).length, 'no change arrow rendered — the probe is blind')
+      .toBeGreaterThan(0);
+    expect(sentimentOf(late), 'a late series lost its sentiment colour')
+      .toEqual(sentimentOf(fresh));
+  }, 30_000);
+
+  it('chooses the judgement flag in exactly one place', () => {
+    // **The gap this closes, and how it was found.** The rule "`late` draws
+    // attention to the date, `stale` stops asserting direction" was correct at
+    // all eleven call sites, and the test above asserted it — by rendering
+    // `IndicatorCard`. Planting the over-reach there goes red. Planting the
+    // *identical* mutation in `RankedComparison` was green, across the whole
+    // suite, because the guard's population was one component and the
+    // behaviour's was three.
+    //
+    // That is live rather than theoretical. `RankedComparison` draws
+    // `rd_spending` and `life_expectancy`, both 20 months behind and both
+    // `late`, so six rendered series would have lost a correct sentiment colour
+    // with nothing to say so.
+    //
+    // A wider rendering test would close that instance. This closes the class:
+    // the flag is read in one function, so a component cannot read a different
+    // one, and the over-reach becomes a single edit that reddens every
+    // rendering assertion at once.
+    //
+    // Written as an equality over the derived population rather than a filter,
+    // so a sixth surface that suppresses judgement fails here instead of being
+    // silently absorbed — `AGENTS.md`: write down the set the guard walks and
+    // the set the behaviour walks, and require them to match.
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory()
+          ? walk(resolve(dir, e.name))
+          : /\.tsx?$/.test(e.name) ? [resolve(dir, e.name)] : []);
+
+    const files = walk(resolve('src')).map((path) => ({
+      file: path.split(/[\\/]/).pop()!,
+      text: readFileSync(path, 'utf8'),
+    }));
+
+    // Everything that withholds a judgement about direction, derived from the
+    // vocabulary that expresses one. `sentiment` really is a vocabulary here —
+    // `sentimentColor`, `sentimentOf`, `sentimentOfChange`, a `sentiment` prop —
+    // so a word list is the honest form rather than a proxy for a structure.
+    const suppressors = files
+      .filter(({ text }) => /sentimentColor|sentimentOf|sentiment=|sentiment ===/.test(text))
+      .filter(({ text }) => /judgementWithheld|freshness[?.]*\.(stale|late)/.test(text))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(suppressors.length, 'no judgement surfaces found — the derivation is broken')
+      .toBeGreaterThanOrEqual(3);
+
+    expect(suppressors, 'a surface that suppresses judgement on freshness')
+      .toEqual(['IndicatorCard.tsx', 'IndicatorTable.tsx', 'RankedComparison.tsx']);
+
+    // And none of them may pick the flag itself. `IndicatorTable` is the one
+    // exception and it is a narrow one: it reads the flags to choose the
+    // *wording* of a spoken date note, which is the notice's job rather than
+    // this predicate's.
+    for (const { file, text } of files.filter((f) => suppressors.includes(f.file))) {
+      const raw = text
+        .split('\n')
+        .filter((l) => !/^\s*(\*|\/\/)/.test(l))
+        .filter((l) => /freshness[?.]*\.(stale|late)/.test(l));
+
+      const expected = file === 'IndicatorTable.tsx' ? 2 : 0;
+      expect(raw.length, `${file} reads a freshness flag directly:\n${raw.join('\n')}`)
+        .toBe(expected);
+    }
+
+    // The predicate itself must read `stale`, which is the whole point of
+    // having one place to read it.
+    const style = files.find((f) => f.file === 'freshnessStyle.ts')!.text;
+    expect(style, 'the judgement predicate no longer reads `stale`')
+      .toMatch(/judgementWithheld[\s\S]{0,320}freshness\?\.stale === true/);
+  });
+
+  it('warns before the stale threshold, not at it', async () => {
+    // The bands are what make `late` a distinct product rather than a rename.
+    // If `WARN_AFTER_MONTHS` ever equalled `STALE_AFTER_MONTHS` for a cadence
+    // the dashboard reports quarterly on, this whole state would be
+    // unreachable there — which is exactly the case for `W`, deliberately, on
+    // a population of three series.
+    expect(WARN_AFTER_MONTHS.Q, 'a quarterly series would never be warned first')
+      .toBeLessThan(STALE_AFTER_MONTHS.Q);
+
+    // And the ordering the shared component depends on: `stale` implies `late`
+    // for every cadence, so the stale branch must be tested first or it becomes
+    // unreachable.
+    for (const cadence of ['W', 'M', 'Q', 'S', 'A'] as const) {
+      expect(
+        WARN_AFTER_MONTHS[cadence],
+        `stale would not imply late for ${cadence}`,
+      ).toBeLessThanOrEqual(STALE_AFTER_MONTHS[cadence]);
+    }
+  });
+});
+
 describe('one condition, one sentence', () => {
-  it('uses the wording BalticCompareChart already established', () => {
+  it('defines the freshness sentence once, and nowhere else', () => {
     // Two surfaces inventing two vocabularies for one condition is how a design
     // system dies: a reader who meets "nothing newer than" on a chart and "out
     // of date" on a card has to work out whether those are the same claim.
     //
-    // Asserted against the file rather than trusting the sentence above, and
-    // stated as an equality over every surface that carries it — so changing
-    // the wording in one place fails here rather than passing quietly.
-    const SENTENCE = 'This series has published nothing newer than';
-    const carriers = [
+    // This assertion used to require the sentence to appear **in both**
+    // `BalticCompareChart` and `IndicatorCard`, byte-identical by hand. That
+    // pinned the technique rather than the property, and it broke on the change
+    // that made the property stronger: there are now two verdicts — `stale` and
+    // `late` — and five surfaces maintaining the same two-branch rule by hand is
+    // precisely the drift the comment above warns about, arriving the long way
+    // round.
+    //
+    // So the outcome is asserted instead: the sentence is **defined once**, in
+    // the shared component. Written as an equality over the whole source tree,
+    // so a second copy anywhere fails here rather than passing quietly.
+    const SENTENCE = 'has published nothing newer than';
+
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory()
+          ? walk(resolve(dir, e.name))
+          : /\.tsx?$/.test(e.name) ? [resolve(dir, e.name)] : []);
+
+    const definers = walk(resolve('src'))
+      .filter((path) => readFileSync(path, 'utf8').includes(SENTENCE))
+      .map((path) => path.split(/[\\/]/).pop()!)
+      .sort();
+
+    expect(definers, 'the freshness sentence must live in exactly one component')
+      .toEqual(['FreshnessNotice.tsx']);
+  });
+
+  it('routes every surface that shows a freshness verdict through the shared one', () => {
+    // The companion the assertion above cannot make. "Defined once" is also
+    // satisfied by a component nobody renders — a sentence with no reader is
+    // the seam defect this repo has hit four times. So the carriers are named,
+    // as an equality, and each must import it.
+    const CARRIERS = [
       'src/components/BalticCompareChart.tsx',
+      'src/components/FreightModalSplit.tsx',
       'src/components/IndicatorCard.tsx',
+      'src/components/RankedComparison.tsx',
     ];
 
-    for (const file of carriers) {
+    for (const file of CARRIERS) {
       expect(
         readFileSync(resolve(file), 'utf8'),
-        `${file} no longer carries the shared stale sentence`,
-      ).toContain(SENTENCE);
+        `${file} no longer routes through the shared freshness sentence`,
+      ).toMatch(/import \{ FreshnessNotice \} from '\.\/FreshnessNotice'/);
+    }
+
+    // `MaritimeTile` and `IndicatorTable` are deliberately not carriers, and
+    // saying so here is what stops the omission looking like an oversight:
+    //
+    //   MaritimeTile    speaks about three measures at once, names the oldest
+    //                   and the newest, and adds the fact only it can — that
+    //                   the weather beside the figures is live while they are
+    //                   not. It carries `freshness.label`, so it states its own
+    //                   age and reads correctly at either verdict.
+    //   IndicatorTable  has one row per indicator and no room for a sentence;
+    //                   it colours the period and speaks the verdict to a
+    //                   screen reader instead.
+    //
+    // Both must still read `late`, or they are excluded from the change as well
+    // as from the sentence.
+    for (const file of ['src/components/MaritimeTile.tsx', 'src/components/IndicatorTable.tsx']) {
+      expect(
+        readFileSync(resolve(file), 'utf8'),
+        `${file} states its own wording but must still read the late verdict`,
+      ).toMatch(/freshness[?.]*\.late/);
     }
   });
 

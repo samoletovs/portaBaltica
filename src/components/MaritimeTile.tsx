@@ -53,7 +53,17 @@ export function MaritimeTile({ portData, stats, loading }: MaritimeTileProps) {
         )}
       </div>
 
-      {freshness?.stale && (
+      {/* Gated on `late` rather than `stale`, and this panel keeps its own
+          wording rather than taking `FreshnessNotice`. The shared sentence
+          speaks about one series; this speaks about three measures at once,
+          says which is oldest and which newest, and adds the one thing a
+          reader most needs here — that the weather beside it is live while
+          these figures are not. It also carries `freshness.label`, so it
+          states its own age and reads correctly at either verdict.
+
+          `late` alone is the whole gate because `stale` implies it: the warn
+          threshold is at or below the failover threshold for every cadence. */}
+      {freshness?.late && (
         // `dash-warning` is not remapped by the theme layer in `index.css` —
         // that layer covers the 400 step and not the 300 — so in light mode
         // this shipped at 1.44:1 against white. A staleness warning nobody can
