@@ -299,18 +299,27 @@ def append_correction(document: dict, note: Mapping[str, str]) -> dict | None:
 async def apply_scope_correction(
     store: "ArticleStore", slug: str, note: Mapping[str, str]
 ) -> dict | None:
-    """Read the stored article, append the note, write it back.
+    """Read the stored article, append the note, write it back, and log it.
 
     Returns the updated document, or ``None`` when the note is already there —
     so running it twice is safe and says so, rather than being safe by accident.
+
+    THE PUBLIC LOG IS PART OF THE CORRECTION, NOT A SIDE EFFECT.
+    ``corrections.json`` is the one page a reader can audit us on, and a
+    correction that exists only on the article is one they can find only if
+    they already know which article to open. Writing the article and forgetting
+    the log was the first thing that went wrong when this was applied by hand:
+    the note rendered, the log did not list it, and nothing anywhere said the
+    two disagreed. So both happen here, from one call, and the log entry is
+    built from the note already written to the article rather than composed
+    again — the same reason ``Revision.to_log_entry`` takes the correction it
+    is logging instead of rebuilding it.
 
     Separate from the note builder because the two fail differently: composing
     a sentence cannot lose data, and a read-modify-write can. Keeping the write
     here means the note can be reviewed, printed and argued over without any
     credential being involved, which is how this one was.
     """
-    from newsroom.pipeline.publish import ArticleStore  # noqa: F401 — typing only
-
     document = await store.read_json(f"{slug}.json")
     if not isinstance(document, dict):
         raise ValueError(f"{slug}: stored article is not a JSON object")
@@ -319,7 +328,17 @@ async def apply_scope_correction(
         log.info("correction already present on %s; nothing written", slug)
         return None
     await store.put_json(f"{slug}.json", updated)
-    log.info("correction appended to %s", slug)
+    await store.append_corrections(
+        [
+            {
+                "slug": slug,
+                "headline": str(document.get("headline") or ""),
+                "corrected_at": note["corrected_at"],
+                "description": note["description"],
+            }
+        ]
+    )
+    log.info("correction appended to %s and to the public log", slug)
     return updated
 
 

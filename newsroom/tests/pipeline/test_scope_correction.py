@@ -129,6 +129,7 @@ class TestApplyingItWritesOnceAndSaysSo:
         store = self._store(tmp_path)
         document = {
             "slug": "s",
+            "headline": "A headline",
             "status": "published",
             "provenance": {
                 "validator": {
@@ -147,6 +148,58 @@ class TestApplyingItWritesOnceAndSaysSo:
         assert len(stored["corrections"]) == 1
         assert stored["status"] == "published"
         assert is_servable(stored), "the page the notice appears on must survive"
+
+    async def test_it_also_writes_the_public_log(self, tmp_path):
+        """The log is part of the correction, not a side effect.
+
+        ``corrections.json`` is the one page a reader can audit us on. A
+        correction that exists only on the article is one they can find only if
+        they already know which article to open — and that is exactly what
+        happened the first time this was applied by hand: the note rendered,
+        the log did not list it, and nothing anywhere said the two disagreed.
+
+        MUTATION THIS CATCHES: dropping the ``append_corrections`` call, which
+        leaves every existing test green because they all read the article.
+        """
+        import json
+
+        from newsroom.pipeline.revisions import apply_scope_correction
+
+        store = self._store(tmp_path)
+        (tmp_path / "s.json").write_text(
+            json.dumps({"slug": "s", "headline": "A headline", "status": "published"}),
+            encoding="utf-8",
+        )
+
+        note = scope_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
+        await apply_scope_correction(store, "s", note)
+
+        entries = json.loads((tmp_path / "corrections.json").read_text(encoding="utf-8"))
+        assert len(entries) == 1
+        assert entries[0]["slug"] == "s"
+        assert entries[0]["headline"] == "A headline"
+        assert entries[0]["corrected_at"] == "2026-08-30T06:43:12Z"
+        # The log quotes the note already written to the article rather than
+        # composing a second one, so the two cannot disagree about the wording.
+        assert entries[0]["description"] == note["description"]
+
+    async def test_the_log_is_not_appended_twice_either(self, tmp_path):
+        import json
+
+        from newsroom.pipeline.revisions import apply_scope_correction
+
+        store = self._store(tmp_path)
+        (tmp_path / "s.json").write_text(
+            json.dumps({"slug": "s", "headline": "H", "status": "published"}),
+            encoding="utf-8",
+        )
+        note = scope_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
+
+        await apply_scope_correction(store, "s", note)
+        await apply_scope_correction(store, "s", note)
+
+        entries = json.loads((tmp_path / "corrections.json").read_text(encoding="utf-8"))
+        assert len(entries) == 1
 
     async def test_running_it_twice_writes_once(self, tmp_path):
         """Safe to re-run, and it SAYS it did nothing rather than being safe by
