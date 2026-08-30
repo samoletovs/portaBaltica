@@ -138,7 +138,7 @@ describe('RankedComparison', () => {
 
   async function renderWith(data: unknown) {
     fetchBalticCompare.mockResolvedValue(data);
-    render(<RankedComparison indicator="rd_spending" title="R&D expenditure" higherIsBetter />);
+    render(<RankedComparison indicator="rd_spending" title="R&D expenditure" />);
     await screen.findByText(/R&D expenditure/);
   }
 
