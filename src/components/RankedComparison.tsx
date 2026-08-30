@@ -6,7 +6,7 @@ import { sentimentColor, signed, type Sentiment } from '../utils/polarity';
 import { rank, COUNTRY_NAMES } from '../utils/rankBaltic';
 import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
 import { FreshnessNotice } from './FreshnessNotice';
-import { freshnessLabelColor } from './freshnessStyle';
+import { freshnessLabelColor, judgementWithheld } from './freshnessStyle';
 
 /**
  * Three countries, latest value, ranked.
@@ -173,12 +173,12 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
                   {row.change !== null && row.change !== 0 && (
                     <span
                       className="text-caption font-mono"
-                      style={{ color: freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
+                      style={{ color: judgementWithheld(freshness) ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
                     >
                       {signed(formatValue(Math.abs(row.change), displayUnit), row.change)}
                       <span className="sr-only">
                         {' '}
-                        {freshness?.stale
+                        {judgementWithheld(freshness)
                           ? `${row.change > 0 ? 'up' : 'down'} as of ${formatPeriod(row.period)}, the last reading published`
                           : describeChange(row.change, bestIsHigh)}
                       </span>

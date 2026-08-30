@@ -13,6 +13,7 @@ import { list } from '../utils/payload';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod as formatPeriodLabel } from '../dataFreshness';
 import { FreshnessNotice } from './FreshnessNotice';
+import { judgementWithheld } from './freshnessStyle';
 import { DownloadMenu } from './DownloadMenu';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
@@ -247,7 +248,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   // judgement ("this is favourable"), and applying it to a change that stopped
   // years ago is the same fault as colouring by raw direction, which
   // `polarity.ts` exists to prevent. See the note on the delta below.
-  const changeColor = freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment);
+  const changeColor = judgementWithheld(freshness) ? 'var(--text-secondary)' : sentimentColor(sentiment);
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
   const note = polarityNote(id);
@@ -264,7 +265,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   // reason and to keep the card one object: a green sparkline beside a grey
   // delta would be two answers to one question.
   const areaColor =
-    sentiment === 'none' || freshness?.stale
+    sentiment === 'none' || judgementWithheld(freshness)
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -330,7 +331,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
                 with two answers. */}
             <span className="sr-only">
               {' '}
-              {freshness?.stale
+              {judgementWithheld(freshness)
                 ? `${isRise ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
                 : changeDescription(id, summary.change)}
             </span>
@@ -565,7 +566,7 @@ export function IndicatorChart({
   const sentiment = sentimentOf(id, summary.change);
   const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
   const color =
-    sentiment === 'none' || freshness?.stale
+    sentiment === 'none' || judgementWithheld(freshness)
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -685,7 +686,7 @@ export function IndicatorChart({
                 ? '0.00'
                 : 'N/A'
           }
-          sentiment={freshness?.stale ? 'none' : sentiment}
+          sentiment={judgementWithheld(freshness) ? 'none' : sentiment}
         />
         <StatBox label="Min" value={fmt(summary.min)} />
         <StatBox label="Max" value={fmt(summary.max)} />
@@ -707,7 +708,7 @@ export function IndicatorChart({
           {summary.change !== null && summary.change !== 0 && (
             <span className="sr-only">
               . Latest change is{' '}
-              {freshness?.stale
+              {judgementWithheld(freshness)
                 ? `${summary.change > 0 ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
                 : changeDescription(id, summary.change)}
               .

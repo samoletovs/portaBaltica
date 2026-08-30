@@ -388,6 +388,78 @@ describe('later than usual, but still publishing', () => {
       .toEqual(sentimentOf(fresh));
   }, 30_000);
 
+  it('chooses the judgement flag in exactly one place', () => {
+    // **The gap this closes, and how it was found.** The rule "`late` draws
+    // attention to the date, `stale` stops asserting direction" was correct at
+    // all eleven call sites, and the test above asserted it — by rendering
+    // `IndicatorCard`. Planting the over-reach there goes red. Planting the
+    // *identical* mutation in `RankedComparison` was green, across the whole
+    // suite, because the guard's population was one component and the
+    // behaviour's was three.
+    //
+    // That is live rather than theoretical. `RankedComparison` draws
+    // `rd_spending` and `life_expectancy`, both 20 months behind and both
+    // `late`, so six rendered series would have lost a correct sentiment colour
+    // with nothing to say so.
+    //
+    // A wider rendering test would close that instance. This closes the class:
+    // the flag is read in one function, so a component cannot read a different
+    // one, and the over-reach becomes a single edit that reddens every
+    // rendering assertion at once.
+    //
+    // Written as an equality over the derived population rather than a filter,
+    // so a sixth surface that suppresses judgement fails here instead of being
+    // silently absorbed — `AGENTS.md`: write down the set the guard walks and
+    // the set the behaviour walks, and require them to match.
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory()
+          ? walk(resolve(dir, e.name))
+          : /\.tsx?$/.test(e.name) ? [resolve(dir, e.name)] : []);
+
+    const files = walk(resolve('src')).map((path) => ({
+      file: path.split(/[\\/]/).pop()!,
+      text: readFileSync(path, 'utf8'),
+    }));
+
+    // Everything that withholds a judgement about direction, derived from the
+    // vocabulary that expresses one. `sentiment` really is a vocabulary here —
+    // `sentimentColor`, `sentimentOf`, `sentimentOfChange`, a `sentiment` prop —
+    // so a word list is the honest form rather than a proxy for a structure.
+    const suppressors = files
+      .filter(({ text }) => /sentimentColor|sentimentOf|sentiment=|sentiment ===/.test(text))
+      .filter(({ text }) => /judgementWithheld|freshness[?.]*\.(stale|late)/.test(text))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(suppressors.length, 'no judgement surfaces found — the derivation is broken')
+      .toBeGreaterThanOrEqual(3);
+
+    expect(suppressors, 'a surface that suppresses judgement on freshness')
+      .toEqual(['IndicatorCard.tsx', 'IndicatorTable.tsx', 'RankedComparison.tsx']);
+
+    // And none of them may pick the flag itself. `IndicatorTable` is the one
+    // exception and it is a narrow one: it reads the flags to choose the
+    // *wording* of a spoken date note, which is the notice's job rather than
+    // this predicate's.
+    for (const { file, text } of files.filter((f) => suppressors.includes(f.file))) {
+      const raw = text
+        .split('\n')
+        .filter((l) => !/^\s*(\*|\/\/)/.test(l))
+        .filter((l) => /freshness[?.]*\.(stale|late)/.test(l));
+
+      const expected = file === 'IndicatorTable.tsx' ? 2 : 0;
+      expect(raw.length, `${file} reads a freshness flag directly:\n${raw.join('\n')}`)
+        .toBe(expected);
+    }
+
+    // The predicate itself must read `stale`, which is the whole point of
+    // having one place to read it.
+    const style = files.find((f) => f.file === 'freshnessStyle.ts')!.text;
+    expect(style, 'the judgement predicate no longer reads `stale`')
+      .toMatch(/judgementWithheld[\s\S]{0,320}freshness\?\.stale === true/);
+  });
+
   it('warns before the stale threshold, not at it', async () => {
     // The bands are what make `late` a distinct product rather than a rename.
     // If `WARN_AFTER_MONTHS` ever equalled `STALE_AFTER_MONTHS` for a cadence

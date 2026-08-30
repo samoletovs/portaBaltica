@@ -9,7 +9,7 @@ import { fetchBalticCompare } from '../api';
 import { changeDescription, polarityOf, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod } from '../dataFreshness';
-import { freshnessLabelColor } from './freshnessStyle';
+import { freshnessLabelColor, judgementWithheld } from './freshnessStyle';
 import { DownloadMenu } from './DownloadMenu';
 
 const EUROSTAT_MAP: Record<string, string> = {
@@ -165,7 +165,7 @@ export function IndicatorTable() {
         // two readings, but "favourable" is a present-tense claim and the
         // series has stopped.
         const lineColor =
-          sentiment === 'none' || freshness?.stale
+          sentiment === 'none' || judgementWithheld(freshness)
             ? chartColors.seriesDefault
             : sentiment === 'positive'
               ? chartColors.positive
@@ -255,7 +255,7 @@ export function IndicatorTable() {
             </span>
             <span
               className="text-caption sm:text-ui text-right font-mono self-center"
-              style={{ color: change === null || change === 0 || freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
+              style={{ color: change === null || change === 0 || judgementWithheld(freshness) ? 'var(--text-secondary)' : sentimentColor(sentiment) }}
             >
               {change !== null && change !== 0 ? (
                 <>
@@ -263,7 +263,7 @@ export function IndicatorTable() {
                   {signed(formatValue(Math.abs(change), row.unit), change)}
                   <span className="sr-only">
                     {' '}
-                    {freshness?.stale
+                    {judgementWithheld(freshness)
                       ? `${isRise ? 'up' : 'down'} as of ${formatPeriod(freshness.period)}, the last reading published`
                       : changeDescription(row.id, change)}
                   </span>
