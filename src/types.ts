@@ -255,6 +255,29 @@ export interface SystemStatus {
   dataSources: {
     healthy: number;
     total: number;
+    /**
+     * The counts the verdict is actually made of.
+     *
+     * `status` above folds in **required sources only** — `AGENTS.md` states
+     * that an optional result cannot change the verdict by construction. So
+     * `healthy`/`total` and the badge answer different questions, and the
+     * footer used to render the combined pair beside the required-only badge.
+     *
+     * Measured on production over five minutes on 2026-08-30, eight distinct
+     * readings: **five showed `11/12` beside a green "System healthy"** — 63%,
+     * every one of them Riga Open Data, whose own `powers` field reads
+     * "Nothing — retained as an availability signal only". A reader has no way
+     * to tell that from a source they depend on going down.
+     *
+     * Optional because the client must not assume a field the server may not
+     * send: `AGENTS.md`'s rule is that absence must not resolve to success, and
+     * a missing counter here has to degrade to the combined figure rather than
+     * to a confident zero.
+     */
+    requiredHealthy?: number;
+    requiredTotal?: number;
+    optionalHealthy?: number;
+    optionalTotal?: number;
     checks: DataSourceCheck[];
   };
   apis: {
