@@ -39,12 +39,29 @@ from newsroom.tests.pipeline.conftest import make_signal
 
 
 def undeclarable_tokens(signal: Signal) -> list[str]:
-    """Numbers in the basis that no field can justify."""
+    """Numbers in the basis that no field can justify.
+
+    Each field is checked against its OWN unit, via ``unit_for_field``, exactly
+    as ``reconcile`` and ``no_invented_numbers`` do. A basis now renders a
+    quantity at the scale a reader reads — "3.65 million passengers" for a
+    ``seasonal_mean`` of 3654.56 in "thousand passengers" — and a guard that
+    compared bare values would call the pipeline's own prose undeclarable.
+    Asking ``unit_for_field`` rather than restating the unit is what keeps this
+    guard reading the same object the behaviour does.
+    """
+    from newsroom.pipeline.units import unit_for_field
+
     orphans: list[str] = []
     for token in numeric_scan.scan(signal.comparison_basis):
         justified = any(
-            numeric_scan.value_justifies(token, float(value))
-            for value in signal.fields.values()
+            numeric_scan.value_justifies(
+                token,
+                float(value),
+                scale=numeric_scan.unit_scale(
+                    unit_for_field(name, signal.unit, overrides=signal.field_units)
+                ),
+            )
+            for name, value in signal.fields.items()
             if isinstance(value, (int, float))
         )
         if not justified:
@@ -71,7 +88,15 @@ def ambiguous_tokens(signal: Signal) -> list[str]:
     return [
         token.text
         for token in numeric_scan.scan(signal.comparison_basis)
-        if len(reconcile._matching_fields(token, signal.fields)) > 1
+        if len(
+            reconcile._matching_fields(
+                token,
+                signal.fields,
+                unit=signal.unit,
+                field_units=signal.field_units,
+            )
+        )
+        > 1
     ]
 
 

@@ -1139,7 +1139,14 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="rail_pa_quartal",
         metric="rail_passengers",
-        metric_label="rail passengers",
+        # Eurostat's own name for this cube is "Passengers transported": it
+        # counts JOURNEYS, not people, so a commuter making two trips a day is
+        # two. "rail passengers" reaches prose as the natural name of the
+        # statistic and reads as a headcount — a published piece put Latvia at
+        # 4.65 million in one quarter, and the first reader to see it measured
+        # that against a population of 1.9 million and took the whole series
+        # for a data fault. The figure was right; the label could not defend it.
+        metric_label="rail passenger journeys",
         unit="thousand passengers",
         section="trade",
         frequency="quarterly",

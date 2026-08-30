@@ -75,6 +75,53 @@ _SCALE_WORDS: Final[Mapping[str, float]] = {
     "trillion": 1e12,
 }
 
+#: Scale words a *unit* can carry, as opposed to a numeral. "thousand
+#: passengers" is a unit whose values are already divided by a thousand, so a
+#: figure of 4653 in it is 4,653,000 passengers, and prose that writes it "4.65
+#: million" is writing the same quantity rather than a new one.
+#:
+#: Leading or trailing, because the dataset registry uses both — "thousand
+#: tonnes" and "EUR million". Never in the middle, and never after "per", which
+#: is what keeps "cars per thousand inhabitants" and "per thousand inhabitants"
+#: out: there the thousand is a DENOMINATOR, and folding it into the value would
+#: multiply a rate by a thousand and call it a count.
+_UNIT_SCALE_WORD: Final[str] = r"thousand|million|billion|trillion"
+
+_UNIT_SCALE_LEADING: Final[re.Pattern[str]] = re.compile(
+    rf"^({_UNIT_SCALE_WORD})\s+(.+)$", re.IGNORECASE
+)
+_UNIT_SCALE_TRAILING: Final[re.Pattern[str]] = re.compile(
+    rf"^(.+?)\s+({_UNIT_SCALE_WORD})$", re.IGNORECASE
+)
+
+
+def split_unit_scale(unit: str | None) -> tuple[float, str]:
+    """Separate a unit's own scale word from the thing it measures.
+
+    ``"thousand passengers"`` → ``(1000.0, "passengers")``;
+    ``"EUR million"`` → ``(1e6, "EUR")``;
+    ``"cars per thousand inhabitants"`` → ``(1.0, "cars per thousand inhabitants")``.
+    """
+    text = (unit or "").strip()
+    if not text:
+        return 1.0, text
+
+    match = _UNIT_SCALE_LEADING.match(text)
+    if match:
+        return _SCALE_WORDS[match.group(1).lower()], match.group(2).strip()
+
+    match = _UNIT_SCALE_TRAILING.match(text)
+    if match and not match.group(1).strip().lower().endswith(" per"):
+        return _SCALE_WORDS[match.group(2).lower()], match.group(1).strip()
+
+    return 1.0, text
+
+
+def unit_scale(unit: str | None) -> float:
+    """How much a unit's own scale word multiplies the values written in it."""
+    return split_unit_scale(unit)[0]
+
+
 _WORD_NUMBERS: Final[Mapping[str, float]] = {
     "one": 1,
     "two": 2,
@@ -387,24 +434,37 @@ def decimals_written(value: object) -> int:
     return max(0, -exponent) if isinstance(exponent, int) else 0
 
 
-def value_justifies(token: NumericToken, figure_value: float) -> bool:
+def value_justifies(token: NumericToken, figure_value: float, *, scale: float = 1.0) -> bool:
     """Is ``figure_value`` a legitimate origin for this prose token?
 
     Accepts an exact match, a match after applying the token's scale word, and
     a correct rounding to the precision the token used. Magnitude is compared
     without sign, because prose writes "fell 3.2%" for a delta of -3.2 — the
     magnitude must still exist in the declared figures, so nothing is invented.
+
+    ``scale`` is the multiplier the figure's own UNIT carries, from
+    :func:`unit_scale`. A figure of 4653 in "thousand passengers" is 4,653,000
+    passengers, so "4.65 million passengers" is that figure written at the scale
+    a reader reads. This widens by exactly the declared unit's factor and by
+    nothing else: the quantity is unchanged, the factor is the pipeline's own
+    rather than the model's, and every reading still has to round back to the
+    source number. It is the same allowance the token side already has — the
+    two sides of one equality, which is why they belong in one function.
     """
     tolerance = rendering_tolerance(token.decimals)
-    for candidate in token.candidate_values():
-        if abs(abs(candidate) - abs(figure_value)) <= tolerance:
-            return True
-        # A scaled token rounds at the scaled precision too: "€1.2bn" from
-        # 1_234_000_000 is correct to one decimal place of a billion.
-        if token.scale != 1.0 and figure_value != 0:
-            scaled_down = abs(figure_value) / token.scale
-            if abs(scaled_down - abs(token.value)) <= tolerance:
+    magnitudes = [abs(figure_value)]
+    if scale != 1.0:
+        magnitudes.append(abs(figure_value * scale))
+
+    for magnitude in magnitudes:
+        for candidate in token.candidate_values():
+            if abs(abs(candidate) - magnitude) <= tolerance:
                 return True
+            # A scaled token rounds at the scaled precision too: "€1.2bn" from
+            # 1_234_000_000 is correct to one decimal place of a billion.
+            if token.scale != 1.0 and magnitude != 0:
+                if abs(magnitude / token.scale - abs(token.value)) <= tolerance:
+                    return True
     return False
 
 
@@ -416,15 +476,22 @@ def _rendered_as_values(rendered_as: str | None) -> tuple[float, ...]:
 
 def is_justified(token: NumericToken, figures: Sequence[Mapping[str, object]]) -> bool:
     """True when some declared figure accounts for this prose token."""
-    figure_values: list[float] = []
+    # (magnitude, scale) pairs. The scale is the figure's own unit's, so a
+    # figure declared in "thousand passengers" justifies the prose that writes
+    # it in millions. ``rendered_as`` carries no unit of its own, so it is
+    # matched at face value.
+    figure_values: list[tuple[float, float]] = []
     for figure in figures:
         value = figure.get("value")
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             continue
-        figure_values.append(float(value))
-        figure_values.extend(_rendered_as_values(_as_optional_str(figure.get("rendered_as"))))
+        figure_values.append((float(value), unit_scale(_as_optional_str(figure.get("unit")))))
+        figure_values.extend(
+            (rendered, 1.0)
+            for rendered in _rendered_as_values(_as_optional_str(figure.get("rendered_as")))
+        )
 
-    if any(value_justifies(token, value) for value in figure_values):
+    if any(value_justifies(token, value, scale=scale) for value, scale in figure_values):
         return True
 
     # Fall back to the split reading of a space-grouped run; every part must
@@ -441,8 +508,9 @@ def is_justified(token: NumericToken, figures: Sequence[Mapping[str, object]]) -
                         decimals=0,
                     ),
                     value,
+                    scale=scale,
                 )
-                for value in figure_values
+                for value, scale in figure_values
             )
             for component in token.components
         )
@@ -474,6 +542,8 @@ __all__ = [
     "mask_excluded",
     "rendering_tolerance",
     "scan",
+    "split_unit_scale",
+    "unit_scale",
     "unjustified_tokens",
     "value_justifies",
 ]

@@ -54,11 +54,20 @@ log = logging.getLogger(__name__)
 
 
 def _already_declared(token: numeric_scan.NumericToken, figures: Sequence[Figure]) -> bool:
-    return any(numeric_scan.value_justifies(token, figure.value) for figure in figures)
+    return any(
+        numeric_scan.value_justifies(
+            token, figure.value, scale=numeric_scan.unit_scale(figure.unit)
+        )
+        for figure in figures
+    )
 
 
 def _matching_fields(
-    token: numeric_scan.NumericToken, fields: Mapping[str, float]
+    token: numeric_scan.NumericToken,
+    fields: Mapping[str, float],
+    *,
+    unit: str | None = None,
+    field_units: Mapping[str, str | None] | None = None,
 ) -> list[tuple[str, float]]:
     """Verified fields that could account for ``token``.
 
@@ -67,6 +76,15 @@ def _matching_fields(
     An ambiguous token — two candidates — is left alone, because guessing which
     field a number came from is the sort of plausible invention this pipeline
     exists to prevent.
+
+    ``unit`` and ``field_units`` are the same pair :func:`reconcile_block`
+    takes, and they are here for the same reason the validator reads a figure's
+    unit: a field in "thousand passengers" holding 4653 accounts for the prose
+    token "4.65 million", and without the unit this cannot see that. It is not
+    an optional refinement — the writer is REQUIRED to restate a comparison
+    basis that the pipeline now renders at the readable scale, so a reconciler
+    blind to the unit strands the pipeline's own prose and the article dies on
+    a number nobody invented.
 
     ONE EXCEPTION, AND ONLY ONE: a count beats a measurement that merely rounds
     to it. The seasonal basis says "the five-year average", the writer renders
@@ -94,7 +112,10 @@ def _matching_fields(
             numeric = float(value)
         except (TypeError, ValueError):
             continue
-        if not numeric_scan.value_justifies(token, numeric):
+        scale = numeric_scan.unit_scale(
+            unit_for_field(name, unit, overrides=field_units)
+        )
+        if not numeric_scan.value_justifies(token, numeric, scale=scale):
             continue
         matches.append((name, numeric))
         if is_count(name) and _is_exact(token, numeric):            exact_counts.append((name, numeric))
@@ -131,7 +152,7 @@ def reconcile_block(
         if _already_declared(token, block.figures):
             continue
 
-        matches = _matching_fields(token, fields)
+        matches = _matching_fields(token, fields, unit=unit, field_units=field_units)
         if len(matches) != 1:
             # Zero matches: the number is not in the verified payload, so it is
             # genuinely undeclarable and the validator must reject it.

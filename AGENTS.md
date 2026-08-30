@@ -1098,6 +1098,42 @@ comparable"* while meaning *"compared elsewhere"*, and nowhere else compared it.
 that both sides reached independently: **when you audit the consumers, audit the
 input they share.**
 
+### And the sibling can be in the other half of the repo
+
+The published sentence *"Latvia recorded 4653 thousand rail passengers in
+2026-Q1"* is the widest instance so far: the correct rendering existed **twice**,
+and both copies helped hide it.
+
+`detect_seasonal_deviation` was the one detector already routing its basis
+through `units`, with a comment explaining why — so the file looked handled,
+while the other five interpolated `{value:g}` and the raw unit. And the
+dashboard's `src/utils/formatValue.ts` renders the identical figure as
+`4.65m passengers`; its docstring makes this exact argument, about `M EUR`, in
+almost the same words. Measured on the same number, on master before the fix:
+
+```
+formatValue(4653, 'k passengers')     ->  "4.65m passengers"     the dashboard
+the newsroom's seasonal basis         ->  "4653 thousand ..."    published
+```
+
+Two halves of one repository, one Eurostat cube, two answers. Nothing compares
+them, because nothing has ever needed both — and that is the general shape:
+**a sibling in another subsystem cannot be found by reading the file you are
+fixing.** The cheap habit is to ask whether anything else in the repo already
+renders, parses or judges this same input, and to run both on one value.
+`test_readable_magnitude.py` now pins the newsroom side; the two renderers
+still answer independently, so this is a habit rather than a shared seam.
+
+The reason no gate saw it belongs here too, because it generalises past
+rendering. The newsroom's numeric contract protects that a figure is *real*,
+*traced* and *precise enough* — three properties of the number. It has nothing
+to say about how the number **reads**, so a correct figure in an unreadable
+scale passes every check by construction, exactly as a correct figure under the
+wrong *subject* did when two definitions shared a cache key. The pattern is
+worth stating plainly: **the contract protects figures, not what surrounds
+them** — not their subject, and not their rendering. Both failures reached
+readers; neither is reachable from any test of the figure.
+
 ### The sibling need not be someone else's, and need not be old
 
 The sharpest instance measured so far is one where the concealing sibling was

@@ -190,7 +190,8 @@ def detect_record_extreme(
         value=latest.value,
         unit=series.unit,
         comparison_basis=(
-            f"the previous record {direction} of {previous.value:g} {series.unit} "
+            f"the previous record {direction} of "
+            f"{units.quantity(previous.value, series.unit)} "
             f"in {previous.period}, across {len(series)} observations since {series.periods[0]}"
         ),
         score=score,
@@ -302,7 +303,7 @@ def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
         unit=series.unit,
         comparison_basis=(
             f"{spell_count(run)} consecutive {series.frequency} moves in the same direction, "
-            f"from {start.value:g} {series.unit} in {start.period}"
+            f"from {units.quantity(start.value, series.unit)} in {start.period}"
         ),
         score=score,
         section=series.section,
@@ -378,9 +379,10 @@ def detect_threshold_cross(
             value=latest.value,
             unit=series.unit,
             comparison_basis=(
-                f"the {threshold.name} level of {threshold.value:g} {threshold.unit_label or series.unit}, "
+                f"the {threshold.name} level of "
+                f"{units.quantity(threshold.value, threshold.unit_label or series.unit)}, "
                 f"which the series was on the other side of in {previous.period} "
-                f"at {previous.value:g} {series.unit}"
+                f"at {units.quantity(previous.value, series.unit)}"
             ),
             score=score,
             section=series.section,
@@ -491,7 +493,8 @@ def detect_divergence(
         value=spread,
         unit=sample.unit,
         comparison_basis=(
-            f"the median spread of {typical:g} {sample.unit} between the same countries "
+            f"the median spread of {units.quantity(typical, sample.unit)} "
+            f"between the same countries "
             f"across the {len(historical)} earlier "
             f"{reading_word(sample.frequency, len(historical))} in the series"
         ),
@@ -679,7 +682,8 @@ def detect_structural_divergence(
         value=latest_gap,
         unit=sample.unit,
         comparison_basis=(
-            f"the same countries' average difference of {early_gap:g} {sample.unit} "
+            f"the same countries' average difference of "
+            f"{units.quantity(early_gap, sample.unit)} "
             f"across the first {window} {period_word} "
             f"of the series"
         ),
@@ -748,16 +752,24 @@ def detect_seasonal_deviation(
         unit=series.unit,
         comparison_basis=(
             # The mean is rendered exactly as the writer's figure table renders
-            # it, via ``units.display_value``. ``:g`` printed 0.744444 into
-            # prose the model is required to restate, and it duly published
-            # "the nine-year average of 0.744444% quarter on quarter" — six
-            # significant figures of false precision on a seasonal mean.
+            # it, via ``units``. ``:g`` printed 0.744444 into prose the model
+            # is required to restate, and it duly published "the nine-year
+            # average of 0.744444% quarter on quarter" — six significant
+            # figures of false precision on a seasonal mean.
             #
             # ``:.2f`` is NOT the fix and was the previous bug: it renders
             # 7.075 as "7.08" by decimal formatting, while the validator
-            # compares using ``round()``. ``display_value`` uses ``round()``
-            # too, so what the basis prints is by construction what the gate
-            # accepts. test_basis_declarable.py holds that line.
+            # compares using ``round()``. ``units`` uses ``round()`` too, so
+            # what the basis prints is by construction what the gate accepts.
+            # test_basis_declarable.py holds that line.
+            #
+            # ``quantity`` rather than ``display_value`` because the value has
+            # a unit and the unit may carry a scale of its own. This basis
+            # published "the nine-year average of 3654.56 thousand passengers",
+            # which is 3.65 million written in a way no reader can hold — and
+            # this detector was the ONE that already routed through ``units``,
+            # so the correct sibling was here all along and hid the fact that
+            # ``units`` had nothing to say about magnitude.
             #
             # And the year count is SPELLED, not printed. It is a count, not a
             # measurement, and as a numeral it collided with ``deviation``:
@@ -765,7 +777,7 @@ def detect_seasonal_deviation(
             # possible parents, so ``reconcile_figures`` refused to file it and
             # every seasonal article died on a number the pipeline wrote itself.
             f"the {spell_count(len(baseline))}-year average of "
-            f"{units.display_value('seasonal_mean', mean)} {series.unit} "
+            f"{units.quantity(mean, series.unit)} "
             f"for the same point in the year, {series.season_label(latest.period)}"
         ),
         score=score,
@@ -860,8 +872,9 @@ def detect_sharp_move(
         value=latest.value,
         unit=series.unit,
         comparison_basis=(
-            f"the previous reading of {previous.value:g} {series.unit} in {previous.period}, "
-            f"against a typical move of {sigma:.3g} {series.unit} "
+            f"the previous reading of {units.quantity(previous.value, series.unit)} "
+            f"in {previous.period}, "
+            f"against a typical move of {units.quantity(sigma, series.unit)} "
             f"across {len(deltas)} readings since {series.periods[0]}"
         ),
         score=score,
