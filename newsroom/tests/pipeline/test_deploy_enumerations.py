@@ -85,6 +85,22 @@ says *do not resolve this by editing the workflow list* in as many words. The
 same split applies to the settings pair, where the asymmetry is the reverse: a
 setting the grep cannot see narrows the check silently, while a spurious match
 fails the deploy loudly and gets noticed.
+
+A NEAR-MISS WORTH RECORDING, BECAUSE IT HAPPENED IN THIS FILE
+-------------------------------------------------------------
+Adding the entry-point assertions below, an edit landed their body immediately
+above `test_the_probes_read_real_files`'s **docstring and asserts** while removing
+its `def` line. That control's assertions were then executing inside a different
+test, under a different name.
+
+The suite reported **4 passed** and nothing was red — because the assertions
+still ran. The only tell was arithmetic: three tests plus two new ones is five,
+and the run said four. Had the absorbing test later been renamed or removed, the
+vacuity control would have gone with it silently.
+
+So: **after adding tests to a file, count the declarations, not the passes.** A
+merged test is green by construction, and this file's whole subject is checks
+that keep returning success after they have stopped checking.
 """
 
 from __future__ import annotations
@@ -158,6 +174,97 @@ def _template_app_settings() -> set[str]:
     return names
 
 
+def _module_level_functions() -> list[tuple[str, list[str]]]:
+    """Every top-level function in `function_app.py`, with its decorator names.
+
+    Top-level only — `ast.walk` would descend into nested functions, which are
+    not registration candidates and would be reported as undecorated.
+    """
+    tree = ast.parse(FUNCTION_APP.read_text(encoding="utf-8"))
+    out = []
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        names = []
+        for dec in node.decorator_list:
+            func = dec.func if isinstance(dec, ast.Call) else dec
+            names.append(getattr(func, "attr", getattr(func, "id", "")))
+        out.append((node.name, names))
+    return out
+
+
+#: The decorators that make a function an Azure Functions entry point.
+#:
+#: Derived from what the file uses rather than from the SDK's full vocabulary:
+#: this guard's job is to notice a function that has *lost* its trigger, and a
+#: list of triggers nobody uses cannot help with that. A new trigger kind fails
+#: `test_every_entry_point_carries_a_trigger` on the day it is added, which is
+#: the right moment to widen this deliberately rather than by accident.
+TRIGGERS = {"timer_trigger", "route"}
+
+
+def test_every_entry_point_carries_a_trigger() -> None:
+    """A public function here that is not registered is not a function at all.
+
+    `function_app.py` uses one convention throughout: helpers take a leading
+    underscore and no decorators, entry points take `@app.function_name` and
+    exactly one trigger. So a *public* top-level function with no trigger is a
+    registration that will not happen — the app deploys, the function exists,
+    and Azure never calls it.
+
+    This generalises the fault `#266` was written about. There, a function
+    separated from its decorators was caught only because it happened to be a
+    timer the deploy workflow waits for by name. Measured on master, doing the
+    same thing to `newsroom_weekly_now` — the operator route that runs the
+    weekly wrap by hand — left **2135 tests passing**. Nothing watches the
+    routes, and that one is the manual fallback for the timer failing: losing
+    both silently means the recovery path is missing at exactly the moment it is
+    needed.
+    """
+    undecorated = [
+        name
+        for name, decorators in _module_level_functions()
+        if not name.startswith("_") and not (TRIGGERS & set(decorators))
+    ]
+
+    assert not undecorated, (
+        f"{undecorated} are public top-level functions in function_app.py with "
+        f"no trigger decorator ({sorted(TRIGGERS)}). Azure will not register "
+        f"them, so they deploy and are never called. The usual cause is a "
+        f"function separated from its decorators by an edit above it — check "
+        f"the lines immediately preceding the `def` before assuming the "
+        f"function is meant to be a helper. If it is, give it a leading "
+        f"underscore, which is this file's convention for one."
+    )
+
+
+def test_the_helper_convention_is_real_and_not_an_empty_excuse() -> None:
+    """Control on the exclusion above.
+
+    `name.startswith("_")` is doing real work — it is what keeps
+    `_wrap_and_report` and `_run_and_report` out of the assertion. If no such
+    helper existed, the exclusion would be untested and could be silently wrong.
+    """
+    functions = _module_level_functions()
+    helpers = [n for n, _ in functions if n.startswith("_")]
+    entry_points = [n for n, d in functions if not n.startswith("_")]
+
+    assert helpers, (
+        "no underscore-prefixed helpers in function_app.py, so the exclusion in "
+        "the assertion above matches nothing and is untested."
+    )
+    assert entry_points, "no public functions found; the parse is broken"
+    # And the helpers must genuinely be undecorated, or the convention this
+    # relies on has changed and the exclusion is hiding real entry points.
+    for name, decorators in functions:
+        if name.startswith("_"):
+            assert not (TRIGGERS & set(decorators)), (
+                f"{name} is underscore-prefixed and carries a trigger. The "
+                f"convention that lets this guard skip underscored functions no "
+                f"longer holds, so it is now skipping a real entry point."
+            )
+
+
 def test_the_probes_read_real_files() -> None:
     """Control.
 
@@ -171,6 +278,9 @@ def test_the_probes_read_real_files() -> None:
     assert len(_template_app_settings()) >= 10
     assert _workflow_required_timers()
     assert _workflow_settings_pattern()
+    # The entry-point population too, since two of the assertions above this
+    # file's controls now depend on it.
+    assert len(_module_level_functions()) >= 4, _module_level_functions()
 
 
 def test_the_health_check_watches_every_timer_that_exists() -> None:
