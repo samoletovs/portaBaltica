@@ -61,6 +61,10 @@ const LIVE_DIR = resolve('tests');
 const LIVE_CHECKS = new Map<string, string>([
   ['api-contracts.live.test.ts', 'the deployed endpoints answer with the shape the client reads'],
   ['articleMeta.live.test.ts', 'what a social crawler actually receives from the deployed site'],
+  [
+    'correctionsRender.live.test.ts',
+    'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
+  ],
   ['deployRecoveryReal.live.test.ts', 'the deploy-race recovery fires on a real chunk failure, in a real browser'],
   ['functionSecurityHeaders.live.test.ts', 'every deployed route carries the security headers'],
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
