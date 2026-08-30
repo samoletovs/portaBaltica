@@ -20,13 +20,13 @@ from newsroom.pipeline.write.prompts import (
 from newsroom.tests.pipeline.conftest import make_signal
 
 GOOD_PAYLOAD = {
-    "headline": "Latvian unemployment reaches the highest level in the monthly series",
+    "headline": "Latvian unemployment reaches its highest level since 2021",
     "dek": "The July reading sits above every earlier month Eurostat has published.",
     "blocks": [
         {
             "text": (
                 "Latvia's unemployment rate reached 6.8% in July, above the previous "
-                "record of 6.5% and the highest in the series."
+                "record of 6.5% and the highest since the series began in 2021."
             ),
             "figures": [
                 {"value": 6.8, "signal_field": "latest_value", "unit": "%", "rendered_as": "6.8%"},

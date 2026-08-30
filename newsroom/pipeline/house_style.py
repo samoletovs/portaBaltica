@@ -328,11 +328,41 @@ _STATES_A_LIMIT = re.compile(
 #: decimal point inside "2.4%" is not a boundary.
 _SENTENCES: Final[re.Pattern[str]] = re.compile(r"(?<=[.!?])\s+")
 
+#: "Within one sentence", written so it survives a decimal point. Plain `[^.]`
+#: stops dead at the "." in "2.4 percent", so the sentences carrying figures --
+#: the ones a record check can least afford to skip -- are exactly the ones it
+#: would miss. `shape_controls` measured it: with `[^.]` the superlative clause
+#: below does not match "the highest 2.4 percent reading in the series".
+_NEAR: Final[str] = r"(?:[^.]|\.(?=\d))"
+
 #: A claim that this is the biggest or smallest reading there has ever been.
+#:
+#: The second alternative is a SUPERLATIVE SCOPED TO THE SERIES, and it is here
+#: rather than in the bound below because of what it does to a sentence. "The
+#: highest in the series" makes exactly the claim "a record high" makes; it
+#: simply never says the word. Published, live, and matched by neither half of
+#: this check before it moved:
+#:
+#:     "This reading is the highest in the series, surpassing the previous
+#:      record of 614..."
+#:
+#: The writer's own prompt already calls the shape BAD -- "A RECORD IS ALWAYS A
+#: RECORD OVER A WINDOW, AND YOU MUST NAME IT" -- so this aligns the check with
+#: guidance that was already correct, rather than inventing a rule.
+#: The optional adjective is not decoration. This repo's own "clean draft"
+#: fixture is headlined "the highest level in the MONTHLY series", which is the
+#: same claim with a word in the way, and it slipped a version of this pattern
+#: that required ``the series`` adjacent. Measured against the published
+#: corpus, admitting one adjective flags **zero** further sentences -- so it
+#: closes a shape the writer demonstrably produces at no cost in reach.
 _CLAIMS_A_RECORD: Final[re.Pattern[str]] = re.compile(
     r"\brecord\s+(?:high|low)\b|\ba\s+record\b|\bset\s+a?\s*record\b|"
     r"\ball[-\s]time\s+(?:high|low)\b|\b(?:highest|lowest)\s+ever\b|"
-    r"\bnever\s+been\s+(?:higher|lower)\b|\bon\s+record\b",
+    r"\bnever\s+been\s+(?:higher|lower)\b|\bon\s+record\b|"
+    r"\b(?:highest|lowest|largest|smallest|biggest|strongest|weakest|"
+    r"greatest|peak|record)\b" + _NEAR + r"{0,40}?"
+    r"\b(?:in|of|for|across|anywhere\s+in|throughout)\s+"
+    r"(?:the|this|its)\s+(?:\w+[-\s])?(?:series|record|history)\b",
     re.IGNORECASE,
 )
 
@@ -345,11 +375,24 @@ _CLAIMS_A_RECORD: Final[re.Pattern[str]] = re.compile(
 #: an early version admitted ``\breadings?\b``, and "this is the highest ever
 #: READING for the metric" then bounded itself with the word for the thing
 #: being counted. A window is how many or since when, never merely what.
+#:
+#: That member was removed and its siblings were not. ``in the series``,
+#: ``series began`` and ``since the series`` all named the thing rather than
+#: the window, so "this is an all-time high IN THE SERIES" bounded itself with
+#: the very phrase that makes the claim -- the same defect the paragraph above
+#: describes, surviving three lines below its own description. They are gone,
+#: and the superlative form now reads as a claim instead.
+#:
+#: The date alternative asks for a year near a word that OPENS a window, not
+#: for the literal token "since": measured against the published corpus, a
+#: narrower version rejected three sentences that do name their window --
+#: "which began in August 2021", "since it began in 2014-Q1". Naming the window
+#: is the rule; "since" is one way of saying it.
 _BOUNDS_THE_RECORD: Final[re.Pattern[str]] = re.compile(
-    r"\bsince\s+\w*\s*\d{4}\b|\bsince\s+(?:the\s+)?(?:series|records?\s+began)\b|"
     r"\b\d[\d,]*\s+(?:observations?|readings?|quarters?|months?|years?|weeks?)\b|"
     r"\b\d+[-\s](?:quarter|year|month|week|day)\b|"
-    r"\b(?:of|in)\s+(?:this|the)\s+series\b|\bseries\s+began\b",
+    r"\b(?:since|began|beginning|begins|start(?:s|ed|ing)?)\b"
+    + _NEAR + r"{0,24}?\d{4}\b",
     re.IGNORECASE,
 )
 

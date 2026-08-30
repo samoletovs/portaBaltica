@@ -275,3 +275,131 @@ class TestThePromptTeachesTheSameRule:
         flat = re.sub(r"\s+", " ", prompts._SYSTEM_TEMPLATE)
 
         assert 'REQUIRED PHRASE: "record high" or "record low"' not in flat
+
+class TestTheClaimMayNotBoundItself:
+    """The phrase that makes the claim is not the phrase that qualifies it.
+
+    ``_BOUNDS_THE_RECORD`` carried a paragraph explaining that an early version
+    admitted ``\breadings?\b``, so "the highest ever READING for the metric"
+    bounded itself with the word for the thing being counted. That member was
+    removed; ``in the series``, ``series began`` and ``since the series`` were
+    not, and they say the same thing. **The correct sibling concealed the
+    broken one**: a reader who checks whether self-bounding is understood finds
+    the paragraph, sees that it is, and stops three lines above the defect.
+
+    Measured on the published corpus: this and the sibling below newly flag 12
+    sentences across 11 of 34 generated articles, and un-flag none. All 12 were
+    read; every one is an unbounded record claim.
+    """
+
+    def test_in_the_series_no_longer_bounds_a_record(self):
+        """OBSERVED, live: "This is an all-time high in the series." passed."""
+        unbounded = "This is an all-time high in the series."
+        bounded = "This is an all-time high in the 48 observations since 2014-Q1."
+
+        assert record_claim_problems(unbounded, where="body[1]"), (
+            "'in the series' is the claim, not the window"
+        )
+        assert record_claim_problems(bounded, where="body[1]") == [], (
+            "control: naming the window must still pass, or the rule is a ban "
+            "on record claims rather than a rule about bounding them"
+        )
+
+    def test_the_other_self_bounding_spellings(self):
+        for unbounded in (
+            "It is a record high in the series.",
+            "It is a record high of the series.",
+            "It is a record high since the series began.",
+            "It is a record high, the largest in the record.",
+        ):
+            assert record_claim_problems(unbounded, where="body[1]"), unbounded
+
+    def test_a_named_window_still_bounds_it_however_it_is_phrased(self):
+        """The companion that keeps the rule from becoming a ban.
+
+        A first version of this change asked for the literal token ``since``
+        followed by a year, and rejected three corpus sentences that DO name
+        their window — the wording simply differs. Naming the window is the
+        rule; "since" is one way of saying it.
+        """
+        for bounded in (
+            "The lowest reading anywhere in the series, which began in August 2021.",
+            "This reading is the highest in the series since it began in 2014-Q1.",
+            "The highest in the 39 observations since the series began in 2016-Q3.",
+            "It is a record high in the 48 observations since 2014-Q1.",
+        ):
+            assert record_claim_problems(bounded, where="body[1]") == [], bounded
+
+
+class TestABareSuperlativeIsARecordClaim:
+    """"The highest in the series" makes the claim without the word.
+
+    OBSERVED, live, 2026-08-29 — matched by NEITHER half, so it was not a claim
+    to be bounded and not a bound to be checked::
+
+        "This reading is the highest in the series, surpassing the previous
+         record of 614..."
+
+    A word list encodes your examples; this encodes the rule, which is that a
+    superlative scoped to the series is a claim about all of history and the
+    series is only the slice we fetched.
+    """
+
+    def test_the_published_sentence_is_caught(self):
+        unbounded = (
+            "This reading is the highest in the series, surpassing the previous "
+            "record of 614 cars per thousand inhabitants."
+        )
+        bounded = (
+            "This reading is the highest in the 48 observations since 2014-Q1, "
+            "surpassing the previous record of 614 cars per thousand inhabitants."
+        )
+
+        assert record_claim_problems(unbounded, where="body[1]")
+        assert record_claim_problems(bounded, where="body[1]") == []
+
+    def test_every_superlative_that_scopes_itself_to_the_series(self):
+        for word in ("highest", "lowest", "largest", "smallest", "biggest", "peak"):
+            text = f"This is the {word} anywhere in the series."
+            assert record_claim_problems(text, where="body[1]"), text
+
+    def test_an_adjective_does_not_hide_the_scope(self):
+        """This repo's own clean-draft fixture was headlined "the highest level
+        in the MONTHLY series" — the same claim with a word in the way — and it
+        slipped a version of this rule that wanted ``the series`` adjacent.
+
+        The fixture is the evidence that the shape occurs: no one wrote it to
+        make a point, a writer produced it and it was kept as an example of
+        copy that passes. Measured on the published corpus, admitting one
+        adjective flags zero further sentences.
+        """
+        unbounded = "Latvian unemployment reaches the highest level in the monthly series."
+        bounded = "Latvian unemployment reaches the highest level in the monthly series since 2021."
+
+        assert record_claim_problems(unbounded, where="headline")
+        assert record_claim_problems(bounded, where="headline") == []
+
+    def test_a_superlative_across_the_neighbours_is_not_a_record_claim(self):
+        """The false positive this must not have, and the reason the pattern
+        names the SCOPE rather than the superlative.
+
+        A comparison across peers at one moment needs no time window — it is
+        bounded by the peer group it names. Catching these would fire on
+        ordinary correct reporting, and the wire produces them constantly:
+        "how the other Baltic states stand" is item 3 of the writer's plan.
+        """
+        for ok in (
+            "Latvia has the highest energy inflation among the Baltic states.",
+            "Riga handled the largest share of containerised cargo of the three ports.",
+            "Estonia reported the lowest rate of the Baltic three in the same quarter.",
+            "Energy costs are the biggest single line in a household budget.",
+        ):
+            assert record_claim_problems(ok, where="body[1]") == [], ok
+
+    def test_the_scope_clause_survives_a_decimal_point(self):
+        """`[^.]` stops at the "." in "2.4 percent", so the sentences carrying
+        figures — the ones this can least afford to skip — would be exactly the
+        ones it missed. `_NEAR` exists for this and nothing else."""
+        text = "This is the highest 2.4 percent reading in the series."
+
+        assert record_claim_problems(text, where="body[1]"), text
