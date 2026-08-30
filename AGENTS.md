@@ -1200,6 +1200,96 @@ still hold with one more label in play?"* Only the second finds this. In the
 author's words: **the tests enumerated the functions I edited, not the
 invariants I disturbed.**
 
+## A count is safe or unsafe according to what the sentence does with it
+
+The section above treats `detect_record_extreme` as *the* right version of a
+count in prose. It is *a* right version, and reading it that way costs you the
+other two — and hides the one shape that is actually dangerous.
+
+Every detector that puts a count into prose was read for one question: **does
+this sentence claim something a hole falsifies?** Seven detectors, six of which
+emit a count, and the answer separates into three mechanisms rather than a rule
+about counting:
+
+| Detector | The count | What the sentence claims | Why it holds |
+|---|---|---|---|
+| `detect_threshold_cross` | none | — | nothing to be wrong |
+| `detect_record_extreme` | `len(series)` | *"across 14 **observations** since 1999"* | **no time unit** |
+| `detect_sharp_move` | `len(deltas)` | *"across 15 **readings** since ⟨first period⟩"* | **no time unit** |
+| `detect_seasonal_deviation` | `len(baseline)` | *"the **four-year** average"* | **cardinality** |
+| `detect_divergence` | `len(historical)` | *"the 21 earlier **quarters all of them report**"* | **cardinality** |
+| `detect_structural_divergence` | `window` | *"the 8 earliest **quarters all of them report, from 2010-Q1 to 2014-Q2**"* | **cardinality + range** |
+| `detect_streak` | `run` | *"four **consecutive monthly** moves"* | **contiguity, enforced** |
+
+The three are not equally cheap. Claiming no unit and claiming a cardinality are
+true *by construction* — a hole cannot falsify "14 observations" or "four years
+contributed". `detect_streak` makes the one claim a hole does falsify, and pays
+for it: `_adjacent` breaks the run rather than counting across a gap. **That is
+the only entry here where the guarantee lives in the loop instead of in the
+wording**, and it is the expensive way to be right.
+
+Four of the seven have been wrong at some point, all in the same direction —
+understating — and all by asserting a span or a position from a count of
+whatever survived a filter. Two of the four reached readers; two were caught
+before they could:
+
+```
+SHIPPED  detect_streak                "four consecutive monthly moves"     5 readings / 10 months
+SHIPPED  detect_sharp_move            "over the preceding 14 quarters"     15 readings / 19 quarters
+LATENT   detect_structural_divergence "the first 8 quarters of the series" 8 readings / 17 years
+LATENT   detect_divergence            "the 9 earlier years in the series"  9 of the series' 18
+```
+
+The two marked LATENT never rendered those sentences: neither detector fires on
+a gapped group today, so the figures beside them are what the corpus *would*
+have produced, measured from the intersections rather than from an article.
+
+**Cardinality is the better repair, not the defensive one.** "Claim no unit" is
+always available and always true, and it is why `detect_record_extreme` was
+held up as the model — but it forfeits the informative sentence. *"The four-year
+average"* tells a reader more than *"the average of four observations"*, and it
+is exactly as true. Reach for the neutral noun when the count really is of rows;
+reach for a cardinality when the count really is of years, and say what
+qualified them.
+
+Two measurements, because the interesting half is which of these were live:
+
+| Swept | Result |
+|---|---|
+| `len(baseline)` ≠ distinct contributing years | **0 of 10,558** (period, baseline) pairs, 282 series |
+| Published seasonal articles with a false count | **0 of 10** |
+| Multi-country intersections that are gapped | **5 of 78** groups, 288 series |
+| …gapped enough to misstate the window | **3** — worst `hourly_labour_cost`, 8 readings spanning **17 years** |
+| Published divergence articles that are wrong | **0 of 84** |
+
+So both divergence faults were latent. That is the normal case for this fault
+and the reason it survives: the corpus has to be gapped *at the point the
+sentence indexes*, which is rarer than being gapped at all.
+
+### A lexical sweep for this cannot find it
+
+The first pass swept with `ast` for a time-unit word in an f-string
+interpolating a `len()`. It reported **one** hit — and that hit turned out to be
+one of the safe ones, while both genuinely broken sentences were invisible to
+it:
+
+- `detect_structural_divergence` interpolates `window`, a **parameter** with a
+  default of 8. There is no `len()` to match.
+- Both divergence bases get their time word from **`reading_word(...)` at
+  runtime**. There is no literal `"quarters"` in the source to match.
+
+That is *a word list encodes your examples; a structure encodes your rule*, one
+level up in the tooling: the sweep encoded the two instances this file already
+described, so it found a third of that shape and missed two of another. The
+property has to be **read for**, across every site, and seven functions is an
+afternoon. Do not trust the one-liner — it is in the programme log precisely so
+the next person does not.
+
+**And the file's own rule predicted the worse of the two.** `common[:window]`
+indexes a *filtered* list by position, which is the case *a hole needs a guard
+where the consumer indexes by position* names as dangerous. That rule had never
+been pointed at the detectors.
+
 ## The answer was already computed, and the seam dropped it
 
 Three faults found on 2026-08-28 were the same shape, and it is not one any
