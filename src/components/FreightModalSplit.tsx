@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '../ThemeContext';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { freshnessOf, formatPeriod } from '../dataFreshness';
+import { FreshnessNotice } from './FreshnessNotice';
+import { freshnessLabelColor } from './freshnessStyle';
 
 /**
  * How much of each country's inland freight goes by rail.
@@ -146,7 +148,7 @@ export function FreightModalSplit({ compact = false }: { compact?: boolean }) {
         </p>
         <span
           className="text-caption"
-          style={{ color: freshness?.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+          style={{ color: freshnessLabelColor(freshness) }}
         >
           {dateline}
         </span>
@@ -155,11 +157,7 @@ export function FreightModalSplit({ compact = false }: { compact?: boolean }) {
         Tonne-kilometres by rail as a share of rail plus road
       </p>
 
-      {freshness?.stale && (
-        <p className="text-caption mb-4" style={{ color: 'var(--data-warning)' }}>
-          This series has published nothing newer than {formatPeriod(freshness.period)}.
-        </p>
-      )}
+      <FreshnessNotice freshness={freshness} className="mb-4" />
 
       <div className="space-y-4" role="img" aria-label={`Rail share of inland freight: ${description}`}>
         {splits.map((s) => (

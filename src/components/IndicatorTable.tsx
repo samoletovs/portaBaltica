@@ -9,6 +9,7 @@ import { fetchBalticCompare } from '../api';
 import { changeDescription, polarityOf, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod } from '../dataFreshness';
+import { freshnessLabelColor } from './freshnessStyle';
 import { DownloadMenu } from './DownloadMenu';
 
 const EUROSTAT_MAP: Record<string, string> = {
@@ -235,13 +236,15 @@ export function IndicatorTable() {
               {freshness && (
                 <span
                   className="block text-caption font-mono"
-                  style={{ color: freshness.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+                  style={{ color: freshnessLabelColor(freshness) }}
                 >
                   {formatPeriod(freshness.period)}
-                  {freshness.stale && (
+                  {freshness.late && (
                     <span className="sr-only">
                       {' '}
-                      — this series has published nothing newer.
+                      {freshness.stale
+                        ? '— this series has published nothing newer.'
+                        : '— later than usual for this series.'}
                     </span>
                   )}
                 </span>

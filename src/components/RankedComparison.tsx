@@ -5,6 +5,8 @@ import { formatValue } from '../utils/formatValue';
 import { sentimentColor, signed, type Sentiment } from '../utils/polarity';
 import { rank, COUNTRY_NAMES } from '../utils/rankBaltic';
 import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
+import { FreshnessNotice } from './FreshnessNotice';
+import { freshnessLabelColor } from './freshnessStyle';
 
 /**
  * Three countries, latest value, ranked.
@@ -142,17 +144,13 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
         {coverage && (
           <span
             className="text-caption font-mono"
-            style={{ color: freshness?.stale ? 'var(--data-warning)' : 'var(--text-tertiary)' }}
+            style={{ color: freshnessLabelColor(freshness) }}
           >
             {coverage.label}
           </span>
         )}
       </div>
-      {freshness?.stale && (
-        <p className="text-caption mb-1" style={{ color: 'var(--data-warning)' }}>
-          This series has published nothing newer than {formatPeriod(freshness.period)}.
-        </p>
-      )}
+      <FreshnessNotice freshness={freshness} className="mb-1" />
       <p className="text-caption mb-3" style={{ color: 'var(--text-tertiary)' }}>
         {bestIsHigh ? 'Highest first' : 'Lowest first'}
         {displayUnit ? ` · ${displayUnit}` : ''}
