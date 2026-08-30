@@ -103,6 +103,26 @@ export function GridStatePanel() {
   const [data, setData] = useState<LiveGridData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // The clock the two ages and the retrieval banner are all derived from.
+  //
+  // In state rather than read during render, and not merely to satisfy
+  // `react-hooks/purity`. `Date.now()` in a render body is an age captured at
+  // a moment nobody controls: React may re-render for any reason, so the value
+  // changes with no state having changed, and stops changing when nothing
+  // happens to repaint. That is the same fault this panel exists to correct one
+  // layer out -- `readAgoMs` was a relative age frozen into a cached body, and
+  // this would be a relative age sampled at an arbitrary one.
+  //
+  // An age that decays needs a re-render to decay, so the tick IS the feature.
+  // Sixty seconds because every figure here is rendered in whole minutes or in
+  // hours; a faster tick would repaint without changing a digit.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     fetchLiveGrid()
@@ -214,9 +234,6 @@ export function GridStatePanel() {
   const renewable =
     typeof data.renewableLatest?.share === 'number' ? data.renewableLatest : null;
 
-  // One clock for the whole render, so the two ages and the banner cannot
-  // disagree by the milliseconds between three separate calls.
-  const now = Date.now();
   const retrieval = retrievalState(data.fetchedAt, now);
 
   return (
