@@ -12,6 +12,8 @@ import { describeSeries } from '../utils/chartAccessibility';
 import { list } from '../utils/payload';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod as formatPeriodLabel } from '../dataFreshness';
+import { FreshnessNotice } from './FreshnessNotice';
+import { judgementWithheld } from './freshnessStyle';
 import { DownloadMenu } from './DownloadMenu';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
@@ -107,20 +109,11 @@ function freshnessOfSeries(series: TimeSeriesPoint[]) {
 }
 
 /**
- * The one sentence the site uses for a series that has stopped.
- *
- * Byte-identical to `BalticCompareChart.tsx`, deliberately. Two surfaces
- * inventing two vocabularies for one condition is how a design system dies, and
- * a reader who meets "nothing newer than" on a chart and "out of date" on a
- * card has to work out whether those are the same claim.
+ * The freshness sentence lives in `FreshnessNotice.tsx`, shared by the five
+ * surfaces that show one. It used to be a local `StaleNotice` here, byte-
+ * identical to `BalticCompareChart`'s copy on purpose; two conditions and five
+ * surfaces is where hand-maintained identity stops being viable.
  */
-function StaleNotice({ period, className = '' }: { period: string; className?: string }) {
-  return (
-    <p className={`text-caption ${className}`.trim()} style={{ color: 'var(--data-warning)' }}>
-      This series has published nothing newer than {formatPeriodLabel(period)}.
-    </p>
-  );
-}
 
 export function IndicatorCard({ id, title, unit, loading: externalLoading }: IndicatorCardProps) {
   const gradientId = useId();
@@ -255,7 +248,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   // judgement ("this is favourable"), and applying it to a change that stopped
   // years ago is the same fault as colouring by raw direction, which
   // `polarity.ts` exists to prevent. See the note on the delta below.
-  const changeColor = freshness?.stale ? 'var(--text-secondary)' : sentimentColor(sentiment);
+  const changeColor = judgementWithheld(freshness) ? 'var(--text-secondary)' : sentimentColor(sentiment);
   const displayUnit = data.unit || unit; // prefer API-returned unit
   const fmt = (v: number | null) => formatValue(v, displayUnit);
   const note = polarityNote(id);
@@ -272,7 +265,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   // reason and to keep the card one object: a green sparkline beside a grey
   // delta would be two answers to one question.
   const areaColor =
-    sentiment === 'none' || freshness?.stale
+    sentiment === 'none' || judgementWithheld(freshness)
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -338,7 +331,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
                 with two answers. */}
             <span className="sr-only">
               {' '}
-              {freshness?.stale
+              {judgementWithheld(freshness)
                 ? `${isRise ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
                 : changeDescription(id, summary.change)}
             </span>
@@ -421,7 +414,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         </p>
       )}
 
-      {freshness?.stale && <StaleNotice period={freshness.period} className="mt-1" />}
+      <FreshnessNotice freshness={freshness} className="mt-1" />
     </button>
   );
 }
@@ -573,7 +566,7 @@ export function IndicatorChart({
   const sentiment = sentimentOf(id, summary.change);
   const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
   const color =
-    sentiment === 'none' || freshness?.stale
+    sentiment === 'none' || judgementWithheld(freshness)
       ? chartColors.seriesDefault
       : sentiment === 'positive'
         ? chartColors.positive
@@ -693,7 +686,7 @@ export function IndicatorChart({
                 ? '0.00'
                 : 'N/A'
           }
-          sentiment={freshness?.stale ? 'none' : sentiment}
+          sentiment={judgementWithheld(freshness) ? 'none' : sentiment}
         />
         <StatBox label="Min" value={fmt(summary.min)} />
         <StatBox label="Max" value={fmt(summary.max)} />
@@ -707,7 +700,7 @@ export function IndicatorChart({
           this source line in its preamble. */}
       {/* Above the source line rather than below it, so the caveat reaches the
           reader before the attribution that would otherwise reassure them. */}
-      {freshness?.stale && <StaleNotice period={freshness.period} className="mt-3" />}
+      <FreshnessNotice freshness={freshness} className="mt-3" />
 
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-3">
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
@@ -715,7 +708,7 @@ export function IndicatorChart({
           {summary.change !== null && summary.change !== 0 && (
             <span className="sr-only">
               . Latest change is{' '}
-              {freshness?.stale
+              {judgementWithheld(freshness)
                 ? `${summary.change > 0 ? 'up' : 'down'} as of ${formatPeriodLabel(freshness.period)}, the last reading published`
                 : changeDescription(id, summary.change)}
               .
