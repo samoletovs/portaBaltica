@@ -56,6 +56,35 @@ same 12 names.
 
 Until then, these assertions fail on the day either list stops matching its
 population, in either direction.
+
+EACH DIRECTION IS REPORTED SEPARATELY, AND THAT IS THE POINT
+------------------------------------------------------------
+The first version of this file asserted a bare equality per pair. That is one
+artefact for two faults which call for **opposite** responses, and the failure
+found it within hours of merging.
+
+Reviewing `#264`, the manager planted a third timer by inserting it immediately
+above `async def newsroom_weekly` — which put the new function between
+`newsroom_weekly` and its own decorators, reassigning them. The guard went red,
+correctly, and reported:
+
+    waits for  [newsroom_edition, newsroom_weekly]
+    declares   [newsroom_edition, newsroom_monthly]
+
+…under a message that explained only the *declared-but-not-watched* case. The
+real fault was the other one: `newsroom_weekly` had silently stopped being a
+timer. It still exists, still deploys, and would never fire again.
+
+**Following the message would have made it worse.** A reader adds
+`newsroom_monthly` to `required=`, sees it still red, removes `newsroom_weekly`
+— and the suite goes green with the weekly newsroom dead. The check written to
+notice a timer that stops publishing would have been edited into blessing one.
+
+So the two directions carry different text now, and the vanished-timer message
+says *do not resolve this by editing the workflow list* in as many words. The
+same split applies to the settings pair, where the asymmetry is the reverse: a
+setting the grep cannot see narrows the check silently, while a spurious match
+fails the deploy loudly and gets noticed.
 """
 
 from __future__ import annotations
@@ -145,16 +174,40 @@ def test_the_probes_read_real_files() -> None:
 
 
 def test_the_health_check_watches_every_timer_that_exists() -> None:
-    """The list has drifted once already; this is what notices the next time."""
+    """The list has drifted once already; this is what notices the next time.
+
+    The two directions are reported separately, and that is not tidiness. A bare
+    inequality is one artefact for two faults that call for opposite responses,
+    and the natural reading of "these lists differ" is the benign one — so a
+    reader steered wrong here fixes the symptom and buries the cause.
+    """
     declared = _declared_timers()
     watched = _workflow_required_timers()
 
-    assert watched == declared, (
-        f"newsroom-ci.yml waits for {sorted(watched)} after a publish and "
-        f"function_app.py declares {sorted(declared)}. A timer that is not "
-        f"waited for can fail to register with the deploy still green, and the "
-        f"only symptom is that a cadence quietly stops publishing — a week of "
-        f"silence for the weekly, which is how #108's absence went unnoticed."
+    unwatched = sorted(declared - watched)
+    vanished = sorted(watched - declared)
+
+    assert not vanished, (
+        f"newsroom-ci.yml waits for {vanished} after a publish and "
+        f"function_app.py no longer declares {'it' if len(vanished) == 1 else 'them'} "
+        f"as a timer. **Do not resolve this by editing the workflow list.** A "
+        f"timer named here and absent from the app is either a rename, a "
+        f"removal, or — the case that produced this message the first time — a "
+        f"function that has been separated from its decorators, so it still "
+        f"exists, still deploys, and is silently no longer a timer at all. "
+        f"Removing the name would make this test green while that cadence stops "
+        f"publishing, which is the exact failure the check exists to catch. "
+        f"Confirm the function still carries @app.timer_trigger before "
+        f"concluding it was meant to go."
+    )
+
+    assert not unwatched, (
+        f"function_app.py declares {unwatched} and newsroom-ci.yml does not wait "
+        f"for {'it' if len(unwatched) == 1 else 'them'} after a publish. A timer "
+        f"that is not waited for can fail to register with the deploy still "
+        f"green, and the only symptom is that a cadence quietly stops "
+        f"publishing — a week of silence for the weekly, which is how #108's "
+        f"absence went unnoticed. Add the name to `required=`."
     )
 
 
@@ -178,13 +231,24 @@ def test_the_settings_grep_finds_every_templated_setting() -> None:
     }
     expected = _template_app_settings()
 
-    assert found == expected, (
-        f"the deploy check's grep finds {sorted(found)} and the appSettings "
-        f"array contains {sorted(expected)}. Missing: {sorted(expected - found)}. "
-        f"The pattern is line-anchored and the template is not required to be "
-        f"laid out that way, so a reformatting silently narrows what the deploy "
-        f"verifies. The durable fix is to read the compiled ARM — "
-        f"`az bicep build --file infrastructure/main.bicep --stdout` — whose "
-        f"appSettings entries carry a literal `name`, rather than matching "
-        f"source text at all."
+    invisible = sorted(expected - found)
+    spurious = sorted(found - expected)
+
+    assert not invisible, (
+        f"the deploy check's grep cannot see {invisible}, which the appSettings "
+        f"array declares. The pattern is line-anchored and Bicep does not "
+        f"require that layout, so the check now reports 'every templated setting "
+        f"is deployed' while no longer knowing about "
+        f"{'that setting' if len(invisible) == 1 else 'those settings'}. It "
+        f"narrows silently and keeps returning success. The durable fix is to "
+        f"read the compiled ARM — `az bicep build --file "
+        f"infrastructure/main.bicep --stdout` — whose appSettings entries carry "
+        f"a literal `name`, rather than matching source text at all."
+    )
+
+    assert not spurious, (
+        f"the deploy check's grep matches {spurious}, which are not appSettings "
+        f"entries. This direction fails the deploy loudly rather than quietly, "
+        f"so it will be noticed — but it is noticed *at deploy time*, and the "
+        f"first version of this pattern matched `_LRS` out of a storage SKU."
     )
