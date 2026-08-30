@@ -495,8 +495,16 @@ def detect_divergence(
         comparison_basis=(
             f"the median spread of {units.quantity(typical, sample.unit)} "
             f"between the same countries "
+            # "in the series" attributed the count to the series, which has
+            # more: ``historical`` only takes periods where EVERY country
+            # reported, so for hourly_labour_cost it holds 9 of the series'
+            # 18 years. "The 9 earlier years in the series" says the series
+            # has nine. It has eighteen. Naming the condition instead makes
+            # the count a cardinality of qualifying periods, which is what it
+            # has always actually been.
             f"across the {len(historical)} earlier "
-            f"{reading_word(sample.frequency, len(historical))} in the series"
+            f"{reading_word(sample.frequency, len(historical))} "
+            f"all of them report"
         ),
         score=score,
         section=sample.section,
@@ -684,8 +692,35 @@ def detect_structural_divergence(
         comparison_basis=(
             f"the same countries' average difference of "
             f"{units.quantity(early_gap, sample.unit)} "
-            f"across the first {window} {period_word} "
-            f"of the series"
+            # NOT "the first {window} {period_word} of the series". That reads
+            # as a POSITION in a calendar -- the opening eight quarters -- and
+            # it is built by slicing ``common``, which is an INTERSECTION: a
+            # period missing in any one country drops for all of them. So the
+            # eight readings sliced here can span far more than eight slots,
+            # and the sentence then understates the window in exactly the way
+            # ``detect_sharp_move`` used to.
+            #
+            # Measured over the live corpus -- 288 series, 78 multi-country
+            # groups -- three intersections are gapped enough to matter:
+            #
+            #   hourly_labour_cost   first 8 readings span 17 years
+            #   tourism              first 8 readings span 12 months
+            #   tourism_foreign      first 8 readings span 11 months
+            #
+            # None of the three fires today and no published article is wrong,
+            # so this was latent. It is stated as a CARDINALITY instead -- how
+            # many qualifying periods went in -- with the actual range named
+            # after it, which is true at any gappiness and is also what the
+            # desk wanted when it rejected the vaguer wording that
+            # ``reading_word`` was introduced to fix.
+            #
+            # "from" is load-bearing: ``numeric_scan`` only forgives a bare
+            # year inside an explicit calendar context, so a range introduced
+            # by a comma has its first year read as an undeclarable figure and
+            # the article is blocked. test_basis_declarable.py caught exactly
+            # that on the first attempt at this sentence.
+            f"across the {window} earliest {period_word} all of them report, "
+            f"from {common[0]} to {common[window - 1]}"
         ),
         score=score,
         section=sample.section,
