@@ -399,6 +399,95 @@ describe('the map against what the dashboard actually renders', () => {
         'belongs in DELIBERATELY_NEUTRAL, which the component now honours.',
     ).toEqual([]);
   });
+
+  it('does not describe code that no longer exists as though it does', () => {
+    // `polarity.ts` is the file a reader consults to answer "where is this
+    // decided?", so prose in it is load-bearing in a way a comment usually is
+    // not. After `#261` deleted `RankedComparison`'s prop and both its local
+    // functions, that file still said — present tense — that the component
+    // "takes `higherIsBetter: boolean` and has its own `sentimentOfChange`".
+    //
+    // A reader asking whether the second implementation still exists would have
+    // gone to the authority and been told yes. That is the concealing-sibling
+    // shape inverted: not correct code hiding a fault, but a correct fix hidden
+    // by prose saying it never happened.
+    //
+    // The check is structural rather than a tense inspection, which is not
+    // mechanisable: **an identifier named in backticks in this file's comments
+    // must exist somewhere in the code**, or be declared below as removed. A
+    // symbol that exists is being described; one that does not is being
+    // described *as if* it does. Measured before building it, the noise rate is
+    // 1 in 15 — the one hit was the real defect, so this is a filter with a
+    // signal rather than a rule that fires on prose.
+    //
+    // The declaration is what makes it self-retiring: a name here is a decision
+    // that a piece of history is worth keeping, and the day someone deletes
+    // another export they must either stop naming it or say so.
+    const REMOVED: Record<string, string> = {
+      // Nothing today. `sentimentOfChange` was the entry this rule was written
+      // for and the fix was to stop naming it, which is the better outcome —
+      // the history reads as history without needing the symbol.
+    };
+
+    const source = readFileSync(resolve('src/utils/polarity.ts'), 'utf8');
+    const commentText = [
+      ...(source.match(/\/\*[\s\S]*?\*\//g) ?? []),
+      ...(source.match(/(?:^|[^:])\/\/.*$/gm) ?? []),
+    ].join('\n');
+
+    // Only identifier-shaped things: a backticked `2026-Q1` or `higher-better`
+    // is a value, not a symbol, and nothing should look for it in the code.
+    const named = [...new Set(
+      [...commentText.matchAll(/`([A-Za-z_][A-Za-z0-9_]{3,})`/g)].map((m) => m[1]),
+    )];
+
+    // Control: if the extraction breaks, every assertion below passes over an
+    // empty list — this repository's most reproduced failure.
+    expect(named.length, 'no identifiers parsed out of the comments').toBeGreaterThan(8);
+    expect(named, 'the map itself is named in its own prose').toContain('DELIBERATELY_NEUTRAL');
+
+    // Tokenised once into a Set rather than regex-scanned per identifier.
+    //
+    // The first version joined every file into one string and ran a `\b…\b`
+    // regex per name over it: **5187ms, and it timed out.** That is the exact
+    // shape `tests/suiteDeterminism.test.ts` forbids — my own guard, tripped by
+    // the guard I was writing an hour later. Fifteen lookups against a Set is
+    // the same question asked in a way that does not repeat the walk.
+    const walk = (d: string): string[] =>
+      readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(join(d, e.name)) : /\.tsx?$/.test(e.name) ? [join(d, e.name)] : [],
+      );
+    const identifiers = new Set<string>();
+    for (const p of [...walk(resolve('src')), ...walk(resolve('tests'))]) {
+      const code = readFileSync(p, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      for (const m of code.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) identifiers.add(m[0]);
+    }
+
+    // Control: the tokeniser must have found the vocabulary this file is about,
+    // or every name below reads as dead and the assertion inverts.
+    expect(identifiers.size, 'no identifiers tokenised — the walk is broken').toBeGreaterThan(2000);
+    expect(identifiers.has('sentimentOf'), 'a symbol that certainly exists').toBe(true);
+
+    const dead = named
+      .filter((n) => !identifiers.has(n))
+      .filter((n) => !(n in REMOVED))
+      .sort();
+
+    expect(
+      dead,
+      'this identifier is named in polarity.ts as though it exists and it does not. Either ' +
+        'rewrite the sentence so the history reads as history without naming the symbol, or ' +
+        'add it to REMOVED with what replaced it.',
+    ).toEqual([]);
+
+    // And the other direction, so REMOVED cannot accumulate names that came
+    // back: an entry claiming a symbol is gone while it is in the code is the
+    // same lie pointing the other way.
+    const resurrected = Object.keys(REMOVED).filter((n) => identifiers.has(n));
+    expect(resurrected, 'declared removed, but present in the code').toEqual([]);
+  });
 });
 
 // ─── the phone-width grids ────────────────────────────────────────────────

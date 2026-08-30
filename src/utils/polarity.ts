@@ -76,19 +76,23 @@ const POLARITY: Record<string, Polarity> = {
 
   // Decided here rather than in a JSX prop, which is where these six lived.
   //
-  // `RankedComparison` takes `higherIsBetter: boolean` and has its own
-  // `sentimentOfChange` — a second implementation of this module, driven by a
-  // prop and never consulting the map. All six of its call sites were
-  // `neutral` here while being drawn green-and-red on the page, so the
-  // polarity decision for them was made in three tile files and nothing could
-  // check it.
+  // `RankedComparison` used to take a `higherIsBetter: boolean` and compute its
+  // own sentiment from it — a second implementation of this module, driven by a
+  // prop and never consulting the map. All six of its call sites were `neutral`
+  // here while being drawn green-and-red on the page, so the polarity decision
+  // for them was made in three tile files and nothing could check it.
   //
-  // A boolean also cannot express `neutral`, so `DELIBERATELY_NEUTRAL` was
-  // unreachable by construction for anything that component renders: a future
-  // `<RankedComparison indicator="house_prices" higherIsBetter />` would have
-  // coloured a series this file explicitly declines, and no test here could
-  // see it. `tests/polarityAdmission.test.ts` now requires every such prop to
-  // name an id in this map and to agree with it.
+  // A boolean also could not express `neutral`, so `DELIBERATELY_NEUTRAL` was
+  // unreachable by construction for anything that component rendered:
+  // `house_prices` — declined below, in writing — was spoken as *"up, which is
+  // favourable for this indicator"*, and no test here could see it.
+  //
+  // `#248` moved the six ids here and required the prop to agree with the map;
+  // `#261` then deleted the prop and both local functions, so the component
+  // reads `polarityOf` directly and the abstention reaches it. What survives is
+  // this decision: the six live in the map because that is where a polarity is
+  // decided, and `tests/polarityAdmission.test.ts` asserts that every id that
+  // component ranks is declared here and that no prop returns to override it.
   gdp_per_capita: 'higher-better',
   life_expectancy: 'higher-better',
   rd_spending: 'higher-better',
