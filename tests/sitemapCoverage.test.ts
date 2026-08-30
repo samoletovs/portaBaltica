@@ -473,3 +473,86 @@ describe('every listed URL gets its head in the served bytes', () => {
     expect(all.indexOf('/articles/*')).toBeLessThan(all.indexOf('/'));
   });
 });
+
+describe('the legacy URLs redirect rather than answering 200', () => {
+  /**
+   * Measured against production, 2026-08-29T08:44Z: `/economy` and
+   * `/correspondents` answered HTTP 200 with `canonical=/`. Both are declared
+   * in `main.tsx` as client-side `Navigate` redirects, so a reader lands in the
+   * right place — but a crawler that runs no JavaScript is told the home page
+   * is the canonical version of them, and every inbound link to an old URL
+   * consolidates to `/` rather than to the section it names.
+   *
+   * A 301 at the edge says the thing that is actually true. It also fires
+   * before the SPA loads, which is faster for the reader than a render followed
+   * by a history replacement.
+   *
+   * These stay OUT of the sitemap — the exclusion list in `news-sitemap`
+   * already names them, and a sitemap should list destinations, not the URLs
+   * that point at them.
+   */
+  interface SwaConfig {
+    routes?: { route: string; rewrite?: string; redirect?: string; statusCode?: number }[];
+  }
+  const routes = (): NonNullable<SwaConfig['routes']> =>
+    (JSON.parse(
+      readFileSync(resolve(ROOT, 'public/staticwebapp.config.json'), 'utf-8'),
+    ) as SwaConfig).routes ?? [];
+
+  const LEGACY: [string, string][] = [
+    ['/correspondents', '/newsroom'],
+    ['/correspondents/*', '/newsroom'],
+    ...DASHBOARD_SECTIONS.map((s) => [`/${s}`, `/data/${s}`] as [string, string]),
+  ];
+
+  it.each(LEGACY)('%s redirects permanently to %s', (from, to) => {
+    const rule = routes().find((r) => r.route === from);
+
+    expect(rule, `${from} has no rule`).toBeDefined();
+    expect(rule!.redirect, `${from} destination`).toBe(to);
+    expect(rule!.statusCode, `${from} must be permanent`).toBe(301);
+  });
+
+  it('covers every section the app declares, as an equality', () => {
+    // A section added to `sections.ts` gets a legacy URL for free, because
+    // `main.tsx` routes `/:section` for all of them. If this list were a subset,
+    // the new one would silently keep answering 200 with the wrong canonical.
+    const redirecting = routes()
+      .filter((r) => r.redirect?.startsWith('/data/'))
+      .map((r) => r.route.slice(1))
+      .sort();
+
+    expect(redirecting).toEqual([...DASHBOARD_SECTIONS].sort());
+  });
+
+  it('puts them ahead of the page-shell rules that would otherwise answer 200', () => {
+    // `/*` and the family rewrites both match these paths. SWA takes the first
+    // rule, so a redirect behind them never runs — which is exactly the state
+    // this is fixing.
+    const all = routes().map((r) => r.route);
+
+    for (const [from] of LEGACY) {
+      expect(all.indexOf(from), `${from} is missing`).toBeGreaterThanOrEqual(0);
+      expect(all.indexOf(from), `${from} is behind the catch-all`).toBeLessThan(all.indexOf('/*'));
+      expect(all.indexOf(from), `${from} is behind the shell rules`).toBeLessThan(all.indexOf('/'));
+    }
+  });
+
+  it('does not redirect a destination onto itself', () => {
+    // `/data/economy` must not acquire a rule; a redirect loop would take the
+    // dashboard down and answer 301 forever, which browsers cache.
+    const all = routes().filter((r) => r.redirect).map((r) => r.route);
+
+    for (const route of all) {
+      expect(route.startsWith('/data/'), `${route} would loop`).toBe(false);
+      expect(route).not.toBe('/newsroom');
+    }
+  });
+
+  it('leaves them out of the sitemap, which lists destinations', () => {
+    const excluded = Object.keys(sitemap.NOT_IN_SITEMAP);
+
+    expect(excluded).toContain('/:section');
+    expect(excluded).toContain('/correspondents');
+  });
+});
