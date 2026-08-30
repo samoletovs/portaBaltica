@@ -353,30 +353,28 @@ describe('the map against what the dashboard actually renders', () => {
     // The seam this closes is the one `#240` closed at the other end: a
     // *second implementation* of this module, living in a component.
     //
-    // `RankedComparison` takes `higherIsBetter: boolean` and computes its own
-    // sentiment from it, never calling `polarityOf`. Measured before the fix,
-    // all six of its call sites resolved to `neutral` in the map while being
-    // drawn green-and-red on the page — so the decision was made in three tile
-    // files and no test here could reach it.
+    // `RankedComparison` took `higherIsBetter: boolean` and computed its own
+    // sentiment from it, never calling `polarityOf`. Measured at the time, all
+    // six of its call sites resolved to `neutral` in the map while being drawn
+    // green-and-red on the page — so the decision was made in three tile files
+    // and no test here could reach it.
     //
-    // The sharper half is that a **boolean cannot express `neutral`**. For
-    // anything that component renders, `DELIBERATELY_NEUTRAL` was unreachable
+    // The sharper half was that a **boolean cannot express `neutral`**. For
+    // anything that component rendered, `DELIBERATELY_NEUTRAL` was unreachable
     // by construction: `<RankedComparison indicator="house_prices"
-    // higherIsBetter />` would colour a series this file explicitly declines,
-    // and every polarity test would stay green.
+    // higherIsBetter />` coloured *and spoke as favourable* a series this file
+    // explicitly declines, and every polarity test stayed green.
     //
-    // So the prop is not banned — it is required to *agree with* the map, and
-    // the id is required to be in it. An id that merely defaults to `neutral`
-    // fails, because that is the omission this whole file exists to abolish.
-    const sites: { file: string; id: string; higherIsBetter: boolean }[] = [];
+    // `#248` required the prop to agree with the map. The prop is now gone and
+    // the component reads `polarityOf` directly — so this assertion changes
+    // from "agree with the map" to "**there is no second decision to
+    // disagree**". Both forms are kept below rather than one replacing the
+    // other: the prop must not come back, *and* every id the component renders
+    // must be a declared one, which is the requirement that survives the prop.
+    const sites: { file: string; id: string; markup: string }[] = [];
     for (const { file, text } of componentFiles()) {
       for (const m of text.matchAll(/<RankedComparison[^>]*?indicator="([^"]+)"[^>]*?>/g)) {
-        sites.push({
-          file,
-          id: m[1],
-          // `higherIsBetter` bare is true; `higherIsBetter={false}` is false.
-          higherIsBetter: !/higherIsBetter=\{false\}/.test(m[0]),
-        });
+        sites.push({ file, id: m[1], markup: m[0] });
       }
     }
 
@@ -385,22 +383,20 @@ describe('the map against what the dashboard actually renders', () => {
     expect(sites.length, 'no RankedComparison call sites found — the scan is broken').toBeGreaterThanOrEqual(6);
     expect(sites.map((s) => s.id)).toContain('gdp_per_capita');
 
+    const reintroduced = sites.filter((s) => /higherIsBetter/.test(s.markup)).map((s) => `${s.id} in ${s.file}`);
+    expect(
+      reintroduced,
+      'the polarity is read from the map by the component itself. A prop here is a second ' +
+        'decision about one quantity, and a boolean one cannot express the abstention the ' +
+        'map can.',
+    ).toEqual([]);
+
     const undeclared = sites.filter((s) => !MAPPED.has(s.id)).map((s) => `${s.id} in ${s.file}`).sort();
     expect(
       undeclared,
-      'this indicator is coloured by a prop but is absent from POLARITY, so it defaults to ' +
-        'neutral there while rendering green-and-red here. Declare it in the map — and if it ' +
-        'fails the three-party test, it cannot be rendered by this component at all, because ' +
-        'a boolean has no way to say "neutral".',
-    ).toEqual([]);
-
-    const disagreeing = sites
-      .filter((s) => polarityOf(s.id) !== (s.higherIsBetter ? 'higher-better' : 'lower-better'))
-      .map((s) => `${s.id}: prop says ${s.higherIsBetter ? 'higher' : 'lower'}-better, map says ${polarityOf(s.id)}`)
-      .sort();
-    expect(
-      disagreeing,
-      'the prop and the map are two decisions about one quantity, and they disagree',
+      'this indicator is ranked and coloured here but is absent from POLARITY, so it defaults ' +
+        'to neutral with nobody having decided anything. Declare it — a deliberate abstention ' +
+        'belongs in DELIBERATELY_NEUTRAL, which the component now honours.',
     ).toEqual([]);
   });
 });

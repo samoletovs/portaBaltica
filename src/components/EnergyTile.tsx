@@ -49,7 +49,7 @@ export function EnergyTile() {
           <BalticCompareChart indicator="gas_price_household" title="Gas price (households, 20–200 GJ)" compact />
           {/* Annual, five points. A share that moves a point or two a year is a
               ranking question, not a shape-over-time one. */}
-          <RankedComparison indicator="renewables" title="Renewable energy share" higherIsBetter />
+          <RankedComparison indicator="renewables" title="Renewable energy share" />
           <BalticCompareChart indicator="home_energy_inflation" title="Home energy inflation" compact />
           <BalticCompareChart indicator="admin_prices" title="Administered prices" compact />
           <BalticCompareChart indicator="ghg_emissions" title="Greenhouse gas emissions" compact />
