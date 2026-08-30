@@ -1,4 +1,4 @@
-"""A record that was only a record over our window gets a correction, not a retraction.
+"""A record claim the data does not support gets a correction, not a retraction.
 
 WHY THIS FILE
 -------------
@@ -29,11 +29,32 @@ the metric name — ``prc_hicp_manr``/``CP011`` rather than
 ``prc_hicp_minr``/``FOOD`` — and got a true verdict from a false instrument,
 which is the more dangerous of the two outcomes because nothing about it looks
 wrong.
+
+AND THEN THE SWEEP ASKED ONLY HALF THE QUESTION
+-----------------------------------------------
+Every verdict above answers "is the claim true over the whole series?". None of
+them asks "is it true over the window we actually retrieved?", because the note
+builder assumed it was — its central sentence said the figure "was the lowest
+only in the N observations that the newsroom had retrieved".
+
+That assumption is a claim about the window, and it was never measured. For the
+rail article, measured 2026-08-30T08:54Z, it is **false**: 4,653 thousand
+passengers was called the highest of the 39 observations we held, and 15 of
+those 39 are higher. The correction drafted from the old builder would have
+published a fresh falsehood inside a correction notice.
+
+So the builder now takes both counts and neither has a default. The two shapes:
+
+    beaten_in_window == 0   a scope error. True over what we held, false over
+                            what exists. `FOOD`.
+    beaten_in_window > 0    not a scope error. False over both, so the notice
+                            names what actually was the extreme in the very
+                            observations the article cited. `RAIL`.
 """
 
 from __future__ import annotations
 
-from newsroom.pipeline.revisions import append_correction, scope_correction_note
+from newsroom.pipeline.revisions import append_correction, record_correction_note
 
 #: The one article the measurement condemned, with its real numbers. Measured
 #: 2026-08-29T10:23Z against `prc_hicp_minr?coicop18=FOOD&unit=RCH_A&geo=LV`,
@@ -44,17 +65,55 @@ from newsroom.pipeline.revisions import append_correction, scope_correction_note
 FOOD = dict(
     claim='Latvia\'s food inflation had dropped to a "record low" of -2% in July 2026',
     window="60 observations since 2021-08",
+    window_start="2021-08",
     series_start="1997-01",
     true_extreme="-3.7%",
     true_period="2010-02",
-    beaten=3,
+    beaten_in_window=0,
+    beaten_in_series=3,
     claims_low=True,
+)
+
+#: The second condemned article, and a DIFFERENT SHAPE of wrong. Measured
+#: 2026-08-30T08:54Z against `rail_pa_quartal?unit=THS_PAS&geo=LV`, the URL in
+#: the article's own provenance, with `lastTimePeriod=40` stripped.
+#:
+#: The article said 4,653 thousand passengers was "the highest number of rail
+#: passengers recorded in the 39 observations since the series began in
+#: 2016-Q3". Three separate things are wrong with that:
+#:
+#:   * **15 of those 39 observations are higher** — the highest 6,074 in
+#:     2025-Q3, and both immediately preceding quarters beat it.
+#:   * the series does not begin in 2016-Q3; that is where `lastTimePeriod=40`
+#:     put our window. It begins 2004-Q1, 89 observations.
+#:   * over that series 55 readings are higher, the highest 7,781 in 2006-Q3.
+#:
+#: The first of those is why this fixture exists. `FOOD` is a scope error — the
+#: claim held over what we retrieved and failed over what exists. This one
+#: fails over BOTH, so a notice saying "it was the highest only in the
+#: observations we retrieved" would itself be false.
+RAIL = dict(
+    claim=(
+        "Latvia's 4,653 thousand rail passengers in 2026-Q1 was \"the highest "
+        "number of rail passengers recorded in the 39 observations since the "
+        "series began in 2016-Q3\""
+    ),
+    window="39 observations since 2016-Q3",
+    window_start="2016-Q3",
+    series_start="2004-Q1",
+    true_extreme="7,781 thousand passengers",
+    true_period="2006-Q3",
+    window_extreme="6,074 thousand passengers",
+    window_extreme_period="2025-Q3",
+    beaten_in_window=15,
+    beaten_in_series=55,
+    claims_low=False,
 )
 
 
 class TestTheNoteSaysWhatAReaderNeeds:
     def test_it_names_the_claim_the_window_and_the_truth(self):
-        note = scope_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
+        note = record_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
 
         text = note["description"]
         assert text.startswith("CORRECTED.")
@@ -71,11 +130,165 @@ class TestTheNoteSaysWhatAReaderNeeds:
         MUTATION THIS CATCHES: hardcoding one direction, which prints "higher"
         on a record-low correction and reads as the opposite of the truth.
         """
-        low = scope_correction_note(**FOOD)["description"]
-        high = scope_correction_note(**{**FOOD, "claims_low": False})["description"]
+        low = record_correction_note(**FOOD)["description"]
+        high = record_correction_note(**{**FOOD, "claims_low": False})["description"]
 
         assert "readings are lower" in low and "the lowest being" in low
         assert "readings are higher" in high and "the highest being" in high
+
+
+class TestTheScopeErrorWordingIsPinnedToWhatIsLive:
+    """The `beaten_in_window == 0` branch must stay byte-identical.
+
+    THIS IS NOT STYLE PEDANTRY. `append_correction` de-duplicates on the
+    description, so the text is the idempotency key. Reword this branch by one
+    character and re-running the food correction stops recognising the note
+    already on the article, appends a second near-identical one, and the public
+    log gains a duplicate entry — which is precisely the "corrections log that
+    repeats itself buries the real ones" failure the module warns about.
+
+    The expected string below is not composed here. It was read out of the live
+    article on 2026-08-30T08:56Z, so this asserts against production rather
+    than against a second copy of the same f-string, which would agree with the
+    code by construction and could never fail.
+    """
+
+    #: Read verbatim from
+    #: `articles/latvia-s-food-inflation-drops-to-a-record-low-of-2b7683.json`,
+    #: `corrections[0].description`, applied 2026-08-30T06:43:12Z.
+    LIVE = (
+        "CORRECTED. This article said Latvia's food inflation had dropped to a "
+        '"record low" of -2% in July 2026. It was the lowest only in the 60 '
+        "observations since 2021-08 that the newsroom had retrieved \u2014 not in "
+        "the series, which runs back to 1997-01. Three earlier readings are "
+        "lower, the lowest being -3.7% in 2010-02. The figure itself is "
+        "unchanged and correct; describing it as a record was not, and a record "
+        "claim on this wire now has to name the window it is measured over."
+    )
+
+    def test_the_builder_still_reproduces_the_published_note_exactly(self):
+        assert record_correction_note(**FOOD)["description"] == self.LIVE
+
+    def test_rebuilding_it_is_a_no_op_against_the_live_article(self):
+        """The consequence of the pin above, stated as behaviour.
+
+        MUTATION THIS CATCHES: any reword of the scope branch. The equality
+        test says the string changed; this one says what that costs.
+        """
+        live_document = {"corrections": [{"description": self.LIVE}]}
+
+        assert append_correction(live_document, record_correction_note(**FOOD)) is None
+
+
+class TestAClaimBeatenInsideOurOwnWindow:
+    """`RAIL` — the shape the old single-count builder could not express.
+
+    The old note would have said "it was the highest only in the 39
+    observations since 2016-Q3 that the newsroom had retrieved". Fifteen of
+    those 39 are higher. That sentence is false, and it would have been
+    published inside a correction notice.
+    """
+
+    def test_it_does_not_claim_the_figure_led_our_window(self):
+        """The whole reason this branch exists.
+
+        MUTATION THIS CATCHES: routing a window-beaten claim through the scope
+        wording, which tells the reader it was true of something it was not.
+        """
+        text = record_correction_note(**RAIL)["description"]
+
+        assert "only in the" not in text
+        assert "It was not the highest." in text
+
+    def test_it_names_what_actually_was_the_extreme_in_our_window(self):
+        """A reader told "it was not the highest" immediately asks "then what
+        was?". Answering it in the same breath is the difference between a
+        correction and an admission."""
+        text = record_correction_note(**RAIL)["description"]
+
+        assert "Fifteen of the 39 observations since 2016-Q3" in text
+        assert "6,074 thousand passengers in 2025-Q3" in text
+
+    def test_it_separates_our_window_start_from_the_series_start(self):
+        """The article named 2016-Q3 as the series origin. It is our
+        `lastTimePeriod=40` boundary. Saying so is the transferable part — the
+        next reader of this note learns what went wrong, not just that it did.
+        """
+        text = record_correction_note(**RAIL)["description"]
+
+        assert "does not begin in 2016-Q3" in text
+        assert "newsroom's data window starts" in text
+        assert "but in 2004-Q1" in text
+
+    def test_it_also_gives_the_series_extreme(self):
+        text = record_correction_note(**RAIL)["description"]
+
+        assert "55 readings are higher" in text
+        assert "7,781 thousand passengers in 2006-Q3" in text
+
+    def test_direction_follows_the_claim_here_too(self):
+        """MUTATION THIS CATCHES: hardcoding a direction in the second branch
+        only, which the scope-branch direction test cannot see."""
+        high = record_correction_note(**RAIL)["description"]
+        low = record_correction_note(**{**RAIL, "claims_low": True})["description"]
+
+        assert "It was not the highest." in high and "lower" not in high
+        assert "It was not the lowest." in low and "higher" not in low
+
+    def test_the_figure_still_stands_in_this_shape_too(self):
+        """4,653 is correct — it reproduces exactly from the article's own
+        cube, and the seasonal comparison the piece is actually about is
+        sound. Only the record sentence is wrong."""
+        text = record_correction_note(**RAIL)["description"]
+
+        assert "figure itself is unchanged and correct" in text
+        assert "RETRACTED" not in text
+
+
+class TestTheCountsAreCheckedAgainstEachOther:
+    """The window is a subset of the series, so it cannot contain more
+    counter-examples. When it does, one of the two was measured wrong — and a
+    correction built on a wrong measurement is the one artefact this whole
+    exercise exists to prevent.
+    """
+
+    def test_more_beaten_in_the_window_than_in_the_series_is_refused(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="subset of the series"):
+            record_correction_note(**{**RAIL, "beaten_in_series": 3})
+
+    def test_equal_counts_are_allowed(self):
+        """Every counter-example being inside our window is ordinary: it just
+        means the older history holds none. Refusing it would reject a true
+        measurement."""
+        text = record_correction_note(
+            **{**RAIL, "beaten_in_window": 15, "beaten_in_series": 15}
+        )["description"]
+
+        assert "15 readings are higher" in text
+
+    def test_a_window_beaten_claim_must_name_the_window_extreme(self):
+        """MUTATION THIS CATCHES: letting the second branch build with the
+        extreme missing, which prints "the highest of them being None"."""
+        import pytest
+
+        incomplete = {**RAIL}
+        del incomplete["window_extreme"]
+
+        with pytest.raises(ValueError, match="window_extreme"):
+            record_correction_note(**incomplete)
+
+    def test_negative_counts_are_refused(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="negative"):
+            record_correction_note(**{**FOOD, "beaten_in_series": -1})
+
+    def test_the_scope_branch_needs_no_window_extreme(self):
+        """There was no counter-example in the window, so there is nothing to
+        name. Requiring it would block the shape that is already published."""
+        assert record_correction_note(**FOOD)["description"]
 
     def test_it_says_the_figure_itself_still_stands(self):
         """The -2% is correct and traceable, and is genuinely the lowest of the
@@ -83,7 +296,7 @@ class TestTheNoteSaysWhatAReaderNeeds:
         number was wrong would be a worse artefact than the headline it
         corrects.
         """
-        text = scope_correction_note(**FOOD)["description"]
+        text = record_correction_note(**FOOD)["description"]
 
         assert "figure itself is unchanged and correct" in text
 
@@ -91,13 +304,13 @@ class TestTheNoteSaysWhatAReaderNeeds:
         """The article should have been published — bounded. Calling it
         retracted would say it should not have been, which is false and would
         also remove it from the feeds."""
-        text = scope_correction_note(**FOOD)["description"]
+        text = record_correction_note(**FOOD)["description"]
 
         assert "RETRACTED" not in text
         assert "should not have been published" not in text
 
     def test_one_earlier_reading_reads_as_singular(self):
-        text = scope_correction_note(**{**FOOD, "beaten": 1})["description"]
+        text = record_correction_note(**{**FOOD, "beaten_in_series": 1})["description"]
 
         assert "One earlier reading is lower" in text
         assert "readings are" not in text
@@ -105,9 +318,9 @@ class TestTheNoteSaysWhatAReaderNeeds:
     def test_a_small_count_is_spelled_at_the_head_of_a_sentence(self):
         """A numeral opening a sentence reads as a typo, and this note is the
         one piece of newsroom prose a reader meets while already doubting us."""
-        assert ". Three earlier readings are lower" in scope_correction_note(**FOOD)["description"]
+        assert ". Three earlier readings are lower" in record_correction_note(**FOOD)["description"]
         assert ". 23 earlier readings are lower" in (
-            scope_correction_note(**{**FOOD, "beaten": 23})["description"]
+            record_correction_note(**{**FOOD, "beaten_in_series": 23})["description"]
         )
 
 
@@ -123,7 +336,7 @@ class TestApplyingItWritesOnceAndSaysSo:
     async def test_it_appends_the_note_and_leaves_the_article_servable(self, tmp_path):
         import json
 
-        from newsroom.pipeline.revisions import apply_scope_correction
+        from newsroom.pipeline.revisions import apply_correction_note
         from newsroom.validator import CHECK_NAMES, is_servable
 
         store = self._store(tmp_path)
@@ -140,8 +353,8 @@ class TestApplyingItWritesOnceAndSaysSo:
         }
         (tmp_path / "s.json").write_text(json.dumps(document), encoding="utf-8")
 
-        note = scope_correction_note(**FOOD)
-        updated = await apply_scope_correction(store, "s", note)
+        note = record_correction_note(**FOOD)
+        updated = await apply_correction_note(store, "s", note)
 
         assert updated is not None
         stored = json.loads((tmp_path / "s.json").read_text(encoding="utf-8"))
@@ -163,7 +376,7 @@ class TestApplyingItWritesOnceAndSaysSo:
         """
         import json
 
-        from newsroom.pipeline.revisions import apply_scope_correction
+        from newsroom.pipeline.revisions import apply_correction_note
 
         store = self._store(tmp_path)
         (tmp_path / "s.json").write_text(
@@ -171,8 +384,8 @@ class TestApplyingItWritesOnceAndSaysSo:
             encoding="utf-8",
         )
 
-        note = scope_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
-        await apply_scope_correction(store, "s", note)
+        note = record_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
+        await apply_correction_note(store, "s", note)
 
         entries = json.loads((tmp_path / "corrections.json").read_text(encoding="utf-8"))
         assert len(entries) == 1
@@ -186,17 +399,17 @@ class TestApplyingItWritesOnceAndSaysSo:
     async def test_the_log_is_not_appended_twice_either(self, tmp_path):
         import json
 
-        from newsroom.pipeline.revisions import apply_scope_correction
+        from newsroom.pipeline.revisions import apply_correction_note
 
         store = self._store(tmp_path)
         (tmp_path / "s.json").write_text(
             json.dumps({"slug": "s", "headline": "H", "status": "published"}),
             encoding="utf-8",
         )
-        note = scope_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
+        note = record_correction_note(**FOOD, corrected_at="2026-08-30T06:43:12Z")
 
-        await apply_scope_correction(store, "s", note)
-        await apply_scope_correction(store, "s", note)
+        await apply_correction_note(store, "s", note)
+        await apply_correction_note(store, "s", note)
 
         entries = json.loads((tmp_path / "corrections.json").read_text(encoding="utf-8"))
         assert len(entries) == 1
@@ -207,16 +420,16 @@ class TestApplyingItWritesOnceAndSaysSo:
         happens not to have broken anything yet."""
         import json
 
-        from newsroom.pipeline.revisions import apply_scope_correction
+        from newsroom.pipeline.revisions import apply_correction_note
 
         store = self._store(tmp_path)
         (tmp_path / "s.json").write_text(
             json.dumps({"slug": "s", "status": "published"}), encoding="utf-8"
         )
-        note = scope_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
+        note = record_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
 
-        first = await apply_scope_correction(store, "s", note)
-        second = await apply_scope_correction(store, "s", note)
+        first = await apply_correction_note(store, "s", note)
+        second = await apply_correction_note(store, "s", note)
 
         assert first is not None
         assert second is None
@@ -233,7 +446,7 @@ class TestApplyingItWritesOnceAndSaysSo:
             ).read_text(encoding="utf-8")
         )
         item = schema["properties"]["corrections"]["items"]
-        note = scope_correction_note(**FOOD)
+        note = record_correction_note(**FOOD)
 
         assert set(item["required"]) <= set(note)
         assert set(note) <= set(item["properties"])
@@ -247,7 +460,7 @@ class TestAppendingIsIdempotent:
         MUTATION THIS CATCHES: dropping the duplicate scan, which appends on
         every invocation and is invisible until someone reads the article.
         """
-        note = scope_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
+        note = record_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
         document = {"slug": "x", "status": "published"}
 
         once = append_correction(document, note)
@@ -259,8 +472,8 @@ class TestAppendingIsIdempotent:
     def test_a_genuinely_different_note_still_lands(self):
         """The control for the test above: an idempotence guard that refused
         everything would satisfy it while making corrections impossible."""
-        first = scope_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
-        second = scope_correction_note(
+        first = record_correction_note(**FOOD, corrected_at="2026-08-29T10:00:00Z")
+        second = record_correction_note(
             **{**FOOD, "true_extreme": "-4.9%"}, corrected_at="2026-08-30T10:00:00Z"
         )
 
@@ -274,7 +487,7 @@ class TestAppendingIsIdempotent:
         record."""
         document = {"slug": "x", "corrections": []}
 
-        append_correction(document, scope_correction_note(**FOOD))
+        append_correction(document, record_correction_note(**FOOD))
 
         assert document["corrections"] == []
 
@@ -286,7 +499,7 @@ class TestAppendingIsIdempotent:
         evidence of anything."""
         document = {"corrections": [{"corrected_at": "t", "description": "an earlier note"}]}
 
-        updated = append_correction(document, scope_correction_note(**FOOD))
+        updated = append_correction(document, record_correction_note(**FOOD))
 
         assert updated is not None
         assert updated["corrections"][0]["description"] == "an earlier note"
@@ -314,7 +527,7 @@ class TestCorrectingDoesNotUnpublish:
         }
         assert is_servable(document)
 
-        updated = append_correction(document, scope_correction_note(**FOOD))
+        updated = append_correction(document, record_correction_note(**FOOD))
 
         assert updated is not None
         assert updated["status"] == "published"

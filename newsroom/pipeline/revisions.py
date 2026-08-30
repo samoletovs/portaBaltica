@@ -203,18 +203,22 @@ def annotate(document: dict, revision: Revision) -> dict | None:
     return updated
 
 
-def scope_correction_note(
+def record_correction_note(
     *,
     claim: str,
     window: str,
+    window_start: str,
     series_start: str,
     true_extreme: str,
     true_period: str,
-    beaten: int,
+    beaten_in_window: int,
+    beaten_in_series: int,
+    window_extreme: str | None = None,
+    window_extreme_period: str | None = None,
     claims_low: bool = True,
     corrected_at: str | None = None,
 ) -> dict[str, str]:
-    """The public notice for a record that was only a record over our window.
+    """The public notice for a record claim the data does not support.
 
     A DIFFERENT KIND OF WRONG FROM A REVISION
     -----------------------------------------
@@ -223,17 +227,36 @@ def scope_correction_note(
     source moved. This covers the opposite — the source never moved, our
     *figure* is still correct, and what was wrong is the **characterisation**.
 
-    "Latvia's food inflation drops to record low of -2% in July 2026" shipped
-    on a series the collector had cut to 60 observations. The -2% is right, and
-    is genuinely the lowest of those 60. The word "record" is not: the source
-    holds 355 observations back to 1997-01, three of them lower, the lowest
-    being -3.7% in 2010-02.
+    WHY BOTH COUNTS ARE REQUIRED, AND WHY THAT IS THE POINT
+    ------------------------------------------------------
+    This function used to be ``scope_correction_note`` and took one count: how
+    many readings beat the claim **over full history**. It then asserted, in
+    the note it published, that the figure "was the lowest only in the N
+    observations that the newsroom had retrieved". That sentence is an
+    unmeasured claim about the window — and for the rail article it was false.
+    4,653 thousand passengers was called the highest of the 39 observations we
+    held, and **15 of those 39 are higher**. Building the notice with the old
+    signature would have printed a fresh falsehood inside a correction.
+
+    So ``beaten_in_window`` is required and has no default. The count that was
+    silently assumed to be zero is now an argument a caller has to go and
+    measure, which is the only version of this that cannot repeat the mistake.
+    Two counts, two scopes, and the wording follows from them:
+
+    ===================  =============================================
+    ``beaten_in_window``  what the note says
+    ===================  =============================================
+    ``0``                 it held over our window and not over the
+                          series — a scope error
+    ``> 0``               it did not hold even over our window, so
+                          both scopes are named
+    ===================  =============================================
 
     WRITTEN FOR A READER, IN THE ORDER THEY NEED IT
     -----------------------------------------------
-    What we said, then what we could actually see, then what is true, then what
-    still stands. A reader who met the headline needs the correction to name the
-    thing they were told before it names the thing that is so.
+    What we said, then what is actually so, then what still stands. A reader
+    who met the headline needs the correction to name the thing they were told
+    before it names the thing that is true.
 
     ``claims_low`` picks the comparison word. "Three earlier readings are
     beyond it" is vague in a way a correction cannot afford; a low is beaten by
@@ -244,31 +267,92 @@ def scope_correction_note(
     length: both ``is_servable`` and the frontend require ``published``, so
     changing it would delete the page a correction notice exists to be read on.
     """
+    if beaten_in_window < 0 or beaten_in_series < 0:
+        raise ValueError("counts cannot be negative")
+    if beaten_in_window > beaten_in_series:
+        raise ValueError(
+            f"more readings beat the claim over the window ({beaten_in_window}) "
+            f"than over the whole series ({beaten_in_series}); the window is a "
+            "subset of the series, so one of these was measured wrong"
+        )
+
+    superlative = "lowest" if claims_low else "highest"
     lower_or_higher = "lower" if claims_low else "higher"
-    # Spelled at the head of a sentence, where a numeral reads as a typo. Only
-    # the small ones -- "Twenty-three earlier readings" is worse than "23".
-    words = {
-        1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
-        6: "Six", 7: "Seven", 8: "Eight", 9: "Nine",
-    }
-    count = words.get(beaten, str(beaten))
-    plural = "" if beaten == 1 else "s"
-    verb = "is" if beaten == 1 else "are"
-    description = (
-        f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
-        f"It was {'the lowest' if claims_low else 'the highest'} only in the "
-        f"{window.strip().rstrip('.')} that the newsroom had retrieved — not in "
-        f"the series, which runs back to {series_start}. {count} earlier "
-        f"reading{plural} {verb} {lower_or_higher}, the "
-        f"{'lowest' if claims_low else 'highest'} being {true_extreme} in "
-        f"{true_period}. The figure itself is unchanged and correct; describing "
+    opening = f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+    closing_note = (
+        "The figure itself is unchanged and correct; describing "
         "it as a record was not, and a record claim on this wire now has to name "
         "the window it is measured over."
     )
+
+    if beaten_in_window == 0:
+        # The scope error: true over what we held, false over what exists.
+        # This branch is byte-identical to the note already published on
+        # `latvia-s-food-inflation-drops-to-a-record-low-of-2b7683`, and a test
+        # pins it against that live string. Reword it and a re-run appends a
+        # second, near-duplicate correction to a live article, because
+        # `append_correction` de-duplicates on the description.
+        return {
+            "corrected_at": corrected_at or isoformat(utcnow()),
+            "description": (
+                f"{opening}"
+                f"It was the {superlative} only in the "
+                f"{window.strip().rstrip('.')} that the newsroom had retrieved — not in "
+                f"the series, which runs back to {series_start}. "
+                f"{_spelled(beaten_in_series)} earlier "
+                f"reading{_plural(beaten_in_series)} {_verb(beaten_in_series)} "
+                f"{lower_or_higher}, the "
+                f"{superlative} being {true_extreme} in "
+                f"{true_period}. {closing_note}"
+            ),
+        }
+
+    # Not a scope error. The claim fails over our own window as well, so a
+    # notice that only widened the scope would still be telling the reader it
+    # was true of something. Name what actually was the extreme, in the very
+    # observations the article cited.
+    if not window_extreme or not window_extreme_period:
+        raise ValueError(
+            "a claim beaten inside our own window must name what actually was "
+            "the extreme there; pass window_extreme and window_extreme_period"
+        )
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
-        "description": description,
+        "description": (
+            f"{opening}"
+            f"It was not the {superlative}. "
+            f"{_spelled(beaten_in_window)} of the "
+            f"{window.strip().rstrip('.')} that the newsroom had retrieved "
+            f"{_verb(beaten_in_window)} {lower_or_higher}, the {superlative} of "
+            f"them being {window_extreme} in {window_extreme_period}. The series "
+            f"also does not begin in {window_start} — that is where the "
+            f"newsroom's data window starts — but in {series_start}, across "
+            f"which {beaten_in_series} readings are {lower_or_higher} and the "
+            f"{superlative} is {true_extreme} in {true_period}. {closing_note}"
+        ),
     }
+
+
+# Spelled at the head of a sentence, where a numeral reads as a typo. Only the
+# small ones -- "Fifty-five earlier readings" is worse than "55".
+_WORDS = {
+    1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six",
+    7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve",
+    13: "Thirteen", 14: "Fourteen", 15: "Fifteen", 16: "Sixteen",
+    17: "Seventeen", 18: "Eighteen", 19: "Nineteen", 20: "Twenty",
+}
+
+
+def _spelled(n: int) -> str:
+    return _WORDS.get(n, str(n))
+
+
+def _plural(n: int) -> str:
+    return "" if n == 1 else "s"
+
+
+def _verb(n: int) -> str:
+    return "is" if n == 1 else "are"
 
 
 def append_correction(document: dict, note: Mapping[str, str]) -> dict | None:
@@ -296,7 +380,7 @@ def append_correction(document: dict, note: Mapping[str, str]) -> dict | None:
     return updated
 
 
-async def apply_scope_correction(
+async def apply_correction_note(
     store: "ArticleStore", slug: str, note: Mapping[str, str]
 ) -> dict | None:
     """Read the stored article, append the note, write it back, and log it.
@@ -318,7 +402,7 @@ async def apply_scope_correction(
     Separate from the note builder because the two fail differently: composing
     a sentence cannot lose data, and a read-modify-write can. Keeping the write
     here means the note can be reviewed, printed and argued over without any
-    credential being involved, which is how this one was.
+    credential being involved, which is how both of these were.
     """
     document = await store.read_json(f"{slug}.json")
     if not isinstance(document, dict):
@@ -347,7 +431,7 @@ __all__ = [
     "already_recorded",
     "annotate",
     "append_correction",
-    "apply_scope_correction",
+    "apply_correction_note",
     "find_revisions",
-    "scope_correction_note",
+    "record_correction_note",
 ]
