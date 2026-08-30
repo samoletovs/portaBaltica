@@ -77,6 +77,39 @@ export function SystemStatusFooter() {
     status.status === 'healthy' ? 'dash-positive' :
     status.status === 'degraded' ? 'dash-warning' : 'dash-negative';
 
+  /**
+   * The count beside the badge must count what the badge counts.
+   *
+   * The badge is required-only by construction — `AGENTS.md`: "an optional
+   * probe cannot change the verdict". The line beside it rendered
+   * `healthy/total`, the combined figure, so the two answered different
+   * questions using the same visual grammar. Measured on production over five
+   * minutes on 2026-08-30, eight distinct readings past the 60s cache TTL:
+   *
+   *     five of eight showed  "11/12 data sources"  beside  "System healthy"
+   *
+   * — 63%, every one Riga Open Data, which powers nothing. This is not a latent
+   * inconsistency waiting for an outage; it is the ordinary state of the page.
+   *
+   * So the headline reports the required sources, matching the badge, and the
+   * optional ones are named separately only when one of them is not healthy.
+   * Same numbers, two sentences that cannot contradict each other.
+   *
+   * Falls back to the combined pair when the server does not send the split —
+   * absence must not invent a count. Guarded per-field for the reason the
+   * `counts` block above exists: this footer sits outside App's error
+   * boundaries, so one bad read removes the whole page.
+   */
+  const hasSplit =
+    typeof counts.requiredHealthy === 'number' &&
+    typeof counts.requiredTotal === 'number' &&
+    typeof counts.optionalHealthy === 'number' &&
+    typeof counts.optionalTotal === 'number';
+
+  const headlineHealthy = hasSplit ? counts.requiredHealthy! : counts.healthy;
+  const headlineTotal = hasSplit ? counts.requiredTotal! : counts.total;
+  const optionalDown = hasSplit ? counts.optionalTotal! - counts.optionalHealthy! : 0;
+
   // Same defence as `counts` above, for the same reason: the block is rendered
   // only when every figure it prints is actually a number. A payload carrying
   // the key with a null or a string would otherwise render "NaN" beside a
@@ -105,7 +138,16 @@ export function SystemStatusFooter() {
             System {status.status}
           </span>
           <span className="text-caption dash-subtle">
-            {counts.healthy}/{counts.total} data sources · {status.apis?.total ?? '—'} APIs · {status.version}
+            {headlineHealthy}/{headlineTotal} data sources · {status.apis?.total ?? '—'} APIs · {status.version}
+            {optionalDown > 0 && (
+              // Stated, not counted into the headline. An optional source is
+              // reported in words rather than as a second fraction, because two
+              // fractions side by side is the thing that made the original
+              // reading ambiguous. `dash-subtle`, deliberately not a status
+              // colour: DESIGN.md reserves semantic colour for status, and this
+              // is context about something the verdict has already excluded.
+              <> · {optionalDown} optional source{optionalDown === 1 ? '' : 's'} unavailable</>
+            )}
           </span>
         </div>
         <span className="text-caption dash-subtle">{expanded ? '▲' : '▼'}</span>
@@ -133,6 +175,17 @@ export function SystemStatusFooter() {
                           <span className="font-mono" style={{ color: look.dot }}>
                             {look.label}
                           </span>
+                        )}
+                        {/* What it powers, but only when it is not healthy.
+                            The field was served and rendered nowhere; it is the
+                            sentence that tells a reader whether an amber dot
+                            concerns them — "Live grid state panel" against
+                            "Nothing — retained as an availability signal only".
+                            Shown only on a bad state because a healthy source
+                            raises no question that needs answering, and twelve
+                            explanations at all times is a list nobody reads. */}
+                        {check.status !== 'healthy' && check.powers && (
+                          <span className="dash-subtle">— {check.powers}</span>
                         )}
                       </div>
                       <span className="dash-subtle font-mono">
