@@ -207,9 +207,11 @@ def scope_correction_note(
     *,
     claim: str,
     window: str,
+    series_start: str,
     true_extreme: str,
     true_period: str,
     beaten: int,
+    claims_low: bool = True,
     corrected_at: str | None = None,
 ) -> dict[str, str]:
     """The public notice for a record that was only a record over our window.
@@ -222,29 +224,46 @@ def scope_correction_note(
     *figure* is still correct, and what was wrong is the **characterisation**.
 
     "Latvia's food inflation drops to record low of -2% in July 2026" shipped
-    on a series the collector had cut to 60 observations. The -2% is right. The
-    word "record" is not: the source holds 355 observations back to 1997-01,
-    the true minimum is -3.7% in 2010-02, and three earlier readings are lower.
+    on a series the collector had cut to 60 observations. The -2% is right, and
+    is genuinely the lowest of those 60. The word "record" is not: the source
+    holds 355 observations back to 1997-01, three of them lower, the lowest
+    being -3.7% in 2010-02.
 
-    So the note says what was claimed, what the newsroom could actually see,
-    and what is true — in that order, because a reader who met the headline
-    needs the correction to name the thing they were told before it names the
-    thing that is so.
+    WRITTEN FOR A READER, IN THE ORDER THEY NEED IT
+    -----------------------------------------------
+    What we said, then what we could actually see, then what is true, then what
+    still stands. A reader who met the headline needs the correction to name the
+    thing they were told before it names the thing that is so.
+
+    ``claims_low`` picks the comparison word. "Three earlier readings are
+    beyond it" is vague in a way a correction cannot afford; a low is beaten by
+    something *lower* and a high by something *higher*, and the note has to say
+    which.
 
     ``status`` is left alone by the caller for the reason ``annotate`` gives at
     length: both ``is_servable`` and the frontend require ``published``, so
     changing it would delete the page a correction notice exists to be read on.
     """
+    lower_or_higher = "lower" if claims_low else "higher"
+    # Spelled at the head of a sentence, where a numeral reads as a typo. Only
+    # the small ones -- "Twenty-three earlier readings" is worse than "23".
+    words = {
+        1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
+        6: "Six", 7: "Seven", 8: "Eight", 9: "Nine",
+    }
+    count = words.get(beaten, str(beaten))
+    plural = "" if beaten == 1 else "s"
+    verb = "is" if beaten == 1 else "are"
     description = (
         f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
-        f"That was a record only over the data the newsroom had retrieved — "
-        f"{window.strip().rstrip('.')} — and not over the series. The source "
-        f"holds a {true_extreme} reading in {true_period}, and "
-        f"{beaten} earlier reading{'' if beaten == 1 else 's'} "
-        f"{'is' if beaten == 1 else 'are'} beyond the figure we called a record. "
-        "The figure itself is unchanged and correct; the description of it was "
-        "not, and a record claim on this wire now has to name the window it is "
-        "measured over."
+        f"It was {'the lowest' if claims_low else 'the highest'} only in the "
+        f"{window.strip().rstrip('.')} that the newsroom had retrieved — not in "
+        f"the series, which runs back to {series_start}. {count} earlier "
+        f"reading{plural} {verb} {lower_or_higher}, the "
+        f"{'lowest' if claims_low else 'highest'} being {true_extreme} in "
+        f"{true_period}. The figure itself is unchanged and correct; describing "
+        "it as a record was not, and a record claim on this wire now has to name "
+        "the window it is measured over."
     )
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
@@ -277,11 +296,39 @@ def append_correction(document: dict, note: Mapping[str, str]) -> dict | None:
     return updated
 
 
+async def apply_scope_correction(
+    store: "ArticleStore", slug: str, note: Mapping[str, str]
+) -> dict | None:
+    """Read the stored article, append the note, write it back.
+
+    Returns the updated document, or ``None`` when the note is already there —
+    so running it twice is safe and says so, rather than being safe by accident.
+
+    Separate from the note builder because the two fail differently: composing
+    a sentence cannot lose data, and a read-modify-write can. Keeping the write
+    here means the note can be reviewed, printed and argued over without any
+    credential being involved, which is how this one was.
+    """
+    from newsroom.pipeline.publish import ArticleStore  # noqa: F401 — typing only
+
+    document = await store.read_json(f"{slug}.json")
+    if not isinstance(document, dict):
+        raise ValueError(f"{slug}: stored article is not a JSON object")
+    updated = append_correction(document, note)
+    if updated is None:
+        log.info("correction already present on %s; nothing written", slug)
+        return None
+    await store.put_json(f"{slug}.json", updated)
+    log.info("correction appended to %s", slug)
+    return updated
+
+
 __all__ = [
     "Revision",
     "already_recorded",
     "annotate",
     "append_correction",
+    "apply_scope_correction",
     "find_revisions",
     "scope_correction_note",
 ]
