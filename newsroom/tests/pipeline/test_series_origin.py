@@ -303,7 +303,7 @@ class TestPlacementReadsTheOriginNotTheWindow:
     @staticmethod
     def _windowed(values, keep, **kw):
         """A series whose window leads and whose full history does not."""
-        from newsroom.pipeline.detect.series import Observation, TimeSeries, origin_of
+        from newsroom.pipeline.detect.series import TimeSeries, origin_of
 
         from newsroom.tests.pipeline.conftest import series_from
 
