@@ -158,11 +158,22 @@ class RunReport:
         # article written with no peers, no document read and no mechanism is
         # the recitation this pipeline was changed to stop producing, and it is
         # indistinguishable from a good one in every other number here.
+        #
+        # The panel is stage 6b and belongs in this enumeration for exactly the
+        # reason the other three are in it. It was not, for a day: this list
+        # names every enrichment stage and stopped one short of the newest one,
+        # so a run whose every panellist failed reported the same numbers as a
+        # run in which three of them filed four causes each. That is the
+        # population rule collecting on prose — when a stage joins the
+        # vocabulary, the consumers that enumerate the vocabulary are the ones
+        # that go quietly wrong, because they are correct about everything they
+        # already list.
         parts.extend(
             [
                 f"{sum(len(pack.facts) for pack in self.context.values())} context fact(s)",
                 f"{sum(ctx.documents_fetched for ctx in self.research.values())} document(s) read",
                 f"{sum(len(brief.mechanisms) for brief in self.analysis.values())} mechanism(s)",
+                f"{sum(len(panel.hypotheses) for panel in self.panels.values())} candidate cause(s)",
             ]
         )
         parts.extend(
