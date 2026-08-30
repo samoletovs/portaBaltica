@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -284,13 +284,24 @@ describe('GridStatePanel', () => {
     latest: {
       time: '2026-08-26T13:45:00.000Z', kind: 'actual',
       production: 514.78, consumption: 674.78, renewable: 13.74,
-      balance: -160, renewableShare: 2.7,
+      // Null, as production almost always is. This fixture used to set `2.7`
+      // here, which is why nothing caught the panel reading the wrong field for
+      // as long as it did: measured against production, `latest.renewableShare`
+      // is non-null for **1 interval in 45**, and the API measured 44 nulls in
+      // one unbroken run across 763 readings over eight days. Solar is filed a
+      // day at a time, so this is the normal state and not an outage.
+      //
+      // A fixture that is fresher than production cannot fail the way
+      // production does.
+      balance: -160, renewableShare: null,
     },
     meteredTo: '2026-08-26T13:45:00.000Z',
     minutesBehind: 83,
+    // The share the panel can actually stand behind, on its own slower clock.
+    renewableLatest: { share: 2.7, time: '2026-08-26T01:45:00.000Z', minutesBehind: 803 },
     actual: [
-      { time: '2026-08-26T13:30:00.000Z', kind: 'actual', production: 525.93, consumption: 705.17, renewable: 15.34, balance: -179.24, renewableShare: 2.9 },
-      { time: '2026-08-26T13:45:00.000Z', kind: 'actual', production: 514.78, consumption: 674.78, renewable: 13.74, balance: -160, renewableShare: 2.7 },
+      { time: '2026-08-26T13:30:00.000Z', kind: 'actual', production: 525.93, consumption: 705.17, renewable: 15.34, balance: -179.24, renewableShare: null },
+      { time: '2026-08-26T13:45:00.000Z', kind: 'actual', production: 514.78, consumption: 674.78, renewable: 13.74, balance: -160, renewableShare: null },
     ],
     forecast: [
       { time: '2026-08-26T14:00:00.000Z', kind: 'forecast', production: 664, consumption: 857.9, renewable: 84.5, balance: -193.9, renewableShare: 12.7 },
@@ -397,6 +408,65 @@ describe('GridStatePanel', () => {
     // dropped them altogether.
     expect(document.body.textContent, 'net flow is still readable').toMatch(/Net import/);
     expect(document.body.textContent, 'renewable share is still readable').toMatch(/2\.7/);
+  });
+
+  it('reads the renewable share from the field that carries one', async () => {
+    // The seam this closes. `/api/live-grid` computes two renewable figures:
+    // `latest.renewableShare`, the share AT `meteredTo`, and `renewableLatest`,
+    // the newest interval that actually has one. The panel read the first.
+    //
+    // Solar is filed a day at a time, so the first is null almost always —
+    // measured against production 2026-08-30, **1 of 45 intervals**, one
+    // unbroken trailing run, zero interior holes; the API measured 44 nulls in
+    // 763 readings across eight days. So a reader saw an em-dash under
+    // "Renewable" while a real 53.9% sat one field away, unread by anything in
+    // `src/`.
+    //
+    // The producer had anticipated exactly this and written down why the two
+    // must not be conflated. The consumer read the other one.
+    await renderWith(payload);
+
+    expect(document.body.textContent, 'the share the API can stand behind is not shown')
+      .toMatch(/2\.7/);
+  });
+
+  it('dates the renewable share, because it is on a slower clock', async () => {
+    // And the reason the fix is not simply "read the other field". That figure
+    // was 715 minutes old beside three stats 55 minutes old. Printing it under
+    // the header's "metered to 13:45" would be a 12-hour-old number wearing an
+    // 83-minute-old timestamp — the fault the API separated the fields to avoid.
+    await renderWith(payload);
+
+    const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+
+    expect(text, 'the share is shown without its own age').toMatch(/13\.4 h behind/);
+
+    // The control. The metered clock must still be stated too, or this passes
+    // on a panel that simply relabelled the one timestamp it had.
+    expect(text, 'the metered clock is gone').toMatch(/83 min behind/);
+  });
+
+  it('says which kind of emptiness, when there is no share at all', async () => {
+    // A bare em-dash is two states wearing one symbol — "no reading" and "no
+    // renewables generated" — and on a grid panel a reader could believe the
+    // second. Both `absent` and `null` mean nothing to show, and both must say
+    // so rather than render a dash alone.
+    // Each case is rendered in its own `it`-scoped cleanup, because
+    // `renderWith` mounts into the document body and three mounts leave three
+    // panels for `findByText` to match. The failure that taught me this was a
+    // "found multiple elements" from the harness, not from the component.
+    for (const missing of [undefined, null, { share: null, time: null, minutesBehind: null }]) {
+      cleanup();
+      await renderWith({ ...payload, renewableLatest: missing });
+
+      const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+      expect(text, `renewableLatest=${JSON.stringify(missing)} rendered a bare dash`)
+        .toMatch(/not yet filed/);
+
+      // The control, in the same render: the panel is otherwise intact, so a
+      // pass here cannot come from a panel that failed to draw at all.
+      expect(text, 'the panel did not render').toMatch(/Estonian grid/);
+    }
   });
 
   it('says so plainly when the grid data will not load', async () => {

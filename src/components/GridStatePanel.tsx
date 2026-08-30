@@ -156,6 +156,18 @@ export function GridStatePanel() {
   const firstForecast = rows.findIndex((r) => r.planned !== null);
   if (firstForecast > 0) rows[firstForecast - 1].planned = rows[firstForecast - 1].metered;
 
+  /**
+   * The renewable share the panel can actually stand behind.
+   *
+   * Guarded on the share being a number rather than on the object existing:
+   * `renewableLatest` is absent when no interval in the window carries a share
+   * at all, and null when the API found none — two states the UI treats the
+   * same way, but only because both mean "nothing to show", not because they
+   * are the same fact.
+   */
+  const renewable =
+    typeof data.renewableLatest?.share === 'number' ? data.renewableLatest : null;
+
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
@@ -188,11 +200,53 @@ export function GridStatePanel() {
           </p>
         </div>
         <div>
+          {/* Reads `renewableLatest`, not `latest.renewableShare`, and states
+              its own age — the two are on different clocks and the panel has to
+              say which.
+
+              `latest.renewableShare` is the share AT `meteredTo`, and solar is
+              filed a day at a time, so it is null for almost every interval
+              served: measured 2026-08-30, **1 of 45**, one unbroken trailing
+              run, zero interior holes. The API measured the same shape over 763
+              readings across eight days. So this box rendered a bare em-dash
+              essentially always, while a real 53.9% sat one field away.
+
+              But the fix is not "read the other field". That figure was 715
+              minutes old beside three stats 55 minutes old, and printing it
+              under the header's "metered to 07:45" would be a 12-hour-old
+              number wearing a 55-minute-old timestamp — the same fault as
+              reading a forecast as a reading, which is why the API separated
+              them in the first place.
+
+              So the age travels with the figure. `describeLag` is the panel's
+              own vocabulary, already used for the metered clock above, rather
+              than a second way of saying how old something is.
+
+              And the empty case says which emptiness it is. A bare dash is two
+              states wearing one symbol — "no reading" and "no renewables" — and
+              on a grid panel the second is a real possibility a reader could
+              believe. */}
           <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>Renewable</p>
-          <p className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
-            {latest.renewableShare === null ? '—' : `${latest.renewableShare}`}
-            <span className="text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>%</span>
-          </p>
+          {renewable ? (
+            <>
+              <p className="text-lead font-semibold font-mono" style={{ color: 'var(--text-primary)' }}>
+                {renewable.share}
+                <span className="text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>%</span>
+              </p>
+              <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+                {formatClock(renewable.time)} · {describeLag(renewable.minutesBehind)}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-lead font-semibold font-mono" style={{ color: 'var(--text-tertiary)' }}>
+                —
+              </p>
+              <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
+                not yet filed
+              </p>
+            </>
+          )}
         </div>
         <div>
           <p className="text-caption" style={{ color: 'var(--text-secondary)' }}>Demand</p>
@@ -203,24 +257,6 @@ export function GridStatePanel() {
         </div>
       </div>
 
-      {/* Described through `chartAccessibility`, like every other chart.
-          
-          This carried a hand-written label, and the reason to replace it is
-          not consistency for its own sake — the label was describing the wrong
-          object. It recited generation, demand, net flow and **renewable
-          share**, and renewable share is not plotted here at all: the chart's
-          three `dataKey`s are `generated`, `metered` and `planned`. Every one
-          of those four figures is also already on screen as text, in the three
-          stat boxes immediately above, so a screen-reader user heard them
-          once as content and again as the chart — while the thing a sighted
-          reader actually takes from the chart, the shape over time and where
-          measurement stops and forecast begins, was never stated.
-          
-          So the series go through the shared vocabulary, and the one fact that
-          vocabulary cannot express — that the trace is part measurement and
-          part forecast, which is what the dashed segment means — is appended.
-          A per-series description cannot say that, because it is a fact about
-          the boundary between two series rather than about either. */}
       {/* Described through `chartAccessibility`, like every other chart, and the
           name goes on the surface rather than a wrapper. Recharts'
           `accessibilityLayer` makes the surface a focusable
@@ -232,13 +268,18 @@ export function GridStatePanel() {
           not consistency for its own sake — the label was describing the wrong
           object. It recited generation, demand, net flow and **renewable
           share**, and renewable share is not plotted here at all: the chart's
-          three `dataKey`s are `generated`, `metered` and `planned`. Every one
-          of those four figures is also already on screen as text, in the three
-          stat boxes immediately above, so a screen-reader user heard them
-          once as content and again as the chart — while the thing a sighted
-          reader actually takes from the chart, the shape over time and where
-          measurement stops and forecast begins, was never stated.
-          
+          three `dataKey`s are `generated`, `metered` and `planned`. Three of
+          those four figures are also already on screen as text in the stat
+          boxes above, so a screen-reader user heard them once as content and
+          again as the chart — while the thing a sighted reader actually takes
+          from the chart, the shape over time and where measurement stops and
+          forecast begins, was never stated.
+
+          The renewable share is the exception and always was: it is neither
+          plotted nor on the same clock as the rest of the row, which is exactly
+          why reciting it here was wrong and why the box beside it now carries
+          its own timestamp.
+
           So the series go through the shared vocabulary, and the one fact that
           vocabulary cannot express — that the trace is part measurement and
           part forecast, which is what the dashed segment means — is appended.
