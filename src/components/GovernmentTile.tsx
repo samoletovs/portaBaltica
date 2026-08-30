@@ -28,9 +28,9 @@ export function GovernmentTile() {
               (`gov_debt`, not `gov_debt_gdp`), so all three resolve to neutral
               there and inference would rank the worst performer top. Debt and
               Gini rank lowest first; R&D highest. */}
-          <RankedComparison indicator="gov_debt_gdp" title="Government debt / GDP" higherIsBetter={false} />
-          <RankedComparison indicator="inequality" title="Income inequality (Gini)" higherIsBetter={false} />
-          <RankedComparison indicator="rd_spending" title="R&D expenditure" higherIsBetter />
+          <RankedComparison indicator="gov_debt_gdp" title="Government debt / GDP" />
+          <RankedComparison indicator="inequality" title="Income inequality (Gini)" />
+          <RankedComparison indicator="rd_spending" title="R&D expenditure" />
         </div>
       </div>
     </section>

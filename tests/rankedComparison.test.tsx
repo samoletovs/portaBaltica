@@ -138,7 +138,7 @@ describe('RankedComparison', () => {
 
   async function renderWith(data: unknown) {
     fetchBalticCompare.mockResolvedValue(data);
-    render(<RankedComparison indicator="rd_spending" title="R&D expenditure" higherIsBetter />);
+    render(<RankedComparison indicator="rd_spending" title="R&D expenditure" />);
     await screen.findByText(/R&D expenditure/);
   }
 
@@ -165,6 +165,81 @@ describe('RankedComparison', () => {
   it('says which way is better, so a rank is not read as merely largest', async () => {
     await renderWith(payload({ LV: [['2025', 12]], EE: [['2025', 30]], LT: [['2025', 22]] }));
     expect(screen.getByText(/Highest first/)).toBeTruthy();
+  });
+
+  it('reads its polarity from the map rather than from a prop', async () => {
+    // The deterministic version of "the six signs must not change", and it is
+    // deliberately not a live page count.
+    //
+    // I measured the rendered dashboard first: coloured elements on `/data`
+    // came back 113, 114 and 115 across five loads **on master alone**, so a
+    // one-element difference between two trees was inside the noise and the
+    // probe could not settle the question it was built for. Fixed data in
+    // jsdom can, and it keeps the answer after the measurement is forgotten.
+    //
+    // `rd_spending` is `higher-better`, so a rise is favourable. Before this
+    // change the same sentence was produced by a `higherIsBetter` prop; the
+    // point is that it now comes from `polarityOf`, and this is what fails if
+    // someone reintroduces the prop and gets the sign wrong.
+    await renderWith(payload({
+      LV: [['2024', 10], ['2025', 12]],
+      EE: [['2024', 33], ['2025', 30]],
+      LT: [['2024', 22], ['2025', 22]],
+    }));
+
+    expect(screen.getByText(/up, which is favourable for this indicator/)).toBeTruthy();
+    expect(screen.getByText(/down, which is unfavourable for this indicator/)).toBeTruthy();
+  });
+
+  it('inverts for a lower-better indicator, without being told to', async () => {
+    // `inequality` is `lower-better` in the map and nothing here says so. The
+    // same rise that is favourable above must be unfavourable here — that is
+    // the whole content of "the map decides", stated as one contrast rather
+    // than as six values compared by eye.
+    fetchBalticCompare.mockResolvedValue(payload({
+      LV: [['2024', 10], ['2025', 12]],
+      EE: [['2024', 33], ['2025', 30]],
+      LT: [['2024', 22], ['2025', 22]],
+    }));
+    render(<RankedComparison indicator="inequality" title="Income inequality" />);
+    await screen.findByText(/Income inequality/);
+
+    expect(screen.getByText(/up, which is unfavourable for this indicator/)).toBeTruthy();
+    expect(screen.getByText(/down, which is favourable for this indicator/)).toBeTruthy();
+    // And the ranking follows the same decision: smallest first.
+    expect(screen.getByText(/Lowest first/)).toBeTruthy();
+  });
+
+  it('withholds the judgement for an indicator the map declines to grade', async () => {
+    // The case that was **unreachable by construction** before this change.
+    //
+    // `higherIsBetter` is a boolean and the map has three states, so a
+    // `DELIBERATELY_NEUTRAL` id passed to this component was necessarily
+    // spoken as favourable or unfavourable — there was no third thing the prop
+    // could say. `house_prices` is declined in writing, "good if you own, bad
+    // if you are buying", and on master it said "up, which is favourable for
+    // this indicator".
+    //
+    // What it must say now is the bare direction. Note what this does *not*
+    // assert: that the row is grey. A declined series is still coloured by
+    // direction, because `polarity.ts` says so in terms and names this exact
+    // series while saying it — green there means "went up", not "good". Making
+    // this component the only surface that greys them would be a new
+    // inconsistency, not a fix.
+    fetchBalticCompare.mockResolvedValue(payload({
+      LV: [['2024', 10], ['2025', 12]],
+      EE: [['2024', 33], ['2025', 30]],
+      LT: [['2024', 22], ['2025', 22]],
+    }));
+    render(<RankedComparison indicator="house_prices" title="House prices" />);
+    await screen.findByText(/House prices/);
+
+    expect(screen.queryByText(/favourable/)).toBeNull();
+    expect(screen.queryByText(/unfavourable/)).toBeNull();
+    // The positive control for that absence: the direction is still spoken, so
+    // the two `queryByText` nulls above are a withheld judgement rather than a
+    // missing sentence or a component that failed to render its deltas.
+    expect(screen.getAllByText(/\b(up|down)\b/).length).toBeGreaterThan(0);
   });
 
   it('dates each row when the countries report different years', async () => {

@@ -33,8 +33,8 @@ export function LabourTile() {
           {/* Annual, four or five points. Higher is better for both, and a
               ranking answers "who leads and which way is it moving" directly
               rather than asking a reader to read it off five dots. */}
-          <RankedComparison indicator="gdp_per_capita" title="GDP per capita" higherIsBetter />
-          <RankedComparison indicator="life_expectancy" title="Life expectancy at birth" higherIsBetter />
+          <RankedComparison indicator="gdp_per_capita" title="GDP per capita" />
+          <RankedComparison indicator="life_expectancy" title="Life expectancy at birth" />
         </div>
       </div>
     </section>

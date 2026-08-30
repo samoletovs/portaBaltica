@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTheme } from '../ThemeContext';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { formatValue } from '../utils/formatValue';
-import { sentimentColor, signed, type Sentiment } from '../utils/polarity';
+import { changeDescription, polarityOf, sentimentColor, sentimentOf, signed } from '../utils/polarity';
 import { rank, COUNTRY_NAMES } from '../utils/rankBaltic';
 import { freshnessOf, formatPeriod, periodCoverage } from '../dataFreshness';
 import { FreshnessNotice } from './FreshnessNotice';
@@ -36,46 +36,47 @@ interface RankedComparisonProps {
   indicator: string;
   title: string;
   unit?: string;
-  /**
-   * Whether a larger number ranks first, and therefore whether a rise is good
-   * news.
-   *
-   * Declared per use rather than inferred from `polarityOf`, because none of
-   * the six indicators this replaces is registered there: `inequality` and
-   * `gov_debt_gdp` both resolve to neutral, which would rank the *worst*
-   * performer top and paint a rising Gini green. The polarity registry keys on
-   * the dashboard's card ids — `gov_debt`, not `gov_debt_gdp` — so inferring
-   * from the chart's id would be reading a map that does not cover it.
-   *
-   * An explicit flag is also the honest shape: which end is "best" is an
-   * editorial judgement, and a caller that has to state it cannot forget to.
-   */
-  higherIsBetter: boolean;
-}
-
-/** Sentiment of a change, given which direction this indicator wants to go. */
-function sentimentOfChange(change: number | null, higherIsBetter: boolean): Sentiment {
-  if (change === null || !Number.isFinite(change) || change === 0) return 'none';
-  const rose = change > 0;
-  return rose === higherIsBetter ? 'positive' : 'negative';
 }
 
 /**
- * The change, spelled out for a screen reader.
+ * Which end of the ranking goes first, and what a change means, read from the
+ * polarity map rather than declared per call site.
  *
- * Colour is the third encoding here and never the first: the sign is in the
- * number, this carries the meaning, and the colour only confirms what both
- * already said. Measured under a Brettel deuteranopia simulation the positive
- * and negative tokens sit at ΔE 8, which is to say indistinguishable, so for
- * roughly 8% of men this sentence *is* the encoding.
+ * This used to be a `higherIsBetter: boolean` prop, with the component
+ * computing its own sentiment from it. The comment defending that is preserved
+ * here because it was *true when written* and is worth knowing why it stopped
+ * being true:
+ *
+ *   > Declared per use rather than inferred from `polarityOf`, because none of
+ *   > the six indicators this replaces is registered there […] The polarity
+ *   > registry keys on the dashboard's card ids — `gov_debt`, not
+ *   > `gov_debt_gdp` — so inferring from the chart's id would be reading a map
+ *   > that does not cover it.
+ *
+ * That was a real constraint and the flag was the honest answer to it. `#248`
+ * dissolved it rather than overruling it: all six chart ids are now *in* the
+ * map, so it does cover them, and the prop was required to agree with it. This
+ * removes the second copy now that the first one answers.
+ *
+ * The reason it matters is not tidiness. **A boolean has two states and the
+ * map has three**, so for anything this component rendered, abstention was
+ * unreachable by construction: a `DELIBERATELY_NEUTRAL` id passed here was
+ * coloured and *spoken* as favourable, with nothing able to object. Measured
+ * on master, `house_prices` — declined in writing as "good if you own, bad if
+ * you are buying" — said *"up, which is favourable for this indicator"*. It
+ * now says *"up"*, which is the abstention actually reaching a reader.
  */
-function describeChange(change: number, higherIsBetter: boolean): string {
-  const direction = change > 0 ? 'up' : 'down';
-  const good = (change > 0) === higherIsBetter;
-  return `${direction}, which is ${good ? 'favourable' : 'unfavourable'} for this indicator`;
+function ordering(indicator: string): { bestIsHigh: boolean; label: string } {
+  // `lower-better` is the only polarity that inverts the ranking. `neutral`
+  // sorts high-to-low like everything else, and the label says exactly that —
+  // "Highest first" describes the sort order and claims nothing about which
+  // end is better, which is the correct thing to print for a series nobody has
+  // graded.
+  const bestIsHigh = polarityOf(indicator) !== 'lower-better';
+  return { bestIsHigh, label: bestIsHigh ? 'Highest first' : 'Lowest first' };
 }
 
-export function RankedComparison({ indicator, title, unit, higherIsBetter }: RankedComparisonProps) {
+export function RankedComparison({ indicator, title, unit }: RankedComparisonProps) {
   const { chartColors } = useTheme();
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +103,7 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
   // Which end is "best" is declared by the caller, so `top` means best rather
   // than merely largest: inequality and government debt rank the smallest
   // number first.
-  const bestIsHigh = higherIsBetter;
+  const { bestIsHigh, label: orderLabel } = ordering(indicator);
   const reading = data ? rank(data, bestIsHigh) : null;
   const displayUnit = unit ?? data?.unit ?? '';
 
@@ -152,13 +153,13 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
       </div>
       <FreshnessNotice freshness={freshness} className="mb-1" />
       <p className="text-caption mb-3" style={{ color: 'var(--text-tertiary)' }}>
-        {bestIsHigh ? 'Highest first' : 'Lowest first'}
+        {orderLabel}
         {displayUnit ? ` · ${displayUnit}` : ''}
       </p>
 
       <div className="space-y-3">
         {reading.ranked.map((row, index) => {
-          const sentiment = sentimentOfChange(row.change, bestIsHigh);
+          const sentiment = sentimentOf(indicator, row.change);
           return (
             <div key={row.code}>
               <div className="flex items-baseline justify-between gap-2 text-ui mb-1">
@@ -180,7 +181,7 @@ export function RankedComparison({ indicator, title, unit, higherIsBetter }: Ran
                         {' '}
                         {judgementWithheld(freshness)
                           ? `${row.change > 0 ? 'up' : 'down'} as of ${formatPeriod(row.period)}, the last reading published`
-                          : describeChange(row.change, bestIsHigh)}
+                          : changeDescription(indicator, row.change)}
                       </span>
                     </span>
                   )}

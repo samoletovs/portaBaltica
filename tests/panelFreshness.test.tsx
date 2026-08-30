@@ -103,7 +103,7 @@ const FRESH = new Date().getFullYear();
 function renderRanked() {
   return render(
     <ThemeProvider>
-      <RankedComparison indicator="x" title="Test ranking" unit="%" higherIsBetter />
+      <RankedComparison indicator="gdp_per_capita" title="Test ranking" unit="%" />
     </ThemeProvider>,
   );
 }
