@@ -145,12 +145,6 @@ const handler = async function (context, req) {
       body: JSON.stringify({
         constructionPermits: construction.permits,
         totalPermits: construction.total,
-        // Not computed, and nothing reads it: `src/types.ts` declares it and
-        // `PropertyTile` never touches it, so this zero has never reached a
-        // reader. It stays only because the type requires it. Producer-only
-        // field — flagged for removal alongside the type, which is not this
-        // endpoint's to change.
-        permitsTrend: 0,
         energyCerts: energy.certs,
         totalCerts: energy.total,
         fetchedAt: new Date().toISOString(),

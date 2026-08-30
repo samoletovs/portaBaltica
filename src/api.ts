@@ -363,8 +363,6 @@ export interface LiveGridData {
   minutesBehind: number | null;
   actual: LiveGridPoint[];
   forecast: LiveGridPoint[];
-  servedFromCache?: boolean;
-  readAgoMs?: number;
   source: string;
   fetchedAt: string;
 }

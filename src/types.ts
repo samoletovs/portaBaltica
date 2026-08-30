@@ -326,10 +326,8 @@ export const PORTS: Port[] = [
  */
 export interface MarineWeather {
   waveHeight: number | null;       // meters
-  waveDirection: number | null;    // degrees
   wavePeriod: number | null;       // seconds
   seaSurfaceTemp: number | null;   // °C
-  windWaveHeight: number | null;   // meters
   swellWaveHeight: number | null;  // meters
 }
 
