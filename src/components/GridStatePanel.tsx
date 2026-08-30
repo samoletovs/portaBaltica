@@ -74,34 +74,56 @@ function minutesSince(iso: string | null | undefined, now: number): number | nul
 }
 
 /**
- * How long ago the server last reached Elering, and whether that is a problem.
+ * How long the response may go unrefreshed before the panel says so.
  *
- * `fetchedAt` is stamped when the handler runs, so it survives every cache
- * between there and here: when `withCache` serves a body inside its
- * thirty-minute grace after an upstream failure, the handler did not run and
- * this instant stays at the last success. That is the whole signal, and it
- * needs no `Age` or `X-Cache` header — which is fortunate, because `cachedFetch`
- * discards headers and then caches the body again, so a header-derived age
- * would have gone stale one layer further out.
- *
- * The threshold is the server TTL plus this client's, plus a margin for a
- * revalidation in flight — `X-Cache: revalidating` was observed at Age 561s
+ * The server's five-minute TTL, this client's five, and margin for a
+ * revalidation in flight — `X-Cache: revalidating` was observed at `Age 561s`
  * during ordinary operation, so anything tighter would cry outage on a healthy
  * feed.
+ *
+ * The signal is `fetchedAt`, which is stamped when the handler runs and so
+ * survives every cache between there and here: when `withCache` serves a body
+ * inside its thirty-minute grace after an upstream failure, the handler did not
+ * run and the instant stays at the last success. That is the whole thing, and
+ * it needs no `Age` or `X-Cache` header — which is fortunate, because
+ * `cachedFetch` discards headers and then caches the body again, so a
+ * header-derived age would have gone stale one layer further out.
  */
 const STALE_AFTER_MINUTES = 15;
-
-function retrievalState(fetchedAt: string | null | undefined, now: number):
-  { minutes: number; stale: boolean } | null {
-  const minutes = minutesSince(fetchedAt, now);
-  if (minutes === null) return null;
-  return { minutes, stale: minutes > STALE_AFTER_MINUTES };
-}
 
 export function GridStatePanel() {
   const { chartColors } = useTheme();
   const [data, setData] = useState<LiveGridData | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * The clock the ages are measured against, in state rather than read during
+   * render.
+   *
+   * `Date.now()` in a render body is an impure call, and `react-hooks/purity`
+   * is right to refuse it — the value would change whenever the component
+   * happened to re-render, and not change when it did not. That is the same
+   * defect this panel exists to fix, one layer in: `readAgoMs` was an age
+   * frozen at an instant the reader did not control, and an age read during
+   * render is one captured at an instant *nobody* controls.
+   *
+   * So the decay is a real behaviour with something driving it. A minute
+   * matches the finest resolution `describeLag` shows — below 90 minutes it
+   * prints whole minutes, above it prints tenths of an hour, which is six —
+   * and it matches the interval `Header` already ticks its own clock on,
+   * rather than introducing a second cadence for the same job.
+   */
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    // Advanced from a timer, never read during render. The initial value comes
+    // from a lazy initialiser, which React calls once for the first render
+    // rather than on every one — so it is not the "changes whenever something
+    // repaints" hazard the purity rule exists to catch, and it avoids a
+    // synchronous `setState` in an effect body, which is a different rule and
+    // a real cascading render.
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -214,10 +236,28 @@ export function GridStatePanel() {
   const renewable =
     typeof data.renewableLatest?.share === 'number' ? data.renewableLatest : null;
 
-  // One clock for the whole render, so the two ages and the banner cannot
-  // disagree by the milliseconds between three separate calls.
-  const now = Date.now();
-  const retrieval = retrievalState(data.fetchedAt, now);
+  /**
+   * Three ages, on two clocks, each anchored to a stated instant.
+   *
+   * They sit next to each other and are not comparable, so the anchor is named
+   * here rather than left to be derived from the call site. `renewableLatest`
+   * carries its own `time` for the same reason it exists at all: borrowing
+   * `meteredTo` would date a half-day-old figure as though it were minutes old.
+   *
+   *   metered    <- latest.time            the newest interval Elering metered
+   *   renewable  <- renewableLatest.time   solar's slower clock, filed daily
+   *   retrieval  <- data.fetchedAt         when the server last reached Elering
+   *
+   * Measured from one `now`, so they cannot disagree by the milliseconds
+   * between three separate reads — and `now` advances on a timer, so they
+   * decay rather than freezing at whatever moment the last repaint happened.
+   */
+  const age = {
+    metered: minutesSince(latest.time, now),
+    renewable: minutesSince(renewable?.time, now),
+    retrieval: minutesSince(data.fetchedAt, now),
+  };
+  const retrievalIsStale = age.retrieval !== null && age.retrieval > STALE_AFTER_MINUTES;
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
@@ -235,7 +275,7 @@ export function GridStatePanel() {
             metered to {formatClock(latest.time)} UTC
           </p>
           <p className="text-caption" style={{ color: 'var(--data-warning)' }}>
-            {describeLag(minutesSince(latest.time, now))}
+            {describeLag(age.metered)}
           </p>
         </div>
       </div>
@@ -251,14 +291,14 @@ export function GridStatePanel() {
           panel showed the same calm figures in all three. This says when we
           last got through, and only when that is longer ago than it should be,
           so an ordinary render carries no extra furniture. */}
-      {retrieval?.stale && (
+      {retrievalIsStale && (
         <p
           className="text-caption mb-3"
           style={{ color: 'var(--data-warning)' }}
           role="status"
         >
           Elering last reached {formatClock(data.fetchedAt)} UTC ·{' '}
-          {describeLag(retrieval.minutes)} — showing the last data we received
+          {describeLag(age.retrieval)} — showing the last data we received
         </p>
       )}
 
@@ -307,7 +347,7 @@ export function GridStatePanel() {
                 <span className="text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>%</span>
               </p>
               <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-                {formatClock(renewable.time)} · {describeLag(minutesSince(renewable.time, now))}
+                {formatClock(renewable.time)} · {describeLag(age.renewable)}
               </p>
             </>
           ) : (

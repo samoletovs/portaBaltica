@@ -22,7 +22,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -345,6 +345,25 @@ describe('GridStatePanel', () => {
     expect(screen.getByText('Estonian grid')).toBeTruthy();
     const text = document.body.textContent ?? '';
     expect(text).toMatch(/Estonia only, not the Baltics/);
+  });
+
+  it('ages while it sits on screen, rather than freezing at the last repaint', async () => {
+    // The whole argument of this change, applied to the panel itself. An age
+    // read during render changes only when something else causes a repaint —
+    // so a dashboard left open would show the lag it had on arrival, which is
+    // the same defect as the payload field this replaced, one layer in.
+    await renderWith(payload);
+    expect(screen.getByText(/83 min behind/)).toBeTruthy();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(10 * 60_000); });
+
+    // 83 + 10 = 93, which is past the 90-minute point where `describeLag`
+    // switches to tenths of an hour — so this also proves the formatting
+    // follows the clock rather than being fixed at first render.
+    expect(screen.getByText(/1\.6 h behind/), 'the age did not advance').toBeTruthy();
+    expect(screen.queryByText(/83 min behind/), 'the old age is still shown').toBeNull();
+    // And the anchor did not move with it: the reading is still the same one.
+    expect(screen.getByText(/metered to 13:45 UTC/)).toBeTruthy();
   });
 
   it('says nothing about retrieval when the response is current', async () => {
