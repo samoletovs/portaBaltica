@@ -153,6 +153,26 @@ describe('indicator registry', () => {
     ]);
   });
 
+  it('sizes the asylum band so it excludes the EU27 aggregate', () => {
+    // The same defect as `inequality` above, found by sweeping all 72 bands and
+    // asking what each could actually catch: this one could catch nothing.
+    //
+    // `EU27_2020` rides on this cube one dimension away, so reading the
+    // aggregate instead of a country is the mis-pin that realistically happens.
+    // Measured over 149 months since 2014 it ranges 7,845 to 162,050, while the
+    // Baltic extreme across 18 years is 1,460 (LT 2021-08, the Belarus border
+    // crisis). The band shipped at [0, 50000] — above the EU27 floor, so it
+    // admitted the aggregate. It was the only one of 72 that did.
+    //
+    // Asserted from both sides. A ceiling that stops excluding the aggregate is
+    // the original defect; a ceiling that stops admitting the Baltic extreme
+    // would go red on correct data, which is the defect the same sweep found in
+    // `admin_prices` and `energy_inflation`.
+    const [, hi] = INDICATORS.asylum_applications.sanity;
+    expect(hi, 'the band admits the EU27 aggregate, whose lowest month is 7,845').toBeLessThan(7845);
+    expect(hi, 'the band excludes the Baltic extreme of 1,460 and would reject real data').toBeGreaterThan(1460);
+  });
+
   it('never calls a relative statistic a total', () => {
     // A one-directional corroboration, not the rule itself: a percentage, an
     // index, a price or a per-head figure is an average across the EU by
