@@ -1,0 +1,26 @@
+{
+  "_why": "What `portabaltica-func` actually carried when this was taken. `main.bicep` says what SHOULD be deployed; nothing in CI applies it, so the two can disagree silently and did. `newsroom/tests/pipeline/test_deployed_settings.py` compares them. Names only, never values: two of these are secrets.",
+  "_limitation": "A recorded observation, not a live read. The unit suite has no network by design (newsroom/tests/conftest.py), so this file is as current as the last person to refresh it. It catches a template that grew a setting nobody deployed; it cannot catch a setting removed from the app after this was taken. The live check belongs in the deploy workflow.",
+  "_history": "Taken first at 07:58Z, when NEWSROOM_WEEKLY_SCHEDULE was ABSENT — declared in main.bicep since #108 (2026-08-27) and never deployed, so the app ran on its code default and the Bicep parameter was a dead knob. Deployed at 08:12Z with `az functionapp config appsettings set`, value unchanged at '0 0 15 * * 0', so no behaviour changed. Writing a setting restarts the app; newsroom_weekly was confirmed still registered afterwards, four hours before it was due to fire.",
+  "observed_at": "2026-08-30T08:14Z",
+  "command": "az functionapp config appsettings list -n portabaltica-func -g portabaltica-rg --query \"[].name\" -o tsv | sort",
+  "app": "portabaltica-func",
+  "resource_group": "portabaltica-rg",
+  "settings": [
+    "APPLICATIONINSIGHTS_CONNECTION_STRING",
+    "AZURE_OPENAI_API_VERSION",
+    "AZURE_OPENAI_DEPLOYMENT",
+    "AZURE_OPENAI_ENDPOINT",
+    "AzureWebJobsStorage__accountName",
+    "AzureWebJobsStorage__credential",
+    "BLOB_ACCOUNT_URL",
+    "NEWSROOM_CONTAINER_APPROVALS",
+    "NEWSROOM_CONTAINER_ARTICLES",
+    "NEWSROOM_CONTAINER_RAW_FEEDS",
+    "NEWSROOM_REVISION",
+    "NEWSROOM_SCHEDULE",
+    "NEWSROOM_TELEGRAM_BOT_TOKEN",
+    "NEWSROOM_TELEGRAM_CHAT_ID",
+    "NEWSROOM_WEEKLY_SCHEDULE"
+  ]
+}
