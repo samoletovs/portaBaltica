@@ -36,6 +36,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Final, Mapping
 
+from newsroom.pipeline import units
+
 # --- dashes ----------------------------------------------------------------
 
 EM_DASH = "\u2014"
@@ -317,6 +319,59 @@ _STATES_A_LIMIT = re.compile(
     r"|\bis not established\b|\bremains unexplained\b",
     re.IGNORECASE,
 )
+
+
+#: A quantity written at a scale the reader has to convert for themselves.
+#:
+#: The live wire published::
+#:
+#:     Latvia recorded 4653 thousand rail passengers in 2026-Q1
+#:
+#: Every figure in that sentence is correct and traces to Eurostat. It is still
+#: unreadable: "4653 thousand" is 4.65 million, and the first reader to see it
+#: did the arithmetic, landed above Latvia's 1.9 million population, and read
+#: the piece as a data fault. Nothing in the newsroom could see it, because
+#: every numeric gate protects figures rather than how they read.
+#:
+#: A SHAPE, not a word list. The property is that the mantissa is four digits
+#: or more, so the next scale word up would say the same quantity in fewer —
+#: "4.65 million" for "4653 thousand", "1.5 billion" for "1500 million". That
+#: is never worse and usually much better, so this cannot fire on a sentence
+#: that was right, which is the bar a deterministic cut has to clear here.
+#:
+#: Built FROM ``units.MAGNITUDES`` rather than restating it, because that is
+#: the ladder the renderer descends and a guard that enumerates a different set
+#: from its subject is unguarded wherever the two differ. The largest rung is
+#: excluded by construction: nothing says "1000 trillion" more briefly.
+#:
+#: The pipeline now hands the writer the readable form in the comparison basis
+#: AND in the figure table, so reaching this at all means the writer went out
+#: of its way. It is the backstop, not the mechanism.
+_SCALE_LADDER: Final[tuple[str, ...]] = tuple(word for word, _ in units.MAGNITUDES)
+
+#: Each rung, mapped to the one that says it in fewer digits.
+_NEXT_SCALE_UP: Final[dict[str, str]] = {
+    smaller: bigger
+    for bigger, smaller in zip(_SCALE_LADDER, _SCALE_LADDER[1:])
+}
+
+_UNREADABLE_SCALE: Final[re.Pattern[str]] = re.compile(
+    r"\b(\d{1,3}(?:[,\u00a0\u202f]\d{3})+|\d{4,})(?:\.\d+)?\s*"
+    rf"({'|'.join(_NEXT_SCALE_UP)})\b",
+    re.IGNORECASE,
+)
+
+
+def unreadable_scale_phrase(text: str) -> tuple[str, str] | None:
+    """The first quantity written at a scale a reader must convert.
+
+    Returns the offending phrase and the scale word that says it in fewer
+    digits, or ``None``.
+    """
+    match = _UNREADABLE_SCALE.search(text)
+    if match is None:
+        return None
+    return match.group(0), _NEXT_SCALE_UP[match.group(2).lower()]
 
 
 #: Sentence boundaries, for rules that are about a sentence rather than a
@@ -753,6 +808,15 @@ def check_prose(text: str, *, where: str = "body") -> list[str]:
             f"'{phrase}' — the data does not establish who "
             "this lands on or what they will do. Say what the number IS "
             "ABOUT, or cut the sentence"
+        )
+
+    unreadable = unreadable_scale_phrase(text)
+    if unreadable:
+        phrase, smaller = unreadable
+        problems.append(
+            f"{where}: '{phrase}' makes the reader do the arithmetic — "
+            f"write it in {smaller}. The declared figure does not change; "
+            "only how the sentence reads does"
         )
 
     return problems

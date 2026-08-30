@@ -242,6 +242,21 @@ def figure_table(signal: Signal, *, internal_only: frozenset[str]) -> list[str]:
     Returned as lines rather than a string so each caller keeps its own
     surrounding format, and imported by both prompt builders so the two cannot
     drift into describing one field two ways.
+
+    Two different questions get two different answers on the same field, and
+    conflating them is what published "4653 thousand rail passengers":
+
+    ``= 4653``
+        what to DECLARE, copied digit for digit, so ``figures_traceable``
+        matches it against the signal payload.
+    ``write this as 4.65 million passengers``
+        what to WRITE, at a scale a reader can hold. Emitted only when it
+        differs from the declared form, so the ordinary case — a percentage,
+        a price — is untouched and the table stays short.
+
+    ``no_invented_numbers`` accepts the second because a figure's unit carries
+    its own scale: 4653 in "thousand passengers" *is* 4.65 million passengers.
+    See ``numeric_scan.value_justifies``.
     """
     from newsroom.pipeline import units
 
@@ -249,9 +264,18 @@ def figure_table(signal: Signal, *, internal_only: frozenset[str]) -> list[str]:
     for name, value in signal.fields.items():
         if name in internal_only:
             continue
-        shown = units.display_value(name, float(value))
+        numeric = float(value)
+        shown = units.display_value(name, numeric)
         label = units.label_for_field(name, signal.unit, overrides=signal.field_units)
         meaning = meaning_for_field(signal, name)
         suffix = f" — {meaning}" if meaning else ""
         lines.append(f"  - {name} = {shown}   ({label}){suffix}")
+
+        readable = units.display_quantity(
+            name, numeric, signal.unit, overrides=signal.field_units
+        )
+        if readable != f"{shown} {label}".strip() and readable != shown:
+            lines.append(
+                f"      write this as {readable} — declare the value as {shown}"
+            )
     return lines

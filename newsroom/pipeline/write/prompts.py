@@ -54,6 +54,15 @@ THE NUMBER RULES — these override every stylistic instruction above:
    is covered below: it takes no digits at all.
 4. You may round a figure when you render it in the sentence — write "4.2%" for
    4.23 — but "value" must stay the number you were given.
+4a. WRITE A QUANTITY AT THE SCALE A READER READS IT AT. Where VERIFIED FIGURES
+   says "write this as", write exactly that. Its "value" is what you declare;
+   the "write this as" form is what goes in the sentence, and the two being
+   different is normal — a figure of 4653 in thousand passengers is 4.65
+   million passengers, and both are the same quantity. Never leave four digits
+   sitting in front of "thousand" or "million": "4653 thousand passengers"
+   published, and the reader who saw it worked out that it meant 4.65 million,
+   compared that with Latvia's population, and took the whole piece for a data
+   fault. The next scale word up always says it in fewer digits.
 5. Whenever you quantify a change, name what it is measured against in the same
    paragraph. The COMPARISON BASIS is given to you; use it. A later paragraph
    may refer back to "the decline" without repeating the basis, provided it

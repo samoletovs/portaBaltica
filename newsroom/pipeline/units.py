@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Final, Mapping
 
+from newsroom.numeric_scan import split_unit_scale, unit_scale
+
 #: Fields that exist for ranking and mean nothing to a reader.
 INTERNAL_ONLY_FIELDS: Final[frozenset[str]] = frozenset({"z_score"})
 
@@ -109,9 +111,149 @@ def display_value(name: str, value: float) -> str:
     noise that reads as false precision. The declared figure keeps the exact
     value; the validator permits correct rounding in prose, so this changes
     only what the writer is shown and encouraged to write.
+
+    This is what the writer must DECLARE, so it stays a plain machine-copyable
+    number: no thousands separators, and — since ``{:g}`` switches to exponent
+    notation above a million — no ``1.857e+06`` either. A population of
+    1,857,000 was being handed to the writer in scientific notation. What the
+    writer should WRITE is :func:`humanise`, which is a different question.
     """
     if is_count(name):
         return f"{value:.0f}"
     if is_dimensionless(name):
         return f"{value:.2f}"
-    return f"{round(value, 2):g}"
+    return _decimal(round(value, 2))
+
+
+def _decimal(value: float) -> str:
+    """A number in plain decimal notation, with no trailing zeros."""
+    if value == 0:
+        return "0"
+    return f"{value:.10f}".rstrip("0").rstrip(".")
+
+
+#: Scale words a reader holds without arithmetic, largest first. A quantity is
+#: rendered against the largest of these it exceeds, so its mantissa always
+#: lands in [1, 1000) — which is the property that makes "4.65 million"
+#: readable and "4653 thousand" not.
+#:
+#: Public, and the ONE ladder. ``house_style`` builds its editor-side check
+#: from this rather than restating it: a rendering that leaves four digits in
+#: front of a scale word is exactly what that check refuses, and two
+#: enumerations of the same vocabulary always drift. This one already did —
+#: the ladder stopped at "billion" while ``numeric_scan`` knew "trillion", so
+#: 1e12 tonnes rendered as "1000 billion", which is the very shape being
+#: fixed. ``test_readable_magnitude`` asserts the two agree.
+MAGNITUDES: Final[tuple[tuple[str, float], ...]] = (
+    ("trillion", 1e12),
+    ("billion", 1e9),
+    ("million", 1e6),
+    ("thousand", 1e3),
+)
+
+
+def _magnitude_for(quantity: float) -> tuple[str, float]:
+    size = abs(quantity)
+    for word, factor in MAGNITUDES:
+        if size >= factor:
+            return word, factor
+    return "", 1.0
+
+
+def _decimals_for(mantissa: float) -> int:
+    """Three significant figures, expressed as DECIMAL places.
+
+    Decimal places rather than significant figures because the tolerance the
+    validator allows is half a unit in the last decimal place the prose
+    committed to. A rendering rounded to a fixed number of decimals is
+    therefore accepted by construction — the same argument
+    ``detect_seasonal_deviation`` makes about using ``round()`` rather than
+    ``:.2f`` — whereas one rounded to significant figures is not, and would be
+    rejected as an invented number.
+    """
+    size = abs(mantissa)
+    if size < 10:
+        return 2
+    if size < 100:
+        return 1
+    return 0
+
+
+def humanise(value: float, unit: str | None) -> tuple[str, str]:
+    """The quantity at a scale a reader can hold, and the unit it is then in.
+
+    ::
+
+        (4653, "thousand passengers")   -> ("4.65 million", "passengers")
+        (998.44, "thousand passengers") -> ("998 thousand", "passengers")
+        (1857000, "people")             -> ("1.86 million", "people")
+        (49.64, "EUR/MWh")              -> ("49.64", "EUR/MWh")
+
+    THE FAILURE THIS FIXES
+    ----------------------
+    A published article read::
+
+        Latvia recorded 4653 thousand rail passengers in 2026-Q1, an increase
+        of 998.44 thousand passengers compared with the nine-year average of
+        3654.56 thousand passengers for the same point in the year.
+
+    Every figure in it is correct and traces to Eurostat ``rail_pa_quartal``.
+    It is still unreadable, in two separate ways, and the first reader to see
+    it took it for a data fault rather than a rendering one:
+
+    * **The scale is one the reader has to convert.** "4653 thousand" is 4.65
+      million. Latvia has 1.9 million people, so a reader who does the
+      arithmetic lands on a number that looks impossible and stops trusting
+      the piece — the quantity is journeys, not persons, but a figure nobody
+      can hold cannot make that argument for itself.
+    * **The precision is false.** Two decimals of a thousand is a claim to the
+      nearest ten passengers on a seasonal average of three and a half million.
+
+    Both are properties of the RENDERING, and both are invisible to every gate
+    the newsroom has, because every gate protects figures rather than how they
+    read. So they are fixed where the number is turned into text, once, and the
+    six comparison bases and the shared figure table all ask here.
+
+    An unscaled unit whose value is already small is returned untouched: there
+    is nothing to restate about 49.64 EUR/MWh, and restating it would only cost
+    precision the writer may legitimately want.
+    """
+    scale, base = split_unit_scale(unit)
+    quantity = float(value) * scale
+    word, factor = _magnitude_for(quantity)
+
+    if scale == 1.0 and factor == 1.0:
+        return _decimal(round(float(value), 2)), (unit or "")
+
+    mantissa = round(quantity / factor, _decimals_for(quantity / factor))
+    if abs(mantissa) >= 1000.0:
+        # Rounding pushed it up a rung: 999.7 thousand is a million.
+        word, factor = _magnitude_for(mantissa * factor)
+        mantissa = round(quantity / factor, _decimals_for(quantity / factor))
+
+    number = _decimal(mantissa)
+    return (f"{number} {word}".strip(), base)
+
+
+def quantity(value: float, unit: str | None) -> str:
+    """:func:`humanise`, as one string: ``"4.65 million passengers"``."""
+    number, base = humanise(value, unit)
+    return f"{number} {base}".strip()
+
+
+def display_quantity(
+    name: str,
+    value: float,
+    series_unit: str | None,
+    *,
+    overrides: Mapping[str, str | None] | None = None,
+) -> str:
+    """How a reader should meet field ``name`` — the number and its unit.
+
+    Counts and ratios keep :func:`display_value`'s answer, because neither has
+    a magnitude to restate; everything else goes through :func:`humanise`.
+    """
+    unit = unit_for_field(name, series_unit, overrides=overrides)
+    if is_dimensionless(name):
+        return display_value(name, value)
+    return quantity(value, unit)

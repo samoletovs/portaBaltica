@@ -981,7 +981,14 @@ const INDICATORS = {
     // the sanity band below is set to catch that specific mis-pin.
     params: 'freq=Q&unit=THS_PAS',
     freq: 'Q',
-    title: 'Rail passengers',
+    // "Rail passengers" invites a reading it cannot support. Eurostat's own
+    // name for the cube is "Passengers transported": it counts JOURNEYS, so a
+    // commuter making two trips a day is two. A published newsroom piece put
+    // Latvia at 4.65 million in a quarter and the first reader to see it
+    // measured that against a population of 1.9 million and took the series
+    // for a data fault. Naming the unit of count in the title is what makes
+    // the figure defensible without a footnote.
+    title: 'Rail passenger journeys',
     unit: 'k passengers',
     euAggregation: 'sum',
     // Observed 519 (Lithuania, at the 2020 trough) to 6,074 (Latvia) over

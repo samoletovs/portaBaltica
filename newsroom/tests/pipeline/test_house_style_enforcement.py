@@ -84,6 +84,12 @@ CONTROLS: dict[str, tuple[str, str]] = {
         f"This decline impacts the {hs._AFFECTED.split('|')[0]}.",
         "speculates about consequences",
     ),
+    # The sentence that published. Quoted verbatim rather than reduced,
+    # because the point of this control is that the shape reached a reader.
+    "unreadable_scale": (
+        "Latvia recorded 4653 thousand rail passengers in 2026-Q1.",
+        "makes the reader do the arithmetic",
+    ),
 }
 
 #: Raised by ``closing_problems`` rather than ``check_prose``, and only ever
@@ -211,10 +217,16 @@ class TestWhichChecksAreCut:
         }
 
     def test_everything_else_is_advisory(self):
-        # The complement, asserted rather than implied. These five are reported
+        # The complement, asserted rather than implied. These six are reported
         # to the writer and to the desk and are never removed, which is correct:
         # each is a low-frequency judgement, and none of them fired at all on
         # the cohort whose producing revision is known.
+        #
+        # ``unreadable_scale`` is deliberately here rather than among the cuts.
+        # The paragraph is not wrong — the figure is correct and traces to the
+        # source — it is written at a scale a reader must convert, which one
+        # rewritten clause fixes. Deleting a true paragraph over a rendering
+        # fault would cost more than the fault does.
         every = set(CONTROLS) | {"closing_structural"}
 
         advisory = every - removed_from(LEAD, None)
@@ -225,6 +237,7 @@ class TestWhichChecksAreCut:
             "journalese",
             "generated_tells",
             "empty_hedges",
+            "unreadable_scale",
         }
 
     def test_the_speculative_cut_leaves_no_note_naming_removed_prose(self):
