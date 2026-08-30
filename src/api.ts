@@ -352,6 +352,26 @@ export interface LiveGridPoint {
  * is its own system, not a Baltic aggregate — consumption runs 670 to 870 MW
  * where the three states together draw three to four gigawatts.
  */
+/**
+ * The newest renewable share that is actually known, on its own clock.
+ *
+ * Solar is metered a day at a time, so `latest.renewableShare` is null for
+ * almost every interval the API serves — measured 2026-08-30, **1 of 45
+ * (2.2%)**, in one unbroken run at the newest end with zero interior holes.
+ * The API measured the same shape over 763 readings across eight days: 44
+ * nulls, one run, nothing missing beyond 12.3 hours. It is not an outage.
+ *
+ * So the share comes with its own timestamp and age, and a consumer that draws
+ * it beside the metered figures must say so. Printing 53.9 under a header
+ * reading "metered to 07:45" would be a 12-hour-old number wearing a 55-minute-
+ * old timestamp — the same fault as reading a forecast as a reading.
+ */
+export interface LiveGridRenewable {
+  share: number;
+  time: string;
+  minutesBehind: number;
+}
+
 export interface LiveGridData {
   area: string;
   areaLabel: string;
@@ -361,6 +381,12 @@ export interface LiveGridData {
   /** Timestamp of the newest metered reading. Metering lags by over an hour. */
   meteredTo: string | null;
   minutesBehind: number | null;
+  /**
+   * Absent when no interval in the served window carries a share at all, which
+   * is a different state from "the newest interval has none" and is why this is
+   * optional rather than a nullable number.
+   */
+  renewableLatest?: LiveGridRenewable | null;
   actual: LiveGridPoint[];
   forecast: LiveGridPoint[];
   servedFromCache?: boolean;
