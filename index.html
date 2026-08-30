@@ -24,17 +24,34 @@
     <meta name="theme-color" content="#0a0f1a" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#f6f8fb" media="(prefers-color-scheme: light)" />
     <meta name="color-scheme" content="dark light" />
-    <title>portaBaltica — Baltic open data, reported</title>
+    <!--
+      The separator is a pipe, not an em dash, and it has to stay that way.
+
+      House style bans the em dash (newsroom/style.md). `NewsFeed`, which owns
+      the front page's copy, moved to the pipe in #47 for that reason; this file
+      did not, and nothing noticed while `/` was still served as this static
+      shell, because no test compared the two.
+
+      #228 then put every page's head in the served bytes. From that day `/` came
+      back from `api/page-shell` with the pipe while this file still said the em
+      dash, and the live smoke test asserted this one. Every deploy afterwards
+      reported "LIVE CHECKS FAILED" for a site that was serving the right thing.
+
+      `tests/pageMetaParity.test.tsx` now requires this title to equal
+      `pageMeta.metaFor('/')`, so the fallback and the injected head cannot
+      describe the same page differently again.
+    -->
+    <title>portaBaltica | Baltic open data, reported</title>
     <meta name="description" content="Original data journalism from Baltic open data. Economy, energy, maritime, environment and government — every figure traceable to its dataset, with the live dashboard behind it." />
     <meta property="og:site_name" content="portaBaltica" />
-    <meta property="og:title" content="portaBaltica — Baltic open data, reported" />
+    <meta property="og:title" content="portaBaltica | Baltic open data, reported" />
     <meta property="og:description" content="Original analysis of Baltic open data, written by disclosed AI correspondents and checked against the source before publication." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://portabaltica.naurolabs.com" />
     <meta property="og:image" content="https://portabaltica.naurolabs.com/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="portaBaltica — Baltic open data, reported" />
+    <meta property="og:image:alt" content="portaBaltica | Baltic open data, reported" />
     <meta property="og:locale" content="en_GB" />
     <!--
       `summary_large_image` rather than `summary`: the card is 1200×630 and a
@@ -44,10 +61,10 @@
       screenshot of a chart grid is an unreadable grey rectangle.
     -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="portaBaltica — Baltic open data, reported" />
+    <meta name="twitter:title" content="portaBaltica | Baltic open data, reported" />
     <meta name="twitter:description" content="Original analysis of Baltic open data, written by disclosed AI correspondents and checked against the source before publication." />
     <meta name="twitter:image" content="https://portabaltica.naurolabs.com/og.png" />
-    <meta name="twitter:image:alt" content="portaBaltica — Baltic open data, reported" />
+    <meta name="twitter:image:alt" content="portaBaltica | Baltic open data, reported" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://portabaltica.naurolabs.com" />
     <!--

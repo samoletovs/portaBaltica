@@ -372,6 +372,19 @@ describe('the injected document', () => {
     return out as string;
   }
 
+  function shellTitle(): string | null {
+    const match = /<title>([^<]*)<\/title>/i.exec(SHELL);
+    return match ? match[1] : null;
+  }
+
+  function shellMeta(attribute: string, name: string): string | null {
+    const match = new RegExp(
+      `<meta[^>]+${attribute}="${name}"[^>]*content="([^"]*)"`,
+      'i',
+    ).exec(SHELL);
+    return match ? match[1] : null;
+  }
+
   it.each(['/', '/data/economy', '/follow', '/newsroom/kolka', '/indicator/gdp'])(
     'carries exactly one canonical and one og:title for %s',
     (path) => {
@@ -398,7 +411,32 @@ describe('the injected document', () => {
 
     expect(out).toContain('<title>Economy | portaBaltica</title>');
     expect(out).toContain('href="https://portabaltica.naurolabs.com/data/economy"');
-    expect(out).not.toContain('<title>portaBaltica — Baltic open data, reported</title>');
+    expect(out).not.toContain(`<title>${shellTitle()}</title>`);
+  });
+
+  /**
+   * The shell's own head and the front page's injected head must agree.
+   *
+   * `/` is the one route where the fallback and the injection describe the same
+   * page, so a difference between them is always a fault. There was one: #47
+   * moved the front page from an em dash to a pipe for house style and left this
+   * file behind, which nothing noticed while `/` was still served statically.
+   * #228 then made `/` an injected route, and the two started disagreeing in
+   * production — the deployed page said one thing, the fallback another, and the
+   * live smoke test (which asserted the fallback) failed on every deploy for two
+   * days while the site itself was correct.
+   *
+   * Asserting equality here is what makes the copy in two files one decision.
+   */
+  it('says the same thing about / as the shell it falls back to', () => {
+    const home = pageMeta.metaFor('/');
+
+    expect(home?.title, 'pageMeta has no entry for /').toBeTruthy();
+    expect(shellTitle(), 'index.html has no <title>').toBeTruthy();
+    expect(shellTitle(), 'index.html <title> vs pageMeta /').toBe(home!.title);
+    expect(shellMeta('property', 'og:title'), 'index.html og:title vs pageMeta /').toBe(
+      home!.title!.replace(/ \| portaBaltica$/, ''),
+    );
   });
 
   it('leaves the document able to boot', () => {

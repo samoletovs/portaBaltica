@@ -53,7 +53,7 @@ const SITE_NAME = 'portaBaltica';
  * `tests/articleMeta.test.ts` reads the real index.html and fails if these
  * drift, which is the only thing that makes a copy safe.
  */
-const GENERIC_TITLE = 'portaBaltica — Baltic open data, reported';
+const GENERIC_TITLE = 'portaBaltica | Baltic open data, reported';
 const GENERIC_DESCRIPTION =
   'Original analysis of Baltic open data, written by disclosed AI correspondents and checked against the source before publication.';
 

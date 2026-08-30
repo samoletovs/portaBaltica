@@ -28,6 +28,31 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
+import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * The module that decides what every non-article page says about itself.
+ *
+ * Read here rather than restated as a literal, because a literal is what broke
+ * this file. The front page's `og:title` was written down as
+ * "portaBaltica — Baltic open data, reported" on 2026-08-27, when `/` really was
+ * served as the static shell. #47 then moved the front page to a pipe for house
+ * style, and #228 put every page's head in the served bytes — so from 2026-08-28
+ * this assertion failed on every single deploy, and the release notification
+ * said "LIVE CHECKS FAILED" for a site that was serving exactly what it should.
+ *
+ * A live test's job is to prove the deployment serves what the code says. Taking
+ * the expectation from the code makes it impossible for it to go stale: reword
+ * the front page and this follows. That the code says the right thing is a
+ * different question, answered by `tests/pageMetaParity.test.tsx`, which renders
+ * the real component and holds this mirror to it.
+ */
+const pageMeta = require(resolve(__dirname, '..', 'api/shared/pageMeta.js')) as {
+  metaFor: (path: string) => { title: string | null } | null;
+};
 
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 const ARTICLES =
@@ -88,6 +113,16 @@ function decode(value: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&');
+}
+
+function titleTag(html: string): string | null {
+  const match = /<title>([^<]*)<\/title>/i.exec(html);
+  return match ? decode(match[1]) : null;
+}
+
+/** `api/page-shell` drops the site suffix from og:title; og:site_name prints it. */
+function ogTitleFor(title: string): string {
+  return title.replace(/ \| portaBaltica$/, '');
 }
 
 let tierA: Summary[] = [];
@@ -250,11 +285,18 @@ describe('the HTML a crawler receives for an article that is not there', () => {
 });
 
 describe('the rest of the site is untouched', () => {
-  it('serves the front page from static content, with its own headers', async () => {
+  it('serves the front page with the head its own module specifies', async () => {
     const page = await get(`${BASE}/`);
     expect(page.status).toBe(200);
-    expect(metaContent(page.body, 'property', 'og:title')).toBe(
-      'portaBaltica — Baltic open data, reported'
+
+    // Guard the guard: an expectation read from a module that returned nothing
+    // would assert null against null and pass on a blank page.
+    const home = pageMeta.metaFor('/');
+    expect(home?.title, 'pageMeta has no entry for /').toBeTruthy();
+
+    expect(titleTag(page.body), 'front page title').toBe(home!.title);
+    expect(metaContent(page.body, 'property', 'og:title'), 'front page og:title').toBe(
+      ogTitleFor(home!.title as string)
     );
     expect(page.headers.get('content-security-policy')).toContain("default-src 'self'");
   });
