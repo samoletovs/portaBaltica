@@ -213,11 +213,11 @@ describe('RankedComparison', () => {
   it('withholds the judgement for an indicator the map declines to grade', async () => {
     // The case that was **unreachable by construction** before this change.
     //
-    // `higherIsBetter` is a boolean and the map has three states, so a
+    // `higherIsBetter` was a boolean and the map has three states, so a
     // `DELIBERATELY_NEUTRAL` id passed to this component was necessarily
     // spoken as favourable or unfavourable — there was no third thing the prop
     // could say. `house_prices` is declined in writing, "good if you own, bad
-    // if you are buying", and on master it said "up, which is favourable for
+    // if you are buying", and before this change it said "up, which is favourable for
     // this indicator".
     //
     // What it must say now is the bare direction. Note what this does *not*
