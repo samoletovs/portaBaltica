@@ -91,13 +91,6 @@ function minutesSince(iso: string | null | undefined, now: number): number | nul
  */
 const STALE_AFTER_MINUTES = 15;
 
-function retrievalState(fetchedAt: string | null | undefined, now: number):
-  { minutes: number; stale: boolean } | null {
-  const minutes = minutesSince(fetchedAt, now);
-  if (minutes === null) return null;
-  return { minutes, stale: minutes > STALE_AFTER_MINUTES };
-}
-
 export function GridStatePanel() {
   const { chartColors } = useTheme();
   const [data, setData] = useState<LiveGridData | null>(null);
@@ -115,7 +108,19 @@ export function GridStatePanel() {
   //
   // An age that decays needs a re-render to decay, so the tick IS the feature.
   // Sixty seconds because every figure here is rendered in whole minutes or in
-  // hours; a faster tick would repaint without changing a digit.
+  // hours; a faster tick would repaint without changing a digit. It is also the
+  // interval `Header` already ticks its own clock on, so this adds no second
+  // cadence for the same job.
+  //
+  // The initialiser is lazy for a reason that is not obvious from either lint
+  // message alone: setting the clock inside the effect instead trips a
+  // *different* rule -- `Calling setState synchronously within an effect can
+  // trigger cascading renders` -- and only the lazy form satisfies both, being
+  // called once for the first render rather than on every one.
+  //
+  // `Header` reaches for `new Date()`, which `react-hooks/purity` does not
+  // flag. Copying that would have been silencing the rule with no audit trail,
+  // which is worse than a disable comment because there is nothing to grep for.
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -234,7 +239,30 @@ export function GridStatePanel() {
   const renewable =
     typeof data.renewableLatest?.share === 'number' ? data.renewableLatest : null;
 
-  const retrieval = retrievalState(data.fetchedAt, now);
+  /**
+   * Three ages, on two clocks, each anchored to a stated instant.
+   *
+   * They are rendered side by side and are not comparable, so the anchor is
+   * named here rather than left to be derived from the call site. That is the
+   * same reason `renewableLatest` carries its own `time` instead of borrowing
+   * `meteredTo`: dating a half-day-old figure by a minutes-old timestamp is the
+   * fault the API separated the fields to avoid.
+   *
+   *   metered    <- latest.time            the newest interval Elering metered
+   *   renewable  <- renewableLatest.time   solar's slower clock, filed daily
+   *   retrieval  <- data.fetchedAt         when the server last reached Elering
+   *
+   * All three measured from one `now`, so they cannot disagree by the
+   * milliseconds between separate reads, and that `now` advances on the timer
+   * above, so they decay rather than freezing at whatever caused the last
+   * repaint.
+   */
+  const age = {
+    metered: minutesSince(latest.time, now),
+    renewable: minutesSince(renewable?.time, now),
+    retrieval: minutesSince(data.fetchedAt, now),
+  };
+  const retrievalIsStale = age.retrieval !== null && age.retrieval > STALE_AFTER_MINUTES;
 
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
@@ -252,7 +280,7 @@ export function GridStatePanel() {
             metered to {formatClock(latest.time)} UTC
           </p>
           <p className="text-caption" style={{ color: 'var(--data-warning)' }}>
-            {describeLag(minutesSince(latest.time, now))}
+            {describeLag(age.metered)}
           </p>
         </div>
       </div>
@@ -268,14 +296,14 @@ export function GridStatePanel() {
           panel showed the same calm figures in all three. This says when we
           last got through, and only when that is longer ago than it should be,
           so an ordinary render carries no extra furniture. */}
-      {retrieval?.stale && (
+      {retrievalIsStale && (
         <p
           className="text-caption mb-3"
           style={{ color: 'var(--data-warning)' }}
           role="status"
         >
           Elering last reached {formatClock(data.fetchedAt)} UTC ·{' '}
-          {describeLag(retrieval.minutes)} — showing the last data we received
+          {describeLag(age.retrieval)} — showing the last data we received
         </p>
       )}
 
@@ -324,7 +352,7 @@ export function GridStatePanel() {
                 <span className="text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>%</span>
               </p>
               <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-                {formatClock(renewable.time)} · {describeLag(minutesSince(renewable.time, now))}
+                {formatClock(renewable.time)} · {describeLag(age.renewable)}
               </p>
             </>
           ) : (
