@@ -21,7 +21,7 @@
  * failed fetch.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { createRequire } from 'node:module';
 
@@ -121,11 +121,17 @@ describe('/api/live-grid', () => {
     expect(body.operator).toMatch(/Estonian/);
   });
 
-  it('reports how far behind the metering is', async () => {
+  it('dates the newest metered reading, and ships no age beside it', async () => {
     const { body } = await callApi(eleringPayload([row(83)], []));
-    expect(body.minutesBehind).toBeGreaterThanOrEqual(82);
-    expect(body.minutesBehind).toBeLessThanOrEqual(85);
-    expect(body.meteredTo).toBeTruthy();
+
+    // The instant is the contract. A consumer subtracts from it when it
+    // renders; the response cannot, because the body outlives the moment it
+    // was built — measured frozen at 72 minutes for nine minutes of serving.
+    const behind = (Date.now() - Date.parse(body.meteredTo)) / 60000;
+    expect(behind).toBeGreaterThanOrEqual(82);
+    expect(behind).toBeLessThanOrEqual(85);
+
+    expect(body.minutesBehind, 'a frozen age must not come back').toBeUndefined();
   });
 
   it('derives the balance rather than trusting an undocumented field', async () => {
@@ -215,12 +221,14 @@ describe('/api/live-grid', () => {
 
     // `latest` is the newest metered interval, and its share is honestly unknown.
     expect(body.latest.renewableShare).toBeNull();
-    expect(body.minutesBehind).toBeLessThan(120);
 
-    // The share we can stand behind is the older one, and it says how old it is.
+    // The share we can stand behind is the older one, and it carries its own
+    // instant. The two-clocks property is asserted on the instants rather than
+    // on ages, which is the point: an age would have been frozen at build time.
     expect(body.renewableLatest.share).toBe(50);
     expect(body.renewableLatest.time).toBe(body.actual[0].time);
-    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(body.minutesBehind);
+    expect(Date.parse(body.renewableLatest.time))
+      .toBeLessThan(Date.parse(body.meteredTo));
   });
 
   it('reports an absent renewable share as absent, not as a missing key', async () => {
@@ -228,7 +236,6 @@ describe('/api/live-grid', () => {
       [row(60, { solar_energy_production: null })], []));
     expect(body.renewableLatest.share).toBeNull();
     expect(body.renewableLatest.time).toBeNull();
-    expect(body.renewableLatest.minutesBehind).toBeNull();
   });
 
   it('asks for more history than it plots, so solar is reachable behind its lag', async () => {
@@ -262,7 +269,8 @@ describe('/api/live-grid', () => {
 
     // The share is still found, from history that was fetched but not plotted.
     expect(body.renewableLatest.share).toBe(50);
-    expect(body.renewableLatest.minutesBehind).toBeGreaterThan(19 * 60);
+    expect((Date.now() - Date.parse(body.renewableLatest.time)) / 60000)
+      .toBeGreaterThan(19 * 60);
   });
 
   it('answers 502 when Elering is down, rather than an empty-looking success', async () => {
@@ -275,7 +283,22 @@ describe('/api/live-grid', () => {
 });
 
 describe('GridStatePanel', () => {
-  beforeEach(() => fetchLiveGrid.mockReset());
+  /**
+   * The panel derives both ages from `Date.now()` at render, so the clock is
+   * part of the subject and has to be held still. Frozen at the fixture's own
+   * `fetchedAt`, which is what makes the expected strings exact rather than
+   * "roughly 83": the API used to send those ages, so the numbers the fixture
+   * carried were computed for precisely this instant.
+   */
+  const NOW = new Date('2026-08-26T15:08:00.000Z');
+
+  beforeEach(() => {
+    fetchLiveGrid.mockReset();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => { vi.useRealTimers(); });
 
   const payload = {
     area: 'EE', areaLabel: 'Estonia',
@@ -296,9 +319,10 @@ describe('GridStatePanel', () => {
       balance: -160, renewableShare: null,
     },
     meteredTo: '2026-08-26T13:45:00.000Z',
-    minutesBehind: 83,
-    // The share the panel can actually stand behind, on its own slower clock.
-    renewableLatest: { share: 2.7, time: '2026-08-26T01:45:00.000Z', minutesBehind: 803 },
+    // No `minutesBehind` on either clock, because the payload no longer carries
+    // one. The panel subtracts these instants from `Date.now()` when it renders,
+    // which is the only place the answer is true.
+    renewableLatest: { share: 2.7, time: '2026-08-26T01:45:00.000Z' },
     actual: [
       { time: '2026-08-26T13:30:00.000Z', kind: 'actual', production: 525.93, consumption: 705.17, renewable: 15.34, balance: -179.24, renewableShare: null },
       { time: '2026-08-26T13:45:00.000Z', kind: 'actual', production: 514.78, consumption: 674.78, renewable: 13.74, balance: -160, renewableShare: null },
@@ -321,6 +345,30 @@ describe('GridStatePanel', () => {
     expect(screen.getByText('Estonian grid')).toBeTruthy();
     const text = document.body.textContent ?? '';
     expect(text).toMatch(/Estonia only, not the Baltics/);
+  });
+
+  it('says nothing about retrieval when the response is current', async () => {
+    // The banner is for a failure, so an ordinary render must not carry it.
+    await renderWith(payload);
+    const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).not.toMatch(/Elering last reached/);
+  });
+
+  it('says when the server last reached Elering, once that is too long ago', async () => {
+    // `withCache` serves a body for thirty minutes after upstream fails, and
+    // the panel showed the same calm figures throughout — a reader could not
+    // tell a working feed from a dead one. `fetchedAt` is stamped when the
+    // handler runs, so it stays at the last success while the body is reused.
+    vi.setSystemTime(new Date('2026-08-26T15:33:00.000Z'));   // 25 min later
+    await renderWith(payload);
+
+    const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text, 'the outage is not stated').toMatch(/Elering last reached 15:08 UTC/);
+    expect(text).toMatch(/25 min behind/);
+
+    // The control: the metered clock moves with the wall clock too, so this
+    // cannot pass on a panel that simply printed a second copy of one figure.
+    expect(text, 'the metered age did not move with the clock').toMatch(/1\.8 h behind/);
   });
 
   it('dates the reading and says how stale it is', async () => {
