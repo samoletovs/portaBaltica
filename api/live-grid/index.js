@@ -203,10 +203,6 @@ function newestWithRenewableShare(points) {
   return null;
 }
 
-function minutesSince(time) {
-  return time ? Math.max(0, Math.round((Date.now() - Date.parse(time)) / 60000)) : null;
-}
-
 const handler = async function (context, req) {
   const end = new Date();
   const start = new Date(end.getTime() - REQUEST_HOURS * 3600 * 1000);
@@ -243,17 +239,30 @@ const handler = async function (context, req) {
 
     const latest = newestWithProduction(actual);
     const meteredTo = latest ? latest.time : null;
-    const minutesBehind = minutesSince(meteredTo);
 
     // Reported separately because solar arrives on a slower clock, so this is
     // routinely half a day older than `meteredTo`. Null rather than absent when
     // no interval in the window has a share, so a consumer reading `.share`
     // gets an absent reading rather than a TypeError.
+    //
+    // Both this and `meteredTo` are ABSOLUTE INSTANTS, and neither is
+    // accompanied by an age any more. `minutesBehind` was served on both and is
+    // gone for the same reason `readAgoMs` was: an age is computed against
+    // `Date.now()` when the body is BUILT, and `withCache` then serves that body
+    // for its whole TTL — so the number is wrong for every reader after the
+    // first. Measured on production, six requests inside one TTL:
+    //
+    //   Age  561s  minutesBehind 72     <- body built when the lag was 72
+    //   Age   20s  minutesBehind 81     <- rebuilt; the truth had moved on
+    //   Age  101s  minutesBehind 81     <- frozen again for the next five minutes
+    //
+    // The browser then caches on top of that, so the error compounds. An age is
+    // a fact about when it is READ; only the instant is a fact about the data.
+    // Consumers subtract from `time` themselves, which cannot go stale.
     const renewablePoint = newestWithRenewableShare(fetched);
     const renewableLatest = {
       share: renewablePoint ? renewablePoint.renewableShare : null,
       time: renewablePoint ? renewablePoint.time : null,
-      minutesBehind: renewablePoint ? minutesSince(renewablePoint.time) : null,
     };
 
     // Forecast intervals that are still ahead of the newest actual, so the two
@@ -277,7 +286,6 @@ const handler = async function (context, req) {
         unit: 'MW',
         latest: latest,
         meteredTo: meteredTo,
-        minutesBehind: minutesBehind,
         // The renewable share and the time it belongs to. `latest.renewableShare`
         // is the share AT `meteredTo`, which is usually null because solar has
         // not been filed for that interval yet; this is the newest one we can

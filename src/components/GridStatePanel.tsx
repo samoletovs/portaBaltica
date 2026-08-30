@@ -52,6 +52,52 @@ function describeLag(minutes: number | null): string {
   return `${(minutes / 60).toFixed(1)} h behind`;
 }
 
+/**
+ * Age of an absolute instant, computed now rather than read from the payload.
+ *
+ * The API used to send `minutesBehind` and this panel used to print it. That
+ * number is computed when the response body is BUILT, and the body then sits in
+ * the server's cache for five minutes and in this client's for five more — so
+ * it describes a moment that has passed by the time anyone reads it. Measured
+ * on production, six requests inside one server TTL: the body reported 72
+ * minutes behind and was still reporting 72 nine minutes later, while the truth
+ * had moved to 81.
+ *
+ * `meteredTo` and `renewableLatest.time` are instants, and an instant does not
+ * decay. Subtracting here costs nothing and cannot be stale.
+ */
+function minutesSince(iso: string | null | undefined, now: number): number | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, Math.round((now - at) / 60000));
+}
+
+/**
+ * How long ago the server last reached Elering, and whether that is a problem.
+ *
+ * `fetchedAt` is stamped when the handler runs, so it survives every cache
+ * between there and here: when `withCache` serves a body inside its
+ * thirty-minute grace after an upstream failure, the handler did not run and
+ * this instant stays at the last success. That is the whole signal, and it
+ * needs no `Age` or `X-Cache` header — which is fortunate, because `cachedFetch`
+ * discards headers and then caches the body again, so a header-derived age
+ * would have gone stale one layer further out.
+ *
+ * The threshold is the server TTL plus this client's, plus a margin for a
+ * revalidation in flight — `X-Cache: revalidating` was observed at Age 561s
+ * during ordinary operation, so anything tighter would cry outage on a healthy
+ * feed.
+ */
+const STALE_AFTER_MINUTES = 15;
+
+function retrievalState(fetchedAt: string | null | undefined, now: number):
+  { minutes: number; stale: boolean } | null {
+  const minutes = minutesSince(fetchedAt, now);
+  if (minutes === null) return null;
+  return { minutes, stale: minutes > STALE_AFTER_MINUTES };
+}
+
 export function GridStatePanel() {
   const { chartColors } = useTheme();
   const [data, setData] = useState<LiveGridData | null>(null);
@@ -168,6 +214,11 @@ export function GridStatePanel() {
   const renewable =
     typeof data.renewableLatest?.share === 'number' ? data.renewableLatest : null;
 
+  // One clock for the whole render, so the two ages and the banner cannot
+  // disagree by the milliseconds between three separate calls.
+  const now = Date.now();
+  const retrieval = retrievalState(data.fetchedAt, now);
+
   return (
     <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
@@ -184,10 +235,32 @@ export function GridStatePanel() {
             metered to {formatClock(latest.time)} UTC
           </p>
           <p className="text-caption" style={{ color: 'var(--data-warning)' }}>
-            {describeLag(data.minutesBehind)}
+            {describeLag(minutesSince(latest.time, now))}
           </p>
         </div>
       </div>
+
+      {/* The third state. Two things can be old here and they are not the same
+          fact: the grid data can lag because metering lags, which is normal and
+          the line above already says; or the whole response can be old because
+          the server could not reach Elering and `withCache` is serving inside
+          its grace, which is a failure and nothing said so.
+
+          A reader could not tell those apart, and neither could they tell
+          either from a renewable share that is simply not filed yet — the
+          panel showed the same calm figures in all three. This says when we
+          last got through, and only when that is longer ago than it should be,
+          so an ordinary render carries no extra furniture. */}
+      {retrieval?.stale && (
+        <p
+          className="text-caption mb-3"
+          style={{ color: 'var(--data-warning)' }}
+          role="status"
+        >
+          Elering last reached {formatClock(data.fetchedAt)} UTC ·{' '}
+          {describeLag(retrieval.minutes)} — showing the last data we received
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
@@ -234,7 +307,7 @@ export function GridStatePanel() {
                 <span className="text-caption font-normal" style={{ color: 'var(--text-tertiary)' }}>%</span>
               </p>
               <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-                {formatClock(renewable.time)} · {describeLag(renewable.minutesBehind)}
+                {formatClock(renewable.time)} · {describeLag(minutesSince(renewable.time, now))}
               </p>
             </>
           ) : (

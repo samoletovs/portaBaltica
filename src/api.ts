@@ -163,6 +163,12 @@ const CACHE_TTL: Record<string, number> = {
   property: 60 * 60 * 1000,   // 1 hour — daily data
   environment: 15 * 60 * 1000, // 15 min — weather updates frequently
   baltic_compare: 60 * 60 * 1000,
+  // Matched to the server's own five-minute TTL. Without an entry this fell to
+  // the one-hour default below, so the panel headed "Estonian grid" could show
+  // an hour-old reading of a feed that republishes every quarter of an hour —
+  // and, before the ages were derived at render time, could date it as though
+  // it had just arrived.
+  'live-grid': 5 * 60 * 1000,
 };
 
 function getTTL(key: string): number {
@@ -369,7 +375,6 @@ export interface LiveGridPoint {
 export interface LiveGridRenewable {
   share: number;
   time: string;
-  minutesBehind: number;
 }
 
 export interface LiveGridData {
@@ -378,9 +383,17 @@ export interface LiveGridData {
   operator: string;
   unit: string;
   latest: LiveGridPoint | null;
-  /** Timestamp of the newest metered reading. Metering lags by over an hour. */
+  /**
+   * Timestamp of the newest metered reading. Metering lags by over an hour.
+   *
+   * An absolute instant, and deliberately not accompanied by an age: the
+   * response carried `minutesBehind` until it was measured frozen — computed
+   * against `Date.now()` when the body was built, then served unchanged for the
+   * server's whole TTL and cached again in this client on top of that. A
+   * consumer subtracts from this at the moment it renders, which cannot go
+   * stale however long the body is held.
+   */
   meteredTo: string | null;
-  minutesBehind: number | null;
   /**
    * Absent when no interval in the served window carries a share at all, which
    * is a different state from "the newest interval has none" and is why this is
