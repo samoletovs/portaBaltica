@@ -67,17 +67,41 @@ def a_week(count: int, *, start_day: int = 24) -> list[Figure]:
     ]
 
 
+#: The sizes of week the cap is exercised against.
+#:
+#: Named rather than inlined in the decorator so the control below can read the
+#: values actually used. The first version asserted that the *helper* could
+#: build a week larger than the cap, which is not the same claim: shrinking this
+#: list to `[MAX_FINDINGS - 1]` left the helper untouched, so the control passed
+#: while an off-by-one in the cap went undetected — the very blind spot this
+#: file was written to close, reintroduced inside it. Found by planting both at
+#: once.
+CAP_CASES = [MAX_FINDINGS - 1, MAX_FINDINGS, MAX_FINDINGS + 4]
+
+
 def test_the_fixture_reaches_past_the_cap() -> None:
     """Control, and the whole reason this file exists.
 
-    Every assertion below is about truncation. If the fixture never produced
-    more findings than the cap, none of them could tell a correct cap from a
-    wrong one — which is exactly the state master was in.
+    Every assertion below is about truncation. If no case offered more findings
+    than the cap, none of them could tell a correct cap from a wrong one — which
+    is exactly the state master was in.
+
+    Asserted against `CAP_CASES`, the list the parametrised test actually runs,
+    rather than against the helper that builds the weeks. A guard that
+    enumerates something adjacent to its subject is not a guard.
     """
-    assert len(a_week(MAX_FINDINGS + 4)) > MAX_FINDINGS
+    assert max(CAP_CASES) > MAX_FINDINGS, (
+        f"no case in CAP_CASES={CAP_CASES} exceeds MAX_FINDINGS={MAX_FINDINGS}, "
+        f"so the truncation is never exercised and an off-by-one in the cap "
+        f"would pass every test in this file."
+    )
+    assert MAX_FINDINGS in CAP_CASES, (
+        "the boundary itself must be a case: MAX_FINDINGS exactly is what "
+        "separates [:MAX_FINDINGS] from [:MAX_FINDINGS - 1]."
+    )
 
 
-@pytest.mark.parametrize("offered", [MAX_FINDINGS - 1, MAX_FINDINGS, MAX_FINDINGS + 4])
+@pytest.mark.parametrize("offered", CAP_CASES)
 def test_a_wrap_never_cites_more_than_the_cap(offered: int) -> None:
     """Both sides of the boundary and one beyond it.
 
