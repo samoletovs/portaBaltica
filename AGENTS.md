@@ -1258,13 +1258,29 @@ Two measurements, because the interesting half is which of these were live:
 |---|---|
 | `len(baseline)` ≠ distinct contributing years | **0 of 10,558** (period, baseline) pairs, 282 series |
 | Published seasonal articles with a false count | **0 of 10** |
-| Multi-country intersections that are gapped | **5 of 78** groups, 288 series |
+| Multi-country intersections that are gapped | **4 of 78** groups, 288 series |
 | …gapped enough to misstate the window | **3** — worst `hourly_labour_cost`, 8 readings spanning **17 years** |
 | Published divergence articles that are wrong | **0 of 84** |
 
 So both divergence faults were latent. That is the normal case for this fault
 and the reason it survives: the corpus has to be gapped *at the point the
 sentence indexes*, which is rarer than being gapped at all.
+
+**That row said 5 until the sweep was checked against the code it was
+sweeping.** `weekly_deaths` was counted as gapped — 72 readings across a
+73-week span — and it is not gapped at all. The sweep computed a week ordinal
+as `year * 53 + week`, which inflates the span by exactly one at every new
+year, and 72 weeks crosses exactly one. `_period_weeks` in `detectors.py`
+converts through the real ISO calendar for precisely this reason, and its
+docstring names the error: *"2026-W01 follows 2025-W52, and subtracting the
+suffixes gives -51"*.
+
+So the sweep hunting sentences that miscount periods was itself miscounting
+periods, in a file that already contained the correct arithmetic two hundred
+lines above the detector it was auditing. **Ask the application, do not restate
+it** applies to the measurement as much as to the probe — and the tell was
+available without knowing anything: a "gap" of exactly one, in the only weekly
+series, is the shape of a boundary error rather than a missing observation.
 
 ### A lexical sweep for this cannot find it
 
