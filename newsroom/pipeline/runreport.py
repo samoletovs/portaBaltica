@@ -81,6 +81,30 @@ appears carrying ``gate_unavailable``, mutually exclusive with ``gate``, exactly
 as ``revision_unavailable`` sits beside ``revision`` on the article itself. A
 missing reason is the one fault this section exists to make visible, so it must
 not be the one thing the section can hide.
+
+WHY THE CAUSAL PANEL IS COUNTED TWICE
+-------------------------------------
+Stage 6b asks several AI analysts *why* a figure moved, so an article can offer
+a candidate cause instead of closing "the data does not show what drove the
+change". It shipped, and no run-level instrument was told: ``summary()``
+enumerates every enrichment stage that explains a thin wire and stopped one
+short of the newest one, and this document had no key for it at all.
+
+The counts that matter are ``articles_offered_a_cause`` and
+``articles_stating_a_cause``, and the second is the one that could not be
+inferred from anything else. An article naming no cause has two explanations —
+the panel proposed nothing admissible, or it filed causes the correspondent
+then used none of — and they are the same artefact, the same published count
+and the same summary line. ``provenance.hypotheses`` had recorded which, per
+article, since the day the panel shipped; nothing read it, so a run whose every
+writer ignored the panel was indistinguishable from a run in which the panel
+genuinely had nothing to say.
+
+The shortfall between the two is a number to act on, not a gate. Nothing
+rejects an article for staying silent and nothing should: the panel is depth,
+and a check that fires on a true sentence is a worse defect than the thinness
+it was aimed at. A shortfall that persists is the panel's *prompt* asking for
+work, which is the same instrument as a rising ``discarded``.
 """
 
 from __future__ import annotations
@@ -91,6 +115,7 @@ from typing import Any, Mapping
 from newsroom.pipeline import config
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.validator import states_a_panel_cause
 
 log = logging.getLogger(__name__)
 
@@ -198,6 +223,83 @@ def _checks_of(reasons: list[dict[str, Any]]) -> dict[str, int]:
         for check in dict.fromkeys(reason.get("checks") or ()):
             counts[check] = counts.get(check, 0) + 1
     return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def _causal_panel(report: Any, published: list[Any]) -> dict[str, Any]:
+    """What the causal panel produced, and how much of it reached a reader.
+
+    Two numbers carry this and neither is useful alone.
+    ``articles_offered_a_cause`` counts published articles whose panel filed at
+    least one admissible hypothesis. ``articles_stating_a_cause`` counts how
+    many of those actually put one in the prose. The gap between them is the
+    only place the newsroom can see the panel being paid for and then ignored,
+    and it was invisible: an article closing "the data does not show what drove
+    the change" is the same artefact whether nobody looked or four causes were
+    filed and dropped at the last seam.
+
+    ``discarded`` is here for the reason ``AnalystBrief.discarded`` is — a
+    rising count is the prompt asking for attention — and ``consulted`` for the
+    reason ``consulted`` exists on the panel at all: a panel that found nothing
+    and a panel nobody convened are different articles, and a run report that
+    cannot tell them apart repeats the fault the panel itself was built to fix.
+
+    Defensive like everything else in this module. A panel object of the wrong
+    shape costs its own entry in these counts and never the report.
+    """
+    raw = getattr(report, "panels", None)
+    panels = list(raw.values()) if isinstance(raw, Mapping) else []
+
+    hypotheses = 0
+    discarded = 0
+    consulted = 0
+    for panel in panels:
+        try:
+            hypotheses += len(getattr(panel, "hypotheses", ()) or ())
+            discarded += len(getattr(panel, "discarded", ()) or ())
+            consulted += 1 if (getattr(panel, "consulted", ()) or ()) else 0
+        except TypeError:
+            continue
+
+    offered = 0
+    stated = 0
+    for article in published:
+        try:
+            document = article.to_json()
+        except Exception:  # noqa: BLE001 — a shape we did not expect
+            continue
+        if not isinstance(document, Mapping):
+            continue
+        # Read off the artefact, exactly as the validator does. A published
+        # article carries its own panel on `provenance.hypotheses`, so this
+        # asks the article rather than joining it back to `report.panels` by
+        # signal id — a join is a second enumeration, and a syndicated card has
+        # no key it could be joined on at all.
+        if not _panel_filed_causes(document):
+            continue
+        offered += 1
+        if states_a_panel_cause(document):
+            stated += 1
+
+    return {
+        "panels": len(panels),
+        "consulted": consulted,
+        "hypotheses": hypotheses,
+        "discarded": discarded,
+        "articles_offered_a_cause": offered,
+        "articles_stating_a_cause": stated,
+    }
+
+
+def _panel_filed_causes(document: Mapping[str, Any]) -> bool:
+    """Did this article's panel file at least one admissible hypothesis?"""
+    provenance = document.get("provenance")
+    if not isinstance(provenance, Mapping):
+        return False
+    block = provenance.get("hypotheses")
+    if not isinstance(block, Mapping):
+        return False
+    entries = block.get("hypotheses")
+    return bool(isinstance(entries, list) and entries)
 
 
 def build_run_report(
@@ -323,6 +425,12 @@ def build_run_report(
         # exactly what the ranking produced. Reported so the effect is
         # observable rather than assumed.
         "sections": _sections_of(published),
+        # What the causal panel produced, and how much of it a reader actually
+        # got. `articles_offered_a_cause` minus `articles_stating_a_cause` is
+        # the whole point of the block: it is the only number that separates a
+        # panel with nothing to say from a panel whose work was thrown away
+        # between the brief and the prose.
+        "causal_panel": _causal_panel(report, published),
         "desk": desk_actions,
         "published_slugs": [getattr(a, "slug", "") for a in published][:50],
         "rejected_slugs": [getattr(a, "slug", "") for a in rejected][:50],

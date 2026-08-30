@@ -1135,7 +1135,19 @@ def _panellists(context: "ValidationContext") -> tuple[str, ...]:
     *"According to Latvijas Banka, ..."* -- start failing a check it has
     always passed, for articles whose panel merely happened to cite that feed.
     """
-    provenance = context.article.get("provenance")
+    return _panellists_of(context.article)
+
+
+def _panellists_of(article: Mapping[str, Any]) -> tuple[str, ...]:
+    """:func:`_panellists`, reading the article directly.
+
+    Split out so :func:`states_a_panel_cause` can ask the same question outside
+    a :class:`ValidationContext` without rebuilding the traversal. One
+    enumeration behind both readers: a second copy would agree today and drift
+    the first time the provenance shape moves, and the drift would be silent in
+    the direction that reports success.
+    """
+    provenance = article.get("provenance")
     if not isinstance(provenance, Mapping):
         return ()
     block = provenance.get("hypotheses")
@@ -1207,6 +1219,70 @@ def _is_hedged_desk_hypothesis(text: str, panellists: Sequence[str] = ()) -> boo
         and _MARKED_UNCONFIRMED.search(text)
         and _MARKED_AI.search(text)
     )
+
+
+def states_a_panel_cause(article: Mapping[str, Any]) -> bool:
+    """Did this article's prose actually offer one of its panel's causes?
+
+    NOT A CHECK. Nothing rejects an article for answering ``False``, and
+    nothing should: the panel is depth, and a validator that fires on a true
+    sentence is a worse defect than the thinness it was aimed at. This exists
+    so the number can be *reported*, and the number is what decides whether the
+    prompt needs work.
+
+    THE TWO STATES IT SEPARATES
+    ---------------------------
+    An article that names no cause has two entirely different explanations, and
+    until this function they produced the same artefact:
+
+    * the panel was convened and proposed nothing admissible — the wire being
+      honest, and the correct outcome;
+    * the panel filed candidate causes and the correspondent used none of them
+      — the whole stage paid for, in model calls, and thrown away at the last
+      seam.
+
+    ``provenance.hypotheses`` already recorded which, per article, and no
+    instrument anywhere read it. So a run in which every writer ignored the
+    panel was byte-identical, in every count the newsroom publishes, to a run
+    in which the panel genuinely had nothing to say.
+
+    IT REUSES THE GATE'S OWN PREDICATES
+    -----------------------------------
+    ``_ATTRIBUTION`` decides what an explanatory paragraph is and
+    :func:`_is_hedged_desk_hypothesis` decides what a properly offered panel
+    cause is. Both are :func:`check_no_unsupported_mechanism`'s, unmodified. A
+    counter that re-derived either would be a second implementation that can
+    disagree with the gate about what it is counting, which this repository has
+    now been bitten by more than once.
+
+    ONE DELIBERATE DIVERGENCE, STATED RATHER THAN INHERITED
+    ------------------------------------------------------
+    The gate skips a paragraph carrying figures, because a figure makes the
+    paragraph traceable and ``figures_traceable`` owns it from there. That is
+    right for deciding what to *reject* and wrong for deciding what a reader
+    *read*: a cause offered in a paragraph that also carries a figure was still
+    offered. So this walks every paragraph. The divergence can only move the
+    count upward, and the alternative — a measurement covering a smaller
+    population than its subject — is the failure shape that hid the maritime
+    probe's blindness to three ports.
+    """
+    panellists = _panellists_of(article)
+    if not panellists:
+        return False
+    body = article.get("body")
+    if not isinstance(body, list):
+        return False
+    for block in body:
+        if not isinstance(block, Mapping) or block.get("type") != "paragraph":
+            continue
+        text = block.get("text")
+        if not isinstance(text, str) or not text.strip():
+            continue
+        if not _ATTRIBUTION.search(text):
+            continue
+        if _is_hedged_desk_hypothesis(text, panellists):
+            return True
+    return False
 
 
 def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
@@ -1503,5 +1579,6 @@ __all__ = [
     "is_servable",
     "resolve_signal_field",
     "stamp_verdict",
+    "states_a_panel_cause",
     "validate_article",
 ]
