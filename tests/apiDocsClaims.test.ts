@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -177,5 +177,107 @@ describe('the API docs page states numbers that are true', () => {
       counts,
       'the eu-funds description states a project total; it varies upstream and nothing checks it',
     ).toEqual(['20']);
+  });
+
+  /**
+   * Components that render a *series*, derived rather than listed.
+   *
+   * `<ResponsiveContainer` is the marker, because it is what recharts requires
+   * to draw into a sized box and it is how every time series on this site is
+   * drawn. The count assertion below is the control: if the marker ever stops
+   * identifying them, this fails loudly rather than passing over an empty set.
+   */
+  function seriesSurfaces() {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(resolve(dir, e.name)) : e.name.endsWith('.tsx') ? [resolve(dir, e.name)] : []);
+    return walk(resolve('src/components'))
+      .map((path) => ({ file: path.split(/[\\/]/).pop()!, text: readFileSync(path, 'utf8') }))
+      .filter(({ text }) => /<ResponsiveContainer\b/.test(text));
+  }
+
+  /**
+   * Surfaces that mention a period but draw a **cross-section**, not a series.
+   *
+   * Named rather than silently outside the population, because "renders a
+   * chart" and "renders a series" are different sets and picking the smaller
+   * one is the failure `AGENTS.md` calls the quieter sibling. Each was read
+   * before being excluded:
+   *
+   *   RankedComparison    "Three countries, latest value, ranked" — one period
+   *   PropertyTile        `latest = series[series.length - 1]`, then a change
+   *   FreightModalSplit   one split per country, each at its own latest quarter
+   *   PortPanelParts      `PortBars` plots `valueAt(p, measure.latest)` across
+   *                       ports — a bar per port at one period, not over time
+   *   CargoPanel          a national total at `mix.period`
+   *   MaritimeTile        composes the port panels; its periods are a dateline
+   *   ProvenanceBlock     `fact.period` in an article's provenance table
+   *
+   * An export for any of them would be a file of one row.
+   *
+   * **This list was four when it was written and the equality made it seven.**
+   * `CargoPanel`, `MaritimeTile` and `ProvenanceBlock` were surfaces the author
+   * had not enumerated, and a filter would have passed in silence. If one of
+   * them grows a time axis this stops matching and somebody has to look again,
+   * which is the whole point of the form.
+   */
+  const CROSS_SECTIONS = [
+    'CargoPanel.tsx',
+    'FreightModalSplit.tsx',
+    'MaritimeTile.tsx',
+    'PortPanelParts.tsx',
+    'PropertyTile.tsx',
+    'ProvenanceBlock.tsx',
+    'RankedComparison.tsx',
+  ];
+
+  it('backs "export on every series" with an export on every series', () => {
+    // The Free tier sells "CSV and JSON export on every series". #187 shipped
+    // that to `IndicatorCard`, `IndicatorTable` and `BalticCompareChart` — the
+    // *indicator* surfaces — and the sentence has been false ever since for
+    // every charted series that is not an indicator: the day-ahead price on
+    // `EconomyTile` and `PowerMarketCard`, and the grid trace on
+    // `GridStatePanel`.
+    //
+    // A claim on a pricing page is a promise, and the remedy is the wiring
+    // rather than the wording: narrowing it to "every indicator series" would
+    // make the page true and the product worse.
+    const claim = /CSV and JSON export on every series/;
+    expect(PAGE, 'the Free tier no longer claims export on every series').toMatch(claim);
+
+    const surfaces = seriesSurfaces();
+    expect(surfaces.length, 'no series surfaces found — the derivation is broken').toBeGreaterThanOrEqual(6);
+
+    const withoutExport = surfaces
+      // `<DownloadMenu` and not `DownloadMenu`: the loose form is satisfied by
+      // an import that is never rendered, and by a comment mentioning the
+      // control. A plant in #243 proved it — renaming the symbol to
+      // `DownloadMenuX` left the guard green, because the substring survived.
+      .filter(({ text }) => !/<DownloadMenu\b/.test(text))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(withoutExport, 'a series a reader cannot download, on a page that promises they can')
+      .toEqual([]);
+  });
+
+  it('keeps the cross-section exclusions honest, as an equality', () => {
+    // These mention a period and draw one. If one of them starts plotting a
+    // series it must join the population above, and an equality is what forces
+    // that re-reading — a filter would go on quietly excusing it.
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? walk(resolve(dir, e.name)) : e.name.endsWith('.tsx') ? [resolve(dir, e.name)] : []);
+
+    const periodic = walk(resolve('src/components'))
+      .map((path) => ({ file: path.split(/[\\/]/).pop()!, text: readFileSync(path, 'utf8') }))
+      .filter(({ text }) => !/<ResponsiveContainer\b/.test(text))
+      .filter(({ text }) => /\bperiod\b/.test(text) && /\.map\(/.test(text))
+      .filter(({ text }) => !/<DownloadMenu\b/.test(text))
+      .map(({ file }) => file)
+      .sort();
+
+    expect(periodic, 'a periodic surface that is neither a series nor a listed cross-section')
+      .toEqual([...CROSS_SECTIONS].sort());
   });
 });
