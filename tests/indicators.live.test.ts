@@ -134,6 +134,33 @@ describe('Eurostat indicator contracts (live)', () => {
       ).toBeGreaterThan(0);
 
       const latest = points[points.length - 1];
+
+      // Every observation, not just the newest.
+      //
+      // This assertion read `latest` alone until the band sweep, and that is
+      // how a band the data has already left passes for ever: the breach sits
+      // in the body of the series where nothing looks, and the tip happens to
+      // be ordinary. Measured on master, `admin_prices` declared [-30, 60]
+      // while Estonia filed seven months above it in the 2022 energy crisis,
+      // peaking at 110.3, and `energy_inflation` declared a ceiling of 100
+      // against a real 100.1 — so both would have gone red on CORRECT data had
+      // the newest observation been one of those months, and neither was
+      // visible while it was not.
+      //
+      // The data was already fetched and already parsed. Only the tip was read.
+      //
+      // It ages out, too, which is the part worth stating: those breaches are
+      // inside today's five-year window and leave it during 2027, after which
+      // the band is still wrong and nothing can see it.
+      const outOfBand = points.filter((p) => p.value! < def.sanity[0] || p.value! > def.sanity[1]);
+      expect(
+        outOfBand.map((p) => `${p.period}=${p.value}`),
+        `${id} (${def.dataset}?${def.params}) has ${outOfBand.length} observation(s) for ${geo} outside the ` +
+          `declared range [${def.sanity[0]}, ${def.sanity[1]}] for "${def.title}" (${def.unit}) — either the ` +
+          'dataset measures something other than the label claims, or the band is a narrower claim than the ' +
+          'statistic supports'
+      ).toEqual([]);
+
       expect(
         latest.value,
         `${id} latest value for ${geo} is ${latest.value} at ${latest.period}, outside the plausible range ` +

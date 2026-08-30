@@ -84,7 +84,13 @@ const INDICATORS = {
     title: 'Energy inflation',
     unit: '% YoY',
     euAggregation: 'average',
-    sanity: [-60, 100],
+    // Ceiling 150, not 100. Estonia filed 100.1 in 2022-08, so the old bound
+    // was 0.1 below a real reading and would have gone red on correct data had
+    // that month been the newest. Measured over 25 years and 921 observations,
+    // the true range is -18.3 (LT 2023-09) to 100.1, so 150 clears the observed
+    // extreme by half again while still excluding a price *level* — this is a
+    // rate of change, and an index or a raw price would be far larger.
+    sanity: [-60, 150],
   },
   food_inflation: {
     dataset: 'prc_hicp_minr',
@@ -132,7 +138,14 @@ const INDICATORS = {
     title: 'Administered prices',
     unit: '% YoY',
     euAggregation: 'average',
-    sanity: [-30, 60],
+    // Ceiling 150, not 60. Estonia filed *seven* months above 60 in the 2022
+    // energy crisis — 64.4, 82.6, 86.2, 81.8, 89.5, 110.3 and 78.3 — so the
+    // band was a narrower claim than the statistic supports, and this is the
+    // series where that is least surprising: an administered price is set by
+    // policy and can be stepped by any amount overnight. Measured over 25 years
+    // and 888 observations the range is -12.6 (EE 2020-05) to 110.3 (EE
+    // 2022-08); 150 clears that by 36%.
+    sanity: [-30, 150],
   },
   home_energy_inflation: {
     // Electricity, gas, solid fuels and heat — the household energy bill.
@@ -347,6 +360,20 @@ const INDICATORS = {
     title: 'Labour cost: manufacturing',
     unit: 'index (2020=100)',
     euAggregation: 'average',
+    // 60 is a claim about the window the app serves by default, not about the
+    // whole series, and that is deliberate. Latvia's index reaches 17.3 in
+    // 2001-Q1 — real, and structural, because a 2020=100 base makes every early
+    // observation small — so `?years=25` returns values below this floor.
+    //
+    // Widening it to admit 2001 would cost more than it buys. The plausible
+    // mis-pin here is reading a *rate* instead of an index: wage growth lands
+    // around 0–20, which a floor of 60 catches and a floor of 10 would not.
+    // The live contract fetches five years, where the observed minimum is far
+    // above 60, so the breach is unreachable from CI and the guard keeps its
+    // power against the error that actually happens.
+    //
+    // Recorded rather than fixed so the next band sweep finds the reasoning
+    // instead of re-deriving it. `wages_it` is identical, for the same reason.
     sanity: [60, 300],
   },
   wages_it: {
@@ -356,6 +383,8 @@ const INDICATORS = {
     title: 'Labour cost: IT sector',
     unit: 'index (2020=100)',
     euAggregation: 'average',
+    // Floor deliberately above the earliest history; see `wages_mfg` above.
+    // Latvia reaches 22.1 in 2001-Q1, outside the window the app serves.
     sanity: [60, 300],
   },
   minimum_wage: {
@@ -514,10 +543,21 @@ const INDICATORS = {
    * repeat applications, which track case processing rather than arrivals.
    *
    * The floor is 0 because Estonia genuinely files zero months; a floor of 1
-   * would reject real data. The ceiling sits above any Baltic month observed
-   * (max 1460) and below an EU-wide monthly figure, which runs to tens of
-   * thousands — so a drift onto the `EU27_2020` aggregate is caught rather
-   * than plotted.
+   * would reject real data.
+   *
+   * The ceiling is 5000, and the first version of this entry got it wrong in a
+   * way worth recording. It said the ceiling sat "below an EU-wide monthly
+   * figure, which runs to tens of thousands" — a justification written from a
+   * guess and never executed. Measured: `EU27_2020` on this cube has ranged
+   * 7,845 to 162,050 since 2014, and the old ceiling of 50,000 sat *above* its
+   * floor, so the band admitted the aggregate and could not catch the one
+   * mis-pin it was written to catch. It was the only band of 72 that did.
+   *
+   * 5000 is sited in the measured gap. Over 18 years the Baltic extreme is
+   * 1,460 (LT 2021-08, the Belarus border crisis) and the lowest EU27 month
+   * ever recorded is 7,845, so anything between those two bounds separates
+   * them; 5000 clears the Baltic extreme by 3.4x and sits 36% below the EU27
+   * floor.
    */
   asylum_applications: {
     dataset: 'migr_asyappctzm',
@@ -526,7 +566,7 @@ const INDICATORS = {
     title: 'First-time asylum applications',
     unit: 'applications/month',
     euAggregation: 'sum',
-    sanity: [0, 50000],
+    sanity: [0, 5000],
   },
   birth_rate: {
     dataset: 'demo_gind',
