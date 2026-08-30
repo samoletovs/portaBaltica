@@ -138,6 +138,59 @@ class Observation:
 
 
 @dataclass(frozen=True)
+class SeriesOrigin:
+    """Where the whole series starts, and where the latest reading sits in it.
+
+    WHY THIS IS NOT DERIVABLE FROM ``observations``
+    -----------------------------------------------
+    ``TimeSeries.observations`` is a **window**. Every Eurostat definition is
+    fetched with a bounded number of periods, so the oldest observation is
+    where the newsroom started looking, not where the series starts. Measured
+    across sixteen live definitions, **fifteen of the sixteen disagree** —
+    ``demo_gind`` LT by 47 years.
+
+    That gap was published. ``context.py`` labelled the window's first reading
+    "where this series begins" and its own count "how many readings this series
+    contains in total", and emitted sentences saying "this is the highest
+    reading anywhere in the series" — all computed over the window. Eight
+    published articles stated a record that the full series contradicts.
+
+    So the facts a sentence about *the series* needs are recorded at collection
+    time, when the whole series is in hand, rather than inferred later from a
+    slice that cannot support them.
+
+    THE COUNTS ARE RELATIVE TO THE LATEST OBSERVATION
+    -------------------------------------------------
+    ``higher`` and ``lower`` count the rest of the series against
+    ``observations[-1]``, which is what "is this a record?" actually asks. They
+    are therefore only valid for the observation set they were computed with,
+    which is why :meth:`TimeSeries.replace_observations` drops the origin
+    rather than carrying it: a stale count is worse than no count, because a
+    consumer cannot tell it is stale.
+    """
+
+    #: The first period with an actual reading, for this geography. NOT the
+    #: first period the cube offers: measured across sixteen definitions, ten
+    #: of them carry time coordinates with no data at the front — ``sts_inpp_m``
+    #: offers ``1976-01`` and Lithuania's first reading is ``1998-02``, so
+    #: taking the dimension's first key would publish an origin wrong by
+    #: twenty-two years and more confident-looking than the window it replaced.
+    first_period: str
+    first_value: float
+    #: How many readings the whole series contains, for this geography.
+    total_observations: int
+    #: How much of the rest of the series beats the latest reading.
+    higher: int
+    lower: int
+    #: The extreme of the rest of the series — "the previous record", which is
+    #: what a record claim is measured against.
+    prior_high_period: str
+    prior_high_value: float
+    prior_low_period: str
+    prior_low_value: float
+
+
+@dataclass(frozen=True)
 class TimeSeries:
     """One metric, one geography, ordered oldest to newest."""
 
@@ -150,6 +203,11 @@ class TimeSeries:
     source: SourceRef
     frequency: str = "monthly"
     chart_ref: str | None = None
+    #: What the whole series looks like, when the whole series was fetched.
+    #: ``None`` when it was not — Elering is collected as a rolling 120 days
+    #: and has no cheap full history — and a consumer must then say nothing
+    #: about the series rather than something false about it.
+    origin: SeriesOrigin | None = None
 
     def __post_init__(self) -> None:
         periods = [o.period for o in self.observations]
@@ -233,6 +291,15 @@ class TimeSeries:
         )
 
     def replace_observations(self, observations: Sequence[Observation]) -> TimeSeries:
+        """A copy with different readings — and **no origin**.
+
+        ``SeriesOrigin.higher`` and ``.lower`` count the series against the
+        latest observation, so they are only true for the observation set they
+        were computed with. Carrying them onto a different set would produce a
+        confident, stale placement a consumer cannot tell is stale. Dropping
+        them makes the caller say nothing about the series, which is the only
+        honest answer once the reading they describe has moved.
+        """
         return TimeSeries(
             metric=self.metric,
             metric_label=self.metric_label,
@@ -244,6 +311,35 @@ class TimeSeries:
             frequency=self.frequency,
             chart_ref=self.chart_ref,
         )
+
+
+def origin_of(observations: Sequence[Observation]) -> SeriesOrigin | None:
+    """Summarise a full series for :class:`SeriesOrigin`.
+
+    Takes the observations that actually carry readings — nulls are dropped
+    before this — so ``first_period`` is the first reading rather than the
+    first coordinate the cube offers.
+
+    ``None`` below three observations, matching the floor ``_placement`` uses:
+    a "record" over two readings is not a fact about a series.
+    """
+    if len(observations) < 3:
+        return None
+    latest = observations[-1]
+    history = observations[:-1]
+    high = max(history, key=lambda o: o.value)
+    low = min(history, key=lambda o: o.value)
+    return SeriesOrigin(
+        first_period=observations[0].period,
+        first_value=observations[0].value,
+        total_observations=len(observations),
+        higher=sum(1 for o in history if o.value > latest.value),
+        lower=sum(1 for o in history if o.value < latest.value),
+        prior_high_period=high.period,
+        prior_high_value=high.value,
+        prior_low_period=low.period,
+        prior_low_value=low.value,
+    )
 
 
 def pct_change(new: float, old: float) -> float | None:
