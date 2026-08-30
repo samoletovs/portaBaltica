@@ -789,6 +789,65 @@ knew, and when" rather than to a lie or a blank page. `system-status` is the
 deliberate exception at `graceMs: 0`: a remembered "healthy" during a real
 outage is exactly the false green this codebase exists to remove.
 
+### An instant survives caching. An age does not.
+
+That `fetchedAt` is load-bearing, and the reason generalises into the one rule
+that decides **what kind of value may go in a cached body**:
+
+> A value computed against `Date.now()` is a fact about *when it was computed*.
+> Freeze it into a body that is then served for a TTL and it describes a moment
+> that has passed — wrong for every reader after the first, and wrong by more
+> the longer the cache works.
+
+`fetchedAt` is an **instant** and stays true however long the body is held. A
+duration measured from now is **relative** and starts decaying the moment it is
+serialised. The two look alike in a payload and are not the same kind of thing.
+
+Three fields have now been found this way, all in `/api/live-grid`, and the
+sequence is the point — the first was found by a seam sweep, and the other two
+by applying the same test to the rest of the same response:
+
+```
+readAgoMs        header  X-Cache: hit   Age: 209
+                 body    servedFromCache: false   readAgoMs: 0
+
+minutesBehind    Age 561s  minutesBehind 72     <- built when the lag was 72
+                 Age  20s  minutesBehind 81     <- rebuilt; the truth had moved
+                 Age 101s  minutesBehind 81     <- frozen for five more minutes
+```
+
+`readAgoMs` was the sharpest, because it existed *specifically* to let the UI
+say "here is when we last got through" — so a banner built on it would have
+announced a live read for a response three and a half minutes old, failing in
+exactly the case it was added for.
+
+**And the client cache compounds it.** `src/api.ts` caches responses again in
+the browser, so the error a reader sees is the server's TTL *plus* the client's,
+and neither layer knows the body contains a number that was only true at the
+start of the first one. A key with no entry in `CACHE_TTL` falls to the default,
+which is how a panel headed "Estonian grid" came to hold a quarter-hourly feed
+far longer than the feed's own period and still date it as freshly arrived.
+
+So: **ship the instant, subtract at the point of render.** The subtraction is
+free, it cannot be stale, and it removes a field rather than adding one. Where
+an age is genuinely wanted per-response rather than per-body — how old *this*
+delivery is — it belongs in a header the cache layer sets itself, which is what
+`Age` and `X-Cache` already are.
+
+The check is one question, and it is worth asking of any value before it is
+cached: **would this still be true if the body were served an hour from now?**
+An instant, a period label, a measured quantity — yes. A duration measured from
+the moment of writing — no.
+
+That is a question about the value's *definition*, not about its name, and the
+distinction matters because the names are the unreliable part: `readAgoMs`,
+`minutesBehind` and `servedFromCache` share no vocabulary at all, and the third
+is a boolean rather than a duration. What they share is that each recorded the
+state of a clock or a cache at the moment of writing. Executed rather than
+asserted — a case-insensitive grep for `ago|behind` over the three names finds
+**two of the three**, and the one it misses is the one that was found first and
+that shipped the worst error.
+
 Three defects were measured in the layer underneath, and all three got worse in
 proportion to the audience — which is the shape of bug that matters here:
 
