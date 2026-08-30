@@ -1538,6 +1538,122 @@ And note where all three defects were found: **at the reporting layer, by
 reading the output.** Not one is reachable from a test of the producer, because
 the producer was right every time.
 
+## A name that lies about its population
+
+The seam sweep above compares the *names* two sides use. This is the failure it
+cannot see: **the name is on both sides, spelled identically, and the two sides
+mean different populations by it.** No grep finds that, because nothing is
+missing and nothing is misspelled.
+
+Three instances, all measured on 2026-08-30, and the shape is worth more than
+any of them:
+
+| The name | Asserts | Actually |
+|---|---|---|
+| `validator.is_servable` | this article is servable | it would pass validation *if written today* |
+| `readings_in_series` | *"how many readings this series contains **in total**"* | how many we retrieved |
+| `series_start_value` | *"where this **series begins**, in {period}"* | where our `lastTimePeriod` window begins |
+
+**Each returns exactly what it computes.** The value is right; the name claims a
+scope the computation never had. That is why none of the three is reachable by a
+numeric check — there is no wrong number anywhere in any of them.
+
+### Two functions called `is_servable`, and the stricter one is not the safer one
+
+```python
+# newsroom/validator.py:1519            the PUBLISH-time gate
+    if set(CHECK_NAMES) - names: return False      # every current check must be present
+
+# newsroom/pipeline/publish.py:66       the SERVE-time gate
+    return bool(verdict.get("passed")) and article.status == "published"
+```
+
+The frontend's `isServable` mirrors the second. So the first answers *would this
+pass validation today* and the second answers *is this being served*, and adding
+a name to `CHECK_NAMES` retroactively makes every older article fail the first
+while changing nothing about the second.
+
+Measured across the whole archive:
+
+```
+articles                     84
+SERVE-time gate passes       84
+PUBLISH-time gate passes     62
+served but strict-False      22   (26%)
+  missing no_unsupported_mechanism  22
+  missing no_repeated_findings       4
+```
+
+**A quarter of the archive fails a function named `is_servable` and is served
+normally**, surviving only because `write_index` re-validates *fresh* articles
+and merges stored entries unchecked. So the strict gate cannot health-check
+anything but a fresh article — roughly the opposite of what its name suggests.
+
+This was found by using it as a pre-flight check before correcting a live false
+headline, where it **failed closed**:
+
+```
+estonia-s-annual-consumer-price-inflation: not servable BEFORE — refusing to touch it
+  status published · validator.passed True · all its own checks passed True
+  MISSING ['no_unsupported_mechanism']
+```
+
+It would have refused to correct a false headline **on the strength of a check
+invented after the article was written**, which is the one direction that leaves
+the error standing. And the reason the wrong one was reached for is mundane and
+will recur: *it was the one that could be imported*.
+
+The fix is not to pick the right gate once. It is to assert the **serve-time**
+gate holds and the **publish-time** verdict is *unchanged* — a correction
+annotates, it does not re-validate. That second assertion is only expressible
+once the two are distinguished, which is the general remedy: **when one name
+answers two questions, the code cannot state the invariant that matters.**
+
+### The digit-free claim no numeric gate can see
+
+```python
+# newsroom/pipeline/context.py, in _placement
+line 565  readings_in_series   "how many {series.frequency} readings this
+                                series contains in total"     <- the window count
+line 586  note                 "This is the highest reading anywhere in the series."
+line 591  note                 "Only a handful of readings in the series have
+                                ever been higher; this is the {Nth} on record."
+line 629  series_start_value   "where this series begins, in {period}"
+                                                              <- the window start
+```
+
+`context.py`'s `_placement` hands the writer finished sentences, not just
+fields, and computes all of them over the window. Its own comment says why the
+notes were thought safe:
+
+> *"Every observation must be free of digits. The writer is told it may state
+> these as fact without declaring a figure, and that is only safe if there is no
+> numeral in them to declare."*
+
+**Digit-free by design, and therefore exempt from `no_invented_numbers` and
+`figures_traceable` — every numeric gate in the pipeline.** The reasoning is
+sound about numerals and silent about scope, so the one class of claim no
+numeric check can see is exactly the class that was false. Thirteen of 84
+published articles carry one, all thirteen on a windowed fetch, and the sentence
+appears verbatim in the context pack for eight of them.
+
+Eight of those articles stated a falsehood a reader could check. **Two were true
+by luck** — `lithuania-s-crude-birth-rate` says *"the lowest reading in the
+series"* over 19 observations of a 66-observation cube and is correct, because
+2025 genuinely is the lowest since 1960. Nothing the pipeline did made that
+true. **The prose is identical in the true cases and the false ones**, which is
+why no prose guard can separate them and why the fix has to be where the window
+is named.
+
+### What to do with this
+
+The question is cheap and mechanical: **for every name that asserts a scope —
+`total`, `series`, `all`, `ever`, `record`, `servable` — ask what population the
+code behind it actually walks, and whether the two are the same set.** It is the
+enumeration rule this file already states, applied to a name rather than to a
+guard, and it has the same tell: the mismatch is invisible from the reading,
+because the reading is correct about the population it used.
+
 ## Two states that produce the same artefact
 
 Everything below this line is one idea. A session that spent a run inside the
