@@ -252,6 +252,36 @@ class TestTheCountsAreCheckedAgainstEachOther:
     exercise exists to prevent.
     """
 
+    def test_beaten_in_window_has_no_default(self):
+        """The whole point of the change, asserted on the signature.
+
+        Every other test in this file PASSES `beaten_in_window`, so a default
+        is invisible to all of them: restoring `beaten_in_window: int = 0`
+        leaves the suite green while reinstating exactly the bug it was added
+        to prevent — the count silently assumed zero, and a window claim
+        nobody measured published inside a correction notice.
+
+        "An assumption that lives in a sentence rather than in a parameter
+        cannot be checked" is the reason the parameter exists. This is what
+        checks that the parameter keeps carrying it.
+
+        MUTATION THIS CATCHES: adding any default to `beaten_in_window`.
+        """
+        import inspect
+
+        from newsroom.pipeline.revisions import record_correction_note as fn
+
+        params = inspect.signature(fn).parameters
+        assert params["beaten_in_window"].default is inspect.Parameter.empty, (
+            "beaten_in_window must stay required; a default reinstates the "
+            "unmeasured assumption it replaced"
+        )
+        assert params["beaten_in_series"].default is inspect.Parameter.empty
+        # CONTROL: the probe can see a default when there is one, so the
+        # assertions above are a reading rather than a tautology.
+        assert params["rank"].default == 1
+        assert params["window_extreme"].default is None
+
     def test_more_beaten_in_the_window_than_in_the_series_is_refused(self):
         import pytest
 
@@ -532,3 +562,184 @@ class TestCorrectingDoesNotUnpublish:
         assert updated is not None
         assert updated["status"] == "published"
         assert is_servable(updated), "correcting an article must not remove it from the site"
+
+
+#: `lithuania-s-construction-output-surged-to-8-1-in-q2-b416a8`. A RANK claim,
+#: not a record claim, and the distinction decides whether it is wrong at all.
+#: Measured 2026-08-30T09:14Z against `sts_copr_q?geo=LT`:
+#:
+#:   window   40 obs 2016-Q3..2026-Q2,  3 higher -> fourth-highest, TRUE
+#:   series  113 obs 1998-Q2..2026-Q2, 13 higher -> fourteenth,     FALSE
+#:
+#: So "the fourth-highest on record" is right about what we retrieved and wrong
+#: about the record. A sweep that read every superlative as first place called
+#: this article false; reading the sentence is what caught it.
+CONSTRUCTION = dict(
+    claim=(
+        "Lithuania's 8.1% construction output in 2026-Q2 was \"the fourth-highest "
+        "on record, with only a handful of readings in the series having ever "
+        "been higher\""
+    ),
+    window="40 observations since 2016-Q3",
+    window_start="2016-Q3",
+    series_start="1998-Q2",
+    true_extreme="14.4%",
+    true_period="2013-Q2",
+    beaten_in_window=3,
+    beaten_in_series=13,
+    claims_low=False,
+    rank=4,
+)
+
+
+class TestARankClaimIsOnlyWrongIfTheRankIsWrong:
+    """`CONSTRUCTION` — the shape that nearly cost a correct article.
+
+    "The second-highest level on record" with exactly one reading higher is
+    TRUE, and correcting it to "it was not the highest" would correct something
+    the article never said.
+    """
+
+    def test_it_repeats_the_rank_the_article_claimed(self):
+        text = record_correction_note(**CONSTRUCTION)["description"]
+
+        assert "It was the fourth-highest only in the" in text
+        assert "It was not the highest" not in text
+
+    def test_it_gives_the_true_placing_rather_than_a_bare_count(self):
+        """"Thirteen readings are higher" leaves the reader to do the
+        arithmetic that produced the error in the first place."""
+        text = record_correction_note(**CONSTRUCTION)["description"]
+
+        assert "making it the fourteenth rather than the fourth" in text
+
+    def test_it_does_not_call_a_rank_claim_a_record_claim(self):
+        """The article claimed a placing, not a record. A notice saying "a
+        record claim on this wire" would be correcting a different sentence."""
+        text = record_correction_note(**CONSTRUCTION)["description"]
+
+        assert "the placing was not" in text
+        assert "describing it as a record was not" not in text
+
+    def test_a_rank_that_disagrees_with_the_window_count_is_refused(self):
+        """Fourth-highest means exactly three are higher. If the measurement
+        says otherwise, one of them is wrong and a correction cannot rest on
+        whichever it is.
+
+        MUTATION THIS CATCHES: dropping the cross-check, which would publish
+        "the fourth-highest" over a window where five readings are higher.
+        """
+        import pytest
+
+        with pytest.raises(ValueError, match="rank"):
+            record_correction_note(**{**CONSTRUCTION, "beaten_in_window": 5})
+
+    def test_rank_one_is_unchanged(self):
+        """CONTROL: the rank machinery must not touch the published shape."""
+        assert record_correction_note(**FOOD)["description"] == (
+            record_correction_note(**{**FOOD, "rank": 1})["description"]
+        )
+
+    def test_rank_below_one_is_refused(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="rank starts at 1"):
+            record_correction_note(**{**FOOD, "rank": 0})
+
+
+#: `lithuania-s-passenger-car-ownership-reaches-record-high-in-2025-b7016e`.
+#: Measured 2026-08-30T08:54Z against `road_eqs_carhab?geo=LT`: 36 observations
+#: from 1990, and 629 in 2025 is the maximum of all of them. The RECORD IS
+#: TRUE. What is false is "the series start value of 490 ... in 2006" -- that
+#: is where `lastTimePeriod=20` put our window; the series starts 1990 at 133.
+CARS = dict(
+    claim=(
+        "Lithuania's 2025 car ownership \"reflects a significant increase from "
+        "the series start value of 490 cars per thousand inhabitants in 2006\""
+    ),
+    window_start="2006",
+    series_start="1990",
+    series_start_value="133 cars per thousand inhabitants",
+    still_stands=(
+        "The record itself stands: 629 cars per thousand inhabitants in 2025 is "
+        "the highest of all 36 readings"
+    ),
+)
+
+
+class TestAnOriginCorrectionOnAnArticleWhoseRecordIsTrue:
+    """`CARS` — where `record_correction_note` would itself publish a falsehood.
+
+    That builder's scope branch says the figure "was the highest only in the
+    observations the newsroom had retrieved". For this article that is untrue:
+    629 is the genuine maximum of all 36 readings. A correction asserting a
+    falsehood in order to correct one is the rail fault arriving from the
+    opposite direction.
+    """
+
+    def test_it_does_not_say_the_record_was_only_ours(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**CARS)["description"]
+
+        assert "only in the" not in text
+        assert "was not the highest" not in text
+
+    def test_it_says_plainly_that_the_record_stands(self):
+        """A correction on an article whose headline is true reads as a
+        retraction unless it says otherwise."""
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**CARS)["description"]
+
+        assert "The record itself stands" in text
+        assert "highest of all 36 readings" in text
+        assert "figures are unchanged" in text
+
+    def test_it_separates_the_window_start_from_the_series_start(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**CARS)["description"]
+
+        assert "2006 is where the newsroom's data window starts" in text
+        assert "it runs back to 1990" in text
+        assert "the figure was 133 cars per thousand inhabitants" in text
+
+    def test_it_refuses_to_build_without_saying_what_stands(self):
+        """MUTATION THIS CATCHES: making `still_stands` optional, which turns
+        a notice about a date into what reads as a retraction of a true story.
+        """
+        import pytest
+
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        with pytest.raises(ValueError, match="record survives"):
+            origin_correction_note(**{**CARS, "still_stands": "   "})
+
+
+class TestOrdinalsAreNeverInvented:
+    """"The 113rd" is the failure mode of generating English by rule."""
+
+    def test_the_named_ones_are_words(self):
+        from newsroom.pipeline.revisions import _ordinal
+
+        assert _ordinal(1) == "first"
+        assert _ordinal(14) == "fourteenth"
+        assert _ordinal(26) == "twenty-sixth"
+
+    def test_beyond_the_table_it_falls_back_to_a_form_that_is_always_right(self):
+        from newsroom.pipeline.revisions import _ordinal
+
+        assert _ordinal(113) == "113th"
+        assert _ordinal(21) == "21st"
+        assert _ordinal(22) == "22nd"
+        assert _ordinal(23) == "23rd"
+
+    def test_the_teens_do_not_take_st_nd_rd(self):
+        """MUTATION THIS CATCHES: `n % 10` without the 11/12/13 guard, which
+        prints "the 111st"."""
+        from newsroom.pipeline.revisions import _ordinal
+
+        assert _ordinal(111) == "111th"
+        assert _ordinal(112) == "112th"
+        assert _ordinal(113) == "113th"
