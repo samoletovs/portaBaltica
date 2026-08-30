@@ -1255,6 +1255,84 @@ name missed `portData.live.test.ts` for `port-data`, because the filename is
 camelCase. And globbing `tests/**/*.ts` silently excluded every `.tsx`. **Each
 one moved the headline number, and every one failed toward "no finding here".**
 
+### The sweep's own population was one level too shallow
+
+Every under-count above is a *consumer* enumeration that was too small. The
+fifth was in the **producer** enumeration, and it is the largest: the sweep
+walked each response's top level and stopped. Re-run recursively against
+production at **2026-08-30T07:29Z, master `10c24b1`**, three runs, population
+identical in all three:
+
+```
+depth 1   110      <- the entire swept population, recorded above as 107
+depth 2   149
+depth 3    58
+depth 4    45
+          ---
+deeper    252      = 70% of served fields, never examined
+```
+
+`#231` is what made this visible: it attached `freshness` to
+`/api/baltic-compare` under `countries.<CC>`, at depth 3, where a top-level
+sweep cannot see it. The rule this file states three instances of — **write
+down the set the guard walks and the set the behaviour walks, and require them
+to match** (`#149`, `#178`, `389d1f9`) — has a fourth instance, in the method
+that found the first three.
+
+**Two corrections to the instrument, both found by reading its output.**
+
+The matcher counted a field name appearing **inside a comment** as a reader:
+`\{[^}]*\bname\b[^}]*\}` for destructuring spans newlines, and in a repo whose
+files carry more prose than code that matches almost anything.
+`freshness.allowed` was classified `test-only` on the strength of three files
+in which `.allowed` never appears — the word occurred in a comment about CSV
+export, one about the spacing scale, and one about the rate limiter.
+
+And a name match cannot tell the payload's `countries.LV.freshness.stale` from
+the client's **own computed** `stale`, because `freshnessOf()` returns an object
+with the same field names. So the sweep reported `freshness.period` as read by
+19 files while nothing in `src/` reads `.freshness` at all. A field is
+app-reachable only if every ancestor on its path is: without that the recursive
+sweep is *worse* than the top-level one, adding hundreds of deep names and
+marking them read on a collision with a sibling module. It moved 24 fields.
+
+Both errors inflate readers, which deflates orphans — **the direction that fails
+toward "no finding here", in the instrument built to find exactly that.**
+
+And a third, found only because a number moved while the population did not:
+**the sweep consumed its own subject.** Once `tests/seamSweep.test.ts` existed,
+the three `warnAfterMonths` orphans flipped to `test-only`, because that file
+names the field in a fixture string and the matcher counted it as a reader —
+so the sweep reported *fewer* orphans the more thoroughly its own findings were
+written down. Its own files are excluded now, as an equality so a fourth fails
+rather than being absorbed.
+
+```
+                app   test-only   orphan
+name only       310          36       16
++ reachability  286          60       16     <- 24 fields moved
+                                       ^ 13 of the 16 are below depth 1
+```
+
+**The conclusion about `freshness` survives, and that is the interesting part.**
+The passage above decided it was a decision rather than a defect because the
+client recomputes the verdict. That is still true, and it now covers the nested
+copy as well: `.freshness` has **zero** readers in `src/` on either endpoint,
+and is declared in neither `src/api.ts` nor `src/types.ts`. The grep this file
+ships still returns `freshness 0`, verbatim, at `10c24b1`. **What was wrong was
+not the answer but the reach of the evidence** — the passage generalised from a
+population that excluded the instance a reader would have asked about.
+
+Two of the nested orphans are new and nobody has reasoned about them:
+`countries.<CC>.freshness.warnAfterMonths` and `.staleAfterMonths` are shipped
+by `api/shared/freshness.js` and read by nothing, not even a test. The client
+holds its own `WARN_AFTER_MONTHS` table and `tests/dashboardCadence.test.tsx`
+asserts the two agree, so the fields may well be deliberate — but that is a
+question, not a verdict, and the code does not answer it at the field.
+
+`scripts/seam-sweep.mjs` runs it; `tests/seamSweep.test.ts` guards the
+instrument, each assertion pinning a defect it actually had.
+
 And note where all three defects were found: **at the reporting layer, by
 reading the output.** Not one is reachable from a test of the producer, because
 the producer was right every time.
