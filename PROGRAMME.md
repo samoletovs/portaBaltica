@@ -413,6 +413,50 @@ an instrument you have not proven can see anything is not a measurement. The
 best example this run: a session measured sixteen routes at `overflow 0` and
 then injected a 600px div to prove the probe could report a non-zero.
 
+> **And its harder sibling, earned 2026-08-31: a control must be SIZED, not
+> merely present, because a partial result is the default failure mode of
+> anything that scans.**
+>
+> A session hunting misattributed magnitudes used `[^.]*` for "within one
+> sentence" and it stopped at the decimal point: `41.75%` became `75%`, and the
+> count of magnitude-bearing clauses came back **2 where the answer was 6**.
+> `AGENTS.md` names that exact defect and supplies the fix — **the book prevented
+> the second occurrence, not the first.**
+>
+> ```
+> an ABSENT result announces itself
+> a PARTIAL result looks exactly like a complete one
+>   -> the only thing separating them is knowing how much there should have been
+> ```
+>
+> A truncating regex, a paginated API returning page one, a directory walk that
+> stops at a symlink, a query with an implicit `LIMIT` — all return *something*,
+> and something is what every ordinary check tests for. **Assert the matched
+> span, not merely that a match occurred.** "The known instance was found" is
+> satisfied by finding one character of it.
+>
+> The session had the tell — `2 → 6` — only because they re-ran the same corpus
+> after fixing the regex. Fix it before the first run and you report six, with no
+> idea it might have been two.
+
+> **A control pair has a free self-check, and it caught me.** Verifying a claim
+> that a named constant was inert, I ran the mutation on "master" and on the
+> branch and got **RED on both** — which contradicted the session. Rather than
+> report it I looked: the PR had merged four minutes earlier, so my "master"
+> worktree was cut from the post-merge tree and **both readings were of one
+> tree.** The honest pair is `GREEN` pre-merge, `RED` post, confirming them
+> exactly.
+>
+> **RED-on-both is structurally impossible for a control pair** — the two sides
+> are *defined* by disagreeing, so agreement is a statement about the setup and
+> never about the subject. That check is available before you know anything about
+> the code. **Any measurement whose two arms must differ has it; one whose arms
+> merely usually differ does not.**
+>
+> The cause is `AGENTS.md`'s *"state the SHA you measured, not the branch"*,
+> arriving in the instrument built to check other people's work. A stale value
+> looks wrong eventually; **a stale tree looks like a valid measurement forever.**
+
 **And I guessed JSON object shapes wrongly six times in one day**, including
 twice on the same endpoint after `AGENTS.md` warned about it. `/api/system-status`
 is `dataSources.checks[].{name,status,freshness,…}`; article checks are at
