@@ -2306,6 +2306,32 @@ check named an article "carrying 1 correction" as its positive control; nine
 hours later it carried 2, so an equality against the recorded reading would have
 called a working probe broken. *Non-empty* survives; `== 1` does not.
 
+That last rule reads as the opposite of *write an exemption as an assertion, not
+a filter*, and the collision is real rather than apparent: both are about
+asserting against a value **someone else controls**, and they prescribe opposite
+treatments. An exemption belongs in an equality precisely *so that* it breaks
+the day the contingency lapses; a control must not, because the day the article
+gained a second correction nothing about the probe had changed.
+
+What separates them is not the value. It is **what a failure would tell you**:
+
+| | a failure means | so |
+|---|---|---|
+| exemption | the thing you were excusing is fixed | the equality **is** the finding |
+| control | the world moved, orthogonally | the equality is noise wearing a finding's clothes |
+
+So the question to ask of any assertion pinned to a recorded reading is *would I
+want to be woken up when this number changes?* If yes, pin it exactly, and let
+it fail. If a change is expected and says nothing about the subject, assert the
+**weakest property that still discriminates** — for a positive control that is
+almost always non-emptiness, because a control's whole job is to prove the probe
+can see anything at all.
+
+The file already contains the deciding half of this and states it about
+exemptions only: *an exemption that rests on someone else's code is never
+permanent, because you are not the one who decides*. Controls rest on someone
+else's code too. The difference is that an exemption **wants** to hear about it.
+
 ### Four dispositions, told apart by their remedies
 
 The symptoms are identical in every case — a probe that answered, and answered
