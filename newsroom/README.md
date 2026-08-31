@@ -196,6 +196,85 @@ argument — `_admissible` runs after the model exactly as `_ground` does:
    cannot promote its own guess into a central bank's mouth.
 4. **No analyst is a person.** See below — this one is a structure rather than a
    guard, and it is the correction that mattered most.
+5. **A claim names a particular.** Added after measurement, and it is the rule
+   the prompt had always *stated*: *"'economic factors', 'demographic trends'
+   and 'market conditions' … will be thrown away."* Nothing threw them away.
+   Across the 26 hypotheses the panel had published, `discarded` was **0 every
+   run** — so a sentence claiming enforcement sat above a guard that checked
+   quantities, bases and citations, and never specificity.
+
+   `_particulars` is structural rather than a vocabulary of banned vagueness,
+   because this codebase has four separate records of such a list being beaten
+   by the first phrasing nobody imagined. It does not ask *is this vague*; it
+   asks *does this name something* — a proper noun, or a year — **excluding the
+   finding's own subject**, which is the trap a bare proper-noun test falls
+   into: the vaguest claim in the corpus was capitalised, because it named
+   Lithuania.
+
+   Measured against that same corpus it rejects 21 of 26, and the five it keeps
+   are the Russian-gas pair, a dated policy, Mārtiņš Kazāks and the ECB
+   Consumer Expectations Survey. Its known false negative — a real mechanism
+   with no proper noun and no year — is pinned by a test rather than hidden.
+
+### Likelihood is calibrated, and repetition is not agreement
+
+Two further defects were measured on the same corpus and neither is visible in
+any single article.
+
+**`strength` was a self-assigned binary and 19 of 26 (73%) came back
+`likely`.** A confidence scale whose top value covers three-quarters of its
+output cannot separate the Orlen refinery from a guess about festivals.
+`LIKELIHOOD_BANDS` fixes words to numbers after the IPCC AR6 convention, with
+one deliberate departure: the IPCC's bands are nested, and a reader comparing
+two hypotheses side by side needs them to partition, so these are the disjoint
+reading of the same scale. The **band word** reaches the prose and the
+**numeric range** stays in the passport — a percentage in that paragraph would
+be a figure the pipeline never verified, and every numeric gate downstream keys
+on a paragraph's declared figures.
+
+**`corroborated_by` was firing on 18 of 26 (69%), and it was measuring
+vagueness.** `_admissible` deduplicated on an exact string, per analyst, which
+is no defence against three lenses writing one prior three ways. The
+car-ownership article published *"rising disposable incomes and improved
+economic conditions"*, *"…and improved access to financing options"* and
+*"…and improved access to financing"* as three hypotheses, and annotated all
+three as independently corroborated. A convergence measure over free text
+rewards generality, because vague claims are the ones most likely to overlap —
+so the more the panel shrugged, the more agreement it appeared to find.
+`_collapse_duplicates` folds them into one claim that keeps every distinct
+analyst as corroboration: genuine agreement survives, the same sentence three
+times does not.
+
+### The panel had no evidence, and the reason was a host collision
+
+The deeper finding, and it is not in `hypothesis.py` at all. Of the five
+articles carrying a panel, **two recorded `documents_fetched: 0`** — and both
+are the ones whose prose prompted this work.
+
+`ec_presscorner` is configured `document_fetch_allowed: true`, its feed
+answered HTTP 200 with 10 items when probed, and **it had never been fetched
+once**. `ec.europa.eu` was registered twice — Eurostat's dissemination API and
+the Commission's Press Corner — and `_index_by_host` dropped any host claimed
+twice, so every Commission and Eurostat URL was unresolvable. Every document
+that ever reached an analyst came from `ecb.europa.eu` or `bank.lv`, the two
+hosts that resolved.
+
+That mattered most for the stories that went wrong, because both were
+Lithuanian: Eurostat's own euro-indicator release is what says *which sector*
+moved a producer price index, and it was unreachable. So the panel wrote
+"summer seasonal demand" while the answer — refined petroleum, from a single
+refiner — sat behind a link the registry already licensed.
+
+Sources now declare `path_prefixes`, and **a collision without them is a load
+error rather than a silent drop**. The old behaviour was safe in the sense that
+nothing was mislicensed and unsafe in the sense that nobody found out: the only
+symptom was `documents_fetched: 0`, which is what "no relevant document was
+published" also looks like. `ResearchContext.discovery` now records which
+provider ran, or `not_configured`, for the same reason.
+
+Note what this does *not* change: `resolve_to_registered` still drops any hit
+whose host is not a registered, fetchable source, so discovery can only ever
+widen *which page of an already-assessed publisher* is read.
 
 ### An analyst is a role, and that is a correction
 

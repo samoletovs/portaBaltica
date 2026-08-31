@@ -77,6 +77,10 @@ param newsroomSchedule string = '0 0 5,11,17 * * *'
 @description('NCRONTAB schedule for the weekly wrap. Its own setting rather than sharing the daily one: the two cadences move independently, and a second timer reading the first\'s setting would reintroduce the disconnected-knob failure in a new place. Sunday 15:00 UTC sits an hour after the last daily edition, so the week\'s findings are in the vintage ledger the wrap reads.')
 param newsroomWeeklySchedule string = '0 0 15 * * 0'
 
+@description('Search provider for the causal panel\'s document discovery. "none" (the default) makes no network call and the pipeline behaves exactly as it did before discovery existed. Set to "brave" only together with the out-of-band key below — a provider named here without a key logs a warning and falls back to none, which is a state worth being able to see.')
+@allowed(['none', 'brave'])
+param newsroomSearchProvider string = 'none'
+
 @description('Python version for the Flex Consumption Function App.')
 @allowed(['3.11', '3.12'])
 param pythonVersion string = '3.12'
@@ -364,6 +368,25 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'NEWSROOM_CONTAINER_APPROVALS', value: 'approvals' }
         { name: 'NEWSROOM_SCHEDULE', value: newsroomSchedule }
         { name: 'NEWSROOM_WEEKLY_SCHEDULE', value: newsroomWeeklySchedule }
+        // Which discovery provider the causal panel may use. NOT the key.
+        //
+        // `NEWSROOM_SEARCH_API_KEY` is deliberately absent from this template
+        // and must stay absent. There is no API key, connection string or
+        // @secure() parameter anywhere in `infrastructure/`, and the whole
+        // auth posture rests on that being true rather than mostly true — the
+        // storage account sets `allowSharedKeyAccess: false` and the Foundry
+        // account sets `disableLocalAuth: true` precisely so a key could not
+        // work even if somebody added one.
+        //
+        // Brave has no managed-identity path, so its key is set out of band and
+        // survives a redeploy because ARM leaves unlisted app settings alone:
+        //
+        //   az functionapp config appsettings set -n portabaltica-func \
+        //     -g portabaltica-rg --settings NEWSROOM_SEARCH_API_KEY=<key>
+        //
+        // Naming the provider here and the key there is what keeps the setting
+        // reviewable in source while the secret is not in it.
+        { name: 'NEWSROOM_SEARCH_PROVIDER', value: newsroomSearchProvider }
       ]
     }
   }

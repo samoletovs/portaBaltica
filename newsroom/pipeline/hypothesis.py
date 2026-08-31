@@ -99,7 +99,11 @@ if TYPE_CHECKING:  # pragma: no cover - types only
 
 log = logging.getLogger(__name__)
 
-HYPOTHESIS_PROMPT_VERSION = "hypothesis-v1"
+#: Bumped from v1 when the panel gained a calibrated likelihood scale, an
+#: enforced specificity rule, a rival explanation and a disconfirming test. A
+#: published article records this, so a reader — and a later audit — can tell
+#: which contract produced the hypotheses it carries.
+HYPOTHESIS_PROMPT_VERSION = "hypothesis-v2"
 
 MAX_HYPOTHESIS_TOKENS = 650
 
@@ -123,6 +127,40 @@ Basis = Literal["domain_knowledge", "official_document"]
 Strength = Literal["likely", "possible"]
 
 _VALID_BASES: frozenset[str] = frozenset({"domain_knowledge", "official_document"})
+
+#: Calibrated likelihood bands, and the numeric range each one stands for.
+#:
+#: The published scale was ``likely`` or ``possible``, chosen by the model for
+#: itself. Measured across every hypothesis the panel had produced, 19 of 26
+#: (73%) came back ``likely`` — a confidence scale whose top value covers
+#: three-quarters of its output carries almost no information, and a reader
+#: cannot tell the Orlen refinery from a guess about festivals.
+#:
+#: The bands follow the IPCC AR6 convention of fixing words to numbers so that
+#: "likely" means the same thing in every article. **One deliberate departure:**
+#: the IPCC's bands are nested — its ``likely`` is 66–100% and contains its
+#: ``very likely`` — which is right for a single assessed statement and wrong
+#: here, because a reader comparing two hypotheses side by side needs them to
+#: partition. These are the disjoint reading of the same scale.
+#:
+#: The range is recorded in provenance and shown in the passport; it is
+#: deliberately kept OUT of the prose. A percentage in the causal paragraph
+#: would be a figure the pipeline never verified, and every numeric gate
+#: downstream keys on a paragraph's declared figures — so the reader gets the
+#: band word, and the passport carries the convention that defines it.
+LIKELIHOOD_BANDS: Mapping[str, tuple[int, int]] = {
+    "very likely": (90, 100),
+    "likely": (66, 90),
+    "about as likely as not": (33, 66),
+    "unlikely": (10, 33),
+    "very unlikely": (0, 10),
+}
+
+#: Below this the panel is not offering an explanation, it is listing something
+#: it has ruled out. Kept in provenance, never offered to the correspondent.
+_PUBLISHABLE_BANDS: frozenset[str] = frozenset(
+    {"very likely", "likely", "about as likely as not"}
+)
 
 #: Words carrying no discriminating power when deciding whether two analysts
 #: proposed the same cause. Deliberately short: the comparison is over content
@@ -407,6 +445,23 @@ class Hypothesis:
     #: What reading would confirm or kill it. This is the half that keeps a
     #: hypothesis honest — an explanation nothing could falsify is decoration.
     testable_with: str = ""
+    #: The calibrated band, and the numeric range it stands for. See
+    #: :data:`LIKELIHOOD_BANDS`.
+    likelihood: str = "possible"
+    likelihood_range: str = ""
+    #: The explanation that would be next best if this one is wrong.
+    #:
+    #: Analysis of Competing Hypotheses turns on the observation that a
+    #: hypothesis is never established by the evidence consistent with it —
+    #: several rivals are usually consistent with the same evidence — but by
+    #: what fails to disconfirm it. Asking each panellist for its own rival is
+    #: the cheapest available approximation: it forces the analyst to have
+    #: considered a second story before proposing the first, and it gives the
+    #: correspondent something to write when two lenses disagree.
+    rival: str = ""
+    #: The observation that would kill this claim. ``testable_with`` names a
+    #: series; this names the *result* that settles it against.
+    disconfirmed_by: str = ""
     #: Set by :func:`_converge` when another panellist proposed the same cause
     #: independently.
     corroborated_by: tuple[str, ...] = ()
@@ -420,11 +475,18 @@ class Hypothesis:
             "basis": self.basis,
             "attribution": self.attribution,
             "strength": self.strength,
+            "likelihood": self.likelihood,
         }
+        if self.likelihood_range:
+            record["likelihood_range"] = self.likelihood_range
         if self.informed_by:
             record["informed_by"] = self.informed_by
         if self.testable_with:
             record["testable_with"] = self.testable_with
+        if self.rival:
+            record["rival"] = self.rival
+        if self.disconfirmed_by:
+            record["disconfirmed_by"] = self.disconfirmed_by
         if self.corroborated_by:
             record["corroborated_by"] = list(self.corroborated_by)
         return record
@@ -450,6 +512,16 @@ class HypothesisPanel:
             "consulted": list(self.consulted),
             "hypotheses": [h.to_dict() for h in self.hypotheses],
             "discarded": len(self.discarded),
+            # The reasons, not just the count. `discarded: 0` was true of every
+            # run the panel ever made, and it was consistent with two different
+            # states: nothing vague was proposed, and nothing checked. Naming
+            # the scale the bands refer to does the same job for `likelihood` —
+            # a reader of this record can tell what "likely" was taken to mean
+            # without reading our source.
+            "discarded_reasons": list(self.discarded),
+            "likelihood_scale": {
+                band: f"{low}–{high}%" for band, (low, high) in LIKELIHOOD_BANDS.items()
+            },
         }
 
     def prompt_section(self) -> str:
@@ -505,19 +577,124 @@ class HypothesisPanel:
                     f"CLAIM to the analyst, never to them"
                 )
             lines.append(
-                f"    how strongly: {hypothesis.strength}; the figures here do not establish it"
+                f"    how strongly: {hypothesis.likelihood}; the figures here do not "
+                f"establish it. Use that exact phrase if you give a strength at all, and "
+                f"do NOT convert it into a percentage — the band is defined in the "
+                f"article's provenance, and a figure here would be one this newsroom "
+                f"never verified"
             )
             if hypothesis.corroborated_by:
                 lines.append(
                     "    reached independently by: "
                     + ", ".join(hypothesis.corroborated_by)
                 )
+            if hypothesis.rival:
+                lines.append(f"    the analyst's own rival explanation: {hypothesis.rival}")
+            if hypothesis.disconfirmed_by:
+                lines.append(f"    what would kill it: {hypothesis.disconfirmed_by}")
             if hypothesis.testable_with:
                 lines.append(f"    what would settle it: {hypothesis.testable_with}")
         return "\n".join(lines)
 
 
 # ── the guard ───────────────────────────────────────────────────────────
+
+
+#: Tokens that only ever *locate* a finding rather than explain it. Countries
+#: and calendar months are genuine closed vocabularies — the kind this
+#: codebase's own rule permits a word list for — and they matter because they
+#: are capitalised, so a purely structural "does this name a particular?" test
+#: would otherwise be satisfied by the sentence's own subject. "The increase in
+#: passenger cars per thousand inhabitants in Lithuania can be attributed to
+#: rising disposable incomes" names Lithuania and nothing else, and Lithuania
+#: is what the article is already about.
+_CALENDAR: frozenset[str] = frozenset(
+    {
+        "january", "february", "march", "april", "may", "june", "july",
+        "august", "september", "october", "november", "december",
+        "spring", "summer", "autumn", "winter",
+        "q1", "q2", "q3", "q4", "h1", "h2", "s1", "s2",
+        # Supranational locators. Naming the continent an effect happened on is
+        # not naming a cause; "energy prices in Europe" locates the claim and
+        # explains nothing. Stripping the adjective costs nothing, because an
+        # analyst citing the European Central Bank still leaves "Central" and
+        # "Bank" standing as the particular.
+        "europe", "european", "eu", "baltic", "baltics",
+    }
+)
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_TOKEN = re.compile(r"[^\W\d_]{2,}|\d{4}", re.UNICODE)
+
+
+def _finding_vocabulary(signal: Signal) -> frozenset[str]:
+    """Every word that merely restates the finding.
+
+    A cause has to come from outside the reading. Anything in here is the
+    reading itself wearing a cause's clothes.
+    """
+    words: set[str] = set(_CALENDAR)
+    for name in COUNTRY_NAMES.values():
+        words.update(t.casefold() for t in _TOKEN.findall(str(name)))
+    for part in (
+        signal.metric_label,
+        signal.geography,
+        COUNTRY_NAMES.get(signal.geography, ""),
+        signal.period,
+        signal.unit,
+        signal.section,
+        signal.detector,
+        signal.comparison_basis,
+    ):
+        words.update(t.casefold() for t in _TOKEN.findall(str(part or "")))
+    return frozenset(words)
+
+
+def _particulars(claim: str, vocabulary: frozenset[str]) -> frozenset[str]:
+    """The nameable particulars a claim contains, beyond the finding's own words.
+
+    **Structural, not a vocabulary of banned vagueness.** The prompt's own
+    examples of what to reject — "economic factors", "demographic trends",
+    "market conditions" — are the phrasings its author imagined, and this
+    codebase has four separate records of such a list being beaten by the first
+    wording nobody thought of. So this does not ask *is this vague*. It asks
+    *does this name something*: a proper noun, or a year.
+
+    A year counts because :mod:`newsroom.numeric_scan` masks bare years, so
+    "the 2024 pension reform" survives the no-numbers rule intact and is
+    exactly the specificity wanted.
+
+    The first token of each sentence is skipped: a capital there is grammar,
+    not a name. The cost is a claim whose only particular opens it, which is
+    rare and errs toward rejection — and the prompt already tells an analyst
+    with nothing to say to return an empty list.
+
+    **The known false negative, measured rather than supposed.** A mechanism
+    stated with no proper noun and no year is rejected: "Lithuania's role as a
+    used-car import hub raises registrations before vehicles are re-exported"
+    is a specific, checkable process, and every capitalised word in it is the
+    country the article is already about. That is a real loss and it is the
+    deliberate direction of the error — a rejected true claim costs one
+    paragraph, an accepted vacuous one is published under an analyst's name and
+    reads to a reader as though somebody looked.
+
+    The obvious repair is to accept a claim that supplies a ``disconfirmed_by``
+    instead, on the grounds that a falsifiable claim is what the rule is really
+    after. It is not taken, because that field is free text the model writes:
+    it would be supplied every time, and the gate would become a guard that
+    cannot fail — which is the fault this whole change exists to remove, not
+    one to reintroduce one function further down.
+    """
+    found: set[str] = set()
+    for sentence in _SENTENCE_SPLIT.split(claim.strip()):
+        for position, token in enumerate(_TOKEN.findall(sentence)):
+            if position == 0:
+                continue
+            if token.isdigit():
+                found.add(token)
+            elif len(token) >= 3 and token[0].isupper():
+                found.add(token.casefold())
+    return frozenset(found) - vocabulary
 
 
 def _content_words(value: str) -> frozenset[str]:
@@ -576,6 +753,67 @@ def _overlap(left: str, right: str) -> float:
     return len(a & b) / min(len(a), len(b))
 
 
+def _collapse_duplicates(hypotheses: Sequence[Hypothesis]) -> tuple[Hypothesis, ...]:
+    """Fold near-identical claims from different lenses into one.
+
+    ``_admissible`` deduplicates on an exact casefolded string, per analyst.
+    That is no defence against three lenses writing the same prior three ways,
+    which is what happened: the car-ownership article published "rising
+    disposable incomes and improved economic conditions", "rising disposable
+    incomes and improved access to financing options" and "rising disposable
+    incomes and improved access to financing" as three separate hypotheses, and
+    three of its fifteen claim-pairs were near-duplicates.
+
+    Two things went wrong at once. The reader saw one guess presented as a
+    weight of opinion — and ``_converge`` then annotated all three as
+    independently corroborated, so the *more* generic the panel got, the more
+    agreement it appeared to find. A convergence measure over free text rewards
+    vagueness, because vague claims are the ones most likely to overlap.
+
+    Collapsing first fixes both. The survivor keeps every distinct analyst as
+    corroboration, so genuine agreement still reaches the correspondent; what
+    disappears is the same sentence three times.
+
+    **Corroboration is never inherited, only measured.** An earlier version
+    unioned the folded claim's own ``corroborated_by`` into the survivor's, and
+    ``_overlap`` is not transitive: with A~B at 0.667 and B~C at 0.778 but A~C
+    at **0.0**, folding B into A imported C's analyst, and A was published as
+    "reached independently by" a political economist whose different claim was
+    printed directly underneath — then promoted to the head of the brief,
+    because :func:`_by_evidence` sorts corroboration first. That is exactly the
+    fabricated agreement :func:`_converge` exists to make impossible. Only an
+    analyst whose *own* claim clears the threshold against the survivor is
+    carried, which is what ``_converge`` already computed pairwise.
+
+    Known and accepted: which claims survive is order-dependent, because a
+    claim overlapping two mutually unrelated others folds whichever it meets
+    first. Order comes from ``panel_for``, and n is at most
+    ``PANEL_SIZE × MAX_PER_ANALYST``. The cost is completeness rather than
+    truth — every surviving corroboration is a measured pairwise overlap — and
+    the module already prefers one well-attributed cause to three.
+    """
+    survivors: list[Hypothesis] = []
+    for hypothesis in hypotheses:
+        for position, kept in enumerate(survivors):
+            # `_overlap` already applies the length floor and the shared-word
+            # floor internally. Re-stating either here would be a second
+            # implementation of the same rule, free to drift from it.
+            if _overlap(hypothesis.claim, kept.claim) < _CONVERGENCE_THRESHOLD:
+                continue
+            merged = dict.fromkeys(
+                (
+                    *kept.corroborated_by,
+                    *((hypothesis.analyst,) if hypothesis.lens != kept.lens else ()),
+                )
+            )
+            merged.pop(kept.analyst, None)
+            survivors[position] = replace(kept, corroborated_by=tuple(merged))
+            break
+        else:
+            survivors.append(hypothesis)
+    return tuple(survivors)
+
+
 def _converge(hypotheses: Sequence[Hypothesis]) -> tuple[Hypothesis, ...]:
     """Mark hypotheses that two different lenses reached independently.
 
@@ -631,6 +869,7 @@ def _admissible(
     raw: Sequence[Any],
     lens: Lens,
     research: ResearchContext | None,
+    vocabulary: frozenset[str] = frozenset(),
 ) -> tuple[list[Hypothesis], list[str]]:
     """Keep only hypotheses that obey the three guarantees. Runs after the model.
 
@@ -678,6 +917,22 @@ def _admissible(
             discarded.append(f"{claim} — carries an unverified quantity ({found})")
             continue
 
+        # The rule the prompt has always stated and nothing has ever enforced.
+        #
+        # "BE SPECIFIC ENOUGH TO BE WRONG ... they will be thrown away" was a
+        # claim about behaviour that was false: across the 26 hypotheses the
+        # panel had published, `discarded` was 0 every run. Measured against
+        # that same corpus this rejects 21 of them, and the five it keeps are
+        # the Russian gas pair, a dated policy, Mārtiņš Kazāks and the ECB
+        # Consumer Expectations Survey — which is the whole of what was worth
+        # printing.
+        if vocabulary and not _particulars(claim, vocabulary):
+            discarded.append(
+                f"{claim} — names no particular beyond the finding itself; a cause "
+                f"that cannot be wrong cannot be reported"
+            )
+            continue
+
         basis = str(entry.get("basis") or "").strip().lower()
         if basis not in _VALID_BASES:
             discarded.append(f"{claim} — no admissible basis given ({basis or 'none'})")
@@ -716,9 +971,30 @@ def _admissible(
             continue
         seen.add(key)
 
+        likelihood = str(entry.get("likelihood") or "").strip().lower()
+        if likelihood not in LIKELIHOOD_BANDS:
+            # An unreadable band lands on the weakest publishable one, and
+            # deliberately does NOT fall back to the old self-assigned
+            # `strength` field. Honouring that would reimport the signal this
+            # scale replaced — 19 of 26 published hypotheses came back
+            # "likely" — so a v1-shaped answer would arrive wearing a
+            # calibrated band it never earned. A value that cannot be read must
+            # not resolve to the confident end; that is the missing-`maxLag`
+            # shape, where absence resolves to success.
+            likelihood = "about as likely as not"
+        if likelihood not in _PUBLISHABLE_BANDS:
+            discarded.append(
+                f"{claim} — offered at {likelihood}, which is the panellist ruling it out "
+                f"rather than proposing it"
+            )
+            continue
+        low, high = LIKELIHOOD_BANDS[likelihood]
+        # Derived, never read from the model. `strength` is the older two-value
+        # contract the desk and validator still speak; the band is the truth.
         strength: Strength = (
-            "likely" if str(entry.get("strength")).strip().lower() == "likely" else "possible"
+            "likely" if likelihood in ("very likely", "likely") else "possible"
         )
+
         kept.append(
             Hypothesis(
                 claim=claim,
@@ -729,6 +1005,12 @@ def _admissible(
                 attribution=attribution,
                 informed_by=informed_by,
                 strength=strength,
+                likelihood=likelihood,
+                likelihood_range=f"{low}–{high}%",
+                rival=redact_unverified_numbers(str(entry.get("rival") or "").strip()),
+                disconfirmed_by=redact_unverified_numbers(
+                    str(entry.get("disconfirmed_by") or "").strip()
+                ),
                 # Redacted rather than rejected: unlike a claim, this field is
                 # *supposed* to name a threshold, and the useful ones are about
                 # a future reading nobody has yet. Stripping an unverified
@@ -770,13 +1052,29 @@ THE FOUR RULES, ALL ENFORCED IN CODE AFTER YOU ANSWER
    you were READING it — the claim stays yours and is published in your name,
    so do not offer one you would not put your own name to.
 3. BE SPECIFIC ENOUGH TO BE WRONG. "economic factors", "demographic trends" and
-   "market conditions" are not hypotheses, they are the absence of one, and
-   they will be thrown away. Name the mechanism: which cohort, which policy,
-   which corridor, which input cost.
+   "market conditions" are not hypotheses, they are the absence of one. This is
+   ENFORCED: a claim that names no particular beyond the finding's own subject
+   is DELETED before the correspondent sees it. Name the mechanism — which firm,
+   which cohort, which policy, which corridor, which input cost, which year.
+   Naming the country the article is already about does not count.
 4. STAY INSIDE YOUR DISCIPLINE. You are one of several being consulted
    separately. Do not hedge toward what another specialist might say — your
    value here is your own reading, and the correspondent is told which of you
    said what.
+5. ASK FIRST WHETHER THE MEASUREMENT MOVED RATHER THAN THE WORLD. A registration
+   count, a crude rate, an index or a per-capita ratio can move because the
+   register was purged, the population denominator was revised, a classification
+   changed or a threshold was redefined — with nothing happening in the economy
+   at all. This is the most under-proposed explanation on the panel and it is
+   often the right one. If it is plausible here, say so before reaching for
+   behaviour.
+6. GIVE A CALIBRATED LIKELIHOOD, AND A RIVAL. "likelihood" must be exactly one
+   of: "very likely", "likely", "about as likely as not", "unlikely", "very
+   unlikely". Use the same scale you would defend in front of somebody keeping
+   score: reserve "very likely" for a cause you could name a document for.
+   "rival" is the explanation you would reach for if yours is wrong, and
+   "disconfirmed_by" is the observation that would kill yours. An explanation
+   nothing could disconfirm is decoration, and will be treated as such.
 
 IF YOU HAVE NOTHING WORTH SAYING, RETURN AN EMPTY LIST. A wrong cause is worse
 than an admitted gap, and "possible" is not a licence to guess.
@@ -787,7 +1085,9 @@ OUTPUT — a single JSON object, no markdown, no commentary:
     {{"claim": "the proposed cause, one or two sentences, no numbers",
       "basis": "domain_knowledge" | "official_document",
       "attribution": "the exact source name, ONLY for official_document",
-      "strength": "likely" | "possible",
+      "likelihood": "very likely" | "likely" | "about as likely as not" | "unlikely" | "very unlikely",
+      "rival": "the competing explanation you would reach for next",
+      "disconfirmed_by": "the observation that would kill this claim",
       "testable_with": "the reading or series that would confirm or kill this"}}
   ]
 }}
@@ -944,6 +1244,7 @@ def consult_panel(
     gathered: list[Hypothesis] = []
     discarded: list[str] = []
     consulted: list[str] = []
+    vocabulary = _finding_vocabulary(signal)
 
     for lens in lenses:
         system = _SYSTEM_TEMPLATE.format(
@@ -962,7 +1263,9 @@ def consult_panel(
             continue
 
         consulted.append(lens.title)
-        kept, dropped = _admissible(payload.get("hypotheses") or [], lens, research)
+        kept, dropped = _admissible(
+            payload.get("hypotheses") or [], lens, research, vocabulary
+        )
         gathered.extend(kept)
         discarded.extend(dropped)
 
@@ -975,7 +1278,7 @@ def consult_panel(
         )
 
     return HypothesisPanel(
-        hypotheses=_by_evidence(_converge(gathered)),
+        hypotheses=_by_evidence(_collapse_duplicates(_converge(gathered))),
         consulted=tuple(consulted),
         discarded=tuple(discarded),
     )
@@ -984,6 +1287,7 @@ def consult_panel(
 __all__ = [
     "HYPOTHESIS_PROMPT_VERSION",
     "LENSES",
+    "LIKELIHOOD_BANDS",
     "MAX_PER_ANALYST",
     "PANEL_SIZE",
     "SECTION_PANEL",

@@ -175,4 +175,64 @@ describe('ProvenanceBlock — the causal panel', () => {
 
     expect(screen.getByText(/2 further explanations were proposed and discarded/i)).toBeTruthy();
   });
+
+  it('names every reason a candidate is thrown away, not just the two it used to', () => {
+    // The specificity rule became the commonest cause of a discard. A sentence
+    // listing only figures and citations would tell a reader the guard did
+    // something other than what it did.
+    renderPassport(PANEL);
+
+    expect(
+      screen.getByText(/naming no particular beyond the finding itself/i),
+    ).toBeTruthy();
+  });
+
+  it('shows the calibrated band and the range it stands for', () => {
+    // The band word alone is what "likely" meant before it was pinned to a
+    // number, and 73% of published hypotheses carried it. The range is what
+    // makes the word mean the same thing in every article — and the passport
+    // is where it belongs, because a percentage in the prose would be a figure
+    // the pipeline never verified.
+    renderPassport({
+      ...PANEL,
+      hypotheses: [
+        {
+          ...PANEL.hypotheses[0],
+          likelihood: 'very likely',
+          likelihood_range: '90–100%',
+        },
+      ],
+    });
+
+    expect(screen.getByText(/very likely \(90–100%\)/i)).toBeTruthy();
+  });
+
+  it('falls back to the older strength when an article predates the scale', () => {
+    renderPassport(PANEL);
+
+    expect(screen.getByText(/likely/i)).toBeTruthy();
+  });
+
+  it("publishes the analyst's own rival explanation and what would disprove it", () => {
+    // Analysis of Competing Hypotheses: a claim is not established by the
+    // evidence consistent with it, since rivals usually are too. Showing the
+    // rival is what stops a single proposal reading as the only candidate.
+    renderPassport({
+      ...PANEL,
+      hypotheses: [
+        {
+          ...PANEL.hypotheses[0],
+          rival: 'Emigration thinning the cohort rather than its original size',
+          disconfirmed_by: 'Age-specific rates flat while the crude rate falls',
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(/Emigration thinning the cohort rather than its original size/i),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/Age-specific rates flat while the crude rate falls/i),
+    ).toBeTruthy();
+  });
 });

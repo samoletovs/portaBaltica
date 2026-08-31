@@ -248,6 +248,7 @@ async def fetch_documents(
         items=tuple(enriched),
         candidates_considered=context.candidates_considered,
         documents_fetched=fetched,
+        discovery=context.discovery,
     )
 
 
@@ -443,17 +444,22 @@ async def deepen(
     provider: SearchProvider | None = None,
 ) -> ResearchContext:
     """Discover, then read. The whole web-research stage for one article."""
-    merged = context
+    engine = provider or search_provider()
+    # Recorded whatever happens next, so a run with no documents says which of
+    # "found nothing" and "never looked" it was.
+    merged = replace(context, discovery=engine.name)
     try:
-        discovered = await discover(signal, provider=provider)
+        discovered = await discover(signal, provider=engine)
     except Exception as exc:  # noqa: BLE001
         log.warning("discovery failed: %s", exc)
+        merged = replace(merged, discovery=f"{engine.name}_failed")
         discovered = []
     if discovered:
         known = {item.url for item in context.items}
         merged = ResearchContext(
             items=(*context.items, *(d for d in discovered if d.url not in known)),
             candidates_considered=context.candidates_considered + len(discovered),
+            discovery=merged.discovery,
         )
     try:
         return await fetch_documents(merged, http)

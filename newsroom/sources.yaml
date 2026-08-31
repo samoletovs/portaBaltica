@@ -53,6 +53,11 @@ sources:
     tier: A
     endpoint: "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/{dataset}"
     verified: "2026-08-24 — HTTP 200"
+    # ec.europa.eu also carries the Commission's Press Corner, so both entries
+    # must say which paths they own. Without this the host is ambiguous and the
+    # registry refuses to load — see `_index_by_host`.
+    path_prefixes:
+      - "/eurostat/api"
     auth: none
     licence: "EU Decision 2011/833/EU — free reuse with attribution"
     attribution: "Source: Eurostat"
@@ -184,6 +189,22 @@ sources:
     tier: B
     endpoint: "https://ec.europa.eu/commission/presscorner/api/rss?language=en"
     verified: "2026-08-28 — HTTP 200, 10 items parsed by scripts/wire_check.py"
+    # Both the Press Corner and Eurostat's editorial pages are European
+    # Commission material under the same EU Decision 2011/833/EU licence, and
+    # both are narrative rather than data — so this entry owns them. The
+    # Eurostat paths matter: `products-euro-indicators` is the monthly release
+    # that says WHICH sector moved a producer price index, and
+    # `products-eurostat-news` carries the explanatory pieces. Those are the
+    # documents that answer the question the causal panel exists to ask, and
+    # until the host collision was fixed neither could be reached.
+    #
+    # Eurostat publishes no RSS feed for them — verified 2026-08-30, five
+    # candidate paths all HTTP 404 — so they arrive through search discovery,
+    # which is exactly what `resolve_to_registered` was built to gate.
+    path_prefixes:
+      - "/commission/presscorner"
+      - "/eurostat/web/products-euro-indicators"
+      - "/eurostat/web/products-eurostat-news"
     auth: none
     licence: "EU Decision 2011/833/EU — reproduction permitted, source acknowledged, content not distorted"
     attribution: "Source: European Commission"

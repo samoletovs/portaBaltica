@@ -165,6 +165,10 @@
               "minimum": 0,
               "description": "Official statements whose full page text was retrieved and read. Only ever non-zero for sources the registry marks document_fetch_allowed, which it refuses on anything but a primary official source."
             },
+            "discovery": {
+              "type": "string",
+              "description": "The search provider that ran for this article, or 'not_configured' when none did. Present because documents_fetched: 0 is otherwise produced by three different facts — discovery found nothing, every hit belonged to an unregistered publisher, or discovery was never switched on — and one of those is an outage."
+            },
             "consulted": {
               "type": "array",
               "items": {

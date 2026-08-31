@@ -291,7 +291,8 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 <ul className="news-subtle mt-2 space-y-2 text-caption">
                   {hypotheses.hypotheses.map((hypothesis) => (
                     <li key={hypothesis.claim}>
-                      {hypothesis.claim} — {hypothesis.strength === 'likely' ? 'likely' : 'possible'},
+                      {hypothesis.claim} — {hypothesis.likelihood ?? hypothesis.strength}
+                      {hypothesis.likelihood_range ? ` (${hypothesis.likelihood_range})` : ''},
                       proposed by {analystLabel(hypothesis.attribution)}
                       {hypothesis.informed_by
                         ? `, which had read ${hypothesis.informed_by}. The claim is ours, not that publisher's`
@@ -300,6 +301,12 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                         ? `. Reached independently by ${hypothesis.corroborated_by
                             .map(analystLabel)
                             .join(', ')}`
+                        : ''}
+                      {hypothesis.rival
+                        ? `. The same analyst's rival explanation: ${hypothesis.rival}`
+                        : ''}
+                      {hypothesis.disconfirmed_by
+                        ? `. What would disprove it: ${hypothesis.disconfirmed_by}`
                         : ''}
                       {hypothesis.testable_with
                         ? `. What would settle it: ${hypothesis.testable_with}`
@@ -318,8 +325,9 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                 <p className="news-subtle mt-2 text-caption">
                   {hypotheses.discarded} further explanation
                   {hypotheses.discarded === 1 ? ' was' : 's were'} proposed and discarded
-                  for carrying an unverified figure or citing a document the newsroom
-                  never retrieved. The correspondent never saw them.
+                  {' '}for carrying an unverified figure, citing a document the newsroom
+                  never retrieved, or naming no particular beyond the finding itself. The
+                  correspondent never saw them.
                 </p>
               ) : null}
             </div>

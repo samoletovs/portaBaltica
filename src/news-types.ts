@@ -87,6 +87,12 @@ export interface ResearchProvenance {
   candidates_considered: number;
   /** Official statements whose full text was retrieved and read. */
   documents_fetched?: number;
+  /**
+   * Which search provider ran, or `not_configured` when none did.
+   * `documents_fetched: 0` alone cannot distinguish an empty result from a
+   * stage that never ran.
+   */
+  discovery?: string;
   consulted: ResearchSource[];
 }
 
@@ -170,6 +176,18 @@ export interface Hypothesis {
   informed_by?: string;
   /** Never `established`: a hypothesis is a proposal, not a finding. */
   strength: 'likely' | 'possible';
+  /**
+   * The calibrated band, fixed to a numeric range so "likely" means the same
+   * thing in every article. `strength` is derived from this and kept for the
+   * older two-value contract.
+   */
+  likelihood?: string;
+  /** The range the band stands for, e.g. `66–90%`. */
+  likelihood_range?: string;
+  /** The explanation this analyst would reach for if its own is wrong. */
+  rival?: string;
+  /** The observation that would kill this claim. */
+  disconfirmed_by?: string;
   testable_with?: string;
   /** Other panellists who reached the same cause in a separate consultation. */
   corroborated_by?: string[];
@@ -187,6 +205,13 @@ export interface HypothesesProvenance {
   hypotheses: Hypothesis[];
   /** Candidates the admissibility guard threw away. */
   discarded?: number;
+  /**
+   * Why each was thrown away. A count alone cannot distinguish a guard that
+   * rejected nothing from a guard that checked nothing.
+   */
+  discarded_reasons?: string[];
+  /** The band-to-range convention these hypotheses were assessed against. */
+  likelihood_scale?: Record<string, string>;
 }
 
 export type EditorDecision = 'approve' | 'revise' | 'reject' | 'escalate';

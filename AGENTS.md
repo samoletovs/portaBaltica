@@ -3479,6 +3479,60 @@ reaches `load`). And a plausible reading like `document requests: 1` never
 triggers *print the shape*, because nothing about it looks absent. That
 limitation on the rule above is real; it just was not what happened here.
 
+## A permission is not a capability — resolve one real example through it
+
+A flag that grants something reads as evidence the thing happens. It is not:
+between the grant and the act there is usually a lookup, and the lookup can
+fail for reasons the grant knows nothing about. **The flag then documents an
+intention while the behaviour is dead, and nothing anywhere disagrees.**
+
+Three instances, all live in this repo on the same morning:
+
+```
+GRANTED                                    ACTUAL
+document_fetch_allowed: true               ec.europa.eu claimed by two sources,
+  on ec_presscorner, feed HTTP 200          so _index_by_host dropped it ->
+  with 10 items                             every Commission URL unresolvable,
+                                            0 documents ever fetched
+
+"they will be thrown away"                 _admissible checked quantities,
+  in the panel's system prompt              bases and citations, never
+                                            specificity -> discarded: 0, ever
+
+NEWSROOM_SEARCH_PROVIDER                   was set nowhere in infrastructure/,
+  a supported, documented setting           so search_provider() returned the
+                                            null one and discover() returned []
+```
+
+Each is *separately* covered by a rule above — the first is two states with one
+artefact, the second an example that was never executed, the third absence
+resolving to success. What they share is the **place to look**, and it is
+cheap: for every permission the system grants, resolve one real example all the
+way through the code path that consumes it.
+
+That is a shape rule, so it can be run rather than recognised. Take each
+boolean permission and each declarative claim about enforcement, and ask what
+input should be *accepted* and what should be *refused*; then execute both. The
+Commission collision took one call to find:
+
+```python
+registry().resolve_feed_item({"link": "https://ec.europa.eu/eurostat/web/..."})
+# UnregisteredSourceError -- against a source configured document_fetch_allowed
+```
+
+**The tell is a permission with no consumer-side test.** A grant is trivially
+easy to assert (`assert source.document_fetch_allowed`) and that assertion
+passes on a source that can never be reached, because it re-reads the config
+rather than exercising the path. Same failure as a guard that rebuilds the
+logic it guards: it agrees with the declaration instead of testing the
+behaviour.
+
+And note the asymmetry that keeps these alive. A permission wrongly **granted**
+is found the day it is abused. A permission granted and never **exercisable**
+is found by nobody, because every observable — the config, the tests, the logs,
+the published artefact — is consistent with the feature simply having nothing
+to do today.
+
 ## Write an exemption as an assertion, not a filter
 
 An exemption for a known offender is often right: naming one and attributing

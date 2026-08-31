@@ -13,11 +13,12 @@ important rule it enforces is that a tier C source can never carry
 from __future__ import annotations
 
 import logging
+import posixpath
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final, Iterator, Mapping
-from urllib.parse import urlparse
+from typing import Any, Final, Iterator, Mapping, Sequence
+from urllib.parse import unquote, urlparse
 
 import yaml
 
@@ -87,6 +88,23 @@ class Source:
     #: outright. A press release from a central bank exists to be read and
     #: quoted; a newspaper's article does not.
     document_fetch_allowed: bool = False
+    #: URL path prefixes this source owns, for a host that serves more than one
+    #: publisher role.
+    #:
+    #: ``ec.europa.eu`` carries both Eurostat's dissemination API (tier A data)
+    #: and the Commission's Press Corner (tier B narrative). Host alone cannot
+    #: tell them apart, and the previous index dropped any colliding host
+    #: entirely — so every Commission and Eurostat URL became unresolvable, and
+    #: ``ec_presscorner`` sat marked ``document_fetch_allowed: true`` while
+    #: being structurally incapable of ever being fetched. Measured across the
+    #: five articles that carry a causal panel: every document that reached one
+    #: came from ``ecb.europa.eu`` or ``bank.lv``, the two hosts that resolve,
+    #: and never once from the Commission.
+    #:
+    #: A prefix is matched against the URL path, longest first, so the licence
+    #: attached to an item is the one its own publisher declared rather than
+    #: whichever entry happened to be registered first.
+    path_prefixes: tuple[str, ...] = ()
     enabled: bool = True
     verified: str | None = None
     notes: str | None = None
@@ -132,7 +150,9 @@ class SourceRegistry:
             dict(unavailable or {})
         )
         self._version = version
-        self._by_host: Mapping[str, Source] = MappingProxyType(_index_by_host(sources))
+        self._by_host: Mapping[str, tuple[Source, ...]] = MappingProxyType(
+            _index_by_host(sources)
+        )
 
     # ── construction ────────────────────────────────────────────────────
 
@@ -276,36 +296,109 @@ class SourceRegistry:
             if not isinstance(candidate, str) or not candidate:
                 continue
             host = _host_of(candidate)
-            if host and host in self._by_host:
-                return self._by_host[host]
+            if not host:
+                continue
+            claimants = self._by_host.get(host)
+            if not claimants:
+                continue
+            matched = _match_by_path(claimants, candidate)
+            if matched is not None:
+                return matched
 
         raise UnregisteredSourceError(
             "feed item carries no source_id and no URL matching a registered endpoint; dropped"
         )
 
 
-def _index_by_host(sources: Mapping[str, Source]) -> dict[str, Source]:
-    """Map endpoint hosts to sources, so a bare feed URL can be resolved.
+def _index_by_host(sources: Mapping[str, Source]) -> dict[str, tuple[Source, ...]]:
+    """Map endpoint hosts to the sources served from them.
 
-    First registration wins, and an ambiguous host is dropped from the index
-    entirely rather than resolved arbitrarily — guessing between two sources
-    could attach the wrong licence to an item.
+    A host may legitimately carry more than one publisher role — ``ec.europa.eu``
+    serves both Eurostat's dissemination API and the Commission's Press Corner.
+    Such a host keeps every claimant, and :meth:`SourceRegistry.resolve_feed_item`
+    picks between them on the URL path.
+
+    **A collision without path prefixes is a load error, not a silent drop.**
+    The previous version discarded an ambiguous host from the index, which is
+    safe in the sense that nothing is mislicensed and unsafe in the sense that
+    nobody finds out: ``ec_presscorner`` was configured
+    ``document_fetch_allowed: true`` and could never be fetched, and the only
+    visible symptom was ``documents_fetched: 0`` — indistinguishable from "no
+    relevant document was published". Two states, one artefact. Failing at load
+    means the next collision announces itself instead.
     """
-    index: dict[str, Source] = {}
-    ambiguous: set[str] = set()
+    claims: dict[str, list[Source]] = {}
     for source in sources.values():
         if not source.endpoint:
             continue
         host = _host_of(source.endpoint)
         if not host:
             continue
-        if host in index and index[host].id != source.id:
-            ambiguous.add(host)
-            continue
-        index[host] = source
-    for host in ambiguous:
-        index.pop(host, None)
+        claims.setdefault(host, []).append(source)
+
+    index: dict[str, tuple[Source, ...]] = {}
+    for host, claimants in claims.items():
+        if len(claimants) > 1:
+            undeclared = [s.id for s in claimants if not s.path_prefixes]
+            if undeclared:
+                raise InvalidRegistryError(
+                    f"host {host!r} is claimed by {', '.join(sorted(s.id for s in claimants))}; "
+                    f"every claimant needs `path_prefixes` to disambiguate, but "
+                    f"{', '.join(sorted(undeclared))} declares none. Without it the host "
+                    "resolves to nothing and the source is silently unreachable."
+                )
+        index[host] = tuple(claimants)
     return index
+
+
+def _match_by_path(claimants: Sequence[Source], url: str) -> Source | None:
+    """The claimant whose declared path prefix best matches this URL.
+
+    Longest prefix wins. A single unambiguous claimant that declares no prefix
+    needs none, which keeps every existing one-source host working untouched.
+    Anything else must match, and no match means ``None`` — the fail-safe the
+    original ambiguity rule was reaching for, now applied per URL rather than
+    to the whole host.
+
+    **The path is decoded and normalised before it is tested**, because a
+    prefix check against a raw path tests the string a caller chose rather than
+    the resource it addresses. Untreated, ``/commission/presscorner/../../info``
+    matched the Press Corner's prefix and resolved to a tier B source with
+    ``document_fetch_allowed``, and ``..%2f..%2f`` did so in a form that httpx's
+    own RFC 3986 normalisation does not undo — so the item built by ``discover``
+    would have been published as "Source: European Commission" for a page the
+    registry never assessed, and admitted to ``_admissible``'s known sources so
+    a hypothesis could cite the Commission for it.
+
+    A ``\\`` is refused outright rather than normalised: ``posixpath`` does not
+    treat it as a separator, so guessing at its meaning here would be a second
+    opinion about what the server will do with it.
+    """
+    if len(claimants) == 1 and not claimants[0].path_prefixes:
+        return claimants[0]
+    try:
+        raw = urlparse(url).path or "/"
+    except ValueError:
+        return None
+    decoded = unquote(raw)
+    if "\\" in decoded:
+        return None
+    path = posixpath.normpath(decoded)
+    if not path.startswith("/"):
+        # normpath turns a fully-escaping path into something relative; there is
+        # no resource under this host to attribute it to.
+        return None
+    best: Source | None = None
+    best_len = -1
+    for source in claimants:
+        for prefix in source.path_prefixes:
+            if (path == prefix or path.startswith(prefix + "/")) and len(prefix) > best_len:
+                best, best_len = source, len(prefix)
+    # No fallback to a sole claimant that declared prefixes and did not match.
+    # `eurostat` would otherwise become sole claimant of ec.europa.eu the day
+    # `ec_presscorner` is disabled, and every Commission URL would resolve to a
+    # tier A entry carrying `rewrite_allowed: true`.
+    return best
 
 
 def _host_of(url: str) -> str | None:
@@ -452,6 +545,22 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
             "feed's own text is English by reading it, not by trusting the URL."
         )
 
+    raw_prefixes = merged.get("path_prefixes", ())
+    if isinstance(raw_prefixes, str):
+        raw_prefixes = [raw_prefixes]
+    if not isinstance(raw_prefixes, (list, tuple)):
+        raise InvalidRegistryError(
+            f"source {source_id!r}: `path_prefixes` must be a list of URL paths"
+        )
+    path_prefixes: tuple[str, ...] = tuple(
+        str(prefix).rstrip("/") for prefix in raw_prefixes if str(prefix).strip()
+    )
+    for prefix in path_prefixes:
+        if not prefix.startswith("/"):
+            raise InvalidRegistryError(
+                f"source {source_id!r}: path prefix {prefix!r} must start with '/'"
+            )
+
     return Source(
         id=source_id,
         name=str(merged["name"]),
@@ -470,6 +579,7 @@ def _build_source(entry: Any, *, defaults: Mapping[str, Any], index: int) -> Sou
         research_only=research_only,
         research_language=research_language,
         document_fetch_allowed=document_fetch_allowed,
+        path_prefixes=path_prefixes,
         enabled=enabled,
         verified=_optional_str(merged.get("verified")),
         notes=_optional_str(merged.get("notes")),
