@@ -151,7 +151,7 @@ def _declared_timers() -> set[str]:
         for dec in node.decorator_list:
             func = dec.func if isinstance(dec, ast.Call) else dec
             attr = getattr(func, "attr", "")
-            if attr == "timer_trigger":
+            if attr in TIMER_DECORATORS:
                 is_timer = True
             elif attr == "function_name" and isinstance(dec, ast.Call):
                 # Keyword and positional both reach the SDK; only reading one
@@ -209,14 +209,108 @@ def _module_level_functions() -> list[tuple[str, list[str]]]:
     return out
 
 
-#: The decorators that make a function an Azure Functions entry point.
+def _sdk_decorators_mentioning(trigger_class: str) -> frozenset[str]:
+    """`FunctionApp` decorator names whose implementation builds `trigger_class`.
+
+    Derived from the installed SDK rather than written down here, because a
+    hand-listed vocabulary is what produced three consecutive blind spots in
+    this chain — each list correct for the forms this repository happens to use,
+    and silent about the ones it does not.
+    """
+    import inspect
+
+    import azure.functions as func
+
+    app = func.FunctionApp()
+    found = set()
+    for name in dir(app):
+        if name.startswith("_"):
+            continue
+        attribute = getattr(app, name, None)
+        if not callable(attribute):
+            continue
+        try:
+            source = inspect.getsource(attribute)
+        except (OSError, TypeError):  # pragma: no cover - C or stripped builds
+            continue
+        if trigger_class in source:
+            found.add(name)
+    return frozenset(found)
+
+
+#: Decorators that register a function as an Azure Functions **timer**.
 #:
-#: Derived from what the file uses rather than from the SDK's full vocabulary:
-#: this guard's job is to notice a function that has *lost* its trigger, and a
-#: list of triggers nobody uses cannot help with that. A new trigger kind fails
-#: `test_every_entry_point_carries_a_trigger` on the day it is added, which is
-#: the right moment to widen this deliberately rather than by accident.
-TRIGGERS = {"timer_trigger", "route"}
+#: `timer_trigger` and `schedule` are aliases and both produce a `TimerTrigger`,
+#: measured against the SDK rather than assumed. `#292` and `#295` each fixed a
+#: reader that recognised one spelling and missed another; hardcoding one name
+#: here would be the third instance of the same mistake.
+TIMER_DECORATORS = _sdk_decorators_mentioning("TimerTrigger")
+
+#: Every decorator that registers a function at all — 23 in the installed SDK,
+#: of which this repository uses two.
+#:
+#: This was `{"timer_trigger", "route"}`, hand-written, with a comment arguing
+#: that a new trigger kind "fails on the day it is added, which is the right
+#: moment to widen this deliberately". It does fail — but with a message that
+#: says *"Azure will not register them"*, which is false, and a remedy
+#: (*"give it a leading underscore"*) that would bury a live timer and turn
+#: every test green. Failing loudly is not the same as steering correctly.
+TRIGGER_DECORATORS = _sdk_decorators_mentioning("Trigger(") | {"route"}
+
+
+def test_the_sdk_vocabulary_is_derived_and_not_empty() -> None:
+    """Control on both derivations, in three directions.
+
+    An empty or near-empty set would make the entry-point assertion below
+    vacuous — every function would look undecorated, or none would — so the
+    floor matters as much as the members.
+    """
+    assert "timer_trigger" in TIMER_DECORATORS, sorted(TIMER_DECORATORS)
+    assert "schedule" in TIMER_DECORATORS, (
+        f"`schedule` is a timer decorator in the installed SDK and is missing "
+        f"from {sorted(TIMER_DECORATORS)}. It was invisible to both readers in "
+        f"this chain until it was measured."
+    )
+    assert TIMER_DECORATORS <= TRIGGER_DECORATORS, (
+        f"a timer decorator that is not a trigger decorator: "
+        f"{sorted(TIMER_DECORATORS - TRIGGER_DECORATORS)}"
+    )
+    # The SDK exposes far more than this repo uses; a set that collapsed to the
+    # two we use would mean the derivation had stopped reading the SDK.
+    assert len(TRIGGER_DECORATORS) >= 10, sorted(TRIGGER_DECORATORS)
+
+
+def test_every_derived_timer_decorator_really_makes_a_timer() -> None:
+    """Behavioural confirmation, because the derivation reads source text.
+
+    `_sdk_decorators_mentioning` matches on a class name appearing in a
+    decorator's implementation, which is a heuristic. This applies each one and
+    reads back what the SDK registered — so a name that merely *mentions*
+    `TimerTrigger` without producing one cannot silently widen the vocabulary.
+    """
+    import azure.functions as func
+
+    for decorator_name in sorted(TIMER_DECORATORS):
+        app = func.FunctionApp()
+        decorate = getattr(app, decorator_name)
+
+        @app.function_name(name="probe")
+        @decorate(
+            schedule="0 0 5 * * *",
+            arg_name="t",
+            run_on_startup=False,
+            use_monitor=True,
+        )
+        async def _probe(t):  # noqa: ANN001, ANN202
+            return None
+
+        registered = app.get_functions()
+        assert len(registered) == 1, (decorator_name, registered)
+        trigger = type(registered[0].get_trigger()).__name__
+        assert trigger == "TimerTrigger", (
+            f"`@app.{decorator_name}` was derived as a timer decorator but "
+            f"registers a {trigger}."
+        )
 
 
 def test_every_entry_point_carries_a_trigger() -> None:
@@ -240,17 +334,21 @@ def test_every_entry_point_carries_a_trigger() -> None:
     undecorated = [
         name
         for name, decorators in _module_level_functions()
-        if not name.startswith("_") and not (TRIGGERS & set(decorators))
+        if not name.startswith("_") and not (TRIGGER_DECORATORS & set(decorators))
     ]
 
     assert not undecorated, (
-        f"{undecorated} are public top-level functions in function_app.py with "
-        f"no trigger decorator ({sorted(TRIGGERS)}). Azure will not register "
-        f"them, so they deploy and are never called. The usual cause is a "
-        f"function separated from its decorators by an edit above it — check "
-        f"the lines immediately preceding the `def` before assuming the "
-        f"function is meant to be a helper. If it is, give it a leading "
-        f"underscore, which is this file's convention for one."
+        f"{undecorated} are public top-level functions in function_app.py "
+        f"carrying no decorator the installed SDK registers a trigger for.\n\n"
+        f"The usual cause is a function separated from its decorators by an edit "
+        f"above it — check the lines immediately preceding the `def` first. If "
+        f"the decorator IS there, the SDK may have gained a spelling this "
+        f"vocabulary is derived from but does not match; widen "
+        f"`_sdk_decorators_mentioning` rather than the function.\n\n"
+        f"**Do not resolve this with a leading underscore unless the function is "
+        f"genuinely a helper.** Underscoring a decorated function hides it from "
+        f"this assertion while Azure goes on registering it, which turns a "
+        f"visible fault into an entry point nothing watches."
     )
 
 
@@ -274,7 +372,7 @@ def test_the_helper_convention_is_real_and_not_an_empty_excuse() -> None:
     # relies on has changed and the exclusion is hiding real entry points.
     for name, decorators in functions:
         if name.startswith("_"):
-            assert not (TRIGGERS & set(decorators)), (
+            assert not (TRIGGER_DECORATORS & set(decorators)), (
                 f"{name} is underscore-prefixed and carries a trigger. The "
                 f"convention that lets this guard skip underscored functions no "
                 f"longer holds, so it is now skipping a real entry point."
