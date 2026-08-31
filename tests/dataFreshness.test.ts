@@ -102,6 +102,27 @@ describe('formatPeriod', () => {
     expect(formatPeriod('2026-01')).not.toContain('December');
   });
 
+  it('reads a PxWeb month, not just a PxWeb quarter', () => {
+    // The asymmetry this closes was mirrored by the two tests above: the
+    // quarterly one already covered `2026Q1`, and nothing covered `2026M01`.
+    //
+    // `/api/historical-data` passes CSP PxWeb time labels through verbatim, so
+    // these are the strings the client actually receives — measured live,
+    // `indicator=cpi` returns `2026M04 … 2026M07` and `indicator=gdp` returns
+    // `2025Q3 … 2026Q2`. Before this, the quarters rendered and the months did
+    // not, so the stale-series notice named that label unformatted while the
+    // chart axis beside it read `Apr 2026`.
+    expect(formatPeriod('2026M04')).toBe('April 2026');
+    expect(formatPeriod('2026M07')).toBe('July 2026');
+    expect(formatPeriod('2026M12')).toBe('December 2026');
+
+    // The control, so this is not passing because everything now renders as a
+    // month: a PxWeb quarter must still take the quarterly branch, and a
+    // fourteenth month must not be invented.
+    expect(formatPeriod('2025Q3')).toBe('Q3 2025');
+    expect(formatPeriod('2026M14')).toBe('2026M14');
+  });
+
   it('passes through anything it cannot parse', () => {
     expect(formatPeriod('unknown')).toBe('unknown');
   });
