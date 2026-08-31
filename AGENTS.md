@@ -551,6 +551,34 @@ guard call the same builder, as `statusChecks.js` now does with `buildUrl` and
 `ports.seriesUrls`. A shared enumeration cannot drift; two enumerations always
 will, and the drift is silent in the direction that reports success.
 
+**And a search space is an enumeration.** Reconstructing an unstated counting
+rule, I searched three binary choices, found exactly one combination matching
+all four subjects, and reported that *"one of eight, therefore not
+curve-fitting."* The search held a **fourth** choice fixed — *which* parameter
+to drop — so it could only ever return the one I had already assumed:
+
+```
+drop corrected_at   [(8,4),(6,0),(8,0),(6,3)]   MATCH
+drop claim          [(8,4),(6,0),(8,0),(6,3)]   MATCH
+drop series_start   [(8,4),(6,0),(8,0),(6,3)]   MATCH
+```
+
+Three rules match, not one, because all three parameters appear exactly once in
+every subject — so the per-subject rows constrain no more tightly than the
+total did.
+
+The conclusion was still right, on an argument made before any search: dropping
+`claim` or `series_start` changes what is being counted, and `corrected_at` is
+bookkeeping. **But the search added confidence without adding evidence**, which
+is worse than not running it — an unmeasured claim invites challenge, and
+*"one of eight"* does not. Twice in one afternoon a check was cited as decisive
+while being satisfiable by every candidate it was meant to separate: this, and
+a sum over cohort counts that any partition satisfies. Both were produced in the
+act of correcting someone else.
+
+So before quoting a search as evidence of uniqueness, **write down what it held
+fixed.** That list is the population, and it is not the one the search reports.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because
