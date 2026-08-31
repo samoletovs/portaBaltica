@@ -1941,11 +1941,43 @@ the raw signature is a **commit count wearing an identity's clothes** —
 three. Deduping collapses **24 raw signatures to 11**. Skip it and you report
 that this repo has twenty-four kinds of contributor.
 
+⚠️ **And the dedup has a second decision inside it that changes the answer.**
+Two readers measured this an hour apart and got **11 cohorts and 10**. Both
+sums reach 370, so a sum check cannot separate them — a total is satisfied by
+any partition, which makes it a weaker control than it looks. The difference
+was **case**:
+
+```
+case-sensitive   n=10  Copilot + Copilot App     n=5  Copilot App + copilot
+case-folded      n=15  copilot + copilot app     <- the two, merged
+```
+
+Folding is the tempting normalisation and it is wrong here, which only the
+emails show:
+
+```
+Copilot   223556219+Copilot@users.noreply.github.com
+copilot   copilot@github.com                          <- a different identity
+```
+
+So **11 is right and 10 merges two real contributors.** The rule generalises
+past this repo: when a dedup decides identity, the key is a judgement, not a
+formatting step — and the field that settles it is usually one you did not put
+in the key.
+
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
-interleave within the hour — `#302` at 13:25Z and `#310` at 15:45Z sit either
+interleave within the hour — `#302` at 10:25Z and `#310` at 12:45Z sit either
 side of **seven consecutive PRs from a single third cohort** — so it is not
 temporal.
+
+⚠️ **Those two timestamps were three hours wrong in the first draft**, and the
+mechanism is worth more than the fix. `git log --format=%aI` renders
+`2026-08-31T13:25:46+03:00`; taking `slice(11, 16)` and appending a literal
+`Z` yields `13:25Z`, which is Riga local time wearing UTC's clothes. **`%cI` is
+not the remedy** — the committer date carries the same offset. Either parse the
+offset, or read `mergedAt` from `gh`, which is genuinely UTC. A hand-typed `Z`
+is an assertion about a conversion that never happened.
 
 **State the population.** Two sessions measured this an hour apart and got
 `110` PRs and `370`; neither is wrong, and they never disagreed. One counted a
