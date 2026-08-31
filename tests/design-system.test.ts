@@ -78,6 +78,34 @@ const THEMES = [
   { name: 'light', tokens: LIGHT },
 ] as const;
 
+/**
+ * Every colour token in one family, read from the stylesheet rather than listed
+ * here.
+ *
+ * The contrast checks below used to walk hardcoded arrays. Measured today the
+ * arrays and the stylesheet agree exactly — 5 text steps, 4 status colours, 5
+ * chart series — so nothing was unguarded. That is the latent form of this
+ * repo's most-repeated defect, not its absence: adding `--series-pl` for a
+ * fourth country, or a `--data-info`, leaves the new colour unchecked while
+ * every contrast test still passes. The guard would be walking a smaller
+ * population than its subject and reporting success, which is the one direction
+ * that never announces itself.
+ *
+ * A token is a colour when its DARK value is a hex. Tokens whose value is a
+ * `var()` alias or a gradient are excluded, because contrast cannot be computed
+ * for them — and `assertFamily` below fails if a family ever comes back empty,
+ * so a rename cannot turn this into a check of nothing.
+ */
+function colourFamily(prefix: string): string[] {
+  return Object.keys(DARK)
+    .filter((name) => name.startsWith(prefix) && /^#[0-9a-f]{3,8}$/i.test(DARK[name] ?? ''))
+    .sort();
+}
+
+const TEXT_TOKENS = colourFamily('--text-');
+const STATUS_TOKENS = colourFamily('--data-');
+const SERIES_TOKENS = colourFamily('--series-');
+
 // ─── spacing and radius ────────────────────────────────────────────────────
 
 describe('the spacing scale', () => {
@@ -188,6 +216,19 @@ describe('contrast', () => {
     '--text-disabled': 3,
   };
 
+  // The floors are a judgement per step, so they cannot be derived — but the
+  // SET they cover can be, and must equal the stylesheet's. Stated as an
+  // equality rather than a subset so that adding a text colour fails here and
+  // forces a floor to be chosen, instead of shipping unguarded.
+  it('assigns a floor to every text colour the stylesheet defines', () => {
+    expect(TEXT_TOKENS.length, 'no --text-* colours found; every floor test below would be vacuous')
+      .toBeGreaterThan(0);
+    expect(
+      Object.keys(FLOORS).sort(),
+      'a text colour exists with no contrast floor, so nothing checks it',
+    ).toEqual(TEXT_TOKENS);
+  });
+
   for (const { name, tokens } of THEMES) {
     it(`clears every floor on the ${name} page background`, () => {
       const background = tokens['--bg-page'];
@@ -219,7 +260,9 @@ describe('contrast', () => {
     });
 
     it(`states status legibly in ${name}`, () => {
-      for (const token of ['--data-positive', '--data-negative', '--data-warning', '--data-neutral']) {
+      expect(STATUS_TOKENS.length, 'no --data-* colours found; this test would be vacuous')
+        .toBeGreaterThan(0);
+      for (const token of STATUS_TOKENS) {
         const ratio = contrast(tokens[token], tokens['--bg-card']);
         expect(
           Number(ratio.toFixed(2)),
@@ -231,7 +274,9 @@ describe('contrast', () => {
     it(`draws every chart series above the non-text floor in ${name}`, () => {
       // WCAG 2.2 SC 1.4.11: a graphical object needed to understand the
       // content needs 3:1. A chart line is the content.
-      for (const token of ['--series-lv', '--series-ee', '--series-lt', '--series-fi', '--series-default']) {
+      expect(SERIES_TOKENS.length, 'no --series-* colours found; this test would be vacuous')
+        .toBeGreaterThan(0);
+      for (const token of SERIES_TOKENS) {
         const ratio = contrast(tokens[token], tokens['--bg-card']);
         expect(
           Number(ratio.toFixed(2)),
