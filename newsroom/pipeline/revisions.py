@@ -382,6 +382,7 @@ def origin_correction_note(
     series_start: str,
     series_start_value: str,
     still_stands: str,
+    also: str | None = None,
     corrected_at: str | None = None,
 ) -> dict[str, str]:
     """The notice for an article whose record is real and whose origin is not.
@@ -406,19 +407,44 @@ def origin_correction_note(
     this shape exists is that something DOES stand. A reader who meets a
     correction on an article whose headline is true needs that said plainly, or
     the notice reads as a retraction of the story.
+
+    ``also`` EXISTS BECAUSE A PARTIAL CORRECTION CAN MAKE THINGS WORSE
+    ------------------------------------------------------------------
+    `lithuania-s-renewable-energy-share-hits-record-38-5` misplaces the origin
+    **twice**: once as our window boundary, and once by attaching a seven-year
+    run of increases to "since the series began" when the run begins in 2018
+    and the share fell in five separate years before it.
+
+    Correcting only the first would authoritatively establish 2004 as the
+    origin and leave a sentence saying the rise has been unbroken since the
+    origin — so the notice would make the surviving falsehood **more**
+    believable than it was. A correction that strengthens an error it did not
+    address is worse than none, which is why this takes a second clause rather
+    than being applied twice or applied partially.
+
+    It is a whole sentence supplied by the caller, for the same reason ``claim``
+    and ``still_stands`` are: what is wrong differs per article and cannot be
+    composed from fields. It is reviewed as prose before it publishes.
     """
     if not still_stands.strip():
         raise ValueError(
             "this shape exists because the record survives; say what stands, or "
             "the notice reads as a retraction of a true story"
         )
+    # Omitted, the wording is byte-identical to the note already published on
+    # `lithuania-s-passenger-car-ownership-reaches-record-high-in-2025-b7016e`.
+    # `append_correction` de-duplicates on the description, so the text is the
+    # idempotency key: change this branch and a re-run stops recognising the
+    # live note and appends a near-duplicate.
+    extra = f"{also.strip().rstrip('.')}. " if also and also.strip() else ""
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
         "description": (
             f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
             f"{window_start} is where the newsroom's data window starts, not "
             f"where the series starts: it runs back to {series_start}, when the "
-            f"figure was {series_start_value}. {still_stands.strip().rstrip('.')}, "
+            f"figure was {series_start_value}. {extra}"
+            f"{still_stands.strip().rstrip('.')}, "
             "and the figures are unchanged — only the description of where the "
             "series begins was wrong. A statement about where a series starts on "
             "this wire now has to rest on the series rather than on the window "
