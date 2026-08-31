@@ -94,4 +94,37 @@ describe('the insights banner says who wrote it and when', () => {
     expect(container.textContent, 'and no generation time may be invented')
       .not.toMatch(/Generated/);
   });
+
+  it('names the scrolling row, because the browser makes it a tab stop', async () => {
+    // Chromium 127+ makes a scroll container keyboard-focusable so it can be
+    // scrolled by keyboard. Every card in this row is a plain div, so there is
+    // no focusable child to absorb that, and the container became an unnamed
+    // `generic` stop -- a keyboard user landed on it and heard nothing.
+    //
+    // Found by a live accessibility audit, not by this suite, and it was
+    // intermittent on desktop: overflow depends on rendered value width, so a
+    // wide price made it appear and a narrow one made it vanish. Measured on
+    // production, /data overflowed by 117px at 1440 and 1006px at 375 -- so it
+    // is permanent on a phone and occasional on a laptop, which is why reading
+    // the source called it fine.
+    //
+    // jsdom has no layout and never makes it focusable, so this cannot assert
+    // the tab stop. It asserts the property that makes the stop harmless: the
+    // row carries a role and a name, whatever the viewport does.
+    const { container } = renderBanner();
+    await settle();
+
+    const row = container.querySelector('.overflow-x-auto');
+    expect(row, 'the scrolling row is gone; this test is checking nothing').not.toBeNull();
+
+    expect(row!.getAttribute('role'), 'a focusable container needs a role').toBe('group');
+
+    const labelledBy = row!.getAttribute('aria-labelledby');
+    expect(labelledBy, 'and a name, or a keyboard user hears nothing').toBeTruthy();
+
+    const label = container.querySelector(`#${labelledBy}`);
+    expect(label, `aria-labelledby="${labelledBy}" points at no element in this tree`)
+      .not.toBeNull();
+    expect(label!.textContent?.trim(), 'the name a screen reader will read').toBe('Insights');
+  });
 });

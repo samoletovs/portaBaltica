@@ -26,9 +26,29 @@ function InsightsRow({ insights }: { insights: Insight[] }) {
   const [fadeRef, fadeClass] = useOverflowFade<HTMLDivElement>();
 
   return (
+    // `role="group"` and a name, because Chromium 127+ makes a scroll container
+    // keyboard-focusable so it can be scrolled by keyboard -- and every card in
+    // here is a plain div, so there are no focusable children to absorb that.
+    // The result was an unnamed `generic` tab stop: a keyboard user landed on
+    // it and their screen reader announced nothing at all.
+    //
+    // It was intermittent on desktop and permanent on mobile, which is why
+    // reading the source called it fine. Overflow depends on rendered value
+    // width, so a wide price made it appear and a narrow one made it vanish --
+    // the `#151` mechanism exactly. Measured on production:
+    //
+    //     /data @ 1440px   overflows by  117px   -> tab stop
+    //     /data @  375px   overflows by 1006px   -> tab stop, ALWAYS
+    //
+    // The five other horizontal strips on the site are safe for a reason that
+    // is not design: they contain links, and a focusable child suppresses the
+    // container's own tab stop. This one contains none, so it is the only
+    // instance -- checked by forcing all six to overflow at 375px, not assumed.
     <div
       ref={fadeRef}
       className={`flex gap-3 overflow-x-auto pb-2 scrollbar-hide ${fadeClass}`}
+      role="group"
+      aria-labelledby="insights-heading"
       aria-live="polite"
     >
       {insights.map((insight, i) => {
@@ -152,7 +172,7 @@ export function InsightsBanner() {
   return (
     <section className="mb-6">
       <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-title font-semibold" style={{ color: 'var(--text-primary)' }}>Insights</h2>
+        <h2 id="insights-heading" className="text-title font-semibold" style={{ color: 'var(--text-primary)' }}>Insights</h2>
         <span className="text-caption px-2 py-0.5 rounded" style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card-hover)' }}>
           Live
         </span>
