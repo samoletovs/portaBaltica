@@ -2041,6 +2041,81 @@ its evidence: n=2, one probe each, and care was never measured — only unaccoun
 for.** That is an illustration, not a controlled result, and the distinction is
 the difference between *this justifies a mechanical check* and *this settles it*.
 
+### The better you document a removal, the more present it looks
+
+A content check for a deleted symbol reads the prose explaining the deletion and
+reports the thing as still there. That is not a caution about carelessness —
+it is a **positive correlation between doing the work well and the check
+lying**, and the ratio is worst exactly where someone took the trouble to say
+why the thing is gone.
+
+`#261` deleted three symbols from `RankedComparison` in one commit. Measured on
+master afterwards, across `src/`, `tests/` and `api/`:
+
+```
+                     naive grep   comments stripped   wrong
+higherIsBetter            8              1             88%
+sentimentOfChange         3              0            100%
+describeChange            0              0              0%
+```
+
+**`describeChange` is the control and it is the whole argument.** All three were
+removed by the same change, on the same day, by the same person. The only
+variable is how much explanatory prose each earned: the prop was contentious and
+got seven sentences, the sentiment function got two, and `describeChange` was
+deleted without comment. The naive check is 88% wrong about the first, 100%
+wrong about the second, and **exactly right about the one nobody bothered to
+explain**.
+
+So the naive check is least trustworthy on precisely the changes a reviewer most
+wants to verify, and its accuracy is a measure of the documentation rather than
+of the code.
+
+There is a second instance, from a different session the same day, running the
+other way. A seam sweep counted a field name **inside a comment** as a reader,
+and reported `freshness.allowed` as `test-only` on three files where `.allowed`
+never appears in code — the word was in comments about CSV export, the spacing
+scale and the rate limiter.
+
+```
+a comment mentioning a REMOVED thing   ->  reported PRESENT
+a comment mentioning an UNREAD thing   ->  reported READ
+```
+
+Same mechanism, opposite subjects, and **both fail toward "no finding here"** —
+one hides a completed deletion, the other hides a dead field.
+
+**So: strip comments on both sides before any content check**, and when the
+subject is a change someone explained carefully, treat the naive count as
+evidence about the prose until you have separated them. The stripped read is
+one line:
+
+```js
+const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+```
+
+Four instances across two people in two days, and the tell is always the same:
+**print the matching lines, not the count.** A count cannot distinguish a symbol
+from a sentence about a symbol; the lines can, instantly, and every one of the
+four was resolved that way the moment someone looked.
+
+**This entry is itself an instance, which is the cheapest possible proof.**
+Writing it added mentions of all three symbols to `AGENTS.md` — and the most to
+`describeChange`, the control that was clean precisely because nobody had
+written about it. Its naive count across the repository is no longer zero, and
+the only reason the table above still holds is that it states its scope:
+`src/`, `tests/` and `api/`, which is where code lives. **A content check needs
+a stated population as much as a stripped input**, or documenting the finding
+falsifies the finding.
+
+This has a sibling one level up that the same sweep found and this file already
+records: prose can also describe *live* code as though it were gone, or gone
+code as though it were live. `tests/polarityAdmission.test.ts` closes that half
+structurally — an identifier named in backticks in `src/utils/polarity.ts`'s
+comments must exist in the code or be declared removed. Measured before it was
+written, that rule fires on 1 name in 15, which is what makes it a filter rather
+than a complaint about writing.
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
