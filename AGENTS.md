@@ -1872,29 +1872,36 @@ of 7.88%"*. Nobody asks how a linking clause was derived.
 
 ### It has a shape, and the shape is the type
 
-The correction builders take their inputs like this:
+**Key**, stated once and used for every column: each parameter the four
+correction builders declare, classified by its annotated type and by whether
+its value reaches an f-string — that is, whether a reader ever sees it.
 
 ```
-builder                        str params   numeric params
-record_correction_note              8            4
-origin_correction_note              6            0
-span_correction_note                8            0
-comparison_correction_note          6            3
-                                   --           --
-                                   28            7
+builder                      printed str   printed num   never printed
+record_correction_note              8            3             2
+origin_correction_note              6            0             1
+span_correction_note                8            0             1
+comparison_correction_note          6            2             2
+                                   --           --            --
+                                   28            5             6   = 39 declared
+
+of the 33 a reader sees, free text                          28   (85%)
+distinct printed string params that have carried a figure   17 of 17
+never printed: claims_low, which selects wording; corrected_at, metadata
 ```
 
-**Four out of five parameters are free text interpolated straight into
-published prose**, and eight of them have carried a figure into a live notice.
-A `str` cannot say whether it was measured.
+The `17 of 17` is measured across the eight fixtures in
+`test_scope_correction.py`, each of which reproduces a notice that was actually
+published. **Every string parameter a reader can see has at some point been
+handed a number.** A `str` cannot say whether it was measured.
 
-Now compare where the invariants live. Every **value** check in those builders
-is on a numeric parameter — `beaten_in_window > beaten_in_series` is refused
-because the window is a subset of the series; `rank > 1 and beaten_in_window
-!= rank - 1` is refused because fourth-highest means exactly three are higher;
-`beaten >= observations` is refused because a reading cannot be beaten by its
-own population. Every **string** check is presence-only: `if not
-still_stands.strip()`.
+Now compare where the invariants live. **Seven value checks, four string
+checks**, and the split is total: every value check is on a numeric parameter —
+`beaten_in_window > beaten_in_series` is refused because the window is a subset
+of the series; `rank > 1 and beaten_in_window != rank - 1` is refused because
+fourth-highest means exactly three are higher; `beaten >= observations` is
+refused because a reading cannot be beaten by its own population. Every string
+check is presence-only: `if not str(value).strip()`.
 
 So the guard rails are exactly where the type is a number, and **the wrong
 figure entered through a string** — past all of them, in a builder that
@@ -1913,6 +1920,63 @@ field — **derive it in the same run that writes it, and say so.** The test is
 not whether the number is right. It is whether you can name the command that
 produced it. Both of the day's errors would have failed that question
 instantly, and neither would have been caught by reading.
+
+### A count is not a key
+
+Both figures above were wrong when this section was first written, and neither
+of them was inside the fenced block:
+
+```
+shipped                 measured             where it sat
+"28 str / 7 numeric"    28 / 5 / 6 = 39      prose introducing the table
+"eight of them"         17 of 17             prose following the table
+```
+
+The first used **two different keys in one table** — *interpolated into the
+prose* for the string column, *every `int` and `bool`* for the numeric one — so
+it summed to 35 where the four signatures declare 39, and could be reconciled
+against nothing. The second was low by a factor of two. The cells were right
+both times; the sentences on either side of them were not.
+
+**Then the reconciliation itself went wrong, and that is the part worth
+keeping.** A reader who could not reproduce `28` derived a rule that does —
+*every string parameter except `claim`* — and reported the figure sound. It is
+a different population from the one the prose describes:
+
+```
+                              record  origin   span  comparison
+str-like AND interpolated          8       6      8           6
+str-like MINUS claim               8       6      8           6
+same SET?                      False   False  False       False
+
+  only in "interpolated" : claim          printed in all 4
+  only in "minus claim"  : corrected_at   printed in none
+```
+
+Every builder declares exactly one `claim` and exactly one `corrected_at`, both
+string-typed, so swapping which is excluded leaves all four counts untouched.
+The recovered rule drops the parameter a reader *does* see and keeps the one
+they never do — the exact opposite selection — and arrives at the same number
+four times running.
+
+So **a count does not identify its population, and reproducing a number is not
+recovering what was counted.** That is worse than an unkeyed figure, because it
+closes the question: the reader reports the count sound and stops. It is the
+same shape as *the correct sibling that conceals the broken one*, arriving in
+arithmetic rather than in code.
+
+The remedy is not to write more carefully — the author had written the rule
+minutes earlier and was standing inside the example. It is the one this repo
+reaches for everywhere else: `test_agents_parameter_table.py` derives all three
+figures from the AST and fails when the document and the code disagree. A
+derivation states its key by being executable.
+
+And an instrument note, pointing the other way. A throwaway classifier written
+to check the 7/4 split reported **9/2**, because `not str(value).strip()` binds
+a loop variable rather than a parameter, so looking the name up among the
+signatures found nothing and filed both as numeric. The document was right and
+the probe was wrong — a *plausible* wrong reading, which is the row of the
+taxonomy above that does not defend itself.
 
 ## Two states that produce the same artefact
 
