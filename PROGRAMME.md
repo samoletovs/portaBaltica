@@ -288,7 +288,26 @@ corrected four hours earlier. I then began sizing a nine-article backlog on the
 same premise; re-run with one extra field it came back **9 of 9 already
 corrected, 0 uncorrected**.
 
-Two things make it worth a paragraph rather than an apology.
+**Bound this before you carry it away, because "the body stays false for ever"
+reads worse than the truth.** The limit is on *our verification practice*, not on
+the reader's experience. Measured in a browser by walking the rendered document
+in order:
+
+```
+H1                 Latvia's industrial electricity price dr…
+CORRECTION NOTICE  "Corrected 31 August 2026: CORRECTED. This article said…"
+BODY PARA          "Latvia's industrial electricity price has decrease…"
+```
+
+The notice sits **between the headline and the first body paragraph**, carrying
+the description and the previous value, and `ArticleView` renders it from
+`article.corrections ?? []` so a null is handled. 15 of 38 live articles carry
+one — 39%, which is why the distinction matters: *"15 live falsehoods"* and
+*"15 correctly-labelled corrections"* are very different states and only the
+second is true. A corrected and an uncorrected article are byte-identical in
+`body`, which is where an auditor looks. They are not identical to a reader.
+
+Two things make the auditor's half worth a paragraph rather than an apology.
 
 **The discriminator was in my own terminal output.** At 10:20Z I printed the
 article's key list, which ends `..., published_at, corrections`, and read past
@@ -416,6 +435,27 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
 - **PowerShell's `..` range operator eats a git revision range.**
   `git rev-list --count $rev..origin/master` returned a confident **0** —
   "fully deployed" — where `"$rev..origin/master"` returned **5**. Always quote.
+- **`@($null).Count` is `1`.** An absent array counts as one present item, so
+  every "did this happen?" tally built on `@(...).Count` reports one occurrence
+  of nothing. It has now produced a retracted finding in this programme (180
+  prose blocks, `0` with zero figures — the real answer was 57 of 180) and
+  nearly invalidated a second survey the same day.
+
+  **Keep the second one, because it is the more useful half: the conclusion was
+  right and the instrument was broken.** Auditing whether published falsehoods
+  were still uncorrected, I counted `@($a.corrections).Count`. Nineteen of
+  thirty-four articles carry `corrections: null`, and every one of them was
+  being counted as *corrected*. Re-run counting only entries that carry a
+  `corrected_at`, the answer was **still 9 of 9** — none of the nine happened to
+  be a null.
+
+  So the reading survived, the method did not, and nothing in the output could
+  have told me apart. What broke the tie was an unrelated article reporting
+  `corrections=1` with an **empty timestamp and empty description** — absurd
+  enough to disbelieve, which is the only row of the taxonomy that defends
+  itself. Had I not looked at that one article, I would have kept a correct
+  number produced by a method that was wrong about more than half the corpus,
+  and used it again.
 - **`git rev-list --count origin/master..<branch> > 0` does not mean the branch
   holds unmerged work.** Squash merging guarantees it is non-zero for *every*
   merged branch, so a sweep built on it reports each one as stranded. Measured:
