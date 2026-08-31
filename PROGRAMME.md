@@ -136,6 +136,45 @@ It was the previous handover's largest open item, phrased there as: *no
 published article has ever been produced by code containing the final editorial
 fixes.* Both halves are now settled.
 
+> ### An open, falsifiable prediction for the 14:00Z run of 2026-08-31
+>
+> Left here because a prediction recorded *before* the event is worth more than
+> a reading taken after it, and because **the deployment is confirmed rather than
+> assumed** — which is the half that has invalidated this measurement twice.
+>
+> ```
+> BASELINE  runs/latest.json, run 2026-08-30T14:04:49Z, trigger=timer
+>           produced by revision e8da9c3
+>   rejected_checks.no_unsupported_mechanism   5
+>   rejected_checks.figures_traceable          1
+>   original_articles  generated 8 · publishable 3
+>   sections           government 49 · energy 2 · property 1
+>   original_sections  ABSENT
+>   counts             published 52 · rejected 5 · errors 0
+>
+> DEPLOYED newsroom head at the time of writing: 3a79ef0, "Publish the pipeline
+>          to Azure" success, and `git log <head>..origin/master -- newsroom/`
+>          empty. So #297, #300, #303, #306 and #308 are all in the tree that
+>          will run.
+>
+> PREDICTS  no_unsupported_mechanism   5 -> 0     (#297 cuts the named paragraph
+>                                                  instead of spiking the article)
+>           original_articles.publishable 3 -> 7 or 8 of 8
+>           original_sections           ABSENT -> present   (#300)
+> ```
+>
+> **Read `provenance.revision` on a new article before believing any of it.** A
+> run triggered inside a deploy window measures the wrong tree in both
+> directions, and a green deploy job means the package was uploaded, not that the
+> app is serving it. Fetch from the blob directly —
+> `https://stportabalticabpmff5so.blob.core.windows.net/articles/runs/latest.json`
+> — because the Static Web App does **not** proxy `/articles/runs/`, and a 404
+> there will look like absence rather than a wrong URL.
+>
+> If the prediction fails, that is a finding rather than a disappointment: it
+> would mean the replay against the five real drafts did not model the live path,
+> and *why* is more interesting than the numbers.
+
 **Half one — the timer fires.** Application Insights, four for four:
 
 ```
