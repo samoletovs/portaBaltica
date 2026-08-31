@@ -743,3 +743,124 @@ class TestOrdinalsAreNeverInvented:
         assert _ordinal(111) == "111th"
         assert _ordinal(112) == "112th"
         assert _ordinal(113) == "113th"
+
+
+class TestTheOriginNoteWordingIsPinnedToWhatIsLive:
+    """The `also=None` wording must stay byte-identical, for the same reason
+    the scope branch is pinned: `append_correction` de-duplicates on the
+    description, so the text is the idempotency key.
+
+    Read out of the live article on 2026-08-31T05:50Z, not recomposed here — a
+    second copy of the same f-string would agree with the code by construction
+    and could never fail.
+    """
+
+    LIVE = (
+        "CORRECTED. This article said Lithuania's 2025 car ownership "
+        '"reflects a significant increase from the series start value of 490 '
+        'cars per thousand inhabitants in 2006". 2006 is where the newsroom\'s '
+        "data window starts, not where the series starts: it runs back to 1990, "
+        "when the figure was 133 cars per thousand inhabitants. The record "
+        "itself stands: 629 cars per thousand inhabitants in 2025 is the highest "
+        "of all 36 readings, and the figures are unchanged \u2014 only the "
+        "description of where the series begins was wrong. A statement about "
+        "where a series starts on this wire now has to rest on the series rather "
+        "than on the window the newsroom retrieved."
+    )
+
+    def test_it_still_reproduces_the_published_note_exactly(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        assert origin_correction_note(**CARS)["description"] == self.LIVE
+
+    def test_rebuilding_it_is_a_no_op_against_the_live_article(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        live = {"corrections": [{"description": self.LIVE}]}
+
+        assert append_correction(live, origin_correction_note(**CARS)) is None
+
+
+#: `lithuania-s-renewable-energy-share-hits-record-38-5-in-bb595c`, published
+#: by the 14:00Z scheduled run on 2026-08-30, before #280 was on master.
+#: Measured 2026-08-31T05:47Z against `nrg_ind_ren?nrg_bal=REN&geo=LT`:
+#:
+#:     22 obs, 2004..2025, first reading 17.221 in 2004
+#:     our window: 20 obs, 2006..2025  (lastTimePeriod=20)
+#:     higher than 38.5: 0 in window, 0 in series -> the RECORD IS TRUE
+#:
+#: It misplaces the origin TWICE. Once as our window boundary, and once by
+#: attaching a seven-year run of increases to "since the series began" -- the
+#: run begins in 2018, and the share fell in 2005, 2007, 2010, 2016 and 2018.
+RENEWABLES = dict(
+    claim=(
+        "Lithuania's 38.5% renewable share in 2025 was \"the highest in the 20 "
+        "observations since the series began in 2006\""
+    ),
+    window_start="2006",
+    series_start="2004",
+    series_start_value="17.2%",
+    also=(
+        "The article also described the reading as marking \"seven consecutive "
+        "annual increases since the series began\": the run of seven begins in "
+        "2018, and the share fell in five separate years before it"
+    ),
+    still_stands=(
+        "The record itself stands: 38.5% in 2025 is the highest of all 22 "
+        "readings"
+    ),
+)
+
+
+class TestASecondMisplacedOriginInTheSameArticle:
+    """`RENEWABLES` -- why `also` exists.
+
+    Correcting only the window boundary would authoritatively establish 2004 as
+    the origin and leave a sentence saying the rise has been unbroken since the
+    origin. The notice would make the surviving falsehood MORE believable than
+    it was.
+    """
+
+    def test_it_carries_both_misstatements(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**RENEWABLES)["description"]
+
+        assert "2006 is where the newsroom's data window starts" in text
+        assert "it runs back to 2004" in text
+        assert "the run of seven begins in 2018" in text
+        assert "fell in five separate years before it" in text
+
+    def test_the_record_is_not_retracted(self):
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**RENEWABLES)["description"]
+
+        assert "The record itself stands" in text
+        assert "highest of all 22 readings" in text
+        assert "RETRACTED" not in text
+        assert "was not the highest" not in text
+
+    def test_omitting_also_changes_nothing_else(self):
+        """MUTATION THIS CATCHES: `also` leaking whitespace or punctuation into
+        the shape that is already published."""
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        without = origin_correction_note(**{**RENEWABLES, "also": None})[
+            "description"
+        ]
+        blank = origin_correction_note(**{**RENEWABLES, "also": "   "})["description"]
+
+        assert without == blank
+        assert "2018" not in without
+        assert without.count("  ") == 0, "a doubled space where the clause was"
+
+    def test_the_clause_lands_between_the_origin_and_what_stands(self):
+        """Order is the reader's: what we said, what is true, what still
+        stands. A correction that ends on an error reads as a retraction."""
+        from newsroom.pipeline.revisions import origin_correction_note
+
+        text = origin_correction_note(**RENEWABLES)["description"]
+
+        assert text.index("runs back to 2004") < text.index("begins in 2018")
+        assert text.index("begins in 2018") < text.index("The record itself stands")
