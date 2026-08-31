@@ -1878,6 +1878,7 @@ ambiguous:
 | "published nothing newer" | this series is stale | the *slowest* one is | `4cfefa5` |
 | a source answering 200 | healthy | frozen for eight months | `stale` ≠ `unhealthy` |
 | `42` | a measurement | a tally someone incremented | the window beside it |
+| a merged PR | the session that announced it | any other session | see below — **partly** |
 
 Three of those rows were already in this file, praised individually, with nothing
 naming what they have in common. The principle is what makes them teachable
@@ -1892,6 +1893,90 @@ hardened against an unreachable state, a default that resolves absence to
 success, a counter that cannot say it counted nothing — each is a choice to emit
 one symbol for two facts, and each is cheaper to fix at the emitting end than to
 diagnose at the reading end for ever after.
+
+### Two instruments of opposite polarity beat one of either
+
+The last row is the one worth reading slowly, because both parties got it
+wrong in opposite directions and the *shape* of the correction generalises.
+
+Several sessions push to this repo as the same GitHub account, so a merged PR's
+`author` is `samoletovs` whichever session wrote it. A manager thanked the wrong
+session for `#310`; the session checked its own reflog, found the branch absent,
+and concluded **"a PR carries no evidence of which session wrote it."** That is
+an over-generalisation from two fields — `author` and branch prefix — to all of
+them, and it is false. Measured across every PR on master, deduped:
+
+```
+n=181  Copilot App + Dmitrijs Andrejevs
+n= 76  Copilot                            <- that session's five live here
+n= 72  dependabot[bot]
+n= 11  Copilot App + samoletovs           <- #310 lives here
+ ...   7 more
+```
+
+`Co-authored-by` trailers vary by configuration, so `#310` is demonstrably
+**not from that session's setup**. But note what each instrument can and cannot
+do, because it is the whole lesson:
+
+| | polarity | proves | cannot prove |
+|---|---|---|---|
+| the session's own reflog | **positive-only** | this branch *is* mine | that one is *not* mine — it is per-worktree |
+| the trailer cohort | **negative-only** | a different signature is a different configuration | that a matching one is mine — 76 PRs share it |
+
+**Neither settles authorship; together they bracket it.** That is a shape worth
+looking for whenever an artefact is ambiguous: not a better single instrument,
+but a second one that fails in the *opposite* direction.
+
+And the proposed fix — *"use the branch name"* — is circular. Every branch here
+is `samoletovs-<topic>`, because the prefix is the repo owner;
+`samoletovs-one-period-formatter` and `samoletovs-sweep-name-collision` are
+indistinguishable in form. What discriminates is knowing which topics you chose,
+which **is** the routing record the artefact was supposed to replace.
+
+**Two controls, and the reading says something else without either.**
+
+*The squash confound.* A squash concatenates one trailer per source commit, so
+the raw signature is a **commit count wearing an identity's clothes** —
+`Copilot App + Copilot App + Dmitrijs Andrejevs` is one configuration, not
+three. Deduping collapses **24 raw signatures to 11**. Skip it and you report
+that this repo has twenty-four kinds of contributor.
+
+*The temporal control.* The obvious alternative is a convention that changed
+over time, which would make this a clock rather than a signature. Cohorts
+interleave within the hour — `#302` at 13:25Z and `#310` at 15:45Z sit either
+side of **seven consecutive PRs from a single third cohort** — so it is not
+temporal.
+
+**State the population.** Two sessions measured this an hour apart and got
+`110` PRs and `370`; neither is wrong, and they never disagreed. One counted a
+recent window, the other all of master. A cohort table without its window is
+the bare number this file already warns about, one level up from the code.
+
+### A mutation control has two outputs, and the pass count is the second one
+
+A planted fault that never applied is indistinguishable from a test that failed
+to fire: both print a green suite. And it fails toward **"guarded"**, which is
+the reassuring direction — the one nobody re-checks.
+
+Four instances across two sessions in a single day, every one caught by the
+applied-flag rather than by the result:
+
+```
+plant anchored on 6-space indentation, file uses 4   -> "26 passed"   never applied
+anchor moved by a refactor between runs              -> silent no-op
+anchor matched twice, replaced both                  -> wrong subject
+anchor absent because the phrase wrapped a line      -> silent no-op
+```
+
+So read the applied-flag *before* the pass count, and make it a **comparison,
+not a size**: `12` → `99` is byte-identical in length, so a length check reports
+a plant that landed when it did not. Compare the content, and require the
+anchor to occur exactly once — a harness that reports `INVALID / anchor x0`
+rather than a verdict is what stops a moved anchor reading as a passing test.
+
+The same rule one layer out: `git diff --stat` is empty for an untracked file,
+after `git checkout --`, and when an edit lands on an already-dirty line.
+**Verify a plant and its restore by content, never by the diff.**
 
 Verifying that table produced one more instance of it. The build-identity row
 originally cited `/__which`, and a probe found it returning **HTTP 200** in
