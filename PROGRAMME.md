@@ -1276,6 +1276,42 @@ as a number rather than left to notice.
 
 **A run that ends because the work is done is worth more than one that ends
 because it ran out of things to say about ending.**
+
+### What writing it down actually buys, measured
+
+The whole apparatus above assumes recording a finding prevents its recurrence.
+**It does not**, and the run of 2026-08-31 measured that five times:
+
+```
+a session's line-wrap rule    violated by its author      90 minutes later
+the same rule                 violated by me              90 minutes later
+@($null).Count == 1           documented, then WARNED a session by name,
+                              used correctly at 14:15Z, fallen into at 14:35Z
+a session's two prompt gates  both defects in the failure path they were written for
+a removal-comment trap        author of the trap, author of the entry, and
+                              victim were ONE PERSON, on ONE symbol, hours apart
+```
+
+That last one is the decisive case, in the finder's own words: *knowing the
+mechanism, having written it down, and having built the tool did not stop me
+writing a naive grep — it only meant I recognised the reading in one second
+instead of filing a false regression.*
+
+So the honest claim is narrower and still worth the cost:
+
+> **Documentation does not lower the rate of the mistake. It collapses the time
+> between making it and catching it.**
+
+Every one of the five was caught, most within minutes, and none reached a
+reader. That is what the writing bought — not prevention.
+
+**Say it this way rather than the flattering way**, because *"we wrote it down"*
+reads as prevention, and a successor who believes that will be surprised by
+their own first violation and may conclude the entry was wrong. It is not
+wrong; it is doing the only thing of this kind that can be done. The
+corollary is the practical one: **put the rule where it executes**, because a
+rule that must be recalled is a rule that buys recognition speed, and a rule
+in a test buys the mistake never shipping.
 ## Efficiency guardrails
 
 **Watch throughput.** Merged PRs/day across the two runs:
