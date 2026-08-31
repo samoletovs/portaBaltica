@@ -1553,8 +1553,25 @@ named gap rather than a note about method:
 - **No real screen reader has been used.** Everything so far is DOM assertions.
 - **Errors are announced on first render, not on update** — a value that goes
   stale while the page is open says nothing.
-- **400% reflow and forced-colours mode are untested.**
-- **`/weekly` renders but is unpopulated.**
+- **400% reflow is untested.** Forced-colours **was** on this line and is now
+  closed: `tests/forcedColours.live.test.ts` walks the 2×2 of
+  `forced-colors × prefers-color-scheme` against production and measures five
+  painted element groups at the floor WCAG gives each. It found a real defect —
+  the app always renders `data-theme="dark"`, forced-colours strips the page
+  background but does **not** remap an SVG `stroke`, so under a *light* high-
+  contrast theme the dark palette's chart lines landed on white at 1.67–2.51:1.
+  Fixed in `#305`, widened in `#307`.
+
+  **Verified end-to-end, which is the pattern worth copying**: the same test
+  failed against unmodified production *before* the fix existed (1 failed, 3
+  passed, naming the light case) and passed after the deploy (4, then 5). A
+  plant proves a test notices a change you made; this proves it saw a defect it
+  did not create.
+- **`/weekly` is populated as of 2026-08-30.** The first scheduled wrap ran at
+  15:00Z with `trigger: timer` and `outcome: published`, and
+  `runs/weekly-latest.json` carries the record. **It published a false headline**
+  — see the wrap correction — so the open question about that route is no longer
+  "does anything reach it" but "is what reaches it true".
 - **Five components still expose unnamed `role="application"` surfaces.**
   `IndicatorCard` alone accounts for **16 of the 19 tab stops** on
   `/data/economy`, which is the whole keyboard experience of that page.
