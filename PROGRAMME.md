@@ -113,6 +113,25 @@ during the hour it lasted.
 **The newsroom publishes unattended, and the proof is now an artefact rather
 than an inference. That question is closed twice over.**
 
+**And as of 2026-08-31 it is closed on BOTH cadences.** The weekly timer had
+never had a scheduled run — it was added in `#108` on 2026-08-27, so every
+missing `runs/weekly-*.json` before that date meant *never had the chance*, not
+*never fired*, and the two produce the same 404. Its first scheduled run:
+
+```
+runs/weekly-2026-08-30.json  trigger="timer"  outcome="published"  15:00:41Z
+                             schedule 0 0 15 * * 0 — 41s after the hour
+                             8 findings available, min 4, cited 3 articles
+runs/latest.json             trigger="timer"  schedule "0 0 14 * * *"
+                             14:04:49Z · 288 series · 172 signals · 3 approved
+```
+
+Both read from `trigger`, the field `#246` pinned precisely so a hand-run could
+never be mistaken for a scheduled one. **The first time that distinction was
+load-bearing, it did its job** — and `weekly-latest.json` said `trigger=manual`
+right up until the timer fired, which is exactly the healthy-looking record it
+exists to distinguish.
+
 It was the previous handover's largest open item, phrased there as: *no
 published article has ever been produced by code containing the final editorial
 fixes.* Both halves are now settled.
@@ -213,12 +232,62 @@ findable only by holding two numbers side by side and asking whether they mean
 the same thing. **Budget an hour a day for it and treat it as primary work, not
 as a check on the sessions' work.**
 
+> **The 2026-08-30/31 run confirms this at a scale that should settle the
+> argument. Reading published articles found NINE false claims, one in a
+> headline, and not one was reachable from any test of the producer** — because
+> the producer was right every time. The detectors supplied correct comparison
+> bases; the writer restated them about the wrong population.
+>
+> ```
+> LV rail passengers      "highest ... in 39 obs since the series began 2016-Q3"
+>                         15 higher in our own window · 55 in the series
+>                         series max 7781 vs the claimed 4653 — 67% out
+> EE inflation (HEADLINE) "drops to 2%, the lowest in the series"
+>                         79 lower · true minimum -2.1% in 2009-10
+> + EE economic sentiment, LV house prices, LV retail, LT construction,
+>   LT producer prices, LT cars, LT renewable share
+> ```
+>
+> **All nine share one sentence**: *"the lowest/highest in the series"* on a
+> series we had never seen, because the collector fetched a window and
+> `series_start_value` handed the writer that window's first period under a name
+> claiming it was the origin. **The falsehood was manufactured upstream and
+> named as fact**; the writer repeated it accurately.
+>
+> Two of the twelve measured were **true by luck** — the cube's real extreme
+> happened to sit inside our window. `lithuania-s-crude-birth-rate` says *"the
+> lowest reading in the series"* over 19 observations of a 66-observation cube
+> and is correct, because 2025 genuinely is the lowest since 1960. **The prose is
+> identical in the true cases and the false ones**, which is why no prose guard
+> could ever have separated them and why the fix had to be at collection time
+> (`#280`, `c5afdd0`).
+>
+> Eight corrected and verified to the accessibility tree; the ninth was in flight
+> at handover. **`#257` and `#280` are both needed and one article proves it**:
+> after `#257` the claim carries its window (*"the 20 observations since…"*), and
+> the window is then named as the origin — the half only the collector could fix.
+
 **Verify every PR yourself before merging.** `scripts/verify-pr.ps1` exists now
 and does it in one command: it checks `headRefOid` against `git ls-remote`,
 test-merges onto current master in a throwaway worktree, runs build/test/lint on
 the **merged** tree, and optionally checks the diff stayed inside the session's
 owned file set (`-OwnedPaths`). Use it. **Re-run it if master moved between your
 first check and the merge** — that happened twice this run.
+
+> **And know that the protocol can be bypassed, because it was, three times in
+> one day.** Seven PRs merged before I had verified them; six were fine and one
+> left **master lint-red for twelve minutes** — `Date.now()` in a render body,
+> which CI's `quality` job had already failed and which I had held in writing.
+>
+> **A head-SHA check is a claim about the instant it ran**, which is the
+> `readAgoMs` defect in the tooling: the check passed at 09:22Z, the branch moved
+> afterwards, and the PR merged at the stale SHA the record still held. So the
+> durable guard is not a better pre-check —
+>
+> **run `npm run lint` and the suite against `origin/master` after ANY merge you
+> did not perform.** Content verification is the only check whose truth does not
+> depend on when it ran. It caught this in under a minute, by accident, because
+> another PR's merged tree carried the error.
 
 **Plant a fault and confirm the check fails before believing it passes.** This
 found, this run: a guard against a missing branch defeated by a missing branch;
@@ -357,6 +426,61 @@ parent before reading any child**, and do it for your own artefacts too.
 *(This heading said "Two additions" until the count went stale inside the
 document that records the rule about counted claims. Dropped rather than bound,
 per the audit below.)*
+
+**A plant reports the same silence four ways, and only one of them is a
+finding.** This was three-way at handover and is four-way now, the fourth
+contributed by a session that hit it against my own code:
+
+```
+never applied                      silence   <- a wrong find string, a CRLF regex
+applied, changed nothing           silence   <- NOT LOAD-BEARING, itself a finding
+applied, left the file unparseable silence   <- pytest never ran; reported GREEN
+applied and caught                 RED
+```
+
+Three of four are indistinguishable at the point you read the output, so **the
+harness must separate them; the reader cannot.** Asserting the mutation *applied*
+is not enough — a stray backtick changes the text and still leaves the file
+unparseable, and a variable can be created and never reach the return. The
+necessary conditions, in order: **the text changed, the file still parses, and
+the plant reddens something.** Only the third makes a green verdict mean
+anything.
+
+The second row is the one worth hunting on purpose. `GRACE_MS = 0` changed
+nothing a reader would see, because the constant that *named* the grace window
+drove the inner `cache.memo` while a bare literal drove the outer `withCache` —
+the layer a reader's outage actually passes through. **A constant that names a
+window and does not control it is worse than a magic number**, because it invites
+you to read the constant and believe the behaviour. Proved with a control pair:
+the same plant is **green on master** and **red on the branch**, and the green
+half is what establishes the defect was real rather than the fix decorative.
+
+**A lint rule constrains shape, a type constrains structure, and neither can
+observe an effect.** Both defects in that pair were *shaped* correctly: a clock
+moved into state satisfied `react-hooks/purity` and never ticked, and `GRACE_MS`
+read correctly at both sites and governed nothing. `react-hooks/purity` can tell
+you the clock is in the wrong place; only a test can tell you it moves.
+
+**A partial correction can raise the credibility of the error it did not
+address.** The ninth false article carried two falsehoods; a note fixing only the
+dated one would have supplied, in our own voice, the fact the surviving sentence
+depended on. Correcting one paragraph and leaving its neighbour is not half a fix
+but a **worse artefact than none**, and nothing about the first note's own
+correctness reveals that.
+
+**A self-consistent artefact is not evidence.** Asked whether origin claims could
+now be checked automatically, the honest answer was *going forward yes, backwards
+no* — because every pre-`c5afdd0` article recorded the window boundary as
+`series_start_value`, so its own pack agrees with its own false claim and a check
+returns green. Same species as a guard reproducing its subject, arriving in the
+archive rather than in a test.
+
+**Work held pending a decision can be invalidated by the change it was waiting
+behind**, and a faithful implementer cannot see that from the patch, because the
+patch reads as correct — it *was* correct. A `prompts.py` fix teaching *"we do
+not know when the series began"* was retired rather than applied, because `#280`
+made it false and applying it would have deleted the most informative
+construction the pipeline now supports. `#172` with a timestamp on it.
 
 **When you fix a shared input, enumerate its consumers.** `AGENTS.md` has the
 converse — *"when you audit the consumers, audit the input they share"* — and
@@ -796,6 +920,22 @@ records a decline, and each was two turns of measurement that saved a session.
 ---
 
 ## First tasks, in order
+
+> **THE PROGRAMME'S LARGEST OPEN QUESTION IS CLOSED.** The brief that produced
+> this section opened by asking whether the newsroom publishes unattended. It
+> does, on **both** cadences, verified 2026-08-31T05:36Z on the field `#246`
+> pinned so a hand-run could never be mistaken for a scheduled one:
+>
+> ```
+> runs/weekly-2026-08-30.json  trigger="timer"  published  15:00:41Z
+>                              (schedule 0 0 15 * * 0 — its FIRST scheduled run)
+> runs/latest.json             trigger="timer"  schedule "0 0 14 * * *"
+>                              14:04:49Z · 288 series, 172 signals, 3 approved
+> ```
+>
+> Do not re-open it. If you want to check it still holds, the answer is one
+> unauthenticated GET of `runs/weekly-<YYYY-MM-DD>.json`, and **absent is the
+> finding** — not the absence of one.
 
 > **STOP. Measured `2026-08-29T09:05Z`: four of the seven tasks briefed from this
 > list on the morning after the run were already done.** Three sessions caught
