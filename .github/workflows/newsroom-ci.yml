@@ -181,9 +181,16 @@ jobs:
         # every case that existed when it was written. A weekly timer that
         # fails to register is *harder* to notice than a daily one, because
         # the silence it produces is only visible once a week.
+        #
+        # And the fix had the shape of the fault: a hardcoded pair is a second
+        # enumeration of `function_app.py`, so a THIRD timer would not grow it
+        # and would be invisible again, for a week. Derived from the source
+        # now -- see `scripts/deployment-contract.py`, which refuses to print
+        # an empty set rather than letting absence resolve to success.
         run: |
           set -euo pipefail
-          required='newsroom_edition newsroom_weekly'
+          required="$(python scripts/deployment-contract.py timers | tr '\n' ' ')"
+          echo "timers declared in function_app.py: ${required}"
           for attempt in 1 2 3 4 5 6; do
             names="$(az functionapp function list \
               --name portabaltica-func --resource-group portabaltica-rg \
@@ -218,15 +225,25 @@ jobs:
         # by the step above and the two Telegram secrets are set by hand. An
         # equality here would fail every run.
         #
-        # The pattern anchors on `{ name: 'X', value:` -- the appSettings entry
+        # The pattern anchored on `{ name: 'X', value:` -- the appSettings entry
         # form -- rather than on `name: '[A-Z_]+'`, which was the first version
         # and matched `_LRS` out of a storage SKU plus an empty string, so it
         # would have reported two phantom missing settings and failed every
-        # deploy. Measured against the live app before committing: 12 templated,
-        # 12 deployed, 0 missing; and with one dropped from the deployed side it
-        # names exactly that one. The three settings deployed but not templated
-        # -- NEWSROOM_REVISION and the two Telegram secrets -- are correctly
-        # ignored.
+        # deploy.
+        #
+        # That fix was still source-text matching, and Bicep does not promise
+        # one line per entry. Measured: reformatting a single entry to
+        # multi-line compiles to BYTE-IDENTICAL ARM and took the match from 12
+        # to 11 -- dropping NEWSROOM_WEEKLY_SCHEDULE, the very setting this
+        # check exists for. Note the asymmetry with the `_LRS` bug: that failed
+        # every deploy loudly and was found in hours. This one fails toward
+        # "no finding here".
+        #
+        # So it reads the COMPILED ARM, where appSettings is JSON with a
+        # literal `name` and whitespace cannot defeat it. The three settings
+        # deployed but not templated -- NEWSROOM_REVISION and the two Telegram
+        # secrets -- are still correctly ignored, because the comparison stays
+        # one-directional.
         #
         # Verifying this on Windows needs `tr -d '\r'` on the deployed side: the
         # comparison is exact, so a CR makes all twelve look missing. Runners
@@ -238,8 +255,8 @@ jobs:
           deployed="$(az functionapp config appsettings list \
             --name portabaltica-func --resource-group portabaltica-rg \
             --query '[].name' -o tsv | sort)"
-          templated="$(grep -oE "\{ name: '[A-Za-z_]+', value:" infrastructure/main.bicep \
-            | sed -E "s/^\{ name: '//; s/', value:$//" | sort -u)"
+          templated="$(az bicep build --file infrastructure/main.bicep --stdout \
+            | python scripts/deployment-contract.py settings | sort -u)"
           missing="$(comm -23 <(printf '%s\n' "${templated}") <(printf '%s\n' "${deployed}") || true)"
           if [ -n "${missing}" ]; then
             echo "::error::declared in main.bicep and not deployed: ${missing}"

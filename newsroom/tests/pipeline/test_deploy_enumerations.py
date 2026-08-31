@@ -1,31 +1,31 @@
-"""The deploy workflow's hand-written lists must equal the populations they stand for.
+"""The deploy workflow must derive its populations, not restate them.
 
 WHY THIS FILE
 -------------
-`newsroom-ci.yml` verifies two things after a publish, and each verifies them
-against a list written by hand:
+`newsroom-ci.yml` verifies two things after a publish, and each used to verify
+them against a list written by hand:
 
     required='newsroom_edition newsroom_weekly'          the timers
     grep -oE "\\{ name: '[A-Za-z_]+', value:" main.bicep  the app settings
 
-Both are correct today. Both are the shape this repository has now been bitten
-by three times: **a guard that enumerates its subject separately from the
+Both were correct when written. Both were the shape this repository has now been
+bitten by three times: **a guard that enumerates its subject separately from the
 subject.** `AGENTS.md` states the rule and the reason — "a shared enumeration
 cannot drift; two enumerations always will, and the drift is silent in the
 direction that reports success."
 
-The timer list is the sharper case, because it has *already* drifted once. It
+The timer list was the sharper case, because it had *already* drifted once. It
 read `newsroom_edition` alone, which was right when that was the only timer and
 became wrong the moment `#108` added `newsroom_weekly` — the consumer nobody
 edited, correct for every case that existed when it was written. That was fixed
-by adding the second name. **The fix has the same shape as the fault:** add a
-third timer to `function_app.py` and the list does not grow, and a timer that
+by adding the second name. **The fix had the same shape as the fault:** add a
+third timer to `function_app.py` and the list would not grow, and a timer that
 fails to register is invisible again. A weekly timer's silence takes a week to
 notice; a monthly one would take a month.
 
-THE SETTINGS PATTERN IS FRAGILE IN THE DANGEROUS DIRECTION
-----------------------------------------------------------
-The grep is line-anchored: it requires `{ name: 'X', value:` to appear on one
+THE SETTINGS PATTERN WAS FRAGILE IN THE DANGEROUS DIRECTION
+------------------------------------------------------------
+The grep was line-anchored: it required `{ name: 'X', value:` to appear on one
 line. Bicep does not require that. Measured — one entry reformatted to the
 multi-line form, which `az bicep build` accepts and compiles to byte-identical
 ARM:
@@ -33,32 +33,38 @@ ARM:
     workflow grep       12 -> 11   NEWSROOM_WEEKLY_SCHEDULE no longer found
     structural parse    12 -> 12
 
-So a reformatting nothing would flag silently stops the deploy check from
-watching the very setting the check was written for. **That is a false negative**,
-and unlike the false positive that preceded it — a pattern that matched `_LRS`
-out of a storage SKU and failed every deploy loudly — this one fails toward "no
-finding here" and nobody hears it.
+So a reformatting nothing would flag silently stopped the deploy check from
+watching the very setting the check was written for. **That is a false
+negative**, and unlike the false positive that preceded it — a pattern that
+matched `_LRS` out of a storage SKU and failed every deploy loudly — this one
+failed toward "no finding here" and nobody would hear it.
 
-WHAT THIS FILE DOES, AND WHAT IT CANNOT
----------------------------------------
-`.github/workflows/` is not this session's to edit, so this asserts the
-agreement rather than removing the duplication. That is second best and is
-stated as such: the better fix is for the workflow to read the population
-instead of restating it, and for the settings that means reading the **compiled
-ARM** rather than the Bicep source —
+WHAT CHANGED, AND WHAT THIS FILE DOES NOW
+-----------------------------------------
+An earlier version of this file asserted the *agreement* between each list and
+its population, because `.github/workflows/` was not that session's to edit. It
+said plainly that this was second best and named the durable fix: have the
+workflow read the population instead of restating it, and for the settings read
+the **compiled ARM** rather than the Bicep source —
 
     az bicep build --file infrastructure/main.bicep --stdout
 
-— whose `appSettings` array is a JSON list of objects with a literal `name`. That
-is format-independent by construction: no source-text pattern can be defeated by
-whitespace, because there is no source text involved. Measured, it yields the
-same 12 names.
+— whose `appSettings` array is a JSON list of objects with a literal `name`.
+That is format-independent by construction: no source-text pattern can be
+defeated by whitespace, because there is no source text involved.
 
-Until then, these assertions fail on the day either list stops matching its
-population, in either direction.
+That fix shipped. Both derivations live in `scripts/deployment-contract.py`,
+pinned by `test_deployment_contract.py` — including the reformatting case that
+defeated the grep, and an empty-set refusal so a broken extractor cannot let
+absence resolve to success.
 
-EACH DIRECTION IS REPORTED SEPARATELY, AND THAT IS THE POINT
-------------------------------------------------------------
+So the two parity assertions were **deleted rather than weakened**, which is
+what their own failure message instructed, and what remains is the narrower
+claim that a second enumeration has not come back. The two entry-point guards
+below are untouched: they never depended on the duplication.
+
+WHY THEY REPORTED EACH DIRECTION SEPARATELY, KEPT BECAUSE THE LESSON OUTLIVES THEM
+---------------------------------------------------------------------------------
 The first version of this file asserted a bare equality per pair. That is one
 artefact for two faults which call for **opposite** responses, and the failure
 found it within hours of merging.
@@ -80,11 +86,9 @@ timer. It still exists, still deploys, and would never fire again.
 — and the suite goes green with the weekly newsroom dead. The check written to
 notice a timer that stops publishing would have been edited into blessing one.
 
-So the two directions carry different text now, and the vanished-timer message
-says *do not resolve this by editing the workflow list* in as many words. The
-same split applies to the settings pair, where the asymmetry is the reverse: a
-setting the grep cannot see narrows the check silently, while a spurious match
-fails the deploy loudly and gets noticed.
+Those two assertions are gone with the duplication they watched, but the rule
+they earned is not: **when one artefact can mean two things that need opposite
+fixes, say which.** The entry-point guards below follow it.
 
 A NEAR-MISS WORTH RECORDING, BECAUSE IT HAPPENED IN THIS FILE
 -------------------------------------------------------------
@@ -132,25 +136,6 @@ def _declared_timers() -> set[str]:
                 timers.add(node.name)
     return timers
 
-
-def _workflow_required_timers() -> set[str]:
-    text = WORKFLOW.read_text(encoding="utf-8")
-    match = re.search(r"required='([^']+)'", text)
-    assert match is not None, (
-        "no `required='...'` timer list in newsroom-ci.yml. If the health check "
-        "now derives its own list, delete this assertion — do not weaken it."
-    )
-    return set(match.group(1).split())
-
-
-def _workflow_settings_pattern() -> str:
-    """The grep the workflow uses, read from the workflow rather than restated."""
-    text = WORKFLOW.read_text(encoding="utf-8")
-    match = re.search(r'grep -oE "([^"]+)" infrastructure/main\.bicep', text)
-    assert match is not None, (
-        "no `grep -oE \"...\" infrastructure/main.bicep` in newsroom-ci.yml."
-    )
-    return match.group(1)
 
 
 def _template_app_settings() -> set[str]:
@@ -276,89 +261,49 @@ def test_the_probes_read_real_files() -> None:
     assert WORKFLOW.exists() and FUNCTION_APP.exists() and BICEP.exists()
     assert len(_declared_timers()) >= 2, _declared_timers()
     assert len(_template_app_settings()) >= 10
-    assert _workflow_required_timers()
-    assert _workflow_settings_pattern()
     # The entry-point population too, since two of the assertions above this
     # file's controls now depend on it.
     assert len(_module_level_functions()) >= 4, _module_level_functions()
 
 
-def test_the_health_check_watches_every_timer_that_exists() -> None:
-    """The list has drifted once already; this is what notices the next time.
+def test_the_workflow_derives_both_lists_instead_of_restating_them() -> None:
+    """The duplication this file was written to watch is gone; keep it gone.
 
-    The two directions are reported separately, and that is not tidiness. A bare
-    inequality is one artefact for two faults that call for opposite responses,
-    and the natural reading of "these lists differ" is the benign one — so a
-    reader steered wrong here fixes the symptom and buries the cause.
+    Two parity assertions lived here, one per list, each checking that a
+    hand-written list still equalled its population. They were second best and
+    said so: the better fix was for the workflow to read the population instead
+    of restating it, and for the settings to read the compiled ARM.
+
+    That fix shipped, so those assertions were **deleted rather than
+    weakened**, which is what their own failure message instructed. What
+    replaces them is not a parity check, because there is no longer a second
+    enumeration to compare against. It is the narrower claim that a second
+    enumeration has not come back.
+
+    `scripts/deployment-contract.py` owns both derivations and is pinned by
+    `test_deployment_contract.py`, including the reformatting case that
+    defeated the grep and an empty-set refusal, so a broken extractor cannot
+    let absence resolve to success.
     """
-    declared = _declared_timers()
-    watched = _workflow_required_timers()
+    text = WORKFLOW.read_text(encoding="utf-8")
 
-    unwatched = sorted(declared - watched)
-    vanished = sorted(watched - declared)
-
-    assert not vanished, (
-        f"newsroom-ci.yml waits for {vanished} after a publish and "
-        f"function_app.py no longer declares {'it' if len(vanished) == 1 else 'them'} "
-        f"as a timer. **Do not resolve this by editing the workflow list.** A "
-        f"timer named here and absent from the app is either a rename, a "
-        f"removal, or — the case that produced this message the first time — a "
-        f"function that has been separated from its decorators, so it still "
-        f"exists, still deploys, and is silently no longer a timer at all. "
-        f"Removing the name would make this test green while that cadence stops "
-        f"publishing, which is the exact failure the check exists to catch. "
-        f"Confirm the function still carries @app.timer_trigger before "
-        f"concluding it was meant to go."
+    assert re.search(r"required='[^']*newsroom_\w+", text) is None, (
+        "newsroom-ci.yml has a hand-written `required='...'` timer list again. "
+        "That list drifted once already, and a third timer would not grow it. "
+        "Derive it: `python scripts/deployment-contract.py timers`."
     )
 
-    assert not unwatched, (
-        f"function_app.py declares {unwatched} and newsroom-ci.yml does not wait "
-        f"for {'it' if len(unwatched) == 1 else 'them'} after a publish. A timer "
-        f"that is not waited for can fail to register with the deploy still "
-        f"green, and the only symptom is that a cadence quietly stops "
-        f"publishing — a week of silence for the weekly, which is how #108's "
-        f"absence went unnoticed. Add the name to `required=`."
+    assert re.search(r"grep -oE \"[^\"]*name: '", text) is None, (
+        "newsroom-ci.yml is matching appSettings out of the Bicep source "
+        "again. Measured: reformatting one entry to multi-line is valid Bicep, "
+        "compiles to byte-identical ARM, and takes the match from 12 names to "
+        "11, dropping the setting the check exists for. It fails toward 'no "
+        "finding here'. Read the compiled ARM instead."
     )
 
-
-def test_the_settings_grep_finds_every_templated_setting() -> None:
-    """The pattern must not be defeated by how the template happens to be laid out.
-
-    Measured: reformatting one entry to the multi-line form — valid Bicep,
-    accepted by `az bicep build`, compiling to identical ARM — takes the grep
-    from 12 names to 11 and drops `NEWSROOM_WEEKLY_SCHEDULE`. The deploy check
-    then passes while no longer watching the setting it was written for.
-    """
-    pattern = _workflow_settings_pattern()
-    text = BICEP.read_text(encoding="utf-8")
-
-    # The workflow's own pattern, applied here. POSIX ERE and Python's engine
-    # agree on this construct; anything fancier would need translating and is
-    # a reason to stop restating the pattern at all.
-    found = {
-        m.group(1)
-        for m in re.finditer(pattern.replace("[A-Za-z_]+", "([A-Za-z_]+)"), text)
-    }
-    expected = _template_app_settings()
-
-    invisible = sorted(expected - found)
-    spurious = sorted(found - expected)
-
-    assert not invisible, (
-        f"the deploy check's grep cannot see {invisible}, which the appSettings "
-        f"array declares. The pattern is line-anchored and Bicep does not "
-        f"require that layout, so the check now reports 'every templated setting "
-        f"is deployed' while no longer knowing about "
-        f"{'that setting' if len(invisible) == 1 else 'those settings'}. It "
-        f"narrows silently and keeps returning success. The durable fix is to "
-        f"read the compiled ARM — `az bicep build --file "
-        f"infrastructure/main.bicep --stdout` — whose appSettings entries carry "
-        f"a literal `name`, rather than matching source text at all."
+    assert "deployment-contract.py timers" in text, (
+        "the timer check no longer derives its list from function_app.py"
     )
-
-    assert not spurious, (
-        f"the deploy check's grep matches {spurious}, which are not appSettings "
-        f"entries. This direction fails the deploy loudly rather than quietly, "
-        f"so it will be noticed — but it is noticed *at deploy time*, and the "
-        f"first version of this pattern matched `_LRS` out of a storage SKU."
+    assert "deployment-contract.py settings" in text, (
+        "the settings check no longer derives its list from the compiled ARM"
     )
