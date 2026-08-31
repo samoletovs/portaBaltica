@@ -70,6 +70,47 @@ describe('ourArticles', () => {
   it('drops entries with no slug, which would build a broken URL', () => {
     expect(newsroom.ourArticles([{ tier: 'A' }])).toHaveLength(0);
   });
+
+  /**
+   * The status fallback, pinned as behaviour because the number that justified
+   * it has already moved once.
+   *
+   * The comment above `ourArticles` used to record "nought of seventy" index
+   * entries carrying a status. Measured 2026-08-31 it is 67 of 88 — so a reader
+   * re-deriving that figure now finds most entries populated and could conclude
+   * the fallback is retirable. It is not: 21 of the 88 still carry none, and
+   * all 21 are tier A or B, which is our own journalism. Tightening this to
+   * `status === 'published'` drops every one of them from RSS, the JSON feed
+   * and the sitemap simultaneously.
+   *
+   * So the guarantee is asserted rather than described. A count in a comment
+   * rots silently; this fails.
+   */
+  it('keeps our own article when the index entry carries no status', () => {
+    const items = newsroom.ourArticles([
+      { tier: 'A', slug: 'no-status-field' },
+      { tier: 'B', slug: 'status-undefined', status: undefined },
+    ]);
+
+    expect(
+      items.map((a: { slug: string }) => a.slug),
+      'a strict status check here empties the feed of most of our own output',
+    ).toEqual(['no-status-field', 'status-undefined']);
+  });
+
+  it('honours a status strictly when the entry does carry one', () => {
+    // The other half: the fallback must not become "ignore status entirely",
+    // or a withheld article rides into the feed the day the writer populates
+    // the field.
+    const items = newsroom.ourArticles([
+      { tier: 'A', slug: 'live', status: 'published' },
+      { tier: 'A', slug: 'also-live', status: 'corrected' },
+      { tier: 'A', slug: 'withdrawn', status: 'retracted' },
+      { tier: 'A', slug: 'never-published', status: 'rejected' },
+    ]);
+
+    expect(items.map((a: { slug: string }) => a.slug)).toEqual(['live', 'also-live']);
+  });
 });
 
 describe('escapeXml', () => {
