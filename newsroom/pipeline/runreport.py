@@ -158,6 +158,34 @@ def _history_blob(finished_at: str) -> str:
     return f"runs/{day}/{stamp}.json"
 
 
+def _revision_stamp() -> dict[str, str]:
+    """Which revision produced this run, or an explicit statement that we do not
+    know.
+
+    THE ARTICLE'S STAMP DOES NOT COVER THIS DOCUMENT, AND THE GAP HAS TEETH.
+    Every published article already carries ``provenance.revision``, so the code
+    behind a run was nominally recoverable: read ``published_slugs[0]``, fetch
+    it, read its provenance. That works on every run except the one where it
+    matters. A run that published nothing has an empty ``published_slugs``, and
+    the revision becomes unrecoverable **precisely when the question is "what
+    was deployed when this went wrong"**.
+
+    This document is the thing a person reads after a bad afternoon — it says so
+    at ``rejections`` — and it was the one artefact of the run that could not say
+    which code produced it.
+
+    Built by calling the article's own helper rather than re-reading
+    ``config.REVISION`` here. Two readers of one setting drift, and the drift is
+    silent in the direction that reports success: this document could name one
+    revision while every article beside it named another, and nothing would
+    disagree. It is the same reason ``statusChecks.js`` calls ``buildUrl``
+    instead of restating the query.
+    """
+    from .write.generator import _revision_record
+
+    return _revision_record()
+
+
 def _sections_of(articles: Any) -> dict[str, int]:
     """How many articles each beat filed, highest first."""
     counts: dict[str, int] = {}
@@ -391,6 +419,7 @@ def build_run_report(
         "version": REPORT_VERSION,
         "finished_at": finished,
         "trigger": trigger,
+        **_revision_stamp(),
         "schedule": config.SCHEDULE,
         "stale_after_hours": STALE_AFTER_HOURS,
         "summary": str(getattr(report, "summary", lambda: "")() or ""),
