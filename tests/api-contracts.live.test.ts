@@ -76,12 +76,58 @@ describe('API contracts (live)', () => {
     expect(d).toHaveProperty('exchangeRates');
   });
 
-  it.skip('GET /api/system-status returns health data (slow — 7 parallel health checks)', async () => {
+  // Not skipped. It was, for "slow — 7 parallel health checks", and both halves
+  // of that justification have since expired: the endpoint carries 12 checks,
+  // and the optional-probe budget in `statusChecks.js` capped the one that used
+  // to hang. Measured over four samples it answers in 259-1086ms against a 45s
+  // budget, so the cost it was avoiding is gone.
+  //
+  // What the skip cost, meanwhile, is the point. While it slept the response
+  // moved from `sources` to `dataSources.checks`, and nothing noticed, because
+  // a skipped test reports the same green as a passing one. `it.skip` is an
+  // exemption written as a filter: it cannot fail when its own reason expires,
+  // and it cannot notice the shape it asserts has drifted underneath it.
+  //
+  // So this asserts invariants rather than presence. `toHaveProperty` would
+  // have passed on the day the field was renamed if some other `sources` had
+  // existed, and passes today on a response where every tally is nonsense.
+  it('GET /api/system-status reports internally consistent health', async () => {
     const r = await fetch(`${BASE}/api/system-status`);
     expect(r.ok).toBe(true);
     const d = await r.json();
+
     expect(d).toHaveProperty('status');
-    expect(d).toHaveProperty('sources');
-    expect(d.sources.length).toBeGreaterThan(0);
-  }, 30_000);
+    expect(Array.isArray(d.dataSources?.checks)).toBe(true);
+    expect(d.dataSources.checks.length).toBeGreaterThan(0);
+
+    type Check = { name: string; status: string; required: boolean; freshness?: string };
+    const checks: Check[] = d.dataSources.checks;
+
+    // The server publishes its own tallies and the UI reads those, not the
+    // array. If the two disagree, one of them is lying to a reader.
+    expect(d.dataSources.total).toBe(checks.length);
+    expect(d.dataSources.healthy).toBe(checks.filter((c) => c.status === 'healthy').length);
+    expect(d.dataSources.stale).toBe(checks.filter((c) => c.freshness === 'stale').length);
+    expect(d.dataSources.requiredTotal).toBe(checks.filter((c) => c.required).length);
+    expect(d.dataSources.requiredHealthy).toBe(
+      checks.filter((c) => c.required && c.status === 'healthy').length
+    );
+
+    // `overallStatus` does not exist -- the verdict is `status`, and it is
+    // derived from the required checks alone, so an optional outage cannot
+    // colour the page. Asserting the derivation is what makes a silent change
+    // to it visible.
+    const requiredAllHealthy =
+      d.dataSources.requiredHealthy === d.dataSources.requiredTotal;
+    expect(['healthy', 'degraded', 'unhealthy']).toContain(d.status);
+    if (requiredAllHealthy) expect(d.status).toBe('healthy');
+
+    // Every check names what it powers, so a red one is actionable rather than
+    // a bare name a reader has to go and look up.
+    for (const c of checks) {
+      expect(typeof c.name).toBe('string');
+      expect(c.name.length).toBeGreaterThan(0);
+      expect(typeof c.required).toBe('boolean');
+    }
+  });
 });
