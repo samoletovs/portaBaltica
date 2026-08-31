@@ -376,6 +376,25 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   so settle it on the PR record (`gh pr list --head <branch> --state all`) or on
   the **content** (`git cat-file -e origin/master:<path>`), with a control that
   must come back false.
+- **A dirty worktree is not stranded work — `git status --porcelain` cannot tell
+  a session mid-edit from one that abandoned its tree.** The sweep is worth
+  running, because `gh pr list --state open == 0` reported a clean programme
+  while 737 uncommitted lines sat in a worktree, and I committed them to their
+  own branch to protect them. But run it with an **mtime column**, because the
+  next hit was the opposite case and looked identical:
+
+  ```
+  causal-explanation   14 files   flagged twice, no action across two reports   -> rescued
+  friendly-sniffle      2 files   newest edit 8 SECONDS ago                     -> live session
+                                  ...and the tree was clean again within 2 min
+  ```
+
+  Both read as `2 dirty path(s)` and `96 insertions`. Committing the second
+  would have squatted on another session's in-flight edits and collided with
+  their own commit a minute later. **Two states, one artefact; the separator is
+  the file's age, not its content.** So: sweep, sort by newest edit, and treat
+  anything touched in the last few minutes as someone working — flag it, do not
+  rescue it.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
