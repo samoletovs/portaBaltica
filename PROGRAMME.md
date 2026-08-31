@@ -450,12 +450,47 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   be a null.
 
   So the reading survived, the method did not, and nothing in the output could
-  have told me apart. What broke the tie was an unrelated article reporting
+  have told me apart. What broke the tie was one article reporting
   `corrections=1` with an **empty timestamp and empty description** — absurd
   enough to disbelieve, which is the only row of the taxonomy that defends
-  itself. Had I not looked at that one article, I would have kept a correct
-  number produced by a method that was wrong about more than half the corpus,
-  and used it again.
+  itself.
+
+  **And that absurd reading was the bug displaying itself.** There is no
+  malformed correction anywhere in the corpus — measured, `present-but-blank:
+  0`. `@($null).Count` had manufactured a single "entry" which, being `$null`,
+  had no timestamp and no description to print. A quieter version of this bug —
+  one that miscounted by a plausible amount — would still be in this file,
+  because nothing else about the run looked wrong.
+
+  **The remedy is not a stricter probe. It is a partition that has to
+  reconcile.** `null + corrected == total` cannot be satisfied by an instrument
+  that is guessing, and it settled this from both ends:
+
+  ```
+  ARTICLES   88 total = 73 with `corrections: null` + 15 carrying one
+  ENTRIES    16 real, 0 blank      <- one article carries two
+  ```
+
+  Another session counting the feed rather than the index reached the same **19
+  originals carrying `null`** independently, which is the corroboration a single
+  probe cannot give you.
+
+  **And the partition caught its own author within minutes.** My first draft of
+  this paragraph wrote `73 + 16 = 89` against a total of 88, because I had
+  summed *articles* with *entries* — one article carries two corrections. The
+  arithmetic refused, which is the entire point: a bare count of 16 would have
+  been believed. **State which population you are counting, and make the sum
+  fail when you mix two.**
+
+  That matters because the instinct after a counting bug is to tighten the
+  method, and tightening introduced a *new* failure the loose version did not
+  have. Filtering on `$_.corrected_at.Trim()` looks more rigorous and is worse:
+  `ConvertFrom-Json` coerces those timestamps to `[datetime]`, which has no
+  `.Trim()`, so the expression throws inside `Where-Object`, **every entry is
+  silently dropped**, and the count comes back `0` with a browser open showing
+  one. Two symmetric errors in one afternoon — a null counted as one, a real
+  entry counted as none — both invisible in the output, both caught only because
+  the number was ridiculous rather than merely wrong.
 - **`git rev-list --count origin/master..<branch> > 0` does not mean the branch
   holds unmerged work.** Squash merging guarantees it is non-zero for *every*
   merged branch, so a sweep built on it reports each one as stranded. Measured:
