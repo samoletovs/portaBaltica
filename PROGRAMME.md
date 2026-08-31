@@ -429,7 +429,7 @@ So: when a plant survives, ask whether the state it targets can occur *before*
 hardening anything. If it cannot, the defect is in the prose.
 
 **Prove the plant applied by comparing file CONTENTS, not `git diff --stat`.**
-This check has now lied in **six distinct ways**, found by five different
+This check has now lied in **seven distinct ways**, found by six different
 sessions and by me, and all failing in the direction that reports success:
 
 ```
@@ -437,10 +437,25 @@ untracked file                     git diff --stat is always empty
 after git checkout -- <paths>      the restore is STAGED, so the bare form is empty
 plant edits an already-dirty line  the stat line is byte-identical
 content hash across a checkout     line endings are normalised, so bytes differ
+TEXT-mode read/write round trip    the converse: read_text() translates CRLF to \n
+                                   and write(newline="") emits \n, so the FILE
+                                   flips to LF while a text comparison of two
+                                   translated reads is always equal
 "the replacement is present"       the replacement was already a substring
 the assertion is page-scoped       a sibling element carries the same string, so
                                    deleting the thing under test leaves it green
 ```
+
+The fifth is the mirror of the fourth and it is worth seeing them together: one
+is a **byte** comparison defeated by normalisation, the other a **text**
+comparison hiding a byte difference — in the check whose entire job is
+byte-identity. It was caught only by reading `git status` after a restore that
+had already reported `byte-identical: True`, and `git status` said *modified*.
+
+**So verify a restore two ways: compare bytes, and ask git.** `ReadAllBytes` +
+`SequenceEqual` answers "is the content the same"; `git status --porcelain <path>`
+answers "does the repository agree", and on Windows those are different
+questions. Either alone has now been wrong.
 
 The last one is the subtlest and it is not about plants at all — it is about
 **what the assertion is scoped to**. A test asserting a period "appears on the
