@@ -1904,11 +1904,12 @@ Several sessions push to this repo as the same GitHub account, so a merged PR's
 session for `#310`; the session checked its own reflog, found the branch absent,
 and concluded **"a PR carries no evidence of which session wrote it."** That is
 an over-generalisation from two fields — `author` and branch prefix — to all of
-them, and it is false. Measured across every PR on master, deduped:
+them, and it is false. Measured across every PR on master at `bd96024`, keyed
+on trailer name:
 
 ```
-n=181  Copilot App + Dmitrijs Andrejevs
-n= 76  Copilot                            <- that session's five live here
+n=182  Copilot App + Dmitrijs Andrejevs
+n= 78  Copilot                            <- that session's five live here
 n= 72  dependabot[bot]
 n= 11  Copilot App + samoletovs           <- #310 lives here
  ...   7 more
@@ -1921,7 +1922,7 @@ do, because it is the whole lesson:
 | | polarity | proves | cannot prove |
 |---|---|---|---|
 | the session's own reflog | **positive-only** | this branch *is* mine | that one is *not* mine — it is per-worktree |
-| the trailer cohort | **negative-only** | a different signature is a different configuration | that a matching one is mine — 76 PRs share it |
+| the trailer cohort | **negative-only** | a different signature is a different configuration | that a matching one is mine — 78 PRs share it |
 
 **Neither settles authorship; together they bracket it.** That is a shape worth
 looking for whenever an artefact is ambiguous: not a better single instrument,
@@ -1938,35 +1939,69 @@ which **is** the routing record the artefact was supposed to replace.
 *The squash confound.* A squash concatenates one trailer per source commit, so
 the raw signature is a **commit count wearing an identity's clothes** —
 `Copilot App + Copilot App + Dmitrijs Andrejevs` is one configuration, not
-three. Deduping collapses **24 raw signatures to 11**. Skip it and you report
-that this repo has twenty-four kinds of contributor.
+three. Deduping collapses **24 raw signatures to 11 when keyed on name** — and
+that qualifier is load-bearing, for the reason below. Skip the dedup entirely
+and you report that this repo has twenty-four kinds of contributor.
 
 ⚠️ **The dedup hides a second decision, and it changes the answer.** Two
-readers measured this an hour apart and got **11 cohorts and 10**. Both
-partitions sum to 371, the exact PR total — so *a sum check cannot separate
-them*, because a total is satisfied by any partition. It is a weaker control
-than it looks, and it endorsed both readings equally.
+readers measured this and got **11 cohorts and 10**; a third derivation gave
+10 again. None of them was wrong, and the argument ran three rounds because
+the question was **under-specified**: the count is a property of the *key*, and
+nobody had stated one.
 
-The difference is **case**:
+Measured on one tree, all of master, four reasonable keys:
 
 ```
-case-sensitive   n=10 Copilot + Copilot App     n=5 Copilot App + copilot
-case-folded      n=15 copilot + copilot app     <- the two, merged
+case-folded name        10 cohorts
+name, case-sensitive    11
+name + email            12
+email only               9
 ```
 
-Folding is the tempting normalisation. The emails settle it, and they are the
-field neither reader had put in the key:
+**Every one accounts for all 373 PRs.** So the sum — used three times as the
+control that settled it — separates none of them: *a total is satisfied by any
+partition*, which makes it far weaker evidence than it looks and is why it
+endorsed each reader in turn.
+
+Case folding is what moves 11 to 10: it merges `Copilot + Copilot App` with
+`Copilot App + copilot`. The emails show those are different configurations —
 
 ```
 Copilot   223556219+Copilot@users.noreply.github.com
-copilot   copilot@github.com                          <- a different identity
+copilot   copilot@github.com
 ```
 
-So **11 is right and 10 merges two real contributors.** The rule generalises
-past this repo: when a dedup decides identity, the key is a **judgement, not a
-formatting step** — and the field that settles it is usually one you left out
-of the key. State the rule beside the count, or the next reader inherits a
-number with no way to check it.
+— but following that argument all the way gives **12**, not 11, because two
+`Copilot` trailers carry different account ids (`223556219` and `223556019`).
+So *"the emails settle it"* was itself under-specified, in the same way and by
+the same reader.
+
+The rule is therefore not a number. **When a dedup decides identity, the key is
+a judgement rather than a formatting step — so state the key beside the count,
+or the next reader inherits a figure with no way to check it and no way to
+reproduce it.** Here the section's subject is *configurations*, so name+email
+is the honest key and the answer is 12.
+
+⚠️ **And the wrong key can be applied without anyone choosing it.** The `10`
+reached master because PowerShell folds case in the two places a dedup
+naturally goes through, neither of which announces it:
+
+```powershell
+$h = @{}; $h['Copilot'] = 1; $h['copilot'] = 2
+$h.Keys.Count                                      # 1   <- silently merged
+('Copilot','copilot' | Sort-Object -Unique).Count   # 1   <- and again
+
+[Collections.Generic.Dictionary[string,int]]::new([StringComparer]::Ordinal)
+                                                   # 2   <- what was meant
+```
+
+Fixing only the sort still gave `10`, because the hashtable folded it back. So
+this is the shell silently altering the computation and returning a number that
+looks like an answer — the same family as `node -e` in PowerShell mangling the
+`$` in `/\(#\d+\)\s*$/`, which reported `PRs: 0` for a repository with 373 of
+them. **Both read as findings rather than as broken instruments**, and in a
+comparison of identities the case-fold is not a formatting detail: it is the
+judgement, made for you, by a default.
 
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
