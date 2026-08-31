@@ -82,6 +82,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['portData.live.test.ts', 'the Eurostat maritime tables still carry data'],
   ['reducedMotionLayout.live.test.ts', 'the deployed site does not scroll sideways'],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
+  [
+    'tabStopNames.live.test.ts',
+    'nothing on the deployed site is reachable by keyboard without a name — watching for a link-free scroll strip, which Chromium makes an unnamed tab stop',
+  ],
 ]);
 
 /**
