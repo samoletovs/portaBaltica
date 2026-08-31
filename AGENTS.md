@@ -2167,6 +2167,38 @@ comments must exist in the code or be declared removed. Measured before it was
 written, that rule fires on 1 name in 15, which is what makes it a filter rather
 than a complaint about writing.
 
+**Do not widen that guard past one file, and the reason is measured.** The
+obvious next move is to point it at the repository. Run first:
+
+```
+425 files · 16081 code tokens
+backticked identifiers in comments          798
+   of those, absent from all code            32
+scoped to src/utils/polarity.ts               0 of 15
+```
+
+Thirty-two firings and **not one is a defect.** They are Python symbols the
+TypeScript describes, Eurostat codes (`LBK_ROIL`, `mar_pa_qm_LV`), TypeScript
+error codes (`TS2307`), env vars (`PLAYWRIGHT_BROWSERS_PATH`), Node and recharts
+APIs (`ECONNRESET`, `connectNulls`), a commit SHA. *"Every backticked name
+exists in this codebase"* is only true inside a file that talks exclusively
+about itself, and `polarity.ts` is one — which is why 15 of 15 resolve there and
+766 of 798 do not repo-wide.
+
+**The sharpest entry on that list is the correct fix to the last instance of
+this very problem.** A comment in `tests/indicatorFreshness.test.tsx` had named
+`sentimentOfChange` as a live member of the sentiment vocabulary; it was
+repaired to say *"It listed `sentimentOfChange` too until `#261` deleted that
+second polarity implementation"* — history reading as history, which is exactly
+what this section asks for. A repo-wide version of the guard flags it.
+
+So the detector cannot tell a **stale** reference from a **deliberate
+historical** one; both are a name in prose with no code behind it. That is not a
+flaw to be tuned away — it is why the rule carries a `REMOVED` declaration and
+why it is scoped to a file whose vocabulary is closed. **A guard whose false
+positives include the correct outcome must be narrow, or the exemption list
+becomes the guard.**
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
