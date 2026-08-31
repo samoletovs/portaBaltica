@@ -510,6 +510,49 @@ button,
   }
 }
 
+/* ─── Forced colours ───────────────────────────────────────────────────────
+   A Windows high-contrast theme replaces CSS colours with the user's own
+   palette. It does NOT replace an SVG `stroke`, because that is author paint
+   rather than a colour property — so a chart keeps its series colours while
+   the surface underneath them is swapped out from under it.
+
+   Measured against production, Chromium, `/data`, 222 stroke elements in eight
+   distinct colours:
+
+     forced-colors  scheme  surface              below the 3:1 non-text floor
+     none           light   rgb(10, 15, 26)      0 of 8
+     none           dark    rgb(10, 15, 26)      0 of 8
+     active         dark    rgb(0, 0, 0)         0 of 8
+     active         light   rgb(255,255,255)     4 of 8   <- 1.67, 1.77, 2.21, 2.51
+
+   The app renders `data-theme="dark"` regardless of `prefers-color-scheme`, so
+   under a LIGHT high-contrast theme the dark palette's lines land on white.
+   1.67:1 is close to invisible, and it is invisible specifically for the reader
+   who turned high contrast on.
+
+   WHY OPT OUT RATHER THAN REPAINT
+   The limited forced-colours palette cannot encode four countries: `CanvasText`
+   is one colour, and series identity here is carried by hue (with dashes as the
+   colour-blind provision, not as a replacement). Repainting would make LV, EE,
+   LT and FI the same colour — legible, and no longer a comparison. Opting out
+   restores a pairing that is already measured and already passing, rather than
+   introducing a second palette to keep in contrast.
+
+   It must set the background as well. Opting out the paint alone leaves the
+   strokes exactly where they were, on Canvas; the two have to move together,
+   and the whole chart is opted out as a unit so nothing inside it is half in
+   one palette and half in the other.
+
+   Everything outside the plot — page chrome, prose, controls, focus rings —
+   stays in the user's palette, which is where forced colours belongs. */
+@media (forced-colors: active) {
+  .recharts-wrapper,
+  .recharts-responsive-container {
+    forced-color-adjust: none;
+    background-color: var(--bg-card);
+  }
+}
+
 /* ─── Wrapping ─────────────────────────────────────────────────────────────
    `text-wrap: pretty` stops a paragraph ending on a single orphaned word;
    `balance` evens the line lengths of short, large-type strings, where an
