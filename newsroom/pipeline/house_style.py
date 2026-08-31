@@ -410,12 +410,19 @@ _NEAR: Final[str] = r"(?:[^.]|\.(?=\d))"
 #: that required ``the series`` adjacent. Measured against the published
 #: corpus, admitting one adjective flags **zero** further sentences -- so it
 #: closes a shape the writer demonstrably produces at no cost in reach.
+#: The superlative vocabulary, named once because two checks need it and two
+#: copies would drift. ``_CLAIMS_A_RECORD`` uses it to find a record claim;
+#: ``origin_delta_problems`` uses it to notice that an origin phrase is bounding
+#: one of these rather than a figure.
+_SUPERLATIVE_WORDS: Final[str] = (
+    r"highest|lowest|largest|smallest|biggest|strongest|weakest|greatest|peak|record"
+)
+
 _CLAIMS_A_RECORD: Final[re.Pattern[str]] = re.compile(
     r"\brecord\s+(?:high|low)\b|\ba\s+record\b|\bset\s+a?\s*record\b|"
     r"\ball[-\s]time\s+(?:high|low)\b|\b(?:highest|lowest)\s+ever\b|"
     r"\bnever\s+been\s+(?:higher|lower)\b|\bon\s+record\b|"
-    r"\b(?:highest|lowest|largest|smallest|biggest|strongest|weakest|"
-    r"greatest|peak|record)\b" + _NEAR + r"{0,40}?"
+    r"\b(?:" + _SUPERLATIVE_WORDS + r")\b" + _NEAR + r"{0,40}?"
     r"\b(?:in|of|for|across|anywhere\s+in|throughout)\s+"
     r"(?:the|this|its)\s+(?:\w+[-\s])?(?:series|record|history)\b",
     re.IGNORECASE,
@@ -945,6 +952,156 @@ def origin_claim_problems(article, *, where_prefix: str = "") -> list[str]:
     return problems
 
 
+def origin_delta_problems(article, *, where_prefix: str = "") -> list[str]:
+    """A change measured from somewhere else, attributed to where the series begins.
+
+    THE HALF ``origin_claim_problems`` CANNOT SEE
+    ---------------------------------------------
+    That check compares the period the prose NAMES with the period that was
+    collected. It is exact about *when* and silent about *what*. So a sentence
+    naming the right origin and hanging the wrong quantity on it passes:
+
+        "a cumulative change of -0.1 EUR per kWh, or 41.75%, since the series
+         began in 2016-S1"
+
+    Published 2026-08-30, corrected 2026-08-31, and the most serious of the
+    eleven corrections in the log because it is the only one where a **sign
+    inverts**: -41.75% is the change since 2022-S2, and over the span the
+    sentence names the price ROSE 48.8%. Every gate passed. Both figures are
+    real and both trace — to two different facts, which is
+    ``AGENTS.md``'s *"the contract protects figures, not subjects"* arriving one
+    step along: it protects figures, not **bases**.
+
+    WHY THIS CAN BE CHECKED AT ALL, AND WHY IT CANNOT REJECT A TRUE SENTENCE
+    ------------------------------------------------------------------------
+    ``context._placement`` emits three things about the series: a count
+    (``readings_in_series``), a level at the origin (``series_start_value``)
+    and a previous record. **It computes no change from the origin, anywhere.**
+    So there is no true "change since the series began" for a writer to declare:
+
+        stated truthfully  the number is not a signal field
+                           -> ``no_invented_numbers`` already refuses it
+        stated with a real field   the field is measured from somewhere else
+                           -> nothing sees it, which is this function
+
+    The two states are exhaustive, so this is not a heuristic about wording. It
+    is the observation that the fact does not exist.
+
+    WHAT IT ABSTAINS ON, MEASURED RATHER THAN IMAGINED
+    ---------------------------------------------------
+    Three sentences carry a span-change beside an origin and are sound, and all
+    three are refused rather than reported:
+
+    * **A superlative bounded by the origin.** In "the highest in the series
+      since it began in 2014-Q1" the ``since`` governs the record claim, not a
+      figure, and ``record_claim_problems`` already owns that sentence. Detected
+      with ``_CLAIMS_A_RECORD`` — the pattern that check uses — rather than with
+      a second list of superlatives that could disagree with it.
+    * **A superlative standing between the figure and the origin.** "clearing
+      the previous high by 0.3, the highest since the series began" is true, and
+      an earlier version of this check flagged it. It survived a control only
+      by accident: written with the word *record* rather than *previous high*,
+      ``_NAMES_THE_ORIGIN`` matched at "record" instead of "series", which put
+      the figure outside the span and made a false positive look like a pass.
+      So the test is not "is the figure somewhere before the origin" but "is
+      there anything between them that re-anchors the ``since``".
+    * **A run as long as the series.** Then the run really does start at the
+      origin and ``cumulative_change`` really is the change since it. This
+      needs no code and originally had some: an explicit guard comparing
+      ``streak_length`` with ``readings_in_series`` was written, and then
+      measured to be unreachable. ``_without_collisions`` drops a context fact
+      whose value a signal field already justifies, and a run spanning the
+      series means ``streak_start_value == series_start_value`` — so the origin
+      fact is dropped, ``_recorded_origin`` answers ``None``, and this function
+      abstains before reading any prose. Measured, detecting the streak rather
+      than positing it::
+
+          every reading rising   pack facts []             -> origin None
+          one fall near the start pack facts [readings_in_series,
+                                              previous_record]
+
+      The guard was deleted rather than kept as belt and braces, because a
+      comment describing an unreachable state is a false claim about the code
+      that the next reader will believe.
+
+    Measured across the 88 published articles: 7 sentences name a series
+    origin, 6 declare a figure, and **1 binds a span-change to the origin — the
+    one known-false sentence.** No true sentence in the corpus is touched.
+
+    AN EDITOR, NOT A GATE
+    ---------------------
+    ``apply_house_style`` has no rejection path: a violation is handed back as a
+    revision brief while the writer still has an attempt, and a validated
+    article publishes regardless once the attempts run out. So a false positive
+    costs one attempt and never an article — which is what makes this
+    proportionate where the same rule inside ``validator.py`` would not be.
+    """
+    recorded = _recorded_origin(article)
+    if recorded is None:
+        return []
+
+    problems: list[str] = []
+    for where, text, figures in _prose_units_with_figures(article, where_prefix):
+        declared = {str(getattr(f, "signal_field", "") or ""): f for f in figures}
+        for sentence in _SENTENCES.split(text):
+            match = _NAMES_THE_ORIGIN.search(sentence)
+            if match is None or _CLAIMS_A_RECORD.search(sentence):
+                continue
+            # Only what the ``since`` could reach back over. A change stated
+            # after the origin clause is a separate assertion.
+            before = sentence[: match.start()]
+            for field_name, measured_from in _SPAN_CHANGE_FIELDS.items():
+                figure = declared.get(field_name)
+                if figure is None:
+                    continue
+                tail = _after_the_figure(figure, before)
+                # Nothing between the figure and the origin phrase may
+                # re-anchor the "since". "0.3, THE HIGHEST since the series
+                # began" bounds a superlative, not the change, and firing on it
+                # would reject a true sentence.
+                if tail is None or _SUPERLATIVE.search(tail):
+                    continue
+                problems.append(
+                    f"{where}: attributes {field_name!r} to where the series "
+                    f"begins, but it is measured from {measured_from!r} — the "
+                    f"series begins {recorded!r} and no change from there is "
+                    "collected. Name the period this change is measured over"
+                )
+    return problems
+
+
+#: A superlative standing between a figure and an origin phrase, which means
+#: the origin is bounding the superlative. Built from the same vocabulary
+#: ``_CLAIMS_A_RECORD`` uses, so the two cannot come to disagree about what a
+#: superlative is.
+_SUPERLATIVE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:" + _SUPERLATIVE_WORDS + r")\b", re.IGNORECASE
+)
+
+
+def _after_the_figure(figure, text: str) -> str | None:
+    """The prose between a declared figure and the end of ``text``.
+
+    ``None`` when the figure is not written there at all — which is the common
+    case and means the sentence never put this number in front of the origin.
+
+    Matched on ``rendered_as`` when the writer supplied it, because that is the
+    form it actually put on the page — ``0.13 EUR per kWh`` rather than
+    ``0.13``. The bare value is the fallback, so a figure declared without a
+    rendering is still found rather than silently skipped.
+    """
+    rendered = str(getattr(figure, "rendered_as", "") or "").strip()
+    if not rendered:
+        value = getattr(figure, "value", None)
+        if value is None:
+            return None
+        rendered = f"{float(value):g}"
+    index = text.rfind(rendered)
+    if index < 0:
+        return None
+    return text[index + len(rendered) :]
+
+
 def _recorded_origin(article) -> str | None:
     """The collected first period, or ``None`` when nothing was recorded."""
     provenance = getattr(article, "provenance", None)
@@ -969,6 +1126,44 @@ def _prose_units(article, prefix: str = ""):
     for index, block in enumerate(article.body or []):
         if getattr(block, "text", None):
             yield f"{prefix}body[{index}]", block.text
+
+
+def _prose_units_with_figures(article, prefix: str = ""):
+    """Body prose with the figures declared alongside it.
+
+    Body blocks only. A headline and a dek carry no ``figures``, so a check that
+    needs a declared field has nothing to read there — and yielding them with an
+    empty list would let a later reader believe they had been examined.
+    """
+    for index, block in enumerate(article.body or []):
+        text = getattr(block, "text", None)
+        if text:
+            yield f"{prefix}body[{index}]", text, list(getattr(block, "figures", None) or ())
+
+
+#: Fields whose value is a distance travelled BETWEEN TWO POINTS IN TIME, and
+#: the field naming where that span starts. These are the six a sentence can
+#: misattribute to the series origin, because each is a change *since* some
+#: period and none of those periods is the origin.
+#:
+#: Deliberately narrower than "every field that is a difference".
+#: ``distance_from_threshold`` is measured from a line we chose, ``deviation``
+#: from a multi-year average and ``spread`` from another country — none has a
+#: start period, so none can be read as "the change since X". Including them
+#: would widen the reach without adding a claim the rule is actually about.
+#:
+#: ``newsroom/tests/pipeline/test_origin_delta.py`` asserts every
+#: ``(detector, field)`` in ``FIELD_MEANINGS`` is classified here or explicitly
+#: set aside, so a new field cannot arrive unjudged — the enumeration is the
+#: check, not a list someone remembers to update.
+_SPAN_CHANGE_FIELDS: Final[dict[str, str]] = {
+    "margin": "previous_record_value",
+    "margin_pct": "previous_record_value",
+    "cumulative_change": "streak_start_value",
+    "cumulative_change_pct": "streak_start_value",
+    "change": "previous_value",
+    "change_pct": "previous_value",
+}
 
 
 #: Month names as the writer spells them, so "August 2021" can be compared with
@@ -1082,6 +1277,11 @@ def apply_house_style(
     # Whole-article, because it reads the article's own collected origin rather
     # than the prose in front of it. Every unit is scanned inside.
     report.violations.extend(origin_claim_problems(article))
+    # Its sibling, and the two are not redundant: the first asks whether the
+    # prose names the right period, the second whether the quantity hung on it
+    # was measured from there. The electricity article got both wrong and only
+    # the second inverted a sign.
+    report.violations.extend(origin_delta_problems(article))
 
     if article.dek:
         report.violations.extend(check_prose(article.dek, where="dek"))

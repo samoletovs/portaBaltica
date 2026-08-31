@@ -26,7 +26,7 @@ GOOD_PAYLOAD = {
         {
             "text": (
                 "Latvia's unemployment rate reached 6.8% in July, above the previous "
-                "record of 6.5% and the highest since the series began in 2021."
+                "record of 6.5% and the highest since 2021."
             ),
             "figures": [
                 {"value": 6.8, "signal_field": "latest_value", "unit": "%", "rendered_as": "6.8%"},
