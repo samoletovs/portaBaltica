@@ -263,6 +263,23 @@ export function freshnessOf(
 
 /** `2025-Q4` → `Q4 2025`, for display next to the age. */
 export function formatPeriod(period: string): string {
+  // Both separators, everywhere. Eurostat writes `2026-06` and `2026-Q2`;
+  // CSP PxWeb — which `/api/historical-data` passes through verbatim as
+  // `period: timeLabels[i]` — writes `2026M04` and `2025Q3`.
+  //
+  // The quarterly branch below already accepted both, via `-?`. The monthly
+  // one required the hyphen, so a PxWeb month fell through to `return period`
+  // and rendered raw. Measured live: `/api/historical-data?indicator=cpi`
+  // returns `2026M04 … 2026M07`, and `IndicatorCard`'s stale-series notice
+  // named that label unformatted while the chart axis beside it read
+  // `Apr 2026`.
+  //
+  // (Described rather than quoted: `indicatorFreshness.test.tsx` asserts that
+  // sentence is defined in exactly one component, by source text, so repeating
+  // it here would make this file a second definition of it.)
+  //
+  // The correct sibling is what hid it — a reader checking whether this
+  // function copes with PxWeb sees `-?Q` two lines up, gets "yes", and stops.
   const q = /^(\d{4})-?Q([1-4])$/.exec(period);
   if (q) return `Q${q[2]} ${q[1]}`;
   const h = /^(\d{4})-?[SH]([12])$/.exec(period);
@@ -275,10 +292,18 @@ export function formatPeriod(period: string): string {
     const end = new Date(isoWeekEndMs(+w[1], +w[2]));
     return `week to ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
   }
-  const m = /^(\d{4})-(\d{2})$/.exec(period);
+  const m = /^(\d{4})[-M](\d{1,2})$/.exec(period);
   if (m) {
-    const date = new Date(Date.UTC(+m[1], +m[2] - 1, 1));
-    return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    // The month is range-checked, which the hyphenated version never was:
+    // `Date.UTC(2026, 13, 1)` rolls silently into 2027 and `2026-14` rendered
+    // as "February 2027". Caught by the control arm of the test below rather
+    // than by the case it was written for — a month that cannot exist should
+    // pass through as itself, like any other unparseable label.
+    const month = +m[2];
+    if (month >= 1 && month <= 12) {
+      const date = new Date(Date.UTC(+m[1], month - 1, 1));
+      return date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    }
   }
   return period;
 }
