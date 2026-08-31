@@ -698,6 +698,42 @@ only needs to *reach* the first digit, which comes before the decimal point.
 Same idiom, opposite consequence. So a greppable rule is what you hand to other
 people, and the grep's output is a list to measure, not a list to fix.
 
+**A discriminating test proves two things differ. It does not prove there are
+only two.** This is the enumeration fault arriving as a *truth table*, and it is
+worse defended than the usual kind because every row present is correct. I
+verified `record_correction_note` had two perfectly discriminating branches —
+
+```
+A  rank=1 beaten=15   'was not the highest'=True   'only in'=False
+B  rank=1 beaten=0    'was not the highest'=False  'only in'=True
+```
+
+— and reported the pair as though it settled the shape. A session came back with
+a third: `rank=4, beaten=3` emits B's wording, correctly, because *"the
+fourth-highest only in the 40 observations retrieved"* is true when exactly three
+beat it there. My table was silent about C and **silence read as coverage**.
+
+It was mechanically catchable in one command, which is what makes this a shape
+rule rather than a caution:
+
+```powershell
+python -c "import ast,inspect;from newsroom.pipeline.revisions import record_correction_note as f;
+s=inspect.getsource(f);[print(ast.get_source_segment(s,n.test)) for n in ast.walk(ast.parse(s)) if isinstance(n,ast.If)]"
+
+#   -> beaten_in_window == 0 or rank > 1      <- the disjunction, line 114
+```
+
+**A disjunction in the branch that selects your output means more paths than
+outputs.** I had two rows for two wordings; the code had three paths to two
+wordings, and the `or` says so on sight. So when you claim a truth table is
+exhaustive, derive the row count from the function's own conditions rather than
+from the cases you thought to construct — the same move as reading a probe's URL
+off the application instead of restating it, applied to control flow.
+
+The general form, from the session that caught it: **an absent row is a claim
+about the enumeration**, exactly as an absent reading is a claim about the
+instrument.
+
 ---
 
 ## Exclusive file ownership, and the one property worth preserving
