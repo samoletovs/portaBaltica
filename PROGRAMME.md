@@ -152,10 +152,14 @@ fixes.* Both halves are now settled.
 >   original_sections  ABSENT
 >   counts             published 52 · rejected 5 · errors 0
 >
-> DEPLOYED newsroom head at the time of writing: 3a79ef0, "Publish the pipeline
->          to Azure" success, and `git log <head>..origin/master -- newsroom/`
->          empty. So #297, #300, #303, #306 and #308 are all in the tree that
->          will run.
+> DEPLOYED newsroom head, re-checked at 2026-08-31T11:52Z: **56554c8**, "Publish
+>          the pipeline to Azure" success, and `git log <head>..origin/master
+>          -- newsroom/` empty. So #297, #300, #303, #306, #308 and #309 are all
+>          in the tree that will run. (An earlier draft of this entry named
+>          3a79ef0, which was the head when it was written and is an ancestor of
+>          this one — the claim was true and went stale within the hour, which is
+>          the branch-name-versus-SHA problem arriving inside a prediction about
+>          deployment.)
 >
 > PREDICTS  no_unsupported_mechanism   5 -> 0     (#297 cuts the named paragraph
 >                                                  instead of spiking the article)
