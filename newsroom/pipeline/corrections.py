@@ -233,34 +233,113 @@ async def issue(
 #: passport at render time, so nothing false reaches the reader there. The line
 #: between the two mechanisms is the same one this module's docstring draws —
 #: **render-time repair for the chrome, a correction for the prose.**
-PENDING: tuple[EditorialCorrection, ...] = (
-    EditorialCorrection(
-        slug=(
-            "consumer-confidence-in-the-baltic-states-shows-significant-"
-            "divergence-in-1ee73e"
-        ),
-        description=(
-            "This article credited an explanation to “Dr. Ineta Zvirbule”. There "
-            "is no such person. The suggestion came from one of the newsroom's "
-            "own AI analysts — a software role, now named “the newsroom's AI "
-            "household economist” — which a defect in our pipeline had given an "
-            "invented personal name. The analysis itself is unchanged and was "
-            "always marked as unconfirmed; what was wrong was presenting it as "
-            "the view of a human economist we had consulted. We have consulted "
-            "nobody. The paragraph is left exactly as published, so the record "
-            "of what we printed stands, and no analyst is given a personal name "
-            "again."
-        ),
-        previous_value=(
-            "Dr. Ineta Zvirbule suggests this is a likely explanation, but the "
-            "data cannot confirm it."
-        ),
+INVENTED_ANALYST = EditorialCorrection(
+    slug=(
+        "consumer-confidence-in-the-baltic-states-shows-significant-"
+        "divergence-in-1ee73e"
+    ),
+    description=(
+        "This article credited an explanation to “Dr. Ineta Zvirbule”. There "
+        "is no such person. The suggestion came from one of the newsroom's "
+        "own AI analysts — a software role, now named “the newsroom's AI "
+        "household economist” — which a defect in our pipeline had given an "
+        "invented personal name. The analysis itself is unchanged and was "
+        "always marked as unconfirmed; what was wrong was presenting it as "
+        "the view of a human economist we had consulted. We have consulted "
+        "nobody. The paragraph is left exactly as published, so the record "
+        "of what we printed stands, and no analyst is given a personal name "
+        "again."
+    ),
+    previous_value=(
+        "Dr. Ineta Zvirbule suggests this is a likely explanation, but the "
+        "data cannot confirm it."
     ),
 )
 
 
+#: The weekly wrap that inverted a direction in its own headline.
+#:
+#: `electricity-prices-and-renewable-energy-share-rise-in-the-baltics-fa8c99`,
+#: published 2026-08-30T15:00:19Z by the first scheduled weekly timer, at
+#: `revision e8da9c3` — before `#280` was on master. Measured 2026-08-31T11:2xZ
+#: against the two live series, and against the corpus the wrap was built from:
+#:
+#:     elec_price_industry LV   37 obs 2007-S2..2025-S2
+#:       2025-S2  0.1335   <- the article's "0.13"
+#:       2025-S1  0.1354   <- the actual previous semi-annual period
+#:       2022-S2  0.2292   <- the article's "0.23", the STREAK basis
+#:       move vs the previous period: -0.0019, a FALL and the sixth in a row
+#:
+#:     renewables LT            22 obs 2004..2025
+#:       2025     38.5     <- rose, so this half of the headline is TRUE
+#:       2024     35.408   <- the actual previous measurement period
+#:       2018     24.695   <- the article's "24.7", again the STREAK basis
+#:
+#: WHY A CORRECTION AND NOT A RETRACTION, WHICH WAS ARGUED RATHER THAN ASSUMED
+#: ---------------------------------------------------------------------------
+#: The false headline is in the slug and travels alone — into the feed, the RSS
+#: and the JSON-LD — where no notice follows it, and retraction would remove it
+#: from feeds. That is the strongest argument for the heavier remedy and it
+#: loses to two things. The published policy names this case in its own words:
+#: a correction covers "a wrong figure, **a misstated comparison**", and a
+#: retraction is for when "the underlying data was invalid, or the premise was
+#: wrong". Neither is true here — every figure is a correct reading and two of
+#: the three findings are sound. And the newsroom has already met a false
+#: headline once, in `latvia-s-food-inflation-drops-to-a-record-low-`, and
+#: corrected it rather than withdrawing it.
+#:
+#: THE FAULT IS NARROWER THAN "THE WRAP MISDESCRIBES ITS BASES"
+#: -------------------------------------------------------------
+#: Three paragraphs carry a comparison. The third — building permits at 106.8
+#: index points "compared with a nine-year average of 71.52 index points for
+#: this period" — is exactly right; the nine Q2 readings from 2017 to 2025 mean
+#: 71.52. It is the one whose basis comes from `seasonal_deviation`. Both
+#: paragraphs that got it wrong are quoting a **streak** basis, and both call
+#: it "the previous period". 2 of 2 streak bases wrong, 1 of 1 seasonal basis
+#: right — which is a much sharper statement than a count of paragraphs, and it
+#: is the correct sibling that made the file look handled.
+WEEKLY_WRAP_BASIS = EditorialCorrection(
+    slug="electricity-prices-and-renewable-energy-share-rise-in-the-baltics-fa8c99",
+    description=(
+        "CORRECTED. The headline of this weekly wrap said that electricity "
+        "prices and the renewable energy share both rose in the Baltics. "
+        "Latvian industrial electricity prices did not rise. At 0.13 EUR per "
+        "kWh in 2025-S2 they were down from 0.135 EUR per kWh in 2025-S1, and "
+        "that was the sixth consecutive semi-annual fall; the first paragraph's "
+        "“increased” is wrong in the same way. Two comparisons were also "
+        "labelled as the previous period and are not: the 0.23 EUR per kWh the "
+        "article measures the price against is 2022-S2, three years earlier, "
+        "and the 24.7% it measures Lithuania's renewable share against is 2018, "
+        "seven years earlier — the previous year, 2024, was 35.4%. Each figure "
+        "quoted is a "
+        "correct reading of its own period; what was wrong is which period each "
+        "was set against, and, for electricity, the direction that follows from "
+        "it. The renewable share did rise, so that half of the headline stands, "
+        "and the paragraph on Lithuanian residential building permits — 106.8 "
+        "index points against a nine-year average of 71.52 for the same quarter "
+        "— is correct and correctly described. The paragraphs are left exactly "
+        "as published. Our daily report on the same reading was headlined "
+        "“Latvia's industrial electricity price drops to 0.13 EUR”: the wrap "
+        "contradicted it, and a comparison on this wire now has to name the "
+        "period it is measured against rather than calling it the previous one."
+    ),
+    previous_value=(
+        "Industrial electricity prices in Latvia increased to 0.13 EUR per kWh, "
+        "compared with 0.23 EUR per kWh in the previous semi-annual period."
+    ),
+)
+
+
+PENDING: tuple[EditorialCorrection, ...] = (
+    INVENTED_ANALYST,
+    WEEKLY_WRAP_BASIS,
+)
+
+
 __all__ = [
+    "INVENTED_ANALYST",
     "PENDING",
+    "WEEKLY_WRAP_BASIS",
     "EditorialCorrection",
     "already_recorded",
     "annotate",
