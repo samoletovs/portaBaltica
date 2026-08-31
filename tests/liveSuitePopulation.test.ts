@@ -66,6 +66,10 @@ const LIVE_CHECKS = new Map<string, string>([
     'every chart on the deployed dashboard announces what it plots — recharts injects its role at runtime, so no source test can see this',
   ],
   [
+    'consoleClean.live.test.ts',
+    'no deployed route throws at the reader — eight live checks drive a browser and none of them watched for it, so an uncaught exception or a failed lazy chunk removed a panel and passed every one',
+  ],
+  [
     'correctionsRender.live.test.ts',
     'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
   ],
@@ -99,13 +103,17 @@ const LIVE_CHECKS = new Map<string, string>([
  * filter: it sits in the file forever, reports nothing, and the suite it belongs
  * to goes on saying "passed". Naming it here makes removing it a decision and
  * adding one visible.
+ *
+ * Empty today. The one entry it held — `/api/system-status`, switched off for
+ * "slow — 7 parallel health checks" — was switched back on once both halves of
+ * that reason expired: the endpoint carries 12 checks now, and the
+ * optional-probe budget capped the one that used to hang. It answers in
+ * 259-1086ms.
+ *
+ * An empty list here would normally blind the control below, which is why that
+ * control no longer depends on this list being non-empty.
  */
-const DECLARED_SKIPS = new Map<string, string>([
-  [
-    'api-contracts.live.test.ts',
-    'GET /api/system-status returns health data (slow — 7 parallel health checks)',
-  ],
-]);
+const DECLARED_SKIPS = new Map<string, string>([]);
 
 /**
  * Every live file the runner would pick up, **recursively**.
@@ -218,29 +226,42 @@ describe('the chain from the workflow down to a live file', () => {
 });
 
 describe('a live check that is switched off says so', () => {
+  const SKIP_PATTERN = /\b(?:it|test|describe)\.(?:skip|todo)\s*\(\s*(['"`])([\s\S]*?)\1/g;
+
+  /** Every `it.skip` / `describe.skip` title in one file's text. */
+  function skipsIn(text: string): string[] {
+    return [...text.matchAll(SKIP_PATTERN)].map((m) => m[2]);
+  }
+
   /** Every `it.skip` / `describe.skip` in the live suite, with its title. */
   function skipsInLiveSuite(): { file: string; title: string }[] {
     const found: { file: string; title: string }[] = [];
     for (const file of liveFiles()) {
       const text = readFileSync(resolve(LIVE_DIR, file), 'utf8');
-      for (const match of text.matchAll(
-        /\b(?:it|test|describe)\.(?:skip|todo)\s*\(\s*(['"`])([\s\S]*?)\1/g,
-      )) {
-        found.push({ file, title: match[2] });
-      }
+      for (const title of skipsIn(text)) found.push({ file, title });
     }
     return found;
   }
 
-  it('can see a skip when there is one', () => {
-    // Guard the guard: with no skip anywhere, the equality below is an empty
-    // list equalling an empty list, and would keep passing if the scanner broke.
-    // There is exactly one today, so this is a live control rather than a hope.
-    expect(
-      skipsInLiveSuite().length,
-      'no skip found — either the suite has none, in which case DECLARED_SKIPS ' +
-        'should be empty too, or the scanner has stopped matching',
-    ).toBe(DECLARED_SKIPS.size);
+  // The control used to be "there is exactly one skip today, so the equality
+  // below is not empty-equals-empty". That was true and it expired the moment
+  // the last skip was switched back on -- an exemption whose control depends on
+  // the exemption still existing.
+  //
+  // So the control is now on the scanner itself, against text this test owns.
+  // It holds whether or not the suite has a skip, which is the property the
+  // previous version was missing.
+  it('matches a skip, so an empty result means an empty suite', () => {
+    expect(skipsIn("it.skip('a switched-off check', async () => {});")).toEqual([
+      'a switched-off check',
+    ]);
+    expect(skipsIn('describe.skip("a whole group", () => {});')).toEqual(['a whole group']);
+    expect(skipsIn('test.todo(`not written yet`);')).toEqual(['not written yet']);
+
+    // Negative control on the same shape: an ordinary check must not match, or
+    // the scanner would report every test in the suite as switched off.
+    expect(skipsIn("it('an ordinary check', async () => {});")).toEqual([]);
+    expect(skipsIn("describe('an ordinary group', () => {});")).toEqual([]);
   });
 
   it('has declared every switched-off check, as an equality', () => {
