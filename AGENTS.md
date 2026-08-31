@@ -1840,6 +1840,80 @@ So: read the sentence that says *what survives*, and ask whether it survives
 **here**. If it does not, the shape is wrong and no amount of editing the rest
 will fix it.
 
+## Prose is where the unmeasured number hides
+
+Two people arrived at this from opposite directions on the same day, which is
+why it is here rather than in the programme log.
+
+**From the failures.** Three figures were passed on rather than measured — a
+verbatim quotation that was not verbatim, a PR count that was one too high, an
+interval of "a day" that was seventeen minutes. All three landed in a **pull
+request description or a status line**, never in a code block:
+
+> A number inside a fenced block reads as measured and invites *"measured
+> how?"*. The same number in a sentence reads as known.
+
+**From the artefact.** A correction notice published this:
+
+```
+"...it is the change since 2022-S2, four and a half years later"
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2016-S1 -> 2022-S2 = 13 semesters = SIX and a half years
+```
+
+Every other figure in that notice was re-derived from the cube in the run that
+composed it. **That one was typed by hand**, because it read as connective
+prose rather than as a measurement — inside a correction whose entire subject
+is a figure attached to the wrong interval.
+
+The offenders are the same in both cases and they are not the numbers anyone
+checks: an **interval**, an *"as are the peer figures"*, a *"four-year average
+of 7.88%"*. Nobody asks how a linking clause was derived.
+
+### It has a shape, and the shape is the type
+
+The correction builders take their inputs like this:
+
+```
+builder                        str params   numeric params
+record_correction_note              8            4
+origin_correction_note              6            0
+span_correction_note                8            0
+comparison_correction_note          6            3
+                                   --           --
+                                   28            7
+```
+
+**Four out of five parameters are free text interpolated straight into
+published prose**, and eight of them have carried a figure into a live notice.
+A `str` cannot say whether it was measured.
+
+Now compare where the invariants live. Every **value** check in those builders
+is on a numeric parameter — `beaten_in_window > beaten_in_series` is refused
+because the window is a subset of the series; `rank > 1 and beaten_in_window
+!= rank - 1` is refused because fourth-highest means exactly three are higher;
+`beaten >= observations` is refused because a reading cannot be beaten by its
+own population. Every **string** check is presence-only: `if not
+still_stands.strip()`.
+
+So the guard rails are exactly where the type is a number, and **the wrong
+figure entered through a string** — past all of them, in a builder that
+refuses four different kinds of arithmetic nonsense.
+
+### What to do
+
+**Promote a figure to a typed argument when you want it checked.**
+`beaten_in_window` was made a required `int` precisely so a caller had to go
+and measure it; the same move is available for anything else that matters.
+An assumption living in a sentence cannot be checked; the same assumption
+living in a parameter must be.
+
+And where it must stay prose — a `still_stands` clause is a sentence, not a
+field — **derive it in the same run that writes it, and say so.** The test is
+not whether the number is right. It is whether you can name the command that
+produced it. Both of the day's errors would have failed that question
+instantly, and neither would have been caught by reading.
+
 ## Two states that produce the same artefact
 
 Everything below this line is one idea. A session that spent a run inside the
