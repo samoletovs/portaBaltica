@@ -734,6 +734,29 @@ The general form, from the session that caught it: **an absent row is a claim
 about the enumeration**, exactly as an absent reading is a claim about the
 instrument.
 
+Run across `revisions.py`'s seven public functions it fires **once**, on the one
+that bit, and six show zero — which is what makes the one non-zero a reading
+rather than a probe that flags everything. The other three note builders have one
+output each and no branch selecting it, so a truth table over their wordings
+cannot under-count.
+
+**And the disjunction is a fossil of two features arriving separately**, which
+tells you where to look first. Nobody writes `A or B` in a branch selector on the
+first pass; you write `A`, and later a second condition wants the same output.
+Measured on this one:
+
+```
+399d2f9  08-30 12:18  #273  beaten_in_window == 0   arrives
+e8da9c3  08-30 12:35  #276  rank > 1                joins it
+                            -> 17 minutes, two consecutive PRs
+```
+
+The session that spotted the mechanism guessed *"a day apart"*. It was **17
+minutes**, which is the more useful number: a fossil can form inside one
+afternoon, so *"audit functions that have grown"* does not mean old code. One
+instance — whether disjunctive selectors are *usually* fossils is unestablished,
+and the sweep above gives 1 of 7 rather than a rate.
+
 ---
 
 ## Exclusive file ownership, and the one property worth preserving
