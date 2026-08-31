@@ -2668,6 +2668,74 @@ why it is scoped to a file whose vocabulary is closed. **A guard whose false
 positives include the correct outcome must be narrow, or the exemption list
 becomes the guard.**
 
+### A control validates the mechanism, not the mapping from question to measurement
+
+Everything above assumes a control tells you whether to trust a reading. It does
+not. **A control proves the probe discriminates on the axis it varies — and says
+nothing about whether that axis is the one you were asking about.** Both halves
+can be perfect while the answer is irrelevant.
+
+Two instances, and the first is the sharper because its controls were *present
+and blind*:
+
+```
+QUESTION  which session created this branch?
+PROBE     git reflog show <branch>
+CONTROL+  HEAD                  exit 0     fires
+CONTROL-  zz-no-such-branch     exit 128   fires
+```
+
+Both controls correct, and they prove reflog-lookup discriminates **existence**
+flawlessly. Existence was never in doubt: sessions share one clone, so every
+session's branches are locally present. Measured from a worktree on
+`final-state`, which never touched either branch:
+
+```
+samoletovs-tab-stop-names     RESOLVES
+samoletovs-colour-migration   RESOLVES
+zz-no-such-branch             absent      <- the read works
+```
+
+The probe answered a question nobody asked, and the controls certified it.
+(An earlier draft cited the *count* of local refs — 541. It was 542 an hour
+later. **A branch count is a moving reference**, and the fact that matters is
+not how many resolve but that another session's does.)
+
+```
+QUESTION  is #310 live on the Static Web App?
+PROBE     git merge-base --is-ancestor 1ca9aa8 56554c8
+```
+
+Run correctly, and it answers *"is it in the newsroom Function App's
+revision"* — a different pipeline. `deploy.yml` ships the SWA and has **no
+paths filter**; `newsroom-ci.yml` ships the Function App and filters on
+`newsroom/**`. Ancestry in one revision says nothing about the other.
+
+**Why this is not just "check your subject" again.** That rule fires when a
+reading looks wrong. This fires when everything looks right: the probe ran, the
+controls discriminated, the answer was well-formed. There is no artefact to
+disbelieve, which is the whole difficulty — a control converts *"can I trust
+this number"* into *"yes"*, and that is precisely the conversion that stops the
+next question being asked.
+
+So the check is one sentence, and it is about the **mapping** rather than the
+instrument:
+
+> Write down the question in words. Write down what the probe varies. If a
+> reading could come out the same for a reason unrelated to the question, the
+> control cannot tell you.
+
+For the reflog case: *"which session"* versus *"does this ref resolve"*. For the
+ancestry case: *"live on the SWA"* versus *"contained in a Function App
+revision"*. Both differences are visible the moment the two are written side by
+side, and invisible while only one of them is written down.
+
+This is the same family as *a total is satisfied by any partition* one level
+out: there, a number was consistent with several methods; here, a *validated
+probe* is consistent with several questions. **Comparing methods rather than
+answers is what shows the first; comparing the question to what the probe varies
+is what shows the second.**
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
