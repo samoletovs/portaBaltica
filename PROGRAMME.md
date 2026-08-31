@@ -267,6 +267,56 @@ as a check on the sessions' work.**
 > after `#257` the claim carries its window (*"the 20 observations since…"*), and
 > the window is then named as the origin — the half only the collector could fix.
 
+**And here is what that practice cannot tell you, found by getting it wrong
+twice in one hour.** The corrections apparatus is **append-only by design** —
+`corrections.py` argues the rule at length, and it is the right rule, because a
+correction the reader cannot check against the page is worse than none. The
+consequence is that a corrected article's body prose **stays false for ever**:
+
+```
+uncorrected false article    body[2] is false
+corrected   false article    body[2] is false, + a warning panel above it
+                             -> the separator is `corrections`, never the body
+```
+
+So *read the artefact* — the highest-yield practice in this document — is
+**structurally unable to answer "is this still wrong?"**, because it directs you
+at the one field the remedy deliberately does not touch. On 2026-08-31 I read
+two article bodies, confirmed the arithmetic against the live series, and
+briefed a session that two falsehoods were "live on the site now". Both had been
+corrected four hours earlier. I then began sizing a nine-article backlog on the
+same premise; re-run with one extra field it came back **9 of 9 already
+corrected, 0 uncorrected**.
+
+Two things make it worth a paragraph rather than an apology.
+
+**The discriminator was in my own terminal output.** At 10:20Z I printed the
+article's key list, which ends `..., published_at, corrections`, and read past
+it to `provenance` and `body` — the fields that supported the story I already
+had. That is the `41e10b5` shape one step earlier: not substituting a weaker
+instrument after a failure, but never consulting the field that could
+contradict me.
+
+**And the answer was written down, in the block immediately above.** It ends
+*"Eight corrected and verified to the accessibility tree; the ninth was in
+flight at handover."* I am the manager of this document and I was working from
+my recollection of the corpus rather than from the file — the *photograph of a
+moving file* rule, collecting on its own author within the hour, and in the one
+direction that rule does not warn about: not a stale quote, but a passage never
+re-read at all.
+
+Verifying *this* entry then hit a third trap from the same family. I checked the
+quoted line really preceded my entry, and my probe reported that it did not —
+because the original is **line-wrapped** across two lines, so a per-line search
+matched only my own single-line copy of it, 34 lines further down. The ordering
+was correct all along. `AGENTS.md` names that trap, and it defeated the check
+written to verify a paragraph about failing to check.
+
+The action is one field: **when reading a published artefact, read its
+correction record before concluding anything about what stands.** The body is
+evidence about what we published. Only `corrections` is evidence about what is
+still claimed.
+
 **Verify every PR yourself before merging.** `scripts/verify-pr.ps1` exists now
 and does it in one command: it checks `headRefOid` against `git ls-remote`,
 test-merges onto current master in a throwaway worktree, runs build/test/lint on
