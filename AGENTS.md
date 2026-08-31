@@ -1982,6 +1982,27 @@ or the next reader inherits a figure with no way to check it and no way to
 reproduce it.** Here the section's subject is *configurations*, so name+email
 is the honest key and the answer is 12.
 
+⚠️ **And the wrong key can be applied without anyone choosing it.** The `10`
+reached master because PowerShell folds case in the two places a dedup
+naturally goes through, neither of which announces it:
+
+```powershell
+$h = @{}; $h['Copilot'] = 1; $h['copilot'] = 2
+$h.Keys.Count                                      # 1   <- silently merged
+('Copilot','copilot' | Sort-Object -Unique).Count   # 1   <- and again
+
+[Collections.Generic.Dictionary[string,int]]::new([StringComparer]::Ordinal)
+                                                   # 2   <- what was meant
+```
+
+Fixing only the sort still gave `10`, because the hashtable folded it back. So
+this is the shell silently altering the computation and returning a number that
+looks like an answer — the same family as `node -e` in PowerShell mangling the
+`$` in `/\(#\d+\)\s*$/`, which reported `PRs: 0` for a repository with 373 of
+them. **Both read as findings rather than as broken instruments**, and in a
+comparison of identities the case-fold is not a formatting detail: it is the
+judgement, made for you, by a default.
+
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
 interleave within the hour — `#302` at 10:25Z and `#310` at 12:45Z sit either
