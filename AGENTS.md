@@ -2895,6 +2895,42 @@ between a working reading and a failing one, vary them **one at a time** — the
 It reproduces exactly at `30d4ac7`, in the section, with controls. State the SHA
 *and* the scope; a finding is only as reproducible as its narrowest qualifier.
 
+**A third axis, and this one belongs to the writer rather than the reader.** A
+rule was stated in a session message and then committed to this file, and the
+two wordings were never the same string. Measured on `af19194`, the commit
+*before* this paragraph existed — which is the scope this entry needs, because
+writing it down puts all three strings back into the file:
+
+```
+searched  "control should assert"      0     <- the message's wording
+the file  "control must assert"        1
+searched  "never a recorded reading"   0     <- also the message's
+```
+
+The reader's check was **faithful** — they searched the phrasing they had been
+sent, verbatim, which is exactly what the remedy above prescribes. The drift was
+the *writer's*, between a sentence typed into a message and the sentence that
+later landed in the file. Nothing reconciles those two, and a copied fragment
+is no protection when the thing you copied it from is not the thing you are
+searching.
+
+What earns it a paragraph is the **consequence**, which is worse than a mislaid
+fact: the false absent's output was an instruction to *write the section again*.
+Acting on it would have committed a second copy of a rule already on master —
+and this file's own position, three sections up, is that two copies of a fact
+drift immediately and in the direction nobody is watching. **A false absent
+about prose does not lose information; it manufactures a duplicate.**
+
+So when a check concludes that something is not written down, search for its
+**subject** rather than for its sentence. A sentence is a string somebody chose
+once; a subject survives rephrasing — same commit, same reason:
+
+```
+decay              2 hits      <- either subject finds it
+positive control   6 hits
+quaternion         0 hits      <- CONTROL, the probe can still say no
+```
+
 A session measuring page height under a simulated outage read `6574px` and
 concluded the page got *taller* — because it compared against a ~5000px figure
 half-remembered from an audit days earlier, on a different build. Measuring the
