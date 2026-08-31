@@ -2185,6 +2185,23 @@ exists in this codebase"* is only true inside a file that talks exclusively
 about itself, and `polarity.ts` is one — which is why 15 of 15 resolve there and
 766 of 798 do not repo-wide.
 
+**Read the zero, not the totals.** Those counts are a property of how you
+tokenise, and a second reader measuring honestly will get different ones — which
+looks like drift and is not. Measured three ways, varying only the minimum
+identifier length and the directories globbed:
+
+```
+                        named   absent   polarity.ts absent
+4+ chars, five dirs       798      32            0
+5+ chars, five dirs       754      32            0
+4+ chars, src+tests       538      52            0
+```
+
+Everything moves except the number the argument rests on. **The zero is
+invariant under the choices that move the denominators**, which is what makes it
+evidence rather than an artefact of one extraction — and is the reason the
+scoping conclusion survives whatever a re-measurement reports.
+
 **The sharpest entry on that list is the correct fix to the last instance of
 this very problem.** A comment in `tests/indicatorFreshness.test.tsx` had named
 `sentimentOfChange` as a live member of the sentiment vocabulary; it was
