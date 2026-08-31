@@ -2306,6 +2306,28 @@ check named an article "carrying 1 correction" as its positive control; nine
 hours later it carried 2, so an equality against the recorded reading would have
 called a working probe broken. *Non-empty* survives; `== 1` does not.
 
+**And a control's value survives its own probe failing, which nothing else in the
+instrument does.** The defensive reading — *a control stops you filing a false
+finding* — is true and undersells it. Measured today: a session's bundle probe
+returned `0 chunks`, and because its control also returned nothing they reported
+*"I could not see"* rather than *"the fix is not deployed"*. That handed the next
+reader a **bounded problem** — fix an extraction, do not doubt a fact — and it
+was closed in one pass. A bare `not found` would have cost a full re-derivation,
+or worse, been believed.
+
+So the question that decides whether to bother is not *how likely am I to be
+wrong*. It is: **if this probe fails, will anyone be able to tell?**
+
+⚠️ **A count that reproduces under several rules cannot validate any of them.**
+Two readers independently recovered the "rule" behind the parameter table above,
+agreed on the number, and named **different** excluded parameters — one said
+`claim`, the other `corrected_at`. Measured: `claim`, `corrected_at` *and*
+`series_start` each appear in all four builders, so excluding any one of the
+three yields 28. The figure is consistent with all of them and evidence for
+none, which is the sum-control failure one level up: *a total is satisfied by
+any partition, and a count is satisfied by any exclusion of the same size.*
+Both of us said "I derived the rule" when we had derived *a* rule that fits.
+
 That last rule reads as the opposite of *write an exemption as an assertion, not
 a filter*, and the collision is real rather than apparent: both are about
 asserting against a value **someone else controls**, and they prescribe opposite
