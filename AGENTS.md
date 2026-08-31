@@ -2973,6 +2973,36 @@ AST is what said `REVISION reads in _revision_stamp: 1`, which is the thing the
 guard actually inspects. Both instances were caught this way and neither was
 caught by care.
 
+**A third instance the same afternoon supplies the operational form, and a
+nastier property: the failure can be selective, which reads as partial success
+rather than as a broken instrument.** A harness ran 13 mutations against
+`api/ai-insights/index.js` and reported 8 applied, 5 invalid — measured, the
+split is exactly single-line anchors against multi-line ones:
+
+```
+the file          CRLF=416   bare-LF=0        (at 89048a1)
+same anchor, two spellings:
+  'temperature_2m || 0;\n'      occurrences: 0
+  'temperature_2m || 0;\r\n'    occurrences: 1
+
+single-line anchors applied   8 of 8
+multi-line  anchors INVALID   5 of 5
+```
+
+A script writing `\n` in a multi-line anchor matches **nothing** in a CRLF file.
+So most plants work, and the ones that silently do not are the *structural*
+mutations — the ones testing the most. `8 of 13` looks like five badly written
+anchors; it is one broken instrument. The plant that vanished was the one for
+the very defect that harness had been pointed at.
+
+So state the assertion as a count, not a boolean: **a plant harness must count
+its anchor's occurrences and refuse to report a verdict on anything but exactly
+1** — zero is a no-op wearing a result's clothes, and more than one is a
+mutation you did not intend. Normalise line endings on both sides before
+matching. And note the sibling trap on the checking side: Python's `read_text`
+translates newlines, so a CRLF-preservation check written with it reports
+`False` on a file that was never touched. Compare bytes.
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
