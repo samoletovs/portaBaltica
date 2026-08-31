@@ -1911,7 +1911,7 @@ n=181  Copilot App + Dmitrijs Andrejevs
 n= 76  Copilot                            <- that session's five live here
 n= 72  dependabot[bot]
 n= 11  Copilot App + samoletovs           <- #310 lives here
- ...   6 more
+ ...   7 more
 ```
 
 `Co-authored-by` trailers vary by configuration, so `#310` is demonstrably
@@ -1938,14 +1938,58 @@ which **is** the routing record the artefact was supposed to replace.
 *The squash confound.* A squash concatenates one trailer per source commit, so
 the raw signature is a **commit count wearing an identity's clothes** —
 `Copilot App + Copilot App + Dmitrijs Andrejevs` is one configuration, not
-three. Deduping collapses **24 raw signatures to 10**. Skip it and you report
+three. Deduping collapses **24 raw signatures to 11**. Skip it and you report
 that this repo has twenty-four kinds of contributor.
+
+⚠️ **The dedup hides a second decision, and it changes the answer.** Two
+readers measured this an hour apart and got **11 cohorts and 10**. Both
+partitions sum to 371, the exact PR total — so *a sum check cannot separate
+them*, because a total is satisfied by any partition. It is a weaker control
+than it looks, and it endorsed both readings equally.
+
+The difference is **case**:
+
+```
+case-sensitive   n=10 Copilot + Copilot App     n=5 Copilot App + copilot
+case-folded      n=15 copilot + copilot app     <- the two, merged
+```
+
+Folding is the tempting normalisation. The emails settle it, and they are the
+field neither reader had put in the key:
+
+```
+Copilot   223556219+Copilot@users.noreply.github.com
+copilot   copilot@github.com                          <- a different identity
+```
+
+So **11 is right and 10 merges two real contributors.** The rule generalises
+past this repo: when a dedup decides identity, the key is a **judgement, not a
+formatting step** — and the field that settles it is usually one you left out
+of the key. State the rule beside the count, or the next reader inherits a
+number with no way to check it.
 
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
 interleave within the hour — `#302` at 10:25Z and `#310` at 12:45Z sit either
 side of **seven consecutive PRs from a single third cohort** — so it is not
 temporal.
+
+⚠️ **Those two timestamps were three hours wrong in the first draft**, and the
+mechanism outlives the fix. `git log --format=%aI` renders
+`2026-08-31T13:25:46+03:00`; taking `slice(11, 16)` and appending a literal
+`Z` yields `13:25Z`, which is Riga local time wearing UTC's clothes.
+
+**`%cI` is not the remedy, and it was the first thing suggested.** Measured on
+the same two commits, the committer date carries the identical offset:
+
+```
+#302   %aI 13:25:46+03:00   %cI 13:25:46+03:00   gh mergedAt 10:25:46Z
+```
+
+Parse the offset, or read `mergedAt` from `gh`, which is genuinely UTC. **A
+hand-typed `Z` is an assertion about a conversion that never happened** — and
+the file's own rule applies to the fix as much as to the fault: an example in
+guidance is a claim about behaviour, so run it before recommending it.
 
 **State the population.** Two sessions measured this an hour apart and got
 `110` PRs and `370`; neither is wrong, and they never disagreed. One counted a
@@ -2975,6 +3019,24 @@ rebuilt as a second pull request.
 
 The failure is silent in both directions. The pull request shows as merged, CI
 was green on the stale tree, and nothing anywhere says a commit was skipped.
+
+**It recurred on `#311`, and the second instance is more instructive than the
+first, because the divergence was seen and announced before the merge.** The
+author pushed a correction, watched three sources agree on the new SHA while
+the PR record alone lagged, and said so in writing:
+
+```
+git ls-remote / git-ref API / commits?sha=   a813f5d
+gh pr view --json headRefOid                 31fc33b     stale, 6 polls / ~2 min
+```
+
+It merged `31fc33b` anyway, so the correction commit never landed and three
+defects the author had already fixed had to be fixed again on master by someone
+else. **Knowing about the trap, and announcing it, protected nothing** — a hold
+expressed only as a message to the author is not binding on any other session
+that can press merge. The lag is minutes, not seconds, so waiting it out is a
+real option; the mechanism that makes a hold visible to a third party is not
+something this repo has.
 
 It also defeats the obvious way of reviewing a change before merging it: fetch
 the branch, merge it locally onto master, run everything, then merge the pull
