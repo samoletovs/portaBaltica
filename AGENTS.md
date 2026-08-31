@@ -1911,7 +1911,7 @@ n=181  Copilot App + Dmitrijs Andrejevs
 n= 76  Copilot                            <- that session's five live here
 n= 72  dependabot[bot]
 n= 11  Copilot App + samoletovs           <- #310 lives here
- ...   7 more
+ ...   6 more
 ```
 
 `Co-authored-by` trailers vary by configuration, so `#310` is demonstrably
@@ -1938,12 +1938,12 @@ which **is** the routing record the artefact was supposed to replace.
 *The squash confound.* A squash concatenates one trailer per source commit, so
 the raw signature is a **commit count wearing an identity's clothes** —
 `Copilot App + Copilot App + Dmitrijs Andrejevs` is one configuration, not
-three. Deduping collapses **24 raw signatures to 11**. Skip it and you report
+three. Deduping collapses **24 raw signatures to 10**. Skip it and you report
 that this repo has twenty-four kinds of contributor.
 
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
-interleave within the hour — `#302` at 13:25Z and `#310` at 15:45Z sit either
+interleave within the hour — `#302` at 10:25Z and `#310` at 12:45Z sit either
 side of **seven consecutive PRs from a single third cohort** — so it is not
 temporal.
 
