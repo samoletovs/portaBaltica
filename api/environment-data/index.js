@@ -307,7 +307,16 @@ const handler = async function (context, req) {
 module.exports = withSecurity(withCache(handler, {
   name: 'environment-data',
   keyOn: ['country'],
+  // Fifteen minutes, matching the `Cache-Control` this endpoint sets
+  // downstream, and deliberately NOT `WEATHER_TTL_MS` — the inner memo caches
+  // one Open-Meteo answer for ten minutes while this caches the assembled
+  // response for fifteen. Two windows on two different things.
   ttlMs: 900000,
-  graceMs: 3600000,
+  // The grace, however, is one fact and now has one name. It was written out
+  // again here as `3600000`, so `WEATHER_GRACE_MS` named the window without
+  // governing this layer — the shape `#281` found in `api/live-grid`, where a
+  // constant set to zero changed nothing a reader would experience because a
+  // matching literal still granted the full window.
+  graceMs: WEATHER_GRACE_MS,
   staleWhileRevalidate: true,
 }));
