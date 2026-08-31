@@ -165,7 +165,41 @@ fixes.* Both halves are now settled.
 >                                                  instead of spiking the article)
 >           original_articles.publishable 3 -> 7 or 8 of 8
 >           original_sections           ABSENT -> present   (#300)
+>           the weekly wrap gains a correction notice, and /corrections
+>           gains an entry                                  (#306, #309)
 > ```
+>
+> **The last one exists because "merged" is not "fixed", and I wrote that the
+> wrong way round.** Closing out, I recorded the wrap's inverted headline as
+> *"Corrected (#306)"*. Measured at 11:55Z, after the merge and after the
+> deploy:
+>
+> ```
+> live  electricity-prices-and-renewable-energy-share-rise-in-the-baltics-fa8c99
+>       headline    "Electricity prices and renewable energy share rise ..."
+>       corrections 0 real entries        <- the falsehood is STILL LIVE
+> CONTROL  the electricity daily, read the same way: 1 real entry
+> ```
+>
+> `#306` merged the **machinery**. The notice is filed by the daily run from
+> `corrections.PENDING` at `run.py:617`, idempotently, so the honest state was
+> *queued*. **Three separate questions, and a merged PR answers only the first:**
+>
+> ```
+> MERGED     the PR is on master
+> DEPLOYED   NEWSROOM_REVISION contains it       <- check the slug IS in that
+>                                                   revision's corrections.py
+> LIVE       the effect has happened             <- only an artefact says this
+> ```
+>
+> Had the deploy predated `#306`, the 14:00Z run would have used a `PENDING`
+> without the wrap in it and filed nothing, while the PR sat merged and green.
+> This is one step further out than *"a green deploy job means the package was
+> uploaded, not that the app is serving it"*: here the package **is** serving,
+> and the effect still has not happened.
+>
+> If the notice does not appear, look at `already_recorded` matching on
+> description text against a notice written before that module existed.
 >
 > **Read `provenance.revision` on a new article before believing any of it.** A
 > run triggered inside a deploy window measures the wrong tree in both
