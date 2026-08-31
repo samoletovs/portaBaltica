@@ -2913,6 +2913,37 @@ probe* is consistent with several questions. **Comparing methods rather than
 answers is what shows the first; comparing the question to what the probe varies
 is what shows the second.**
 
+**And the sharpest form: a planted fault is the control on a check, and it has
+no control of its own.** This file tells you to plant a fault and prove a check
+fires before believing it passes. Nothing tells you to prove the plant *applied*
+— and a plant that silently did not apply produces `exit 0`, which is the same
+artefact as a check that cannot fail.
+
+Twice in one hour, independently, both while verifying a guard:
+
+```
+PowerShell .Replace()   did not match on line endings   -> reported "guard is dead"
+[IO.File] + relative    Set-Location moves PS's cwd but NOT
+                        [Environment]::CurrentDirectory -> edited a SIBLING WORKTREE
+                           PS=pb-326  NET=samoletovs-friendly-sniffle
+                           "substitution applied : True"   <- of the wrong file
+                           vitest ran the untouched file   -> 8 passed, exit 0
+```
+
+The second is the nastier one and the reason this is not paranoia: in a repo
+with worktrees the wrong path **exists and contains the same code**, so the read
+succeeds, the substitution matches, and every intermediate signal reports
+success. The reading was *"the new control does not catch a blinded scanner"* —
+a confident, reproducible, false regression against the pull request's central
+claim, which was in fact sound.
+
+The remedy is one assertion and it is mechanical: **after mutating, read the
+object under test back and assert the mutation is there** — at the level the
+check reads it, not at the level you wrote it. Text said `applied: True`; the
+AST is what said `REVISION reads in _revision_stamp: 1`, which is the thing the
+guard actually inspects. Both instances were caught this way and neither was
+caught by care.
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
