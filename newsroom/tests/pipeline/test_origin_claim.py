@@ -188,6 +188,35 @@ class TestItIsWiredIn:
         assert [v for v in report.violations if "says the series begins" in v] == []
 
 
+class TestTheCleanFixtureIsActuallyClean:
+    """``AGENTS.md``: a fixture named ``GOOD_`` is a standard, so run it through
+    the checks it claims to satisfy.
+
+    ``GOOD_PAYLOAD`` said *"the highest since the series began in 2021"* while
+    the pack it is built with records the origin as ``2020-01``. Every test in
+    this file overwrote ``body[0]`` before looking, and ``test_generation.py``
+    passes no pack at all — so the check correctly abstained there and the
+    fixture's own violation was invisible from both sides.
+
+    It surfaced as a NEGATIVE CONTROL: measuring whether a constructed article
+    tripped this check, the unmodified fixture tripped it too. ``#257`` had
+    already had to correct the same fixture for an unbounded record claim; the
+    lesson is that when a new check arrives, the standard fixtures are part of
+    its population.
+    """
+
+    def test_the_clean_payload_raises_no_origin_violation(self):
+        assert origin_claim_problems(_article()) == []
+
+    def test_and_the_check_can_see_this_article_at_all(self):
+        """The companion. A clean reading from an instrument never shown to
+        report anything is not a measurement."""
+        article = _article()
+        article.body[0].text = "The rate rose since the series began in 2016-Q3."
+
+        assert origin_claim_problems(article)
+
+
 class TestThePromptTeachesWhatTheCheckEnforces:
     """An example in guidance is a claim about behaviour — execute it.
 
