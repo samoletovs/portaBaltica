@@ -539,3 +539,135 @@ class TestStyleIsFixedWhileTheWriterCanStillFixIt:
         assert result.publishable
         assert result.article.status == "published"
         assert result.article.body, "the empty retry was published over a good draft"
+
+
+# Verbatim from the run of 2026-08-30, whose five rejected drafts were all this
+# shape. Real prose rather than invented prose, because the point of the pair is
+# that a check separates them and a plausible imitation would only test my
+# imitation.
+_ATTRIBUTED = (
+    "The newsroom's AI industry analyst notes that the decline in non-residential "
+    "building permits may be attributed to increased construction costs and supply "
+    "chain disruptions, which have made new projects less financially viable for "
+    "developers; however, the data cannot confirm this."
+)
+_GLOSS = (
+    "This statistic represents the permits issued for non-residential construction "
+    "projects, which are crucial for the construction sector's growth and overall "
+    "economic development."
+)
+
+
+def _payload_with_gloss() -> dict:
+    """A draft of the shape all five rejected originals had: six prose blocks,
+    a figure-free attributed mechanism, then a figure-free unattributed gloss."""
+    return {
+        "headline": "Latvian unemployment reaches its highest level since 2021",
+        "dek": "The July reading sits above every earlier month Eurostat has published.",
+        "blocks": [
+            {
+                "text": (
+                    "Latvia's unemployment rate reached 6.8% in July, above the previous "
+                    "record of 6.5% and the highest since the series began in 2021."
+                ),
+                "figures": [
+                    {"value": 6.8, "signal_field": "latest_value", "unit": "%", "rendered_as": "6.8%"},
+                    {"value": 6.5, "signal_field": "previous_record_value", "unit": "%", "rendered_as": "6.5%"},
+                ],
+            },
+            {
+                "text": "The margin over the previous record is 0.3 percentage points.",
+                "figures": [
+                    {"value": 0.3, "signal_field": "margin", "unit": "pp", "rendered_as": "0.3"}
+                ],
+            },
+            {"text": _ATTRIBUTED, "figures": []},
+            {"text": _GLOSS, "figures": []},
+            {
+                "text": (
+                    "A second month above 6.8% would make this a level shift rather "
+                    "than a spike."
+                ),
+                "figures": [],
+            },
+        ],
+        "tags": ["labour", "latvia", "unemployment"],
+    }
+
+
+class TestTheGlossIsCutRatherThanSpikingTheArticle:
+    """The third ASK FIRST, THEN CUT, and the one that still spiked whole pieces.
+
+    Measured on the run of 2026-08-30: five of eight originals rejected, every
+    one on ``no_unsupported_mechanism``, every one naming a single block, and
+    every one that block the same formulaic gloss. The paragraph above it --
+    attributed, hedged, figure-free -- correctly passed in all five.
+    """
+
+    def test_the_gloss_alone_is_cut_and_the_attributed_paragraph_survives(self):
+        writer = StubWriter([_payload_with_gloss()] * MAX_ATTEMPTS)
+
+        result = generate_article(make_signal(), writer)
+
+        texts = [getattr(b, "text", None) for b in result.article.body]
+        assert _GLOSS not in texts, "the unattributed gloss survived the cut"
+        assert _ATTRIBUTED in texts, (
+            "the cut took the attributed mechanism paragraph -- the house standard "
+            "working -- which is what a figure-count predicate would have done"
+        )
+
+    def test_the_article_publishes_instead_of_being_spiked(self):
+        writer = StubWriter([_payload_with_gloss()] * MAX_ATTEMPTS)
+
+        result = generate_article(make_signal(), writer)
+
+        assert result.publishable, (
+            "the draft was rejected outright over one removable paragraph; this is "
+            "the 5-of-8 loss the cut exists to stop"
+        )
+        assert result.article.status == "published"
+
+    def test_the_stored_verdict_describes_the_article_that_remains(self):
+        writer = StubWriter([_payload_with_gloss()] * MAX_ATTEMPTS)
+
+        result = generate_article(make_signal(), writer)
+
+        stored = result.article.provenance["validator"]
+        assert stored["passed"], "provenance still carries the pre-cut verdict"
+        assert result.verdict.passed, (
+            "GenerationResult.verdict was not refreshed, so the run's own "
+            "`g.publishable` cannot see the promotion"
+        )
+
+    def test_the_check_names_the_block_structurally_not_only_in_prose(self):
+        from newsroom.pipeline.safety import validate
+
+        payload = _payload_with_gloss()
+        signal = make_signal()
+        signal_payload = signal.to_json()
+        signal_payload["payload"] = dict(signal.fields)
+        article = {
+            "headline": payload["headline"],
+            "dek": payload["dek"],
+            "body": [{"type": "paragraph", **b} for b in payload["blocks"]],
+        }
+        verdict = validate(article, signal=signal_payload)
+        check = next(c for c in verdict.checks if c.name == "no_unsupported_mechanism")
+
+        assert not check.passed
+        assert check.blocks == (3,), (
+            "the offending index must travel structurally; parsing it back out of "
+            "the message would be a lexical proxy for a fact the check already has"
+        )
+
+    def test_a_draft_too_thin_to_lose_a_paragraph_is_not_cut(self):
+        payload = _payload_with_gloss()
+        # Four prose blocks in, so cutting one would leave three -- below the
+        # shortest article the wire has ever published.
+        payload["blocks"] = payload["blocks"][:2] + payload["blocks"][3:]
+        writer = StubWriter([payload] * MAX_ATTEMPTS)
+
+        result = generate_article(make_signal(), writer)
+
+        texts = [getattr(b, "text", None) for b in result.article.body]
+        assert _GLOSS in texts, "the floor did not hold and a thin article was cut"

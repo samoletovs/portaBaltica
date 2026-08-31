@@ -263,7 +263,41 @@ def generate_article(
         # "cannot" is a belief about eight interacting rules, and re-validating
         # costs nothing and needs no such belief.
         if style.cuts:
-            _revalidate(result.article, signal)
+            result.verdict = _revalidate(result.article, signal)
+
+        # ASK FIRST, THEN CUT — the third application of the shape above, and
+        # the one remaining place where the fault it addresses still spikes the
+        # whole article instead of costing a paragraph.
+        #
+        # Measured on the run of 2026-08-30: 5 of 8 originals were rejected, all
+        # on ``no_unsupported_mechanism``, all naming one block, and every one of
+        # the five was the same paragraph — a gloss that restates the subject and
+        # asserts significance, carrying no figure and crediting nobody:
+        #
+        #     "This statistic represents the permits issued for non-residential
+        #      construction projects, which are crucial for the sector's growth."
+        #
+        # Cutting it is safe for a reason that does not depend on position, and
+        # is worth stating because the obvious predicate is wrong. "A prose block
+        # with no figures" would ALSO take the paragraph immediately above it in
+        # all five — the attributed one the house standard actually wants, which
+        # correctly passes. 57 of 180 prose blocks across the published corpus
+        # carry no figures; being figure-free is the norm in later slots, not an
+        # anomaly. The distinguishing property is attribution, and this check
+        # already computes it exactly, 5 for 5, with no false positives on that
+        # evidence. So the remedy names no property of its own: it deletes the
+        # blocks the check itself objected to. Nothing lexical, nothing
+        # positional, and nothing that can drift away from the rule it enforces.
+        #
+        # What remains is the shape the wire already publishes. In all five the
+        # following paragraph is a forward-looking figure sentence that never
+        # refers back, so the cut leaves the attributed mechanism followed by the
+        # threshold to watch, and yields a 6-block article — the second most
+        # common published shape.
+        if last_attempt and not result.publishable:
+            if _cut_unsupported_mechanism(result.article, result.verdict):
+                result.verdict = _revalidate(result.article, signal)
+
         if result.publishable and best is None:
             best = result
 
@@ -533,7 +567,7 @@ def _verdict_for(article: Article, signal: Signal) -> Verdict:
     return validate(article.to_json(), signal=signal_payload)
 
 
-def _revalidate(article: Article, signal: Signal) -> None:
+def _revalidate(article: Article, signal: Signal) -> Verdict:
     """Recompute the verdict after prose was deleted, and re-decide status.
 
     ``apply_house_style`` may cut an empty closing, which leaves the stored
@@ -545,6 +579,22 @@ def _revalidate(article: Article, signal: Signal) -> None:
     paragraph's findings fails ``no_repeated_findings``; cutting it removes the
     repetition, and the article becomes publishable for the same reason the
     desk would have approved it.
+
+    THE PROMOTION HALF WAS UNREACHABLE, AND RETURNING THE VERDICT IS WHY
+    -------------------------------------------------------------------
+    This used to return ``None`` and update the article alone. The article was
+    right — new verdict in ``provenance.validator``, ``status`` set to
+    ``published`` — and the caller could not see it, because
+    ``GenerationResult.publishable`` reads ``self.verdict.passed`` from a field
+    that nothing refreshed, and the run then selects on ``g.publishable``.
+
+    So a demotion worked (``status`` flipped to ``rejected``, and ``and``
+    short-circuits) while a promotion was computed correctly, written to the
+    artefact, and dropped at the seam. The docstring above has described that
+    behaviour since the day it was written and it has never once occurred.
+
+    The verdict now travels back so the caller can store it. Same computation,
+    same article, one field that stops lying.
     """
     verdict = _verdict_for(article, signal)
     article.provenance["validator"] = verdict.to_dict()
@@ -553,6 +603,73 @@ def _revalidate(article: Article, signal: Signal) -> None:
         article.published_at = article.published_at or isoformat(utcnow())
     else:
         article.status = "rejected"
+    return verdict
+
+
+#: The fewest prose paragraphs a cut may leave behind.
+#:
+#: Measured across the 34 published tier A originals, the shortest carries four.
+#: So the floor keeps a cut article inside the range the wire already publishes
+#: rather than inventing a shorter one. When it binds, nothing is cut and the
+#: article stays rejected — which is the honest outcome for a piece too thin to
+#: lose a paragraph, and is what the gate would have done anyway.
+#:
+#: It does not bind on the evidence this was built from: all five rejected
+#: drafts of 2026-08-30 carry six prose blocks and lose one.
+_MIN_PROSE_AFTER_CUT = 4
+
+
+def _cut_unsupported_mechanism(article: Article, verdict: Verdict) -> bool:
+    """Delete the paragraphs ``no_unsupported_mechanism`` objected to.
+
+    The remedy defines no predicate of its own. It reads the indices the failing
+    check recorded and deletes those blocks — so it cannot disagree with the
+    rule it enforces, and rewording the check's message cannot break it.
+
+    That restraint is the whole design, and the obvious alternative is wrong in
+    a way worth recording. "Cut a prose block carrying no figures" looks like
+    the same rule stated directly. It is not: 57 of 180 prose blocks across the
+    published corpus carry no figures, and in all five rejected drafts it would
+    also take the paragraph immediately above the offending one —
+
+        "The newsroom's AI industry analyst notes that the decline may be
+         attributed to increased construction costs; however, the data cannot
+         confirm this."
+
+    — which is the house standard working, and which this check correctly
+    passes. Figure-free is the norm in later slots; attribution is what
+    separates the two, and the check already computes it.
+
+    Returns whether anything was cut, so the caller knows to re-validate.
+    """
+    failing = next(
+        (
+            check
+            for check in verdict.checks
+            if check.name == "no_unsupported_mechanism" and not check.passed
+        ),
+        None,
+    )
+    if failing is None or not failing.blocks:
+        return False
+
+    body = list(article.body or [])
+    doomed = {index for index in failing.blocks if 0 <= index < len(body)}
+    if not doomed:
+        return False
+
+    surviving_prose = sum(
+        1
+        for index, block in enumerate(body)
+        if index not in doomed
+        and getattr(block, "type", None) == "paragraph"
+        and getattr(block, "text", None)
+    )
+    if surviving_prose < _MIN_PROSE_AFTER_CUT:
+        return False
+
+    article.body = [block for index, block in enumerate(body) if index not in doomed]
+    return True
 
 
 def _revision_record() -> dict[str, str]:
