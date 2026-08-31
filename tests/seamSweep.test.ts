@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { walk, stripComments, applyReachability, typeOf } from '../scripts/seam-sweep.mjs';
+import { walk, stripComments, applyReachability, typeOf, classifyRead, namedOnly, annotateRow } from '../scripts/seam-sweep.mjs';
 
 /**
  * Tests for the recursive seam sweep.
@@ -193,5 +193,87 @@ describe('the instrument does not consume its own subject', () => {
     // exclusion is what keeps it one.
     const self = readFileSync(resolve('tests/seamSweep.test.ts'), 'utf8');
     expect(self).toMatch(/airQuality\.bandCount/);
+  });
+});
+
+describe('reading a field and binding its name are different evidence', () => {
+  /**
+   * The measured case, and it is the parent-level twin of the reachability
+   * correction above.
+   *
+   * `#256` added `FreshnessNotice`, whose prop is named `freshness` and which
+   * carries the value `freshnessOf()` computes **on the client**. Measured on
+   * master `0dd4770`, 2026-08-31:
+   *
+   *     .freshness        dot-reads in src/   0    <- what AGENTS.md greps for
+   *     { freshness, | :  weaker matches      5    <- props and type members
+   *
+   * So the sweep reported the payload's `freshness` as read by five files
+   * while nothing in `src/` reads it at all, and 26 of the 28 fields in a
+   * `freshness` subtree were promoted to `app` on the strength of a prop name.
+   * The sweep contradicted the book's own grep, and the sweep was wrong.
+   *
+   * The reachability fix cannot catch this: it demotes children of an unread
+   * parent, and here the *parent itself* was falsely marked read.
+   */
+  it('calls a dot access strong', () => {
+    expect(classifyRead('const p = payload.freshness;', 'freshness')).toBe('strong');
+  });
+
+  it('calls a bracket access strong', () => {
+    expect(classifyRead("const p = payload['freshness'];", 'freshness')).toBe('strong');
+  });
+
+  it('calls a destructured binding weak, not strong', () => {
+    // Genuinely ambiguous, and deliberately not resolved: this is how a payload
+    // field is read *and* how a component receives a prop. No pattern can
+    // separate them, so the sweep reports the ambiguity instead of guessing.
+    expect(classifyRead('function Notice({ freshness, spans }) {}', 'freshness')).toBe('weak');
+  });
+
+  it('calls a type member weak', () => {
+    expect(classifyRead('interface P {\n  freshness: Freshness | null;\n}', 'freshness')).toBe('weak');
+  });
+
+  it('finds nothing when the name is absent', () => {
+    // The negative control. Without it every assertion above would pass on a
+    // classifier that answered 'weak' for everything.
+    expect(classifyRead('const x = payload.series;', 'freshness')).toBe('none');
+  });
+
+  it('still ignores a name that appears only in a comment', () => {
+    // The earlier defect, re-asserted through the new entry point.
+    //
+    // The fixture must contain a form that WOULD match if comments survived —
+    // the first version used `// freshness is discussed here`, which contains
+    // no dot and no braces, so it classified as `none` whether comments were
+    // stripped or not. The mutation control caught it: removing `stripComments`
+    // left the suite green. A test whose fixture cannot exercise the code is a
+    // control that controls nothing.
+    expect(classifyRead('// const p = payload.freshness;\nconst x = 1;', 'freshness')).toBe('none');
+    expect(classifyRead('/* function N({ freshness }) {} */\nconst x = 1;', 'freshness')).toBe('none');
+  });
+
+  it('flags a field matched only by name as evidence of nothing', () => {
+    // `srcNamedOnly` had no test at all until the mutation control found it:
+    // replacing it with `false` left the suite green, so the flag this whole
+    // section exists to raise was unguarded.
+    expect(namedOnly({ n: 5, strong: 0 }), 'five bindings, no access').toBe(true);
+    expect(namedOnly({ n: 5, strong: 1 }), 'one real access is enough').toBe(false);
+    expect(namedOnly({ n: 0, strong: 0 }), 'no match at all is an orphan, not a collision').toBe(false);
+  });
+
+  it('carries the flag through to the row the sweep reports', () => {
+    // The wiring, not just the helper. The mutation control killed
+    // `namedOnly` on its own but not its call site, which was inline in
+    // `main()` and therefore unreachable from any test — a guard on the wrong
+    // side of the seam. This is the measured `freshness` case end to end.
+    const weak = annotateRow({}, { n: 5, strong: 0, where: [] }, { n: 2, where: [] }, 1);
+    expect(weak.srcNamedOnly, 'the payload freshness case').toBe(true);
+    expect(weak.verdict, 'still reported as app-read; the flag is a caveat, not a demotion').toBe('app');
+
+    const real = annotateRow({}, { n: 5, strong: 3, where: [] }, { n: 2, where: [] }, 1);
+    expect(real.srcNamedOnly).toBe(false);
+    expect(real.srcStrongReaders).toBe(3);
   });
 });
