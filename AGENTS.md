@@ -2823,6 +2823,38 @@ The probe answered a question nobody asked, and the controls certified it.
 later. **A branch count is a moving reference**, and the fact that matters is
 not how many resolve but that another session's does.)
 
+⚠️ **And the instrument that answers the question was one command away**, which
+is what makes this worth more than a caution. Git keeps *two* reflogs, with
+opposite properties:
+
+```
+                              HEAD reflog     branch reflog
+                              (per-worktree)  (shared)
+  mine, created here             YES            exit 0
+  another session's              no             exit 0
+  another session's              no             exit 0
+  no such branch                 no             exit 128
+```
+
+**Both instruments work.** The left column discriminates authorship, the right
+discriminates existence — and `git reflog show <branch>`, which is what anyone
+types when told to check the reflog, is the right-hand column. Proven rather
+than inferred, since an example is a claim about behaviour:
+
+```
+$GIT_COMMON_DIR/logs/refs/heads/<b>   exists      True
+$GIT_DIR/logs/refs/heads/<b>          exists      False
+git reflog show <b>                   exit        0
+=> it succeeds while only the shared copy exists
+```
+
+So the row above calling the session's own reflog **positive-only** is correct,
+and is true of `$GIT_DIR/logs/HEAD` alone. **The property was named accurately
+and the obvious way to implement it has the inverse property** — which is this
+section's own subject, occurring inside it: *"check the reflog"* names one
+question that two different files answer differently, and no control on either
+file can report that.
+
 ```
 QUESTION  is #310 live on the Static Web App?
 PROBE     git merge-base --is-ancestor 1ca9aa8 56554c8
