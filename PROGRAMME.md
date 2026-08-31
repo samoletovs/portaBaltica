@@ -1460,6 +1460,28 @@ had to come from the file contents instead.
 
 Before you stop, write the next one. It must:
 
+0. **Drain first: `gh pr list --state open` must return zero.** Merge what is
+   ready, close what is not with a reason. This is item zero because it is the
+   only one whose cost is silent — a pull request that is `MERGEABLE`, `CLEAN`
+   and green with nobody left to merge it is the cheapest possible thing to
+   lose and the hardest to notice, because **nothing about it looks wrong.**
+
+   Measured: this run stopped with `#280` open and it sat for **19.7 hours** —
+   created `2026-08-30T09:58:41Z`, merged `2026-08-31T05:39:53Z`, by which time
+   a different session had noticed. Not blocked, not failing, not contested —
+   clean merge, green checks, simply never merged before the manager went
+   quiet. It was a real fix (*"Take the series origin from the series, not from
+   the window"*) and it shipped a day late for no reason at all.
+
+   The check costs one command at the moment of the decision, which is the
+   property that made the absolute-stop rule work where the doc ratio did not.
+   A ratio is read after the fact and argued about; `0` is read now and is not
+   arguable.
+
+   Note the shape, because it recurs: a stalled run and a finished run produce
+   **the same repository state** — clean tree, green CI, master unchanged.
+   Only the open-PR count separates them, and only while someone is looking.
+
 1. **Verify every factual claim and stamp the instant you measured.** Every
    number in the starting-state block above was re-measured at 12:20Z.
 2. **Carry the `instrument` and `deadend` entries forward.** They have the
