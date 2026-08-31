@@ -95,10 +95,41 @@ const DECLARED_SKIPS = new Map<string, string>([
   ],
 ]);
 
+/**
+ * Every live file the runner would pick up, **recursively**.
+ *
+ * `vitest.live.config.ts` includes `tests/**"/"*.live.test.{ts,tsx}`, so the
+ * runner descends. A flat `readdirSync` here gave the guard a *narrower reach
+ * than the thing it guards* — the `#178` shape, and the same defect
+ * `distIsNotRead.test.ts` shipped with and `liveBrowserWiring.test.ts` was
+ * written to avoid.
+ *
+ * It was latent rather than live: measured at the time of this change there
+ * were **zero** live tests below `tests/` itself, so the equality was correct
+ * for every file that existed. That is exactly why it needed fixing rather
+ * than watching — the first `tests/live/` subdirectory anyone creates makes
+ * this under-cover silently, in the direction that reports success.
+ *
+ * Names stay relative to `LIVE_DIR` so a nested file reads as `live/foo.live.test.ts`
+ * and cannot collide with a root-level file of the same basename.
+ */
 function liveFiles(): string[] {
-  return readdirSync(LIVE_DIR)
-    .filter((name) => name.endsWith('.live.test.ts') || name.endsWith('.live.test.tsx'))
-    .sort();
+  const found: string[] = [];
+
+  function walk(dir: string, prefix: string): void {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        walk(resolve(dir, entry.name), prefix + entry.name + '/');
+        continue;
+      }
+      if (entry.name.endsWith('.live.test.ts') || entry.name.endsWith('.live.test.tsx')) {
+        found.push(prefix + entry.name);
+      }
+    }
+  }
+
+  walk(LIVE_DIR, '');
+  return found.sort();
 }
 
 describe('the live suite is the suite that was declared', () => {
