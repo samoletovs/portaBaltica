@@ -2666,6 +2666,29 @@ its evidence: n=2, one probe each, and care was never measured — only unaccoun
 for.** That is an illustration, not a controlled result, and the distinction is
 the difference between *this justifies a mechanical check* and *this settles it*.
 
+**And the absurdity can live between the readings rather than in any of them.**
+The pair above already shows it without naming it: what made their reading
+absurd was not either section length — it was that the two **matched** across a
+commit that added 21 lines. Each length on its own was perfectly ordinary.
+
+A second instance, from the same evening, with the same shape:
+
+```
+two sentences of ONE paragraph reported missing, the rest present
+  each zero is exactly what an absent sentence looks like
+  but no merge lands half a paragraph
+```
+
+That probe was defeated by a line break and an inline `**`, and every individual
+zero was believable. The set was not.
+
+So the question is worth asking of a result *set* and not only of a result:
+*could the world have produced this combination?* If it could not, the
+instrument is wrong however plausible each row looks — and you know that
+**before** you know which row is the lie. That reaches a population the middle
+row cannot: readings individually unremarkable and jointly impossible. Both of
+the above would have been believed one at a time.
+
 ### The better you document a removal, the more present it looks
 
 A content check for a deleted symbol reads the prose explaining the deletion and
@@ -2960,8 +2983,31 @@ haystack**, comparing on alphanumerics only:
 ```python
 def norm(s):
     s = re.sub(r'^\s*(> |//\s?)', '', s)          # line-leading markup
-    return re.sub(r'\s+', ' ', re.sub(r'[^0-9A-Za-z]+', ' ', s)).strip()
+    return re.sub(r'\s+', ' ', re.sub(r'[^0-9A-Za-z]+', ' ', s)).strip().lower()
 ```
+
+**That `.lower()` is not tidiness, and it was missing from this recipe for a
+day.** Case is not a construct, so stripping punctuation never reaches it — and
+the way it bites is systematic rather than a fluke: quoting a *sentence-initial*
+phrase in the middle of your own sentence lowercases its first letter naturally.
+The query and the source then differ by one character that carries no meaning,
+and the comparison returns a confident `False`. Measured over every
+sentence-initial fragment in this file's own prose, quoted that way — at
+`3f3d5a3`, the commit before this paragraph existed, since adding it changes the
+population it counts:
+
+```
+population                                403
+the recipe as first written                 0     0.0%
+the same recipe + .lower()                395    98.0%
+CONTROL, a phrase never written           absent under both
+```
+
+Zero of 403 is not a marginal loss, and it is not a tautology worth waving away:
+within that population the miss rate is **total**, which is exactly the shape a
+reader cannot detect by inspection. It was found the only way it could be — by
+using the recipe and getting a `False` for a sentence I could see on the screen.
+The residual 2% is sentence splitting, the same as below.
 
 No inline construct that is **purely punctuation** can defeat it — and
 normalising *both sides with the same function* is what makes it total. The
