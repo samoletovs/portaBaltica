@@ -395,6 +395,23 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   the file's age, not its content.** So: sweep, sort by newest edit, and treat
   anything touched in the last few minutes as someone working — flag it, do not
   rescue it.
+- **`git push --quiet 2>&1 | Out-Null` cannot report a rejection, and the
+  obvious confirmation answers identically either way.** I pushed, silenced the
+  output, then read `git rev-parse --short origin/master` and reported that SHA
+  as mine. The push had been rejected non-fast-forward; the SHA I read back was
+  a *different session's* commit that had landed in between. Nothing looked
+  wrong — this is the **plausible** row of the taxonomy, not the absent one, so
+  no instinct fires. It surfaced an hour later only because I traced a code
+  change to that SHA and the subject line was somebody else's. Confirm a write
+  by reading the **content** with a control, never by re-reading a pointer:
+
+  ```
+  git show origin/master:PATH | Select-String 'the thing I wrote'   -> PRESENT
+  git show origin/master:PATH | Select-String 'a phrase never written' -> absent
+  ```
+
+  The commit survived as an orphan only because it was reachable from the
+  reflog; `git reset --hard` had already moved off it.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
