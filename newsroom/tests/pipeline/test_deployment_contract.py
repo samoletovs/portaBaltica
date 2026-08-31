@@ -84,6 +84,53 @@ class TestTheTimerList:
         )
         assert contract.timers(source) == ["newsroom_edition", "newsroom_weekly"]
 
+    def test_quoting_style_cannot_hide_a_timer(self) -> None:
+        """The defect `#292` found, pinned at the extractor rather than upstream.
+
+        This was a regex requiring ``name="..."`` and Python does not promise
+        double quotes. Measured on the version it replaced::
+
+            name="newsroom_weekly"   ->  seen
+            name='newsroom_weekly'   ->  NOT seen
+
+        Both parse, the app behaves identically, and a genuinely new
+        single-quoted third timer was invisible to the deploy check with the
+        whole suite green. The empty-set refusal could not help: the set was
+        not empty, it was one short.
+
+        `test_deploy_enumerations.py` asserts the derivation agrees with `ast`,
+        which is the parity form and would also fail here. This one names the
+        cause, so a reader who breaks it is told *what* about their change was
+        wrong rather than that two lists differ.
+        """
+        double = TWO_TIMERS
+        single = TWO_TIMERS.replace('name="newsroom_weekly"', "name='newsroom_weekly'")
+        assert single != double, "the fixture rewrite did not apply"
+
+        assert contract.timers(single) == contract.timers(double)
+        assert "newsroom_weekly" in contract.timers(single)
+
+    def test_a_new_timer_is_found_whichever_quotes_it_uses(self) -> None:
+        # The compound case, and the one that actually bit: not a rename of a
+        # known timer but an addition nobody would think to spell twice.
+        added = TWO_TIMERS + (
+            "\n@app.function_name(name='newsroom_monthly')\n"
+            "@app.timer_trigger(schedule='0 0 16 1 * *', arg_name='timer')\n"
+            "def monthly(timer): ...\n"
+        )
+        assert "newsroom_monthly" in contract.timers(added)
+
+    def test_an_async_entry_point_is_a_timer_too(self) -> None:
+        # `ast.walk` yields FunctionDef and AsyncFunctionDef as distinct types,
+        # so matching only the first would silently drop every async timer --
+        # a fresh way to lose one while replacing a way to lose one.
+        source = (
+            '@app.function_name(name="async_timer")\n'
+            '@app.timer_trigger(schedule="0 0 1 * * *", arg_name="t")\n'
+            "async def at(t): ...\n"
+        )
+        assert contract.timers(source) == ["async_timer"]
+
 
 def _arm(settings: list[dict]) -> dict:
     """A compiled-ARM shape: appSettings nested inside a resource's siteConfig."""

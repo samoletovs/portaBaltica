@@ -31,24 +31,55 @@ absence resolving to success in a script whose entire job is to notice absence.
 
 from __future__ import annotations
 
+import ast
 import json
 import pathlib
-import re
 import sys
-
-TIMER = re.compile(
-    r'@app\.function_name\(\s*name\s*=\s*"([^"]+)"\s*\)\s*@app\.timer_trigger\(',
-)
 
 
 def timers(source: str) -> list[str]:
-    """Every function whose next decorator is a timer trigger.
+    """Every function whose decorators include a timer trigger.
 
     Anchored on the pair rather than on ``function_name`` alone, because
     ``newsroom_run_now`` and ``newsroom_weekly_now`` are HTTP routes and a
     deploy is not broken when they are absent from a timer check.
+
+    **Parsed, not matched.** This was a regex over source text until `#292`
+    measured what that costs::
+
+        @app.function_name(name="newsroom_weekly")   ->  seen
+        @app.function_name(name='newsroom_weekly')   ->  NOT seen
+
+    Both are valid Python, the file parses either way, and the app behaves
+    identically -- so a single-quoted third timer was invisible to the deploy
+    check with 2227 tests passing. That is the same sentence as the Bicep
+    defect this script was written to fix (*"Bicep does not promise one line
+    per entry"*), one language over: **Python does not promise double
+    quotes.** The settings half went structural in the same commit and this
+    half did not, which is the correct sibling concealing the broken one.
+
+    The empty-set refusal below could not have caught it, because the set was
+    not empty -- it was quietly one short.
     """
-    return sorted(TIMER.findall(source))
+    found: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        name: str | None = None
+        is_timer = False
+        for dec in node.decorator_list:
+            if not isinstance(dec, ast.Call) or not isinstance(dec.func, ast.Attribute):
+                continue
+            if dec.func.attr == "function_name":
+                for kw in dec.keywords:
+                    if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                        if isinstance(kw.value.value, str):
+                            name = kw.value.value
+            elif dec.func.attr == "timer_trigger":
+                is_timer = True
+        if name and is_timer:
+            found.append(name)
+    return sorted(found)
 
 
 def app_settings(template: dict) -> list[str]:
