@@ -424,8 +424,14 @@ describe('later than usual, but still publishing', () => {
 
     // Everything that withholds a judgement about direction, derived from the
     // vocabulary that expresses one. `sentiment` really is a vocabulary here —
-    // `sentimentColor`, `sentimentOf`, `sentimentOfChange`, a `sentiment` prop —
-    // so a word list is the honest form rather than a proxy for a structure.
+    // `sentimentColor`, `sentimentOf`, a `sentiment` prop — so a word list is
+    // the honest form rather than a proxy for a structure.
+    //
+    // It listed `sentimentOfChange` too until #261 deleted that second polarity
+    // implementation. Naming a symbol that no longer exists overstated the
+    // evidence for the claim the sentence is making, which is the one kind of
+    // error this comment cannot afford: it is arguing that the vocabulary is
+    // real. Three members, all live.
     const suppressors = files
       .filter(({ text }) => /sentimentColor|sentimentOf|sentiment=|sentiment ===/.test(text))
       .filter(({ text }) => /judgementWithheld|freshness[?.]*\.(stale|late)/.test(text))
