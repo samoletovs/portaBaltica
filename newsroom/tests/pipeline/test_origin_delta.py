@@ -52,6 +52,7 @@ from newsroom.pipeline.detect.detectors import detect_streak
 from newsroom.pipeline.field_meanings import FIELD_MEANINGS
 from newsroom.pipeline.house_style import (
     _CLAIMS_A_RECORD,
+    _NAMES_THE_ORIGIN,
     _SPAN_CHANGE_FIELDS,
     _SUPERLATIVE,
     _SUPERLATIVE_WORDS,
@@ -402,6 +403,114 @@ class TestTheFieldRegistryIsFullyJudged:
 
         for field, measured_from in _SPAN_CHANGE_FIELDS.items():
             assert measured_from in declared, f"{field} points at {measured_from}"
+
+
+class TestThePromptTeachesWhatThisCheckEnforces:
+    """An example in guidance is a claim about behaviour — execute it.
+
+    ``AGENTS.md`` records the cost of not doing this: the writer's prompt
+    taught that ``"fell from 2025 levels"`` is rejected for containing a
+    numeral, and it is not — ``numeric_scan`` ignores a bare four-digit year by
+    design, and the prompt's own next sentence said so. A false example is
+    worse than an unenforced rule because it fails **silently and in the safe
+    direction**, steering a writer away from correct work with nothing to
+    report the loss.
+
+    So each example below is asserted to appear **verbatim** in the prompt, and
+    then resolved through the check it describes. The verbatim half is what
+    stops this table drifting into a second, disagreeing copy of the guidance;
+    the resolution half is what stops the guidance being wrong about the code.
+    """
+
+    BAD = (
+        "a cumulative change of -0.1 EUR per kWh, or 41.75%, since the\n"
+        "             series began in 2016-S1"
+    )
+    GOOD = (
+        "down 0.1 EUR per kWh across six consecutive falls since 2022-S2",
+        "0.13 EUR per kWh, against 0.23 EUR per kWh when the run of falls\n"
+        "             began in 2022-S2",
+    )
+
+    @staticmethod
+    def _template() -> str:
+        from newsroom.pipeline.write import prompts
+
+        return prompts._SYSTEM_TEMPLATE
+
+    @staticmethod
+    def _flat(text: str) -> str:
+        import re
+
+        return re.sub(r"\s+", " ", text).strip()
+
+    def test_the_prompt_still_offers_these_examples(self):
+        template = self._template()
+
+        assert self.BAD in template
+        for example in self.GOOD:
+            assert example in template, example
+
+    def test_it_states_that_no_change_from_the_origin_exists(self):
+        """The structural fact the check rests on. If the pipeline ever does
+        supply one, this sentence and ``origin_delta_problems`` both become
+        wrong together, which is the correct coupling."""
+        flat = self._flat(self._template())
+
+        assert "NOTHING YOU ARE GIVEN IS A CHANGE SINCE THE ORIGIN" in flat
+        assert "cumulative_change" in flat and "streak_start_value" in flat
+
+    def test_the_bad_example_is_actually_rejected(self):
+        """MUTATION THIS CATCHES: teaching a rule nothing enforces.
+
+        The example is transposed onto this file's fixture — its own numbers
+        (0.1, 41.75%, 2016-S1) belong to a series this test does not hold — so
+        what is resolved is the SHAPE: a span-change figure, then a comma, then
+        "since the series began" naming the recorded origin. The literal string
+        is asserted present separately, above.
+        """
+        article = _article(
+            "This decline represents a cumulative change of 0.3, or 41.75%, "
+            "since the series began in 2020-01.",
+            [MARGIN],
+        )
+
+        assert origin_delta_problems(article)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "The rate is down 0.3 across six consecutive falls since 2020-03.",
+            "The rate is 6.8%, against 6.5% when the run of falls began in 2020-03.",
+        ],
+    )
+    def test_the_good_examples_are_not_rejected(self, text: str):
+        """The half that matters more. Guidance recommending a construction the
+        check refuses is worse than guidance recommending nothing.
+
+        Asserted with its REASON, not only its outcome. Both are clean because
+        they name where the RUN starts and never claim a series origin, so
+        ``_NAMES_THE_ORIGIN`` does not match and the check abstains — which is
+        exactly the substitution the guidance is asking for. Without the second
+        assertion this test passes for any sentence at all, including one that
+        says nothing.
+        """
+        article = _article(text, [MARGIN, LATEST, PREVIOUS])
+
+        assert origin_delta_problems(article) == []
+        assert _NAMES_THE_ORIGIN.search(text) is None, (
+            "this example now makes an origin claim, so it is no longer "
+            "demonstrating the substitution the prompt recommends"
+        )
+
+    def test_the_run_length_rule_is_still_stated_beside_it(self):
+        """The two halves are one lesson and the older one was already right.
+        A later edit that removes the count rule while keeping the magnitude
+        rule would leave the renewables fault untaught."""
+        flat = self._flat(self._template())
+
+        assert "A RUN IS NOT THE SERIES" in flat
+        assert "AND A RUN'S SIZE BELONGS TO THE RUN" in flat
 
 
 class TestThereIsOneSuperlativeVocabulary:

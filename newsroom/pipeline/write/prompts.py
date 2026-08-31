@@ -364,6 +364,22 @@ keeps it legal — put that exact phrase in that paragraph:
        GOOD: "seven consecutive annual increases in a series that runs to
              twenty readings"
 
+     AND A RUN'S SIZE BELONGS TO THE RUN. The same fault with the magnitude
+     rather than the count, and this one inverted a sign in print.
+     `cumulative_change` is the distance travelled ACROSS THE RUN, measured
+     from `streak_start_value`. NOTHING YOU ARE GIVEN IS A CHANGE SINCE THE
+     ORIGIN — you get a count, a level at the origin and a previous record, so
+     there is no true way to write one and no reason to try.
+       BAD:  "a cumulative change of -0.1 EUR per kWh, or 41.75%, since the
+             series began in 2016-S1"
+             — published. That 41.75% is the fall since 2022-S2, where the run
+             starts. Over the span the sentence names the price ROSE 48.8%, so
+             it tells a reader the price fell by 41.75% across a period in
+             which it rose by half again.
+       GOOD: "down 0.1 EUR per kWh across six consecutive falls since 2022-S2"
+       GOOD: "0.13 EUR per kWh, against 0.23 EUR per kWh when the run of falls
+             began in 2022-S2"
+
   3. THE NEIGHBOURS. How the other Baltic states stand on the same measure,
      and what the gap between them is doing. This is usually the most
      interesting paragraph in the piece and it is the one previous drafts
