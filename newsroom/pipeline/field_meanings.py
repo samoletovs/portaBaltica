@@ -60,7 +60,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "latest_value": "the new record reading itself, in {period}",
         "previous_record_value": "the record it beat, set in an earlier {period_word}",
         "margin": "how far the new reading cleared the old record — a difference, not a level",
-        "margin_pct": "that same margin as a percentage of the old record",
+        "margin_pct": "that same margin as a percentage of the old record — ALWAYS POSITIVE, however the record moved; the direction is in ``margin``",
         "observation_count": "how many readings the series holds in total, the population the record is claimed over",
     },
     "streak": {
@@ -68,7 +68,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "streak_length": "how many consecutive readings moved the same way — a count of readings, and it is only a count of {period_word} if none are missing",
         "streak_start_value": "the reading the run started from, before any of the moves",
         "cumulative_change": "the total distance travelled across the whole run, start to end — not the size of any single move",
-        "cumulative_change_pct": "that same total distance as a percentage of where the run started",
+        "cumulative_change_pct": "that same total distance as a percentage of where the run started — ALWAYS POSITIVE, even for a fall; the direction is in ``cumulative_change``",
     },
     "threshold_cross": {
         "latest_value": "the reading that crossed the line, in {period}",
@@ -80,7 +80,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "latest_value": "the reading after the move, in {period}",
         "previous_value": "the reading immediately before it",
         "change": "the size of this one move, previous to latest — a difference, not a level",
-        "change_pct": "that same move as a percentage of where it started",
+        "change_pct": "that same move as a percentage of where it started — ALWAYS POSITIVE, even for a fall; the direction is in ``change``",
         "typical_move": "how large a move this series usually makes, measured as its own standard deviation — the yardstick, not a reading",
         "move_vs_typical": "how many of those typical moves this one is worth",
         "periods_compared": "how many earlier readings that yardstick was measured over",
@@ -89,7 +89,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "latest_value": "the reading itself, in {period}",
         "seasonal_mean": "the long-run average for this same point in the year — the normal this is being judged against, not a reading of its own",
         "deviation": "how far the reading sits from that seasonal normal — a difference, not a level",
-        "deviation_pct": "that same distance as a percentage of the seasonal normal",
+        "deviation_pct": "that same distance as a percentage of the seasonal normal — ALWAYS POSITIVE, even when the reading sits below it; the direction is in ``deviation``",
         "baseline_years": "how many earlier years the seasonal normal averages over",
     },
     "divergence": {
@@ -97,7 +97,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         # or ONE COUNTRY'S OWN READING, because that distinction is invisible
         # in the number and is the one the pipeline keeps losing.
         "spread": "the DISTANCE BETWEEN {high_geo} and {low_geo} in {period} — a difference between two countries, never a reading of the indicator itself",
-        "spread_pct": "that same spread as a percentage of the average level",
+        "spread_pct": "that same spread as a percentage of the average level — always positive, as a spread is a distance",
         "typical_spread": "the MEDIAN spread across the earlier readings — a historical norm, not a reading of {period}",
         "spread_vs_typical": "how many times the typical spread the current one is worth",
         "highest_value": "{high_geo}'s own level in {period} — one country's reading, NOT a difference between countries",
@@ -108,7 +108,7 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "latest_gap": "the DISTANCE BETWEEN {high_geo} and {low_geo} in {period} ALONE — a difference between two countries, NOT a reading of the indicator. It cannot rise or fall 'optimistically': both countries may be negative while this widens",
         "early_gap": "the AVERAGE of that same distance over the EARLIEST {period_word} of the series — the historical basis this is measured against, not a recent reading",
         "recent_gap": "the AVERAGE of that distance over the most recent {period_word} — an average over a window, so it will NOT equal the {period} figure and must never be called simply 'the gap'",
-        "gap_pct": "the {period} distance as a percentage of the average level of the three countries",
+        "gap_pct": "the {period} distance as a percentage of the average level of the three countries — always positive, as a distance",
         "window_periods": "how many {period_word} are averaged into each of the early and recent windows",
         "sustained_periods": "how many consecutive {period_word} {high_geo} has been highest and {low_geo} lowest — the duration that makes this structural",
         "widening_ratio": "how many times the early average distance the recent average distance is worth",

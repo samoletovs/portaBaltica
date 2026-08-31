@@ -46,12 +46,17 @@ from __future__ import annotations
 import re
 
 from newsroom.pipeline import units
+from newsroom.pipeline.detect.detectors import (
+    detect_seasonal_deviation,
+    detect_sharp_move,
+)
+from newsroom.pipeline.field_meanings import FIELD_MEANINGS
 from newsroom.pipeline.write.prompts import (
     FIELD_MEANINGS,
     _format_figures,
     meaning_for_field,
 )
-from newsroom.tests.pipeline.conftest import make_signal
+from newsroom.tests.pipeline.conftest import make_signal, monthly_periods, series_from
 from newsroom.tests.pipeline.test_basis_declarable import (
     DETECTORS_UNDER_CONTRACT,
     all_detector_signals,
@@ -293,3 +298,75 @@ class TestTheRegistryIsNotAWordList:
 
         assert meaning is not None
         assert "PL" in meaning
+
+
+class TestThePercentFieldsSayTheyAreMagnitudes:
+    """A ``*_pct`` field is always positive; its base field carries the sign.
+
+    That convention is real, exceptionless and was undocumented, and the writer
+    is the party that has to know it. Two live consequences, one each way:
+
+    - ``estonia-s-june-2026-electricity-production...`` declared ``deviation``
+      as ``130.97`` when the field is ``-130.969``, tripped ``figures_traceable``
+      and was **spiked** -- the writer treating a signed field like a ``_pct``
+      one.
+    - ``estonia-s-unemployment-rate-declines...`` published prose reading
+      "a deviation of -6.71378%" against ``deviation_pct = +6.71378`` -- the
+      writer re-signing an unsigned field. True, as it happens, and the figure
+      and the prose disagree in sign regardless.
+
+    The brief said "that same distance as a percentage", which actively implies
+    the base field's sign convention carries over. It does not.
+
+    This is the same argument ``field_meanings``' own ``divergence`` block makes
+    for a different distinction: it "is invisible in the number and is the one
+    the pipeline keeps losing".
+    """
+
+    def test_a_falling_series_yields_a_negative_base_and_a_positive_percentage(self):
+        base = [
+            10.0 + (month % 3) * 0.5 + (year % 2) * 0.2
+            for year in range(4)
+            for month in range(12)
+        ]
+        values = base + [3.0]
+        signal = detect_seasonal_deviation(
+            series_from(values, periods=monthly_periods(len(values)))
+        )
+
+        assert signal is not None, "the fixture stopped tripping the detector"
+        assert signal.fields["deviation"] < 0, "the base field must carry the sign"
+        assert signal.fields["deviation_pct"] > 0, (
+            "deviation_pct is documented to readers and to the writer as a "
+            "magnitude; a signed value here makes the brief wrong"
+        )
+        assert signal.context["direction"] == "below"
+
+    def test_the_same_holds_for_a_sharp_move_down(self):
+        values = [10.0, 10.2, 9.9, 10.1, 10.0, 9.8, 10.3, 10.0, 9.9, 10.1, 10.0, 4.0]
+        signal = detect_sharp_move(
+            series_from(values, periods=monthly_periods(len(values)))
+        )
+
+        assert signal is not None, "the fixture stopped tripping the detector"
+        assert signal.fields["change"] < 0
+        assert signal.fields["change_pct"] > 0
+
+    def test_every_percentage_field_the_brief_describes_says_it_is_positive(self):
+        """The population is every ``*_pct`` in FIELD_MEANINGS, not the four I
+        happened to look at. A new one added without the note fails here rather
+        than in an article."""
+        described = {
+            f"{detector}.{field}": text
+            for detector, fields in FIELD_MEANINGS.items()
+            for field, text in fields.items()
+            if field.endswith("_pct")
+        }
+        silent = sorted(k for k, text in described.items() if "positive" not in text.lower())
+
+        assert described, "no _pct fields found; this assertion would pass vacuously"
+        assert silent == [], (
+            "a percentage field is described without saying it is a magnitude, "
+            "which is what sent a writer to declare a signed field's absolute "
+            f"value and lose the article: {silent}"
+        )
