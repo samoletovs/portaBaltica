@@ -17,6 +17,7 @@ import json
 import pytest
 
 from newsroom.pipeline.corrections import (
+    INVENTED_ANALYST,
     PENDING,
     EditorialCorrection,
     already_recorded,
@@ -241,10 +242,17 @@ def test_the_pending_correction_names_the_article_and_quotes_the_sentence():
     The slug and the quoted sentence were both verified against the live blob
     when this was written; this pins the shape so a later edit cannot quietly
     drop the quotation that makes it checkable.
-    """
-    assert len(PENDING) == 1
-    correction = PENDING[0]
 
+    Addressed by NAME rather than by ``PENDING[0]``. This asserted
+    ``len(PENDING) == 1`` until a second correction was filed, which is a count
+    of the list standing in for a claim about one member — and the test three
+    below it already says the right thing, "enumerated from ``PENDING`` so a
+    second one added later is covered". Naming the subject cannot go stale when
+    the list grows.
+    """
+    correction = INVENTED_ANALYST
+
+    assert correction in PENDING
     assert correction.slug.startswith("consumer-confidence-in-the-baltic-states")
     assert correction.previous_value
     assert "Dr. Ineta Zvirbule" in correction.previous_value
@@ -252,7 +260,7 @@ def test_the_pending_correction_names_the_article_and_quotes_the_sentence():
 
 def test_the_note_says_what_was_wrong_rather_than_that_something_was():
     """"An error occurred" asks for trust rather than earning it."""
-    description = PENDING[0].description
+    description = INVENTED_ANALYST.description
 
     assert "Dr. Ineta Zvirbule" in description
     assert "no such person" in description
@@ -263,7 +271,7 @@ def test_the_note_says_what_was_wrong_rather_than_that_something_was():
 
 def test_the_note_states_that_the_paragraph_is_left_as_published():
     """The promise the whole design rests on, made where a reader sees it."""
-    assert "left exactly as published" in PENDING[0].description
+    assert "left exactly as published" in INVENTED_ANALYST.description
 
 
 def test_every_pending_correction_is_well_formed():
