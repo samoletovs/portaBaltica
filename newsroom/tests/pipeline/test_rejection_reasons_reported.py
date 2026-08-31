@@ -367,3 +367,60 @@ class TestTheCrossLanguageContract:
         )
 
         assert json.loads(json.dumps(document))["rejections"][0]["gate"] == "validator"
+
+
+class TestTheSectionShapeSeparatesJournalismFromTheWire:
+    """``sections`` counts everything published; the wire swamps the originals.
+
+    Measured on the run of 2026-08-30, ``sections`` read
+    ``government 49 · energy 2 · property 1`` while the newsroom's own eight
+    originals spanned economy, energy, property and trade. A link-out to
+    another outlet's government story is not this newsroom filing a government
+    beat, so an operator asking "what do we cover?" got a confident wrong
+    answer from the field built to answer it.
+
+    Same split, same reason, as ``original_articles`` -- which exists because
+    "a published count that includes syndicated cards hid exactly that". The
+    remedy was applied to the counts and never to the shape.
+    """
+
+    class _Article:
+        def __init__(self, slug, section):
+            self.slug = slug
+            self.section = section
+            self.provenance = {"attempts": 1}
+
+    class _Result:
+        def __init__(self, article, publishable):
+            self.article = article
+            self.publishable = publishable
+
+    def _run(self):
+        art = TestTheSectionShapeSeparatesJournalismFromTheWire._Article
+        res = TestTheSectionShapeSeparatesJournalismFromTheWire._Result
+
+        original = art("ours", "economy")
+        cards = [art(f"card{i}", "government") for i in range(9)]
+
+        run = Run([])
+        run.generated = [res(original, True), res(art("spiked", "energy"), False)]
+        run.published = [original, *cards]
+        run.syndicated = list(cards)
+        return run
+
+    def test_the_wire_still_appears_in_the_overall_shape(self):
+        document = build_run_report(self._run(), trigger="timer")
+
+        assert document["sections"] == {"government": 9, "economy": 1}
+
+    def test_the_newsroom_s_own_beats_are_reported_separately(self):
+        document = build_run_report(self._run(), trigger="timer")
+
+        assert "original_sections" in document, (
+            "the section shape is reported only over a population the syndicated "
+            "wire dominates, so it cannot answer what this newsroom covers"
+        )
+        assert document["original_sections"] == {"economy": 1}, (
+            "original_sections must count what we WROTE and published -- not the "
+            "cards we linked to, and not the drafts that were spiked"
+        )

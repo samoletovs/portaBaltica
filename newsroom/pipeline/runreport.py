@@ -424,7 +424,25 @@ def build_run_report(
         # out, and until the balance-of-payments family map landed that is
         # exactly what the ranking produced. Reported so the effect is
         # observable rather than assumed.
+        #
+        # TWO POPULATIONS, BECAUSE ONE OF THEM ANSWERS THE QUESTION AND THE
+        # OTHER SWAMPS IT. ``sections`` counts everything published, which is
+        # dominated by syndicated cards: measured on 2026-08-30 it read
+        # ``government 49 · energy 2 · property 1`` while the newsroom's own
+        # eight originals spanned economy, energy, property and trade. An
+        # operator asking "what do we cover?" got a confident wrong answer from
+        # the field built to answer it -- a link-out to another outlet's
+        # government story is not this newsroom filing a government beat.
+        #
+        # This is the same split, for the same reason, as ``original_articles``
+        # twelve lines above: "a published count that includes syndicated cards
+        # hid exactly that". The remedy was applied to the counts and never to
+        # the shape, and the correct sibling sitting nearby is what made the
+        # broken one look considered.
         "sections": _sections_of(published),
+        "original_sections": _sections_of(
+            [g.article for g in generated if getattr(g, "publishable", False)]
+        ),
         # What the causal panel produced, and how much of it a reader actually
         # got. `articles_offered_a_cause` minus `articles_stating_a_cause` is
         # the whole point of the block: it is the only number that separates a
