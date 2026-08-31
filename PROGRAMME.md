@@ -1928,6 +1928,72 @@ identical whether it is a merged-and-pushed leftover or unpushed work.** One
 symbol, two facts — the collapse `AGENTS.md` opens with. `git branch -d`'s
 warning is the artefact that cannot distinguish them, which is why the answer
 had to come from the file contents instead.
+## A `$null` argument is dropped, not passed — and the command defaults
+
+Four probes failed in one session and one of them is not the `absent` row of the
+taxonomy, because **the reading was not absent. It was plausible, well-formed,
+and came from a different object entirely.**
+
+```
+$sha = gh pr view 315 --json mergeCommitSha --jq '.mergeCommit.oid' 2>$null
+                                         Unknown JSON field -> $sha is $null
+git log -1 --format='%B' $sha            -> the argument is DROPPED
+                                         -> git defaults to HEAD
+                                         -> "#315 trailers=2"
+```
+
+Measured, and the distinction is the whole entry:
+
+```
+$null arg   [adc77d4]     PowerShell drops it; git sees no rev and uses HEAD
+'' arg      fatal: ambiguous argument ''
+no arg      [adc77d4]
+```
+
+**An empty string errors loudly. `$null` vanishes and the command succeeds
+against the wrong object.** So the usual instinct — *"it would have failed if the
+lookup failed"* — is true for one of them and false for the other, and `--jq`
+against a missing field returns the silent one.
+
+Nothing about `trailers=2` looks wrong: right shape, believable magnitude, and
+it disagreed with the claim under audit by just enough to look like a finding. I
+was one step from filing a false regression against `#320`, whose numbers
+reproduce perfectly once measured against `mergeCommit.oid` — `#311`=1,
+`#313`=1, `#315`=3, exactly as stated.
+
+**And the control I wrote for this entry falsified it, wrongly.** I tested
+`git log -1 --format='%h' ''`, got an error rather than HEAD, and concluded the
+mechanism was fiction. The bug's value was `$null`; my control's was `''`; the
+two behave in opposite directions. That is `AGENTS.md`'s *"a control validates
+the mechanism, not the mapping from question to measurement"* — merged an hour
+earlier — arriving inside the paragraph documenting it. The control worked. It
+was answering about strings while the question was about null.
+
+The remedy is one line, and it is not a control, because a control cannot see
+this: the instrument is working perfectly on an object you did not intend.
+
+```powershell
+if (-not $sha) { "NO SHA - refusing to measure"; continue }
+```
+
+Refusing to measure is the whole fix. `NO SHA` is a bounded problem; `trailers=2`
+is an unbounded one, because it sends you to re-derive someone else's correct
+work.
+
+Git is full of arguments that default when absent — an omitted rev is `HEAD`, an
+omitted pathspec is everything, an omitted ref is the current branch. Combined
+with a shell that drops nulls, every failed lookup becomes a confident answer
+about the wrong thing.
+
+The other three failures were ordinary `absent` readings and the taxonomy
+already covers them: `$_.freshness.state` against a field that is a **string**,
+so the stale filter could never match and `0 stale` was a probe that could not
+fire; `.Count` on a broken property chain reporting `0` for a feed holding **43
+items**; and a `Select-String` for a branch name in the HEAD reflog matching a
+`merge origin/<branch>` line rather than a creation. All three were caught by
+printing the shape. Only the `$null` kind gets past that, because there is no
+shape to print — the value is real, it just belongs to something else.
+
 ## Final deliverable: the successor prompt
 
 Before you stop, write the next one. It must:
