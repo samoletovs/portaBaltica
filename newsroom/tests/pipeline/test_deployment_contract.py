@@ -183,6 +183,68 @@ class TestTheTimerList:
         assert contract.timers(route) == []
         assert contract.timers("def helper(): ...") == []
 
+    def test_the_schedule_alias_is_a_timer_too(self) -> None:
+        """`#296`, the fourth blind spot, and the first found before it bit.
+
+        `schedule` and `timer_trigger` are aliases: both build a
+        `TimerTrigger` and both register a timer. A reader recognising one is
+        blind to the other, which is the same fault as the three before it --
+        a vocabulary written from the forms this repository uses, silent about
+        the forms it does not.
+        """
+        via_alias = (
+            '@app.schedule(schedule="0 0 5 * * *", arg_name="t")\n'
+            "async def via_schedule(t): ...\n"
+        )
+        assert contract.timers(via_alias) == ["via_schedule"]
+
+    def test_the_hardcoded_vocabulary_equals_what_the_sdk_builds(self) -> None:
+        """The script cannot derive this; the test can, so the test does.
+
+        `scripts/deployment-contract.py` runs in the deploy job, which does
+        `actions/setup-python` and no `pip install`. Importing `azure.functions`
+        there to derive the decorator names would break the very step the
+        script exists to protect -- so the set is written down in the script
+        and its correctness is asserted here, where the SDK is installed.
+
+        This is the shape the rest of this chain converged on: derive where you
+        can, and where you cannot, **assert the agreement and say why**. It
+        fails the day the SDK adds a third alias, which is the only way anyone
+        would find out.
+        """
+        import inspect
+
+        import azure.functions as func
+
+        app = func.FunctionApp()
+        derived = set()
+        for name in dir(app):
+            if name.startswith("_"):
+                continue
+            attribute = getattr(app, name, None)
+            if not callable(attribute):
+                continue
+            try:
+                source = inspect.getsource(attribute)
+            except (OSError, TypeError):  # pragma: no cover - C or stripped builds
+                continue
+            if "TimerTrigger" in source:
+                derived.add(name)
+
+        assert derived, (
+            "no SDK decorator was found building a TimerTrigger. The derivation "
+            "is broken, and an empty set would make the equality below pass "
+            "against nothing."
+        )
+        assert set(contract.TIMER_DECORATORS) == derived, (
+            f"scripts/deployment-contract.py lists {sorted(contract.TIMER_DECORATORS)} "
+            f"and the installed azure.functions builds a TimerTrigger from "
+            f"{sorted(derived)}. A timer declared with a decorator the script "
+            f"does not know is a timer the deploy does not wait for, so it can "
+            f"fail to register with every signal green. Update the constant -- "
+            f"this test is not the thing to edit."
+        )
+
 
 def _arm(settings: list[dict]) -> dict:
     """A compiled-ARM shape: appSettings nested inside a resource's siteConfig."""

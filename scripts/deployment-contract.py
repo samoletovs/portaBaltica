@@ -36,6 +36,21 @@ import json
 import pathlib
 import sys
 
+#: Decorators that register a function as an Azure Functions **timer**.
+#:
+#: Hardcoded here on purpose, and pinned elsewhere. This script runs in the
+#: deploy job, which does ``actions/setup-python`` and **no** ``pip install`` --
+#: importing ``azure.functions`` to derive this would break the deploy step it
+#: exists to protect. So the vocabulary is written down where it must be, and
+#: ``test_deployment_contract.py`` asserts it equals what the installed SDK
+#: builds a ``TimerTrigger`` from. The test has the dependency; the script
+#: cannot.
+#:
+#: ``schedule`` is an alias for ``timer_trigger`` and both register a timer,
+#: measured against the SDK rather than assumed. `#296` found that recognising
+#: only one of them was the **fourth** blind spot in this function.
+TIMER_DECORATORS = frozenset({"timer_trigger", "schedule"})
+
 
 def timers(source: str) -> list[str]:
     """Every timer's **registered** name, resolved as the SDK resolves it.
@@ -89,7 +104,7 @@ def timers(source: str) -> list[str]:
             if not isinstance(dec, ast.Call):
                 continue
             attr = getattr(dec.func, "attr", "")
-            if attr == "timer_trigger":
+            if attr in TIMER_DECORATORS:
                 is_timer = True
             elif attr == "function_name":
                 # Keyword and positional both reach the SDK. Reading only one
