@@ -43,10 +43,17 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import INDICATORS from '../api/shared/indicators.js';
+// `createRequire`, not a bare `import`: `api/` is untyped JavaScript with no
+// declaration file, so an ESM import fails the typecheck with TS7016 while
+// vitest runs it happily. `chartRef.test.ts` reads the same registry the same
+// way for the same reason -- a test that passes under the runner and fails
+// under `tsc` breaks master without failing locally.
+const require_ = createRequire(import.meta.url);
+const INDICATORS = require_('../api/shared/indicators.js') as Record<string, unknown>;
 
 /**
  * Files under `api/shared/` that declare keyed registries.
