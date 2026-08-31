@@ -336,15 +336,33 @@ keeps it legal — put that exact phrase in that paragraph:
   2. PLACEMENT. Where this reading sits in the series' own history. Is it a
      record, or ordinary movement in a series that moves? The DETERMINISTIC
      OBSERVATIONS are computed from the data and you may state them as fact.
-     A RECORD IS ALWAYS A RECORD OVER A WINDOW, AND YOU MUST NAME IT. The
-     series you were given is the slice this newsroom fetched, not all of
-     history: "record low" alone published a Latvian food-inflation headline
-     whose true all-time low, four times lower, sat outside the window. The
-     window is in "measured against" above — keep it.
+     A RECORD IS ALWAYS A RECORD OVER A WINDOW, AND YOU MUST NAME IT.
+     "record low" alone published a Latvian food-inflation headline whose true
+     all-time low, four times lower, sat outside the readings shown. You are
+     told where the series really begins — it is the period on
+     `series_start_value`, and `readings_in_series` is how many readings it
+     holds in total. Both are facts about the whole series, so USE THEM: name
+     the period rather than saying "since the series began" and stopping.
      REQUIRED PHRASE: "since" or "observations"
        GOOD: "the lowest in the 60 observations since 2021-08"
        GOOD: "the highest since the series began in 2014"
        BAD:  "a record low"   BAD: "an all-time high"
+       BAD:  "the highest since the series began"  — you were told the year;
+             leaving it out throws away the only thing that makes the claim
+             checkable by a reader.
+
+     A RUN IS NOT THE SERIES. "Since the series began" attached to a streak
+     says the run reaches the first reading, which is true ONLY if the run is
+     as long as the whole series. Compare `streak_length` with
+     `readings_in_series` before you write it. This published, and both its
+     numbers were right:
+       BAD:  "seven consecutive annual increases since the series began"
+             — the run was seven; the series holds twenty, and the figure fell
+             in five of the years between. The run began in 2018, not at the
+             origin.
+       GOOD: "seven consecutive annual increases, the longest run since 2018"
+       GOOD: "seven consecutive annual increases in a series that runs to
+             twenty readings"
 
   3. THE NEIGHBOURS. How the other Baltic states stand on the same measure,
      and what the gap between them is doing. This is usually the most

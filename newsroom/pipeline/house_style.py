@@ -501,9 +501,10 @@ def record_claim_problems(text: str, *, where: str) -> list[str]:
     if _BOUNDS_THE_RECORD.search(text):
         return []
     return [
-        f"{where}: claims a record without saying over what window. The series "
-        f"is the slice the newsroom fetched, not all of history, so name it — "
-        f'"the lowest in the 60 observations since 2021-08" — or drop the word'
+        f"{where}: claims a record without saying over what window. Name it — "
+        f'"the lowest in the 60 observations since 2021-08" — or drop the word. '
+        f"Both numbers are given to you: the period on series_start_value and "
+        f"the count on readings_in_series"
     ]
 
 
@@ -883,6 +884,169 @@ def review_headline(headline: str) -> tuple[str, list[str], list[str]]:
     return fixed, violations, corrections
 
 
+def origin_claim_problems(article, *, where_prefix: str = "") -> list[str]:
+    """Prose naming where the series begins must agree with what was collected.
+
+    ``#280`` made this possible. The collector now records the true series
+    origin before the window is applied, so ``series_start_value`` carries the
+    real first period rather than the ``lastTimePeriod`` boundary. A sentence
+    saying "since the series began in 2016-Q3" can therefore be compared with
+    the article's own recorded fact, deterministically and with no network.
+
+    WHY NO OTHER CHECK SEES THIS
+    ----------------------------
+    A year is invisible to every numeric gate. ``numeric_scan`` ignores a bare
+    four-digit year by design — a period label says *when* and claims nothing
+    about magnitude — so "the series began in 2016" carries no token for
+    ``no_invented_numbers`` to bind, and ``figures_traceable`` has nothing to
+    trace. The origin year was the one number in an article that nothing could
+    check. It is now the one number that can be checked exactly.
+
+    WHY THIS CANNOT BE RUN OVER THE ARCHIVE
+    ---------------------------------------
+    **A self-consistent artefact is not evidence.** Before ``c5afdd0`` this
+    field recorded the collector's window boundary — which is the number the
+    writer copied into the prose. So an older article's claim agrees with the
+    fact that produced it, and this function would return green on the exact
+    falsehoods it exists to catch. Measured across the published corpus on
+    2026-08-31: **7 of 7 prose origin claims agree with their own recorded
+    fact**, including one whose series demonstrably begins twelve years
+    earlier. That 7-of-7 is the trap, not a clean bill of health.
+
+    What makes it safe going forward is not a version check but the producer:
+    ``series_context`` emits no ``series_start_value`` at all when
+    ``series.origin`` is absent, so on current code the fact's *presence*
+    implies a real origin. Absence resolves to silence here too — an article
+    with nothing recorded is left alone rather than measured against a window
+    wearing the series' name.
+
+    Both production callers — the generation loop and ``run.py`` — hold a
+    freshly built pack. Point this at stored articles and it becomes a
+    green-light generator; the test suite pins that reasoning.
+    """
+    recorded = _recorded_origin(article)
+    if recorded is None:
+        return []
+
+    problems: list[str] = []
+    for where, text in _prose_units(article, where_prefix):
+        for sentence in _SENTENCES.split(text):
+            match = _NAMES_THE_ORIGIN.search(sentence)
+            if match is None:
+                continue
+            said = next((g for g in match.groups() if g), None)
+            if said is None or _periods_agree(said, recorded):
+                continue
+            problems.append(
+                f"{where}: says the series begins {said!r}, but it was collected "
+                f"from {recorded!r}. The window the newsroom fetched is not the "
+                f"start of the series — name the period the data actually starts at"
+            )
+    return problems
+
+
+def _recorded_origin(article) -> str | None:
+    """The collected first period, or ``None`` when nothing was recorded."""
+    provenance = getattr(article, "provenance", None)
+    if not isinstance(provenance, Mapping):
+        return None
+    context = provenance.get("context")
+    if not isinstance(context, Mapping):
+        return None
+    for fact in context.get("facts") or ():
+        if isinstance(fact, Mapping) and fact.get("field") == "series_start_value":
+            period = fact.get("period")
+            return period if isinstance(period, str) and period.strip() else None
+    return None
+
+
+def _prose_units(article, prefix: str = ""):
+    """Every unit of prose we wrote, as ``(location, text)``."""
+    for name in ("headline", "dek"):
+        text = getattr(article, name, None)
+        if text:
+            yield f"{prefix}{name}", text
+    for index, block in enumerate(article.body or []):
+        if getattr(block, "text", None):
+            yield f"{prefix}body[{index}]", block.text
+
+
+#: Month names as the writer spells them, so "August 2021" can be compared with
+#: the collector's "2021-08".
+_MONTHS: Final[dict[str, str]] = {
+    m.lower(): f"{i:02d}"
+    for i, m in enumerate(
+        (
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        ),
+        start=1,
+    )
+}
+
+#: A period label in any shape either side writes: 2016-Q3, 2021-S1, 2021-08,
+#: 2026-04-29, "August 2021", or a bare year.
+_PERIOD_TOKEN: Final[str] = (
+    r"(?:\d{4}-Q[1-4]|\d{4}-S[12]|\d{4}-W\d{1,2}|\d{4}-\d{2}(?:-\d{2})?|"
+    r"(?:" + "|".join(_MONTHS) + r")\s+\d{4}|\d{4})"
+)
+
+#: Prose that names where the series STARTS, which is a different claim from an
+#: ordinary comparison basis. "since 2019" says what a figure is measured
+#: against; "since the series began in 2019" asserts a fact about the data's
+#: extent, and that fact is now collected and checkable.
+#:
+#: The origin word must sit beside the series word. Requiring both is what
+#: keeps this off "the highest since 2019", which names no origin and is the
+#: comparison basis the validator already governs.
+_NAMES_THE_ORIGIN: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:series|record|history)\b(?:[^.]|\.(?=\d)){0,40}?"
+    r"\b(?:began|begins|beginning|started|starts|starting|runs?\s+back)\b"
+    r"(?:[^.]|\.(?=\d)){0,20}?(" + _PERIOD_TOKEN + r")"
+    r"|\b(?:began|begins|started|starts|runs?\s+back)\b(?:[^.]|\.(?=\d)){0,24}?"
+    r"\b(?:series|record|history)\b(?:[^.]|\.(?=\d)){0,24}?(" + _PERIOD_TOKEN + r")",
+    re.IGNORECASE,
+)
+
+
+def _normalise_period(text: str) -> str | None:
+    """A period label reduced to something two spellings can be compared on.
+
+    "August 2021" and "2021-08" are the same period written by a writer and by
+    a collector. Reducing both to ``2021-08`` is what stops the check firing on
+    a difference in spelling, which would be a false positive on correct prose.
+    """
+    text = text.strip()
+    month = re.match(r"^(" + "|".join(_MONTHS) + r")\s+(\d{4})$", text, re.IGNORECASE)
+    if month:
+        return f"{month.group(2)}-{_MONTHS[month.group(1).lower()]}"
+    return text.upper()
+
+
+def _periods_agree(said: str, recorded: str) -> bool:
+    """Whether prose and record name the same period.
+
+    Deliberately generous on precision and strict on the year. A writer may say
+    "2021" for a series starting "2021-08" — less precise, not wrong — and
+    demanding the exact label would reject correct prose. A different *year* is
+    a different claim, and that is the fault this exists to catch.
+    """
+    a, b = _normalise_period(said), _normalise_period(recorded)
+    if a is None or b is None:
+        return True
+    if a == b:
+        return True
+    year_a = re.match(r"^(\d{4})", a)
+    year_b = re.match(r"^(\d{4})", b)
+    if not year_a or not year_b:
+        return True
+    if year_a.group(1) != year_b.group(1):
+        return False
+    # Same year. A bare year on either side is a coarser way of saying the same
+    # thing; two different sub-year labels disagree.
+    return len(a) == 4 or len(b) == 4 or a == b
+
+
 def apply_house_style(
     article,
     *,
@@ -914,6 +1078,10 @@ def apply_house_style(
     # The headline is where the false record claim actually shipped, so it is
     # checked here rather than only in the body scan below.
     report.violations.extend(record_claim_problems(article.headline or "", where="headline"))
+
+    # Whole-article, because it reads the article's own collected origin rather
+    # than the prose in front of it. Every unit is scanned inside.
+    report.violations.extend(origin_claim_problems(article))
 
     if article.dek:
         report.violations.extend(check_prose(article.dek, where="dek"))
