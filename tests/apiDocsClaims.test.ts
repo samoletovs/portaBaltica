@@ -85,6 +85,36 @@ describe('the API docs page states numbers that are true', () => {
     expect(PAGE).toContain(`${actual} Latvian indicators from CSP PxWeb`);
   });
 
+  it('names the real number of status checks, and how many decide the verdict', () => {
+    // Routed by session 889c284d, which found the page claiming "8 data source
+    // checks" while /api/system-status serves 12. Defensible as the required
+    // count and it reads as the total, which is the whole problem: a reader
+    // comparing the page against the endpoint sees a number that is smaller
+    // than what arrives and cannot tell whether the docs are stale or the
+    // endpoint grew.
+    //
+    // The two tests above this one guard baltic-compare and historical-data.
+    // system-status was the endpoint they did not cover — a guard walking a
+    // smaller set than its subject, and the uncovered member was the wrong one.
+    // Both numbers are asserted because a page stating only the total would
+    // mislead in the other direction: 4 of the 12 are optional and cannot make
+    // the site degraded, which is exactly what a reader is trying to work out.
+    const checks = require(resolve('api/shared/statusChecks.js')).CHECKS as {
+      required?: boolean;
+    }[];
+    const total = checks.length;
+    const required = checks.filter((c) => c.required).length;
+
+    expect(total, 'the check registry is empty; this assertion would pass vacuously').toBeGreaterThan(0);
+    expect(required, 'no required checks; the verdict would have nothing to rest on').toBeGreaterThan(0);
+    expect(required, 'every check is required, so the two numbers carry no information').toBeLessThan(total);
+
+    expect(
+      PAGE,
+      'the /api/system-status description states a check count that no longer matches api/shared/statusChecks.js',
+    ).toContain(`${total} data source checks (${required} required)`);
+  });
+
   it('does not sell a feature that is already free', () => {
     // The whole point. #187 shipped CSV and JSON export to every visitor, and
     // the Pro column went on advertising "CSV data export" as something to pay
