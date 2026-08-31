@@ -201,6 +201,21 @@ fixes.* Both halves are now settled.
 > If the notice does not appear, look at `already_recorded` matching on
 > description text against a notice written before that module existed.
 >
+> **And one thing that must be stated before the run rather than after: a
+> quiet `origin_claim_problems` is not evidence the gate is inert.** It is the
+> expected outcome of a writer being told the right thing by a prompt that now
+> names both fields — `#284` added the gate, `#308` added the guidance. The gate
+> earns its place on **coverage, not yield**, and the first time it fires may be
+> months away.
+>
+> That generalises past this one check: **a gate whose value is "this can no
+> longer happen silently" has no success metric that arrives on a schedule.**
+> Reading a null as a dud is how such a gate gets deleted by whoever next tidies
+> up — and its own docstring already explains why the corpus cannot supply a
+> positive: every published article is self-consistent with the window that
+> produced it, so pointing it at stored articles makes it a green-light
+> generator.
+>
 > **Read `provenance.revision` on a new article before believing any of it.** A
 > run triggered inside a deploy window measures the wrong tree in both
 > directions, and a green deploy job means the package was uploaded, not that the
