@@ -2552,6 +2552,35 @@ And **an assertion that something is absent needs a companion proving it could
 have been present.** Otherwise the assertion passes on a fixture that never had
 the thing at all, which is the same fault one level up.
 
+**And the companion is not enough, because a filter that never fires is
+indistinguishable from a filter that is not there.** Two probes, same afternoon,
+built by two people to check each other's work on precisely this class of
+defect, and both had it:
+
+```
+theirs   "tracked files scanned : 537"     counted files LISTED
+mine     "tracked files checked : 536"     counted entries TRACKED
+```
+
+Neither number was wrong. Both **labels** were, and only conditionally — the
+moment one tracked entry is not an openable file, the count silently means
+something else. The direction is the reassuring one every time: a larger
+denominator over the same zero hits.
+
+The positive control does **not** save you here, which is what separates this
+from the paragraph above. Re-measured on master, the filter inside my probe had
+never once excluded anything — `539 tracked entries, Test-Path False: 0` — while
+`Test-Path` on a path that cannot exist does return `False`, so it demonstrably
+*could* fire. That control tells you the mechanism works and says nothing about
+whether it ever ran. **A validated filter that excluded nothing and an absent
+filter produce the same denominator.**
+
+So report the filter's work, not just its result: `537 listed, 537 openable, 0
+skipped` rather than `537 checked`. A hit count of zero is information; a label
+asserting the check happened is not. This is *absence resolving to success*
+wearing a denominator's clothes — and both of us wrote it into the probe we were
+using to reassure the other about a name that lied about its population.
+
 ### When a probe reports "absent", check the probe can see anything
 
 The reading `refLines: 0` is true on master, true on a fixed branch, and true
