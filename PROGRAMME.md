@@ -228,6 +228,67 @@ fixes.* Both halves are now settled.
 > would mean the replay against the five real drafts did not model the live path,
 > and *why* is more interesting than the numbers.
 
+### SCORED, 2026-08-31T14:08:22Z. Two right, one partial, one falsified — and the falsified one taught the most
+
+The run landed under **`56554c8`**, exactly the head named above, so nothing here
+turns on a deployment argument.
+
+```
+                              predicted      actual                          verdict
+no_unsupported_mechanism      5 -> 0         5 -> 1                          PARTIAL
+original_articles.publishable 3 -> 7 or 8    3 -> 5                          FALSIFIED
+original_sections             -> present     {economy:3, business:1, gov:1}  CORRECT
+the wrap gains a correction   yes            corrected_at == finished_at     CORRECT
+
+trigger=timer · errors='' · 34 articles published · provenance.revision 56554c8 on each
+```
+
+**The mechanism the prediction was really about worked.** Originals rose 3 → 5 and
+mechanism rejections fell 5 → 1 — and the one survivor sits on an article that
+*also* fails `figures_traceable`, which no paragraph-cut can rescue. So the cut
+did what `#297` intended; the number `0` was the wrong thing to predict.
+
+**Why the yield prediction failed is the transferable part**, in the words of the
+session that made it and then diagnosed it against itself:
+
+> I replayed yesterday's five rejected drafts and predicted tomorrow's yield from
+> it. The replay was sound about what it measured — those five, that check, 5 of 5
+> recovering. It could say nothing about *new* drafts failing *different* checks,
+> because it never saw a new draft.
+
+The run's three rejections bear that out: `no_repeated_findings` (a check the
+replay never exercised), `figures_traceable` twice. So:
+
+> **A replay against stored artefacts predicts the behaviour of the code path
+> replayed. It cannot predict a stochastic pipeline's yield, because the
+> population it ran on is yesterday's and the population that matters does not
+> exist yet.**
+
+That is the sharper sibling of *one generation is not a measurement*, and it is
+worse than it, because the replay was **5 of 5** — a stronger sample than most
+things anyone acts on, and still a perfect measurement of the wrong set.
+
+**And the case for recording predictions at all rests on this run rather than on
+the two that were right.** A summary written afterwards would have said
+*"originals up 67%, mechanism rejections down 80%"*. Both true, both
+celebratory, and neither able to expose that the model behind them was wrong.
+**The prediction is the only instrument in the exercise that can fail.**
+
+One thing the artefact could not settle, so do not try to settle it there next
+time. Between 14:02Z and 14:06Z `runs/latest.json` still read `08/30` — which is
+the same artefact for *still running* and for *never fired*. Application Insights
+separated them in one query:
+
+```
+14:00:00  Executing 'Functions.newsroom_edition'
+          (Reason='Timer fired at 2026-08-31T14:00:00.0081963+00:00')
+13:58:39  next 5 occurrences (Cron: '0 0 14 * * *')  08-31 · 09-01 · 09-02 · 09-03 · 09-04
+```
+
+Eight milliseconds after the hour, with four future occurrences already
+scheduled. **Go to the platform's execution log, not to the output, when the
+question is whether something ran.**
+
 **Half one — the timer fires.** Application Insights, four for four:
 
 ```
