@@ -121,20 +121,50 @@ BICEP = REPO / "infrastructure" / "main.bicep"
 
 
 def _declared_timers() -> set[str]:
-    """Every function carrying an Azure Functions timer trigger.
+    """Every timer's **registered** name, resolved as the SDK resolves it.
 
     Parsed, not grepped: the question is which *functions* are timers, and a
     decorator name in a comment or a docstring reads the same to a regex.
+
+    The registered name is `@app.function_name`'s value when that decorator is
+    present, and the Python function's own name otherwise. That is not a guess —
+    measured against the real `azure.functions` SDK:
+
+        @app.timer_trigger(...) alone            -> registers as the def name
+        @app.function_name('x') positionally     -> registers as 'x'
+        @app.function_name(name='x') by keyword  -> registers as 'x'
+
+    This used to return `node.name` unconditionally, which was correct for this
+    repo — all four entry points spell the two the same — and wrong in general
+    in **both** directions. It would have missed a timer whose `function_name`
+    differs from its `def`, reporting a disagreement against a derivation that
+    was right; and it is what makes the comparison meaningful when the two
+    genuinely differ.
     """
     tree = ast.parse(FUNCTION_APP.read_text(encoding="utf-8"))
     timers = set()
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
+        registered = node.name
+        is_timer = False
         for dec in node.decorator_list:
             func = dec.func if isinstance(dec, ast.Call) else dec
-            if isinstance(func, ast.Attribute) and func.attr == "timer_trigger":
-                timers.add(node.name)
+            attr = getattr(func, "attr", "")
+            if attr == "timer_trigger":
+                is_timer = True
+            elif attr == "function_name" and isinstance(dec, ast.Call):
+                # Keyword and positional both reach the SDK; only reading one
+                # is how the derivation this guards loses a timer.
+                for kw in dec.keywords:
+                    if kw.arg == "name" and isinstance(kw.value, ast.Constant):
+                        if isinstance(kw.value.value, str):
+                            registered = kw.value.value
+                for arg in dec.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        registered = arg.value
+        if is_timer:
+            timers.add(registered)
     return timers
 
 
@@ -310,6 +340,54 @@ def test_the_workflow_derives_both_lists_instead_of_restating_them() -> None:
     )
 
 
+def test_the_sdk_resolves_a_timer_name_the_way_both_sides_assume() -> None:
+    """Execute the rule both readers implement, against the SDK itself.
+
+    The docstring above and `scripts/deployment-contract.py` both encode a claim
+    about how Azure Functions names a timer. `AGENTS.md` is blunt about that
+    shape: an example in guidance is a claim about behaviour, and it must be
+    executed rather than asserted — one of this repo's own worked examples was
+    false and sat three lines from the code it described.
+
+    So this runs the three forms through `azure.functions` and reads back what
+    it registers. If the SDK ever changes the rule, both readers are wrong
+    together and silently, and this is the only thing that would say so.
+    """
+    import azure.functions as func
+
+    app = func.FunctionApp()
+
+    @app.timer_trigger(
+        schedule="0 0 1 * * *", arg_name="t", run_on_startup=False, use_monitor=True
+    )
+    async def bare_timer(t):  # noqa: ANN001, ANN202
+        return None
+
+    @app.function_name("positional_name")
+    @app.timer_trigger(
+        schedule="0 0 2 * * *", arg_name="t", run_on_startup=False, use_monitor=True
+    )
+    async def positional_def(t):  # noqa: ANN001, ANN202
+        return None
+
+    @app.function_name(name="keyword_name")
+    @app.timer_trigger(
+        schedule="0 0 3 * * *", arg_name="t", run_on_startup=False, use_monitor=True
+    )
+    async def keyword_def(t):  # noqa: ANN001, ANN202
+        return None
+
+    registered = sorted(f.get_function_name() for f in app.get_functions())
+
+    assert registered == ["bare_timer", "keyword_name", "positional_name"], (
+        f"the SDK registered {registered}. Both `_declared_timers` here and "
+        f"`timers()` in scripts/deployment-contract.py resolve a timer's name as "
+        f"`@app.function_name`'s value when present and the `def` name "
+        f"otherwise. If that is no longer the rule, both are wrong in the same "
+        f"direction and neither would notice."
+    )
+
+
 def test_the_timer_derivation_agrees_with_the_structure_it_reads() -> None:
     """The timer derivation is a regex over Python source. This pins it.
 
@@ -347,6 +425,28 @@ def test_the_timer_derivation_agrees_with_the_structure_it_reads() -> None:
     The durable fix is for `timers()` to parse rather than match; it is the last
     lexical reader of a structured source in this chain. `scripts/` is not this
     session's to edit, so this asserts the agreement instead, and says so.
+
+    **`4be3880` shipped that fix, and this test kept earning its place.** Both
+    sides now parse, so this is no longer lexical-versus-structural — it is two
+    structural readings that must agree on *which name a timer registers under*.
+    They did not. Measured against the real `azure.functions` SDK, all three of
+    these register a timer, and `timers()` saw only the third:
+
+        @app.timer_trigger(...) with no function_name   -> registers as the def name
+        @app.function_name('x')  positionally           -> registers as 'x'
+        @app.function_name(name='x')  by keyword        -> registers as 'x'
+
+    `timers()` requires a `function_name` keyword and appends only `if name and
+    is_timer`, so a timer declared either of the first two ways is invisible to
+    the deploy check — with **2230 other tests passing**. The empty-set refusal
+    cannot help again, for the third time: the set is not empty, it is one short.
+
+    My own helper was wrong in the mirror direction and this is what exposed it.
+    It returned the `def` name unconditionally, which is right for this repo —
+    all four entry points spell the two the same — and would have reported a
+    disagreement against a *correct* derivation the day someone gave a function a
+    `function_name` that differs from its `def`. Both sides now resolve the name
+    the way the SDK does, so the comparison means what it claims.
     """
     spec = importlib.util.spec_from_file_location(
         "deployment_contract", REPO / "scripts" / "deployment-contract.py"
@@ -363,11 +463,19 @@ def test_the_timer_derivation_agrees_with_the_structure_it_reads() -> None:
     assert derived, "the derivation found no timers"
 
     assert derived == structural, (
-        f"scripts/deployment-contract.py derives {derived} and the decorators in "
-        f"function_app.py declare {structural}. The derivation matches source "
-        f"text and Python does not promise the spelling it looks for — a "
-        f"single-quoted `name=` is enough. A timer the derivation cannot see is "
-        f"a timer the deploy does not wait for, so it can fail to register with "
-        f"every signal green. Fix the extractor rather than this test: parse "
-        f"with `ast`, as the settings half already reads compiled ARM."
+        f"scripts/deployment-contract.py derives {derived} and the registered "
+        f"timer names in function_app.py are {structural}.\n\n"
+        f"Both sides now parse, so this is no longer about quoting. The "
+        f"disagreement is about **which name a timer registers under**, and the "
+        f"SDK's rule is: `@app.function_name`'s value when present, the `def` "
+        f"name otherwise. Measured against `azure.functions` itself, these are "
+        f"all valid and all register a timer:\n"
+        f"    @app.timer_trigger(...) with no function_name  -> the def name\n"
+        f"    @app.function_name('x')  positionally          -> 'x'\n"
+        f"    @app.function_name(name='x')  by keyword       -> 'x'\n\n"
+        f"A timer the derivation cannot name is a timer the deploy does not "
+        f"wait for, so it can fail to register with every signal green. Check "
+        f"which of the three forms is in play before changing anything, and fix "
+        f"whichever side got the rule wrong — this test is not the thing to "
+        f"edit."
     )
