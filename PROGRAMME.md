@@ -412,6 +412,18 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
 
   The commit survived as an orphan only because it was reachable from the
   reflog; `git reset --hard` had already moved off it.
+- **A 404 from a guessed path is not evidence of absence, and "print the shape"
+  does not help — there is no shape to print.** Hunting the rejected drafts I
+  probed `rejected/<slug>.json`, `drafts/<slug>.json` and the bare slug, got 404
+  three times, and wrote *"rejected drafts are not persisted publicly"* in a
+  brief. They are: `runreport.py:78` states the path in prose —
+  `rejected/<day>/<slug>.json` — and every one fetched first try once I read it.
+  Same hour, same class: `runs/latest.json` 404'd where `articles/runs/latest.json`
+  served. **The remedy for a missing field is to print the structure; the remedy
+  for a missing path is to read the code that writes it.** A 404 carries no
+  structure to inspect, so the usual instinct has nothing to work with and the
+  absence looks settled after three tries. This one nearly closed the newsroom's
+  highest-value open question by declaring its evidence non-existent.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
