@@ -51,8 +51,36 @@ const BASE = 'https://portabaltica.naurolabs.com';
 /** WCAG 2.2 SC 1.4.11: a graphical object needed to understand the content. */
 const NON_TEXT_FLOOR = 3;
 
-/** Enough strokes that an empty page cannot be mistaken for a clean result. */
-const MIN_STROKES = 8;
+/** SC 1.4.3 for the axis labels, which are small text rather than graphics. */
+const TEXT_FLOOR = 4.5;
+
+/**
+ * Everything inside a chart that carries colour, with the floor WCAG gives it.
+ *
+ * The first version measured line strokes only, and said so. Measured against
+ * production, that covered 187 of 566 coloured elements and **four of seven**
+ * distinct failures:
+ *
+ *     line stroke       187 measurable   4 below 3:1
+ *     bar fill           84              1 below 3:1
+ *     reference line     25              1 below 3:1
+ *     axis tick text    269              1 below 4.5:1
+ *     area fill           1              0
+ *
+ * A guard covering a smaller population than its subject, reporting success
+ * for everything it did not look at — so the population is enumerated here and
+ * the count asserted, rather than left to a selector nobody re-reads.
+ */
+const PAINTED = [
+  { name: 'line stroke', selector: 'path.recharts-curve, .recharts-line path', property: 'stroke', floor: NON_TEXT_FLOOR },
+  { name: 'bar fill', selector: '.recharts-bar-rectangle path, .recharts-rectangle', property: 'fill', floor: NON_TEXT_FLOOR },
+  { name: 'area fill', selector: '.recharts-area-area', property: 'fill', floor: NON_TEXT_FLOOR },
+  { name: 'reference line', selector: '.recharts-reference-line line, .recharts-reference-line path', property: 'stroke', floor: NON_TEXT_FLOOR },
+  { name: 'axis tick text', selector: '.recharts-cartesian-axis-tick-value tspan, .recharts-cartesian-axis-tick text', property: 'fill', floor: TEXT_FLOOR },
+] as const;
+
+/** Enough painted elements that an empty page cannot be mistaken for a clean result. */
+const MIN_PAINTED = 100;
 
 function channel(value: number): number {
   const c = value / 255;
@@ -73,7 +101,7 @@ function rgb(value: string): number[] | null {
   return parts.length === 3 ? parts : null;
 }
 
-type Painted = { stroke: string; surface: string };
+type Painted = { group: string; value: string; surface: string };
 
 describe('chart series under a forced-colours palette (live)', () => {
   let browser: LiveBrowser | null = null;
@@ -87,7 +115,7 @@ describe('chart series under a forced-colours palette (live)', () => {
   });
 
   /**
-   * Each stroke paired with the surface actually painted behind it.
+   * Each painted element paired with the surface actually behind it.
    *
    * The nearest painted ancestor, not `body`: the whole point of the fix is
    * that the chart carries its own background again, so reading the page
@@ -104,55 +132,61 @@ describe('chart series under a forced-colours palette (live)', () => {
       const page = await context.newPage();
       await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
       await page.waitForTimeout(2_500);
-      return (await page.evaluate(() => {
-        const out: { stroke: string; surface: string }[] = [];
-        const paths = document.querySelectorAll('path.recharts-curve, .recharts-line path');
-        for (const path of paths) {
-          const stroke = getComputedStyle(path).stroke;
-          if (!stroke || stroke === 'none') continue;
-          let node: Element | null = path.parentElement;
-          let surface: string | null = null;
+      return (await page.evaluate((groups) => {
+        const surfaceOf = (element: Element): string => {
+          let node: Element | null = element.parentElement;
           while (node) {
             const background = getComputedStyle(node).backgroundColor;
             if (background && background !== 'rgba(0, 0, 0, 0)' && background !== 'transparent') {
-              surface = background;
-              break;
+              return background;
             }
             node = node.parentElement;
           }
-          out.push({ stroke, surface: surface ?? getComputedStyle(document.body).backgroundColor });
+          return getComputedStyle(document.body).backgroundColor;
+        };
+        const out: { group: string; value: string; surface: string }[] = [];
+        for (const { name, selector, property } of groups) {
+          for (const element of document.querySelectorAll(selector)) {
+            const value = getComputedStyle(element)[property as 'stroke'];
+            if (!value || value === 'none') continue;
+            out.push({ group: name, value, surface: surfaceOf(element) });
+          }
         }
         return out;
-      })) as Painted[];
+      }, PAINTED as unknown as { name: string; selector: string; property: string }[])) as Painted[];
     } finally {
       await context.close();
     }
   }
 
   function failures(pairs: Painted[]) {
-    const seen = new Map<string, number>();
-    for (const { stroke, surface } of pairs) {
-      const a = rgb(stroke);
+    const floors = new Map<string, number>(PAINTED.map((group) => [group.name, group.floor]));
+    const seen = new Map<string, string>();
+    for (const { group, value, surface } of pairs) {
+      const a = rgb(value);
       const b = rgb(surface);
       if (!a || !b) continue;
+      const floor = floors.get(group) ?? NON_TEXT_FLOOR;
       const ratio = contrast(a, b);
-      if (ratio < NON_TEXT_FLOOR) seen.set(`${stroke} on ${surface}`, ratio);
+      if (ratio < floor) {
+        seen.set(`${group}: ${value} on ${surface}`, `${ratio.toFixed(2)}:1 needs ${floor}:1`);
+      }
     }
-    return [...seen.entries()].map(([pair, ratio]) => `${pair} = ${ratio.toFixed(2)}:1`);
+    return [...seen.entries()].map(([pair, detail]) => `${pair} = ${detail}`);
   }
 
   for (const colorScheme of ['light', 'dark'] as const) {
-    it(`keeps every series above the non-text floor with forced colours and a ${colorScheme} palette`, async () => {
+    it(`keeps every painted chart element above its floor with forced colours and a ${colorScheme} palette`, async () => {
       const pairs = await paintedPairs('active', colorScheme);
 
       expect(
         pairs.length,
-        'no chart strokes were found, so this assertion would pass on a blank page',
-      ).toBeGreaterThanOrEqual(MIN_STROKES);
+        'too few painted chart elements were found; this assertion would pass on a blank page',
+      ).toBeGreaterThanOrEqual(MIN_PAINTED);
 
       expect(
         failures(pairs),
-        `a reader using a ${colorScheme} high-contrast theme cannot see these lines`,
+        `a reader using a ${colorScheme} high-contrast theme cannot see these`,
       ).toEqual([]);
     }, 120_000);
 
@@ -161,8 +195,8 @@ describe('chart series under a forced-colours palette (live)', () => {
       // the fault would be in the page or the probe rather than in the mode.
       const pairs = await paintedPairs('none', colorScheme);
 
-      expect(pairs.length, 'no chart strokes were found in the control either').toBeGreaterThanOrEqual(
-        MIN_STROKES,
+      expect(pairs.length, 'too few painted elements in the control either').toBeGreaterThanOrEqual(
+        MIN_PAINTED,
       );
       expect(
         failures(pairs),
@@ -170,4 +204,17 @@ describe('chart series under a forced-colours palette (live)', () => {
       ).toEqual([]);
     }, 120_000);
   }
+
+  it('measures every element group, not only the one that failed first', async () => {
+    // The population guard. A selector that silently stops matching -- a
+    // recharts class rename, a chart type retired -- would quietly shrink what
+    // the four assertions above cover while every one of them still passed.
+    const pairs = await paintedPairs('active', 'light');
+    const found = new Set(pairs.map((pair) => pair.group));
+
+    expect(
+      [...found].sort(),
+      'a chart element group matched nothing, so it is unguarded while the suite stays green',
+    ).toEqual(PAINTED.map((group) => group.name).sort());
+  }, 120_000);
 });
