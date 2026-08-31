@@ -100,17 +100,32 @@ const SYNDICATABLE_STATUSES = ['published', 'corrected'];
  * where a withdrawn claim goes on circulating after we have publicly taken it
  * back.
  *
- * It is deliberately not `status !== 'retracted'`. Index entries carry no
- * `status` at all today — verified against the live index, nought of seventy —
- * so that comparison is true for every article that has ever existed and the
- * guard could never fire. It would read as protection in review and be inert
- * in production, which is the failure this codebase keeps finding rather than
- * one worth adding.
+ * It is deliberately not `status !== 'retracted'`. Most index entries carry no
+ * usable `status` for this purpose, so that comparison would be true for
+ * almost every article and the guard would read as protection in review while
+ * being inert in production — the failure this codebase keeps finding rather
+ * than one worth adding.
+ *
+ * ⚠️ The measurement behind that sentence has MOVED, and in the direction that
+ * makes this fallback look retirable when it is more load-bearing than ever.
+ * It used to read "nought of seventy". Measured against the live index on
+ * 2026-08-31:
+ *
+ *     88 entries · 67 carry a status · 21 do not
+ *     the 21 are 19 tier A and 2 tier B — our own journalism
+ *     all 50 tier C entries carry `published`
+ *
+ * So a reader who re-measures now finds most entries populated and could
+ * conclude the fallback is obsolete. Deleting it would drop those 21 articles
+ * from RSS, the JSON feed and the sitemap at once — every surface `ourArticles`
+ * guards. `tests/newsroomFeed.test.ts` pins the behaviour rather than the
+ * number, so the guarantee survives the next time these counts move.
  *
  * Nor is it `status === 'published'`, matching `isServable` on the client.
  * That is the right rule for a full article, which carries its status and its
  * validator verdict; applied to an index entry that carries neither it would
- * drop all twenty tier A and B articles and serve an empty feed.
+ * drop those same articles and serve a feed missing more than half of our own
+ * output.
  *
  * So: honour the status strictly when it is there, and fall back to tier and
  * slug when it is not. Correct today, and genuinely protective — against every
