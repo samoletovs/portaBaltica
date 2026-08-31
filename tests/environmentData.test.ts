@@ -170,3 +170,56 @@ describe('the HTTP client', () => {
     expect(source, 'every call needs a hard deadline').toMatch(/deadlineMs/);
   });
 });
+
+/**
+ * The grace window, made observable.
+ *
+ * The endpoint's own comment claims an hour of grace exists because "an
+ * hour-old temperature is still a useful and honest number, and it is a far
+ * better answer than the dash a dropped socket would otherwise produce". That
+ * was a claim about behaviour with nothing executing it -- and until this file
+ * was written, `WEATHER_GRACE_MS` did not even reach the layer that serves a
+ * reader during an outage: a bare `3600000` in the `withCache` options did.
+ *
+ * So the constant was inert and the behaviour untested, which is the pair that
+ * lets a window quietly become whatever the literal says.
+ */
+describe('an hour-old temperature beats a dash', () => {
+  /** Call WITHOUT clearing the cache -- the point is what it kept. */
+  async function callKeepingCache(responder: (url: string) => Promise<unknown>) {
+    const es = require('../api/shared/eurostat.js');
+    const original = es.httpJson;
+    es.httpJson = (url: string) => responder(url);
+    try {
+      delete require.cache[require.resolve('../api/environment-data/index.js')];
+      const handler = require('../api/environment-data/index.js');
+      const ctx: { res?: { body: string; status: number } } = {};
+      await handler(ctx, { query: { country: 'lv' }, headers: {} });
+      return { status: ctx.res!.status, body: JSON.parse(ctx.res!.body) };
+    } finally {
+      es.httpJson = original;
+    }
+  }
+
+  it('serves the last good reading when Open-Meteo stops answering', async () => {
+    const cache = require('../api/shared/cache.js');
+    cache.clear();
+
+    const primed = await callKeepingCache(route());
+    expect(primed.status).toBe(200);
+    expect(primed.body.weather.length, 'nothing to keep').toBeGreaterThan(0);
+
+    // Half an hour on: past the fifteen-minute response TTL, well inside the
+    // hour of grace, with every upstream call failing.
+    const REAL = Date.now;
+    Date.now = () => REAL() + 30 * 60 * 1000;
+    try {
+      const outage = await callKeepingCache(route({ airThrows: true, weatherThrows: true }));
+      expect(outage.status, 'a stale reading beats an error while one exists').toBe(200);
+      expect(outage.body.weather, 'the reader got a dash instead of the last reading')
+        .toEqual(primed.body.weather);
+    } finally {
+      Date.now = REAL;
+    }
+  });
+});
