@@ -330,13 +330,66 @@ WEEKLY_WRAP_BASIS = EditorialCorrection(
 )
 
 
+#: Our own correction notice, corrected. The first instance of this apparatus
+#: being turned on itself, and the policy rather than judgement is what decides
+#: it: `newsroom/policy/corrections.md` defines a correction as "a factual
+#: error: **a wrong figure**, a misstated comparison, a misattributed source",
+#: with no materiality threshold, and *Clarification* — "the facts were right
+#: but the framing could mislead" — does not fit, because the fact is wrong.
+#:
+#: `span_correction_note(**ELECTRICITY)`, filed 2026-08-31T06:12:34Z, says the
+#: 41.75% fall "is the change since 2022-S2, four and a half years later".
+#: "Later" is measured from the span the article named, 2016-S1, and:
+#:
+#:     2016-S1 .. 2022-S2   13 semi-annual periods = 6.5 years
+#:
+#: Nothing gives 4.5 from any pair of periods that notice names.
+#:
+#: WHY THIS IS NOT AN EMBARRASSMENT TO BE MINIMISED
+#: -------------------------------------------------
+#: A figure inside a correction is read by someone already doubting us, on the
+#: one surface that exists to earn that trust back — so it is the most
+#: expensive place to be wrong, not the least. The policy anticipates the
+#: discomfort and rules against it in its own voice: "We do not delete the
+#: evidence." The first notice stays exactly as filed.
+#:
+#: AND IT IS THE SAME FAULT IT CORRECTS, ONE LAYER OUT
+#: ----------------------------------------------------
+#: The phrase then propagated: `WEEKLY_WRAP_BASIS` was drafted with "four and a
+#: half years earlier", copied from the `ELECTRICITY` fixture that pins this
+#: published text, where the correct interval is a *different* 3.0 years. One
+#: phrase, two notes, two wrong numbers, neither of them 4.5 — a wrong figure
+#: travelling out of a correction and into the next one. Caught in review
+#: before the second shipped; `newsroom/tests/pipeline/test_correction_intervals.py`
+#: now computes every stated interval from the periods the note itself names.
+CORRECTION_INTERVAL = EditorialCorrection(
+    slug="latvia-s-industrial-electricity-price-drops-to-0-13-eur-93118d",
+    description=(
+        "CORRECTED — and this time we are correcting ourselves. The notice "
+        "above, filed on 31 August 2026, said the 41.75% fall "
+        "“is the change since 2022-S2, four and a half years later”. That "
+        "interval is wrong. Measured from 2016-S1, the period the article "
+        "named, 2022-S2 is six and a half years later — thirteen semi-annual "
+        "periods, not nine. Everything else in that notice stands: 41.75% is "
+        "the change since 2022-S2, the price did rise 48.8% over the span the "
+        "article named, the series does run back to 2007-S2, and none of the "
+        "article's own figures is affected. The first notice is left exactly "
+        "as filed, because a corrections record that quietly repairs itself is "
+        "not a record."
+    ),
+    previous_value="it is the change since 2022-S2, four and a half years later",
+)
+
+
 PENDING: tuple[EditorialCorrection, ...] = (
     INVENTED_ANALYST,
     WEEKLY_WRAP_BASIS,
+    CORRECTION_INTERVAL,
 )
 
 
 __all__ = [
+    "CORRECTION_INTERVAL",
     "INVENTED_ANALYST",
     "PENDING",
     "WEEKLY_WRAP_BASIS",
