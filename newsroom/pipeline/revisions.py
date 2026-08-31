@@ -534,6 +534,123 @@ def span_correction_note(
             "in a claim has to be one the newsroom actually holds."
         ),
     }
+
+
+def comparison_correction_note(
+    *,
+    claim: str,
+    observations: int,
+    series_start: str,
+    beaten: int,
+    true_extreme: str,
+    true_period: str,
+    true_standing: str,
+    still_stands: str,
+    claims_low: bool = True,
+    corrected_at: str | None = None,
+) -> dict[str, str]:
+    """The notice for an unbounded superlative inflated from a true local one.
+
+    A FIFTH SHAPE, AND THE FIRST ONE ``#280`` MADE POSSIBLE
+    -------------------------------------------------------
+    Two articles in the 14:00Z edition of 2026-08-31 — the first generated with
+    the true series origin — say this. Both were measured against their own
+    provenance cube with every dimension pinned:
+
+        estonia-s-core-inflation   "the lowest in the 296 observations since
+                                    the series began"
+                                   296 is right, the origin is right,
+                                   71 readings are lower
+
+        foreign-visitors ... lithuania
+                                   "the highest recorded in the 270
+                                    observations since the series began in
+                                    January 2004"
+                                   270 is right, the origin is right,
+                                   12 readings are higher
+
+    In both, the count and the origin are **true** — that is ``#280`` working —
+    and the superlative attached to them is false.
+
+    THE LOCAL CLAIM UNDERNEATH IS NOT ALWAYS A SUPERLATIVE
+    ------------------------------------------------------
+    A first draft of this shape described the fault as a *peer* superlative
+    promoted to a series one, because the Estonian article says "the lowest
+    rate among the three Baltic states" two paragraphs later and that is
+    genuinely true. That framing is too narrow and would have misdescribed the
+    Lithuanian article, which has no peer superlative at all: its true local
+    claim is a rise on the same month a year earlier, and measured across the
+    twenty-three Junes in the cube the reading is the **second** highest, not
+    the highest. There is no comparison over which its superlative holds.
+
+    So the field is ``true_standing`` — *what the reading actually is* — rather
+    than "where the superlative is true". It is required for the reason
+    ``actual_span`` is in :func:`span_correction_note`: a reader told only that
+    a superlative is wrong, who can see a related and correct comparison in the
+    same sentence or the next paragraph, cannot tell which of our claims to
+    believe.
+
+    WHY NONE OF THE OTHER FOUR CAN SAY THIS
+    ---------------------------------------
+    :func:`record_correction_note` closes its beaten branch with "the series
+    also does not begin in X — that is where the newsroom's data window starts
+    — but in Y". After ``#280`` the collector fetches the whole series, so
+    ``window_start == series_start`` and that renders as "does not begin in
+    2001-12 ... but in 2001-12": a correction contradicting itself.
+
+    :func:`origin_correction_note` would say the series begins elsewhere. It
+    does not — the origin claim in both articles is **true**.
+    :func:`span_correction_note` needs a magnitude on the wrong span. None is
+    misplaced.
+
+    AND ``#280`` MADE THIS MORE CONVINCING, NOT LESS
+    ------------------------------------------------
+    Before, ``readings_in_series`` carried the window count. It now carries the
+    whole series, so the false sentence is attached to a *more* authoritative
+    number than it would have been. Supplying a true fact in our own voice
+    makes the falsehood around it more believable — the same effect as a
+    partial correction, arriving through an improvement.
+    """
+    if beaten < 0:
+        raise ValueError("counts cannot be negative")
+    if beaten == 0:
+        raise ValueError(
+            "nothing beats the reading, so the superlative holds over the "
+            "series and there is nothing to correct"
+        )
+    if beaten >= observations:
+        raise ValueError(
+            f"{beaten} readings cannot beat the claim out of {observations} "
+            "observations that include the reading itself"
+        )
+    for name, value in (
+        ("true_standing", true_standing),
+        ("still_stands", still_stands),
+    ):
+        if not str(value).strip():
+            raise ValueError(
+                f"{name} is required: a superlative inflated from a true local "
+                "claim must be placed, not merely denied"
+            )
+    superlative = "lowest" if claims_low else "highest"
+    lower_or_higher = "lower" if claims_low else "higher"
+    return {
+        "corrected_at": corrected_at or isoformat(utcnow()),
+        "description": (
+            f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+            f"It was not the {superlative} of those {observations} readings: "
+            f"{beaten} are {lower_or_higher}, the {superlative} being "
+            f"{true_extreme} in {true_period}. What is true is that "
+            f"{true_standing.strip().rstrip('.')}. "
+            f"{still_stands.strip().rstrip('.')}, and the {observations} "
+            f"observations since {series_start} really are the whole series — "
+            "the count is right and so is the origin; what was wrong was "
+            "attaching an unbounded superlative to them. A superlative on this "
+            "wire now has to hold over the population it names."
+        ),
+    }
+
+
 _WORDS = {
     1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six",
     7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve",
@@ -655,6 +772,9 @@ __all__ = [
     "annotate",
     "append_correction",
     "apply_correction_note",
+    "comparison_correction_note",
     "find_revisions",
+    "origin_correction_note",
     "record_correction_note",
+    "span_correction_note",
 ]
