@@ -66,6 +66,10 @@ const LIVE_CHECKS = new Map<string, string>([
     'every chart on the deployed dashboard announces what it plots — recharts injects its role at runtime, so no source test can see this',
   ],
   [
+    'consoleClean.live.test.ts',
+    'no deployed route throws at the reader — eight live checks drive a browser and none of them watched for it, so an uncaught exception or a failed lazy chunk removed a panel and passed every one',
+  ],
+  [
     'correctionsRender.live.test.ts',
     'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
   ],
