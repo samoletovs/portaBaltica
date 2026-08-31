@@ -2125,9 +2125,9 @@ whether it failed. A command that returns a status has already said.**
 
 ### A record that carries a duration was written at the end
 
-The two dispositions above assume you are consulting the right record. There is
-a third, found the same day, and it is the one that survives review because the
-remedy looks like an escalation rather than a repetition.
+The dispositions above assume you are consulting the right record. This one
+survives review because its remedy looks like an escalation rather than a
+repetition.
 
 The question was *did the 14:00Z newsroom run happen?* The obvious artefact is
 the run report the pipeline writes — but that is written when the run
@@ -2196,6 +2196,32 @@ written. And **a control must assert a property that cannot decay.** The same
 check named an article "carrying 1 correction" as its positive control; nine
 hours later it carried 2, so an equality against the recorded reading would have
 called a working probe broken. *Non-empty* survives; `== 1` does not.
+
+### Four dispositions, told apart by their remedies
+
+The symptoms are identical in every case — a probe that answered, and answered
+wrongly. What separates them is what it costs to fix, and the spread is a
+deploy at one end and an admission at the other:
+
+| The separator | The remedy | The cost |
+|---|---|---|
+| none exists | **emit** one | a code change, a schema change, a deploy |
+| one was already in the probe's hand | **read** it | nothing |
+| one exists, but the record consulted cannot answer | **re-time** it — ask what was written when | one query |
+| each exists and is individually insufficient | **bracket** it — pair opposite polarities, report a bound | an admission |
+
+Two of these are worth keeping apart deliberately, because the fourth reads as
+a weaker version of the second and is not. Reading harder terminates the
+second; it does not terminate the fourth. *"Two instruments of opposite
+polarity beat one of either"* is where that case lives, and it is exact: a
+reflog proves a branch **is** mine and can never prove another is not, because
+it is per-worktree; a trailer cohort proves a signature is a **different**
+configuration and can never prove a matching one is mine, because 76 pull
+requests share it. Read both, fully, and the honest output is a bound.
+
+So the fourth is the only one of the four whose remedy ends in an admission
+rather than in a fact — and that, rather than any property of the artefact, is
+the reason it needs its own name.
 
 ## Which way does absence resolve?
 
