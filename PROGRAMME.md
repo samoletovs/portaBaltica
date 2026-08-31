@@ -454,6 +454,69 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   with `createRequire`, for this exact reason. The correct sibling was one
   `git grep` away — *"when you audit the consumers, audit the input they
   share"*, and I wrote a second consumer without reading the first.
+- **Your instructions are a photograph of a moving file.** `AGENTS.md` is
+  injected into every session's context at start. It is also edited *during* the
+  run — this programme touched it in **14 commits in two days**. So a quotation
+  from your own instructions is a **recollection**, subject to every rule this
+  file states about remembered figures, and it has the one property that makes a
+  recollection dangerous: it arrives verbatim, in the voice of the document, with
+  no visible age.
+
+  Measured. A session spent an hour resolving `migr_asyappctzm` because the
+  survey note in its context read *"newsworthy; codes unresolved. Worth another
+  attempt."* The file on disk said:
+
+  ```
+  in context   "codes unresolved. Worth another attempt."
+  on disk      "RESOLVED 2026-08-29 -- codes resolved, definition measured",
+               with the full pin, the coverage measurement, and the ruling
+               FRST over TOTAL, "because repeat applications track case
+               processing, not arrivals"
+  ```
+
+  The indicator was already in the registry at line 562, **457 lines above**
+  where the session appended a second copy of it — with the pin the file had
+  explicitly ruled against, under a title a reader could not distinguish.
+
+  **The tell is that nothing looked wrong.** No probe returned absent, no number
+  was absurd, no command failed. The session did careful, correct work on a
+  question that had been closed two days earlier, and the file would have said so
+  in one `Select-String`.
+
+  So: **open the file, do not quote the context.** This is distinct from the
+  recollection rule already in `AGENTS.md`, which is about your own memory of
+  what a document says — here the text is verbatim and still wrong, because the
+  document moved. The action is different too: not "read the passage again" but
+  "read it *from disk*, in this worktree, now."
+
+  What made it expensive rather than merely wrong is the second half, and that
+  part is about registries. A JS object literal takes the **last** repeated key
+  with no error, `Object.keys()` deduplicates so no test can count it, and
+  ESLint never runs on `api/` — `eslint.config.js` matches `**/*.{ts,tsx}`, so
+  `no-dupe-keys` is not in play at all.
+
+  **But "every guard was blind" is not what I measured, and the truth is more
+  useful.** Planting the real duplicate two ways:
+
+  ```
+  duplicate with a WIDER band  [0, 20000]
+    indicators.test.ts     1 failed   "sizes the asylum band so it excludes the
+                                       EU27 aggregate ... whose lowest month
+                                       is 7,845: expected 20000 to be less than"
+  duplicate with the SAME band, only applicant=TOTAL instead of FRST
+    indicators.test.ts     322 passed          <- blind
+    registryDuplicateKeys  1 failed, naming INDICATORS.asylum_applications
+  ```
+
+  So the sanity band **is** a real discriminator and it caught the loud version:
+  5000 clears the Baltic extreme by 3.4× and sits 36% below the EU27 floor, so
+  it separates *our three countries* from *we are accidentally reading Europe*.
+  What it cannot see is the quiet version — the same band with a different pin,
+  which swaps the statistic under an identical title and passes 322 of 322.
+  `tests/registryDuplicateKeys.test.ts` owns that case. Saying which corruption
+  each guard catches is worth more than the sweeping claim, and the sweeping
+  claim was the one I nearly wrote down from a session message without
+  re-deriving it.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
