@@ -1968,12 +1968,12 @@ question cannot separate these because it answers the same way for both:
 | **discarded signal** | read `$LASTEXITCODE` | nothing; no code changes anywhere |
 
 **Misclassifying the second as the first builds machinery nobody needs**, and
-that is the easy direction to fail in. Note which way the table above runs: all
-**ten** of its rows are *data* — an article, a gate's verdict, a page, a count,
-a tally. Data carries no second channel unless someone adds one, which is why
-those rows all cost a field. A command is not like that: in this environment a
-native command **always** carries a status beside its output. So the burden for
-a failing command is to show the signal was *absent*, not merely unread.
+that is the easy direction to fail in. What decides it is the kind of thing that
+produced the artefact. Data carries no second channel unless someone adds one,
+which is why separating those states costs a field at all. A command is not like
+that: in this environment a native command **always** carries a status beside
+its output. So the burden for a failing command is to show the signal was
+*absent*, not merely unread.
 
 The shape, and it is greppable: **a verdict computed from text where a status
 was available.** `2>&1` followed by a length, a match or a truthiness test; a
