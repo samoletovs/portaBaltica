@@ -196,6 +196,26 @@ const handler = async function (context, req) {
     });
 
     // 1. Electricity prices from Elering
+    //
+    // Every source below is optional: one failing degrades that one insight
+    // rather than the response. What the four `catch` clauses used to do was
+    // drop it **silently**, and a skipped insight and an insight that does not
+    // exist are the same artefact — a shorter list, with nothing saying a
+    // source was unavailable.
+    //
+    // Measured on 2026-08-31, that shipped: `country=lv` and `country=ee`
+    // returned two insights while `lt` returned four, because Open-Meteo was
+    // unreachable from our egress for Riga and Tallinn. `responseCache` then
+    // remembered the short list, so a blip lasting seconds was served for the
+    // full 15-minute TTL — every `Age` above 800 carried two insights, every
+    // one below 500 carried four.
+    //
+    // This file was the only endpoint that could degrade with **no signal at
+    // all**: no published field, and no `console` call either, so neither a
+    // reader nor an operator could tell. Four siblings already publish an
+    // `unavailable` field — `sea-state` serves `unavailable: []` today — and
+    // the correctness of those siblings is why nobody looked at this one.
+    var unavailable = [];
     try {
       var elData = await eleringPromise;
       var allRows = (elData.data && elData.data[zone]) || [];
@@ -267,7 +287,7 @@ const handler = async function (context, req) {
           });
         }
       }
-    } catch (e) { /* skip */ }
+    } catch (e) { unavailable.push('electricity prices'); }
 
     // 2. ECB exchange rates
     try {
@@ -296,7 +316,7 @@ const handler = async function (context, req) {
           timestamp: new Date().toISOString(),
         });
       }
-    } catch (e) { /* skip */ }
+    } catch (e) { unavailable.push('exchange rates'); }
 
     // 3. Air quality
     try {
@@ -342,7 +362,7 @@ const handler = async function (context, req) {
           timestamp: new Date().toISOString(),
         });
       }
-    } catch (e) { /* skip */ }
+    } catch (e) { unavailable.push('air quality'); }
 
     // 4. Weather
     try {
@@ -353,7 +373,7 @@ const handler = async function (context, req) {
       var codes = { 0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 51: 'drizzle', 61: 'rain', 71: 'snow', 80: 'rain showers', 95: 'thunderstorm' };
       var desc = codes[wxCurrent.weather_code] || 'variable';
       insights.push({ headline: capital.name + ': ' + temp.toFixed(0) + '°C, ' + desc, description: 'Wind ' + wind.toFixed(0) + ' km/h. ' + (temp < -10 ? 'Severe cold — expect elevated heating demand.' : temp < 0 ? 'Below freezing — monitor transport and energy costs.' : temp > 30 ? 'Heat wave — increased cooling demand.' : 'Conditions within seasonal range.'), level: temp < -10 || temp > 35 || wind > 80 ? 'significant' : 'routine', category: 'environment', timestamp: new Date().toISOString() });
-    } catch (e) { /* skip */ }
+    } catch (e) { unavailable.push('weather'); }
 
     // Limit to 5
     insights = insights.slice(0, 5);
@@ -363,6 +383,10 @@ const handler = async function (context, req) {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=900' },
       body: JSON.stringify({
         insights: insights,
+        // Always present, `[]` when nothing failed — so a consumer can tell
+        // "this source was quiet" from "we do not offer that insight", and an
+        // empty array is a measurement rather than a missing key.
+        unavailable: unavailable,
         generatedAt: new Date().toISOString(),
         source: 'portaBaltica AI (data-driven)',
       }),

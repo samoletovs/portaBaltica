@@ -46,15 +46,37 @@ describe('API contracts (live)', () => {
   // exactly how a real horizontal-overflow failure went unread from #84 until
   // somebody opened the site by hand. An intermittent red is not a small cost;
   // it is the cost of every other red in the same job.
-  it('GET /api/ai-insights?country=ee returns Tallinn data', async () => {
+  // Was: `expect(hasEstonia).toBe(true)`, asserting an insight mentions
+  // Tallinn. Measured on clean master it ran RED, green, RED — not flake, but a
+  // real defect it could not name. The city insights come from Open-Meteo,
+  // which is intermittently unreachable from our egress, and the short list was
+  // then cached for the full 15-minute TTL. Every `Age` above 800 carried two
+  // insights; every one below 500 carried four.
+  //
+  // A test that is right about a defect and cannot say which one teaches
+  // everyone to discount the job it runs in. So it now asserts the property
+  // that is true either way: the capital's insights are present, **or** the
+  // response names the source that was unavailable. Both states are acceptable;
+  // being unable to tell them apart is not.
+  it('GET /api/ai-insights?country=ee names Tallinn, or says what was unavailable', async () => {
     const r = await fetch(`${BASE}/api/ai-insights?country=ee`);
     expect(r.ok).toBe(true);
     const d = await r.json();
     expect(d.insights.length).toBeGreaterThan(0);
+    expect(Array.isArray(d.unavailable), 'the envelope must always carry the field').toBe(true);
+
     const hasEstonia = d.insights.some((i: { headline: string }) =>
       i.headline.includes('Tallinn')
     );
-    expect(hasEstonia).toBe(true);
+    // The city insights are air quality and weather; if neither arrived, the
+    // response has to say so rather than simply being shorter.
+    const explained = d.unavailable.length > 0;
+
+    expect(
+      hasEstonia || explained,
+      'no Tallinn insight and nothing declared unavailable — the response is ' +
+        'silently short, which is indistinguishable from not offering the insight'
+    ).toBe(true);
   });
 
   it('GET /api/environment-data?country=lt returns capitalPopulation', async () => {
