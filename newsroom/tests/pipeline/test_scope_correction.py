@@ -864,3 +864,125 @@ class TestASecondMisplacedOriginInTheSameArticle:
 
         assert text.index("runs back to 2004") < text.index("begins in 2018")
         assert text.index("begins in 2018") < text.index("The record itself stands")
+
+
+#: `latvia-s-industrial-electricity-price-drops-to-0-13-eur-93118d`. Measured
+#: 2026-08-31T06:20Z against `nrg_pc_205?geo=LV`, 37 observations 2007-S2..2025-S2:
+#:
+#:     reading 2025-S2            0.1335
+#:     our window start 2016-S1   0.0897     <- the article's "0.09"
+#:     TRUE series start 2007-S2  0.0595
+#:     2022-S2                    0.2292
+#:
+#:     since 2016-S1, the span NAMED     +0.0438 EUR   +48.83%
+#:     since 2007-S2, the true series    +0.0740 EUR  +124.37%
+#:     since 2022-S2, para 1's basis     -0.0957 EUR   -41.75%   EXACT
+#:
+#: The magnitude is a correct measurement of a DIFFERENT span, and over the
+#: period the sentence names the price ROSE by half again. Every other article
+#: corrected here carried a true figure wrongly described; this one states a
+#: direction that is wrong.
+ELECTRICITY = dict(
+    claim=(
+        "Latvia's industrial electricity price showed \"a cumulative change of "
+        "-0.1 EUR per kWh, or 41.75%, since the series began in 2016-S1, where "
+        "the starting value was 0.09 EUR per kWh\""
+    ),
+    named_span="2016-S1",
+    named_span_change="up 0.0438 EUR per kWh, or 48.8%",
+    actual_span="2022-S2, four and a half years later",
+    stated_change="41.75% fall",
+    series_start="2007-S2",
+    series_start_change="up 0.074 EUR per kWh, or 124.4%",
+    still_stands=(
+        "The 0.13 EUR per kWh reading is correct, as is the comparison with "
+        "0.23 EUR per kWh in 2022-S2 that the article makes earlier, and the "
+        "six consecutive semi-annual falls it describes are real — they begin "
+        "in 2022-S2, not at the start of the series"
+    ),
+)
+
+
+class TestAMagnitudeAttachedToTheWrongSpan:
+    """`ELECTRICITY` -- the first shape where a FIGURE is wrong, not a
+    description.
+
+    The other three all end "the figures are unchanged and correct", which is
+    true of them. Here the sign inverts, so that sentence would itself be
+    false -- the third time this week a note would have asserted something
+    untrue in order to correct something else.
+    """
+
+    def test_it_never_says_the_figures_are_unchanged(self):
+        """MUTATION THIS CATCHES: reusing the origin shape's closing sentence,
+        which reassures a reader about a figure whose direction is wrong."""
+        from newsroom.pipeline.revisions import span_correction_note
+
+        text = span_correction_note(**ELECTRICITY)["description"]
+
+        assert "figures are unchanged" not in text
+        assert "figure itself is unchanged" not in text
+
+    def test_it_says_the_direction_was_the_opposite(self):
+        """The whole reason this is more serious than the other ten."""
+        from newsroom.pipeline.revisions import span_correction_note
+
+        text = span_correction_note(**ELECTRICITY)["description"]
+
+        assert "the opposite direction" in text
+        assert "up 0.0438 EUR per kWh, or 48.8%" in text
+
+    def test_it_places_the_real_number(self):
+        """41.75% appears elsewhere in the article, correctly. A reader who
+        meets it and is told only that it is misplaced cannot account for a
+        figure in front of them."""
+        from newsroom.pipeline.revisions import span_correction_note
+
+        text = span_correction_note(**ELECTRICITY)["description"]
+
+        assert "real but belongs to a different, shorter period" in text
+        assert "since 2022-S2, four and a half years later" in text
+
+    def test_it_still_corrects_the_origin(self):
+        from newsroom.pipeline.revisions import span_correction_note
+
+        text = span_correction_note(**ELECTRICITY)["description"]
+
+        assert "2016-S1 is also where the newsroom's data window starts" in text
+        assert "it runs back to 2007-S2" in text
+
+    def test_it_says_what_survives(self):
+        """A correction that lists only errors reads as a retraction, and most
+        of this article is sound."""
+        from newsroom.pipeline.revisions import span_correction_note
+
+        text = span_correction_note(**ELECTRICITY)["description"]
+
+        assert "0.13 EUR per kWh reading is correct" in text
+        assert "RETRACTED" not in text
+
+    def test_it_refuses_to_build_without_the_real_span(self):
+        """MUTATION THIS CATCHES: making `actual_span` optional, which produces
+        a notice saying a number is wrong without saying where it belongs."""
+        import pytest
+
+        from newsroom.pipeline.revisions import span_correction_note
+
+        with pytest.raises(ValueError, match="actual_span"):
+            span_correction_note(**{**ELECTRICITY, "actual_span": "  "})
+
+    def test_it_refuses_to_build_without_what_stands(self):
+        import pytest
+
+        from newsroom.pipeline.revisions import span_correction_note
+
+        with pytest.raises(ValueError, match="still_stands"):
+            span_correction_note(**{**ELECTRICITY, "still_stands": ""})
+
+    def test_the_named_span_is_required_too(self):
+        import pytest
+
+        from newsroom.pipeline.revisions import span_correction_note
+
+        with pytest.raises(ValueError, match="named_span"):
+            span_correction_note(**{**ELECTRICITY, "named_span": ""})

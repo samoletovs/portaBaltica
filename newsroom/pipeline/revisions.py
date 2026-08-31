@@ -453,8 +453,87 @@ def origin_correction_note(
     }
 
 
-#: Spelled at the head of a sentence, where a numeral reads as a typo. Only the
-#: small ones -- "Fifty-five earlier readings" is worse than "55".
+def span_correction_note(
+    *,
+    claim: str,
+    named_span: str,
+    named_span_change: str,
+    actual_span: str,
+    stated_change: str,
+    series_start: str,
+    series_start_change: str,
+    still_stands: str,
+    corrected_at: str | None = None,
+) -> dict[str, str]:
+    """The notice for a real magnitude attached to the wrong span.
+
+    A FOURTH SHAPE, AND THE FIRST ONE WHERE A FIGURE IS ACTUALLY WRONG
+    ------------------------------------------------------------------
+    The other three correct a **characterisation**: the number was right and
+    what we said *about* it was not. All three therefore end by telling the
+    reader "the figures are unchanged and correct", which is true of them and
+    is the reassurance a correction on a sound article owes.
+
+    `latvia-s-industrial-electricity-price-drops-to-0-13-eur` is different:
+
+        "a cumulative change of -0.1 EUR per kWh, or 41.75%, since the series
+         began in 2016-S1, where the starting value was 0.09 EUR per kWh"
+
+    Measured on its own cube, 37 observations from 2007-S2:
+
+        since 2016-S1, the span it NAMES     +0.0438 EUR   +48.83%
+        since 2007-S2, the true series       +0.0740 EUR  +124.37%
+        since 2022-S2, paragraph 1's basis   -0.0957 EUR   -41.75%   exact
+
+    So the magnitude is genuine and belongs to a shorter, later span — and over
+    the period the sentence names, **the price rose by half again**. The
+    article tells a reader it fell by 41.75% over a period in which it rose by
+    48.83%.
+
+    That is not a description that overreached. It is a false statement about
+    direction, and running it through :func:`origin_correction_note` would
+    publish "the figures are unchanged — only the description of where the
+    series begins was wrong", which is itself untrue. **A reader must not be
+    told the figures are unchanged when the sign is wrong**, so this shape does
+    not reuse that closing sentence.
+
+    IT NAMES WHERE THE NUMBER REALLY CAME FROM
+    ------------------------------------------
+    ``actual_span`` is required. A reader who meets 41.75% elsewhere in the
+    piece — it is paragraph 1's comparison, correctly stated there — and is
+    told only that it does not belong where it appears is left unable to place
+    a figure they can see with their own eyes. Saying the number is real and
+    naming its span is the difference between a correction and a retraction of
+    something sound.
+    """
+    for name, value in (
+        ("named_span", named_span),
+        ("actual_span", actual_span),
+        ("still_stands", still_stands),
+    ):
+        if not str(value).strip():
+            raise ValueError(
+                f"{name} is required: a correction that says a figure is "
+                "misplaced without saying where it belongs leaves the reader "
+                "unable to place a number they can see"
+            )
+    return {
+        "corrected_at": corrected_at or isoformat(utcnow()),
+        "description": (
+            f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+            f"That change is real but belongs to a different, shorter period: "
+            f"it is the change since {actual_span.strip()}. Over the span the "
+            f"article names — since {named_span.strip()} — the figure moved "
+            f"{named_span_change.strip()}, the opposite direction to the "
+            f"{stated_change.strip()} reported. {named_span.strip()} is also "
+            f"where the newsroom's data window starts, not where the series "
+            f"starts: it runs back to {series_start.strip()}, since when the "
+            f"figure has moved {series_start_change.strip()}. "
+            f"{still_stands.strip().rstrip('.')}. A figure on this wire now "
+            "has to name the period it was measured over, and a period named "
+            "in a claim has to be one the newsroom actually holds."
+        ),
+    }
 _WORDS = {
     1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six",
     7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve",
