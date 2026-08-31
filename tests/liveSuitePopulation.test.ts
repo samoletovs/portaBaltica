@@ -83,6 +83,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['reducedMotionLayout.live.test.ts', 'the deployed site does not scroll sideways'],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
   [
+    'forcedColours.live.test.ts',
+    'chart series stay above the non-text floor when a reader forces a high-contrast palette',
+  ],
+  [
     'tabStopNames.live.test.ts',
     'nothing on the deployed site is reachable by keyboard without a name — watching for a link-free scroll strip, which Chromium makes an unnamed tab stop',
   ],
