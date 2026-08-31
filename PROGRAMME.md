@@ -1592,7 +1592,8 @@ named gap rather than a note about method:
 - **No real screen reader has been used.** Everything so far is DOM assertions.
 - **Errors are announced on first render, not on update** — a value that goes
   stale while the page is open says nothing.
-- **400% reflow is untested.** Forced-colours **was** on this line and is now
+- **400% reflow is covered, and this entry was wrong about it.** Forced-colours
+  **was** on this line and is now
   closed: `tests/forcedColours.live.test.ts` walks the 2×2 of
   `forced-colors × prefers-color-scheme` against production and measures five
   painted element groups at the floor WCAG gives each. It found a real defect —
@@ -1606,6 +1607,38 @@ named gap rather than a note about method:
   passed, naming the light case) and passed after the deploy (4, then 5). A
   plant proves a test notices a change you made; this proves it saw a defect it
   did not create.
+
+  **Reflow at 400% was already tested, which is why this bullet's remaining
+  half is now struck too.** Browser zoom at 400% on a 1280-device-px window
+  *is* a 320 CSS px viewport — they are layout-identical, and
+  `deviceScaleFactor` changes only the rendering resolution. Measured against
+  production:
+
+  ```
+                                    clientWidth  dpr  overflowX
+  320 CSS px, dsf 1  (a phone)          320       1       0
+  320 CSS px, dsf 4  (1280 @ 400%)      320       4       0
+  ```
+
+  So `reducedMotionLayout.live.test.ts` (17 routes derived from the router,
+  widths 320–1024) and `headerOneRow.live.test.ts` (320/375/390/640, asserting
+  the document does not scroll sideways) already cover SC 1.4.10. A separate
+  400% pass would cost ~11 minutes on every deploy to re-measure a width the
+  suite already walks — an instrument aimed at a fault that is not there.
+
+  ⚠️ **The trap that makes it look untested.** CSS `zoom` is not browser zoom.
+  Setting `documentElement.style.zoom = '400%'` leaves `clientWidth` at 1280,
+  so no media query fires, the desktop layout is scaled up, and the page
+  reports a dramatic overflow:
+
+  ```
+  CSS zoom 400%   clientWidth 1280   /  overflowX 288   /data 277   /api-docs 48
+  real 400%       clientWidth  320   /  overflowX   0   /data   0   /api-docs  0
+  ```
+
+  Those 288 pixels are an artefact of the wrong mechanism, and they are exactly
+  plausible enough to be believed and "fixed". Simulate zoom with the viewport,
+  not with the `zoom` property.
 - **`/weekly` is populated as of 2026-08-30.** The first scheduled wrap ran at
   15:00Z with `trigger: timer` and `outcome: published`, and
   `runs/weekly-latest.json` carries the record. **It published a false headline**
