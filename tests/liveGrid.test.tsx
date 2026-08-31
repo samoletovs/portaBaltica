@@ -546,3 +546,95 @@ describe('GridStatePanel', () => {
     expect(screen.getByText(/Estonian grid data unavailable/)).toBeTruthy();
   });
 });
+
+/**
+ * The banner, over a body the cache actually produced during a real failure.
+ *
+ * Every other test here hands the panel a fixture, which proves the panel
+ * renders what it is given and nothing about whether the API ever gives it
+ * that. The banner is the case that matters and the one no fixture can settle:
+ * a warning that only appears when everything is fine is the same defect as a
+ * control that cannot fail.
+ *
+ * So this crosses the seam — prime `withCache` from a healthy upstream, take
+ * the upstream away, move past the TTL, and render whatever the handler hands
+ * back.
+ */
+describe('what a reader sees when Elering stops answering', () => {
+  const NOW = new Date('2026-08-30T10:00:00.000Z');
+
+  beforeEach(() => {
+    fetchLiveGrid.mockReset();
+    require('../api/shared/cache.js').clear();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  /** The handler, called WITHOUT clearing the cache — the point is what it kept. */
+  async function callKeepingCache(fail: boolean, payload?: unknown) {
+    const es = require('../api/shared/eurostat.js');
+    const original = es.httpJson;
+    es.httpJson = () => (fail
+      ? Promise.reject(new Error('HTTP 503 from dashboard.elering.ee'))
+      : Promise.resolve(payload));
+    try {
+      delete require.cache[require.resolve('../api/live-grid/index.js')];
+      const handler = require('../api/live-grid/index.js');
+      const ctx: { res?: { body: string; status: number; headers: Record<string, string> } } = {};
+      await handler(ctx, { query: {}, headers: {} });
+      return { status: ctx.res!.status, headers: ctx.res!.headers, body: JSON.parse(ctx.res!.body) };
+    } finally {
+      es.httpJson = original;
+    }
+  }
+
+  it('names the moment we last got through, over the body the cache really served', async () => {
+    const primed = await callKeepingCache(false, eleringPayload(
+      [row(83, { production_renewable: 60, solar_energy_production: 120 })], []));
+    expect(primed.status).toBe(200);
+
+    // Twenty minutes of a dead upstream: past the five-minute TTL, well inside
+    // the thirty-minute grace. Measured on this path, the response is still a
+    // 200 carrying `Age: 1200` and the ORIGINAL `fetchedAt` — which is the
+    // whole reason an absolute instant was the right thing to keep.
+    vi.setSystemTime(new Date(NOW.getTime() + 20 * 60_000));
+    const stale = await callKeepingCache(true);
+
+    expect(stale.status, 'a stale body beats a 502 while one exists').toBe(200);
+    expect(Number(stale.headers.Age)).toBeGreaterThanOrEqual(20 * 60);
+    expect(stale.body.fetchedAt, 'the instant moved, so it was not the cached body')
+      .toBe(primed.body.fetchedAt);
+
+    // Now render exactly that, as the browser would receive it.
+    fetchLiveGrid.mockResolvedValue(stale.body);
+    render(<GridStatePanel />);
+    await screen.findByText(/Estonian grid/);
+
+    const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text, 'the reader is told nothing about the outage')
+      .toMatch(/Elering last reached 10:00 UTC/);
+    expect(text).toMatch(/20 min behind — showing the last data we received/);
+
+    // The control, and it is the reason this test is not circular: the metered
+    // clock must have moved too. Without it this would pass on a panel that
+    // printed the banner and froze everything else.
+    expect(text, 'the metered clock did not move with the outage').toMatch(/1\.7 h behind/);
+  });
+
+  it('says nothing while the cache is still serving a fresh answer', async () => {
+    // The other half, and the one that makes the first mean something: two
+    // minutes into the same outage the reader is not warned, because there is
+    // nothing yet to warn about.
+    await callKeepingCache(false, eleringPayload([row(83)], []));
+    vi.setSystemTime(new Date(NOW.getTime() + 2 * 60_000));
+    const soon = await callKeepingCache(true);
+
+    fetchLiveGrid.mockResolvedValue(soon.body);
+    render(<GridStatePanel />);
+    await screen.findByText(/Estonian grid/);
+
+    const text = (document.body.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).not.toMatch(/Elering last reached/);
+  });
+});
