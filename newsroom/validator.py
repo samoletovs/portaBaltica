@@ -99,11 +99,24 @@ class CheckResult:
     name: str
     passed: bool
     detail: str = ""
+    #: The body indices this check objected to, when it can name them.
+    #:
+    #: ``detail`` already says ``body[4]`` in prose, and a caller that wants to
+    #: act on the paragraph could parse it back out. It must not: that is a
+    #: lexical proxy for a fact the check already knows, and it breaks the first
+    #: time the message is reworded. The indices travel structurally so that a
+    #: remedy addresses the block the check actually rejected.
+    #:
+    #: Empty for every check that objects to the article as a whole, and left
+    #: out of ``to_dict`` when empty so the stored verdict is unchanged for them.
+    blocks: tuple[int, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"name": self.name, "passed": self.passed}
         if self.detail:
             payload["detail"] = self.detail
+        if self.blocks:
+            payload["blocks"] = list(self.blocks)
         return payload
 
 
@@ -1358,7 +1371,10 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
     its own piece of work rather than as a side effect of this one.
     """
     name = "no_unsupported_mechanism"
-    problems: list[str] = []
+    # (index, message) rather than two lists. The block a message names and the
+    # block the remedy must address are the same fact, and this repo's own
+    # recurring defect is a second enumeration that drifts from the first.
+    problems: list[tuple[int, str]] = []
     panellists = _panellists(context)
 
     for index, block in enumerate(context.blocks):
@@ -1408,11 +1424,14 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
         apparent_person = _apparent_person(text)
         if apparent_person is not None:
             problems.append(
-                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                f"and credits {apparent_person!r}. This wire does not put an "
-                f"explanation in a named person's mouth: it has interviewed nobody. "
-                f"Attribute it to the institution that published it, or to the "
-                f"newsroom's own AI analyst with the cause marked unconfirmed"
+                (
+                    index,
+                    f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+                    f"and credits {apparent_person!r}. This wire does not put an "
+                    f"explanation in a named person's mouth: it has interviewed nobody. "
+                    f"Attribute it to the institution that published it, or to the "
+                    f"newsroom's own AI analyst with the cause marked unconfirmed",
+                )
             )
             continue
 
@@ -1441,23 +1460,34 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
             if not missing:
                 continue
             problems.append(
-                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                f"on the newsroom's own analyst's authority, in a paragraph carrying "
-                f"no figure and {' and '.join(missing)}"
+                (
+                    index,
+                    f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+                    f"on the newsroom's own analyst's authority, in a paragraph carrying "
+                    f"no figure and {' and '.join(missing)}",
+                )
             )
             continue
         if _DENIES_A_MECHANISM.search(text) or _ATTRIBUTED_TO_A_SOURCE.search(text):
             continue
         problems.append(
-            f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-            "in a paragraph carrying no figure. Say what the data shows, "
-            "attribute the explanation to a named source, name the newsroom's "
-            "own AI analyst AND mark the cause as unconfirmed, or say plainly "
-            "that the data does not establish a cause"
+            (
+                index,
+                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
+                "in a paragraph carrying no figure. Say what the data shows, "
+                "attribute the explanation to a named source, name the newsroom's "
+                "own AI analyst AND mark the cause as unconfirmed, or say plainly "
+                "that the data does not establish a cause",
+            )
         )
 
     if problems:
-        return CheckResult(name, False, "; ".join(problems))
+        return CheckResult(
+            name,
+            False,
+            "; ".join(message for _, message in problems),
+            blocks=tuple(index for index, _ in problems),
+        )
     return CheckResult(name, True, "no unevidenced explanation")
 
 
