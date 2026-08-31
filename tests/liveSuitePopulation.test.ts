@@ -62,6 +62,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['api-contracts.live.test.ts', 'the deployed endpoints answer with the shape the client reads'],
   ['articleMeta.live.test.ts', 'what a social crawler actually receives from the deployed site'],
   [
+    'chartNames.live.test.ts',
+    'every chart on the deployed dashboard announces what it plots — recharts injects its role at runtime, so no source test can see this',
+  ],
+  [
     'correctionsRender.live.test.ts',
     'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
   ],
