@@ -38,9 +38,9 @@ import sys
 
 
 def timers(source: str) -> list[str]:
-    """Every function whose decorators include a timer trigger.
+    """Every timer's **registered** name, resolved as the SDK resolves it.
 
-    Anchored on the pair rather than on ``function_name`` alone, because
+    Anchored on the timer trigger rather than on ``function_name``, because
     ``newsroom_run_now`` and ``newsroom_weekly_now`` are HTTP routes and a
     deploy is not broken when they are absent from a timer check.
 
@@ -50,35 +50,59 @@ def timers(source: str) -> list[str]:
         @app.function_name(name="newsroom_weekly")   ->  seen
         @app.function_name(name='newsroom_weekly')   ->  NOT seen
 
-    Both are valid Python, the file parses either way, and the app behaves
-    identically -- so a single-quoted third timer was invisible to the deploy
-    check with 2227 tests passing. That is the same sentence as the Bicep
-    defect this script was written to fix (*"Bicep does not promise one line
-    per entry"*), one language over: **Python does not promise double
-    quotes.** The settings half went structural in the same commit and this
-    half did not, which is the correct sibling concealing the broken one.
+    Both are valid Python and the app behaves identically, so a single-quoted
+    third timer was invisible to the deploy check with the whole suite green.
+    That is the same sentence as the Bicep defect this script was written to
+    fix (*"Bicep does not promise one line per entry"*), one language over:
+    **Python does not promise double quotes.**
 
-    The empty-set refusal below could not have caught it, because the set was
-    not empty -- it was quietly one short.
+    **And parsing was not enough.** The first AST version required a
+    ``function_name`` keyword and returned nothing without one, which `#295`
+    measured against the real ``azure.functions`` SDK::
+
+        @app.timer_trigger(...) with no function_name  ->  registers as the def name
+        @app.function_name('x')  positionally          ->  registers as 'x'
+        @app.function_name(name='x')  by keyword       ->  registers as 'x'
+
+    It saw only the third. Two of the three ways to declare a timer were
+    invisible, so the fix for one blind spot shipped with two more — and the
+    parity guard in ``test_deploy_enumerations.py`` could not say so, because
+    every entry point in this repo happens to use the keyword form and spell
+    ``function_name`` and ``def`` identically. Latent, not live, and waiting
+    for the first person to write a bare timer.
+
+    Three times now the empty-set refusal below could not help, and the reason
+    is the same each time: **the set was never empty, it was one short.** A
+    guard against total absence says nothing about partial absence.
+
+    ``test_deployment_contract.py`` pins all three forms, and
+    ``test_deploy_enumerations.py`` executes the rule against the SDK itself,
+    so if Azure ever changes it both readers are wrong together *and* told.
     """
     found: list[str] = []
     for node in ast.walk(ast.parse(source)):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        name: str | None = None
+        registered = node.name
         is_timer = False
         for dec in node.decorator_list:
-            if not isinstance(dec, ast.Call) or not isinstance(dec.func, ast.Attribute):
+            if not isinstance(dec, ast.Call):
                 continue
-            if dec.func.attr == "function_name":
+            attr = getattr(dec.func, "attr", "")
+            if attr == "timer_trigger":
+                is_timer = True
+            elif attr == "function_name":
+                # Keyword and positional both reach the SDK. Reading only one
+                # is how the first AST version lost two thirds of the forms.
                 for kw in dec.keywords:
                     if kw.arg == "name" and isinstance(kw.value, ast.Constant):
                         if isinstance(kw.value.value, str):
-                            name = kw.value.value
-            elif dec.func.attr == "timer_trigger":
-                is_timer = True
-        if name and is_timer:
-            found.append(name)
+                            registered = kw.value.value
+                for arg in dec.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        registered = arg.value
+        if is_timer:
+            found.append(registered)
     return sorted(found)
 
 

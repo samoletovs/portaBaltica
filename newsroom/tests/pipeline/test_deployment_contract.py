@@ -131,6 +131,58 @@ class TestTheTimerList:
         )
         assert contract.timers(source) == ["async_timer"]
 
+    def test_all_three_ways_the_sdk_names_a_timer(self) -> None:
+        """`#295`, and the third blind spot in a row.
+
+        The first AST version required a `function_name` **keyword** and
+        returned nothing without one. Measured against the real
+        `azure.functions` SDK, all three of these register a timer::
+
+            @app.timer_trigger(...) with no function_name  -> the def name
+            @app.function_name('x')  positionally          -> 'x'
+            @app.function_name(name='x')  by keyword       -> 'x'
+
+        It saw only the third. So the fix for the quoting blind spot shipped
+        with two more, and the parity guard could not say so: every entry point
+        in this repo uses the keyword form and spells `function_name` and `def`
+        identically, which makes the disagreement latent rather than live.
+
+        `test_deploy_enumerations.py` executes the rule against the SDK itself.
+        This pins that `timers()` implements the same rule.
+        """
+        bare = (
+            '@app.timer_trigger(schedule="0 0 1 * * *", arg_name="t")\n'
+            "async def bare_timer(t): ...\n"
+        )
+        positional = (
+            '@app.function_name("positional_name")\n'
+            '@app.timer_trigger(schedule="0 0 2 * * *", arg_name="t")\n'
+            "async def pd(t): ...\n"
+        )
+        keyword = (
+            '@app.function_name(name="keyword_name")\n'
+            '@app.timer_trigger(schedule="0 0 3 * * *", arg_name="t")\n'
+            "async def kd(t): ...\n"
+        )
+
+        assert contract.timers(bare) == ["bare_timer"]
+        assert contract.timers(positional) == ["positional_name"]
+        assert contract.timers(keyword) == ["keyword_name"]
+
+    def test_a_route_is_still_not_a_timer(self) -> None:
+        # The companion to the case above. Resolving the name from the `def`
+        # when no `function_name` is present must not turn every decorated
+        # function into a timer -- the trigger is what decides, and dropping
+        # that condition would make the three assertions above pass while the
+        # check waited on HTTP routes that never register as timers.
+        route = (
+            '@app.function_name(name="r")\n'
+            '@app.route(route="x")\n'
+            "async def r(q): ...\n"
+        )
+        assert contract.timers(route) == []
+        assert contract.timers("def helper(): ...") == []
+
 
 def _arm(settings: list[dict]) -> dict:
     """A compiled-ARM shape: appSettings nested inside a resource's siteConfig."""
