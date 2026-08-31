@@ -2123,6 +2123,106 @@ The control is not decoration: without it, `exit 128` twice is also what a
 broken invocation looks like. **A command that returns text has to be asked
 whether it failed. A command that returns a status has already said.**
 
+### A record that carries a duration was written at the end
+
+The dispositions above assume you are consulting the right record. This one
+survives review because its remedy looks like an escalation rather than a
+repetition.
+
+The question was *did the 14:00Z newsroom run happen?* The obvious artefact is
+the run report the pipeline writes — but that is written when the run
+**finishes**, so during a run it still shows yesterday's, and three states share
+that one appearance: never fired, still running, fired and failed. Measured
+live, while a healthy run was mid-flight:
+
+```
+14:02:23Z   runs/latest.json -> finished_at 08/30      cache-busted
+14:06:18Z   runs/latest.json -> finished_at 08/30      second signal agreed
+14:08:22Z   the run finished and wrote the blob
+```
+
+**The natural remedy fails for the same reason.** Reaching past the application
+to the platform — Application Insights — and asking its `requests` table looks
+like a different instrument entirely: another system, another tool, another
+credential. It is not:
+
+```
+requests | where name == 'newsroom_edition'
+  timestamp  2026-08-31T14:00:00.008382Z     <- the START
+  duration   502514.28 ms
+  success    True
+
+  14:00:00.008 + 502514ms  ==  14:08:22.5Z  ==  the blob's own finished_at
+```
+
+A request row carries `duration` and `success`. Both are facts about how the
+thing **ended**, so the row cannot exist until it has. At 14:02Z there was no
+row, and a probe reading *no row* as *never fired* would have declared the
+pipeline dead about a run it was watching succeed.
+
+So the property to check is not which system a record comes from. It is
+**when the record was written**, and there is a one-line test for it:
+
+> **If a record carries a duration or an outcome, it was written at the end.
+> It cannot answer whether something started.**
+
+The trap is that `requests.timestamp` **is** the start instant — `14:00:00.008`,
+8 ms after the cron — so the row reads exactly like a start-time record. Nothing
+in it announces that it did not exist for another eight minutes.
+
+The record that can answer is the execution log, because it is emitted at both
+ends and says which end it is:
+
+```
+14:00:00.0106Z  Executing 'Functions.newsroom_edition' (Reason='Timer fired at ...', Id=ada01823-...)
+14:08:22.5222Z  Executed  'Functions.newsroom_edition' (Succeeded, Id=ada01823-..., Duration=502513ms)
+```
+
+Same `Id`, one at each end, so the states separate **positively** rather than by
+absence — which is what *"which way does absence resolve?"* asks for, one layer
+out:
+
+```
+Executing, no Executed         still running
+Executing + Executed(Failed)   fired and failed
+no Executing at all            never fired
+```
+
+Two things generalise past telemetry. **A margin computed from a maximum is a
+likelihood about the next sample, not a measurement**: the check above allowed
+20 minutes against a worst-ever 425.8 s, and the very next run took 502.5 s —
+still inside, but the figure the allowance rested on was stale when it was
+written. And **a control must assert a property that cannot decay.** The same
+check named an article "carrying 1 correction" as its positive control; nine
+hours later it carried 2, so an equality against the recorded reading would have
+called a working probe broken. *Non-empty* survives; `== 1` does not.
+
+### Four dispositions, told apart by their remedies
+
+The symptoms are identical in every case — a probe that answered, and answered
+wrongly. What separates them is what it costs to fix, and the spread is a
+deploy at one end and an admission at the other:
+
+| The separator | The remedy | The cost |
+|---|---|---|
+| none exists | **emit** one | a code change, a schema change, a deploy |
+| one was already in the probe's hand | **read** it | nothing |
+| one exists, but the record consulted cannot answer | **re-time** it — ask what was written when | one query |
+| each exists and is individually insufficient | **bracket** it — pair opposite polarities, report a bound | an admission |
+
+Two of these are worth keeping apart deliberately, because the fourth reads as
+a weaker version of the second and is not. Reading harder terminates the
+second; it does not terminate the fourth. *"Two instruments of opposite
+polarity beat one of either"* is where that case lives, and it is exact: a
+reflog proves a branch **is** mine and can never prove another is not, because
+it is per-worktree; a trailer cohort proves a signature is a **different**
+configuration and can never prove a matching one is mine, because 76 pull
+requests share it. Read both, fully, and the honest output is a bound.
+
+So the fourth is the only one of the four whose remedy ends in an admission
+rather than in a fact — and that, rather than any property of the artefact, is
+the reason it needs its own name.
+
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:
