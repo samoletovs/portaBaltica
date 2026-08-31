@@ -13,6 +13,7 @@ const API_ENDPOINTS = [
   { method: 'GET', path: '/api/address-search', params: '?q=TERM', description: 'Search 608K+ Latvian addresses with GPS coordinates', cache: '5 min' },
   { method: 'GET', path: '/api/eu-funds', params: '', description: 'EU Recovery & Resilience Fund: the 20 most recent projects with status, plus the full project total', cache: '1 hour' },
   { method: 'GET', path: '/api/ai-insights', params: '', description: 'Real-time AI-generated insights from live data analysis', cache: '15 min' },
+  { method: 'GET', path: '/api/data-export', params: '?indicator=ID&years=N&format=csv|json', description: 'Any dashboard series as a file, with a provenance preamble naming the source, the dataset and when it was retrieved. An empty cell means the source published nothing there, never a zero.', cache: '1 hour' },
   { method: 'GET', path: '/api/system-status', params: '', description: 'System health: 8 data source checks with latency and what each one powers, plus API inventory', cache: '1 min' },
 ];
 
