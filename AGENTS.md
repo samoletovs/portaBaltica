@@ -1996,17 +1996,47 @@ do, because it is the whole lesson:
 | | polarity | proves | cannot prove |
 |---|---|---|---|
 | the session's own reflog | **positive-only** | this branch *is* mine | that one is *not* mine — it is per-worktree |
-| the trailer cohort | **negative-only** | a different signature is a different configuration | that a matching one is mine — 78 PRs share it |
+| the trailer cohort | **negative-only** | a *name* absent from all of yours is a different configuration | that a matching signature is mine — 78 PRs share one |
+
+⚠️ **Signature *inequality* is not evidence, and I shipped the claim that it
+was.** Used in anger a few hours later, the instrument contradicted itself: my
+own three PRs carry **two** signatures, all three verified mine by reflog.
+
+```
+#311  1 trailer   Copilot
+#313  1 trailer   Copilot
+#315  3 trailers  Copilot + Copilot App      <- same session, same config
+```
+
+The signature tracks the number of source commits, because GitHub's squash
+emits a `Co-authored-by` for the commit author and the commit bodies carry one
+of their own; with a single commit they collapse and with two they do not. So
+**the squash confound survives the dedup that was presented as its fix** — one
+level quieter than the raw count, and in the same direction.
+
+What survives is a **set** test rather than an equality: a name appearing in a
+signature that appears in *none* of yours. `Dmitrijs Andrejevs` and
+`samoletovs` never appear in mine, so `#310`, `#317` and `#319` are all
+demonstrably not from my configuration — and a superset like `Copilot`
+→ `Copilot + Copilot App` is consistent with being mine, which is exactly the
+case an equality gets wrong.
 
 **Neither settles authorship; together they bracket it.** That is a shape worth
 looking for whenever an artefact is ambiguous: not a better single instrument,
 but a second one that fails in the *opposite* direction.
 
-And the proposed fix — *"use the branch name"* — is circular. Every branch here
-is `samoletovs-<topic>`, because the prefix is the repo owner;
-`samoletovs-one-period-formatter` and `samoletovs-sweep-name-collision` are
-indistinguishable in form. What discriminates is knowing which topics you chose,
+And the proposed fix — *"use the branch name"* — is **mostly** circular, with
+one exception worth stating because it is the case that caught me out. 211 of
+219 branches here are `samoletovs-<topic>`, since the prefix is the repo owner,
+so `samoletovs-one-period-formatter` and `samoletovs-sweep-name-collision` are
+indistinguishable in form: what discriminates is knowing which topics you chose,
 which **is** the routing record the artefact was supposed to replace.
+
+The other **8** carry no owner prefix at all — `equality-or-property`,
+`newsroom-depth`, `signal-already-on-the-wire` — and for those the form alone
+is discriminating, because it is not a form you use. A convention followed by
+96% of branches is not a rule you can reason from, but its *violations* are
+evidence, which is the opposite of how a convention usually helps.
 
 **Two controls, and the reading says something else without either.**
 
