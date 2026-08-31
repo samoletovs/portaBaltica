@@ -191,6 +191,23 @@ class TestTheTimerList:
         blind to the other, which is the same fault as the three before it --
         a vocabulary written from the forms this repository uses, silent about
         the forms it does not.
+
+        **And it is the only guard here that catches a broken reader.** The
+        three checks over this vocabulary divide cleanly, measured on `e2de3d9`
+        by planting `if attr in TIMER_DECORATORS` -> `if attr == "timer_trigger"`
+        with the constant left correct::
+
+            test_the_hardcoded_vocabulary_equals_what_the_sdk_builds   passed
+            this test                                                  FAILED
+            test_deploy_enumerations.py (the parity file)              passed
+
+        The equality test asserts `TIMER_DECORATORS == <the SDK's set>` and
+        **never calls `timers()`**, so it cannot fail on a reader regression
+        whatever the constant says; the parity file needs a timer in this
+        repository to *use* the alias, and none does. An equality check is
+        blind to errors that live outside the things being equated -- so if
+        this test is ever deleted as redundant, a correct constant and a
+        broken reader ship green together.
         """
         via_alias = (
             '@app.schedule(schedule="0 0 5 * * *", arg_name="t")\n'
