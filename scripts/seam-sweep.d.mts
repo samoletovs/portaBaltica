@@ -25,6 +25,16 @@ export interface SweepField {
   depth: number;
   type: string;
   srcReaders: number;
+  /**
+   * Of those, how many read it by a dot or bracket access.
+   *
+   * A dot access is a read *of a field*. A destructuring or a type member is a
+   * **binding of a name**, which is exactly as consistent with a local object
+   * that happens to share it — measured on `0dd4770`, `freshness` had zero of
+   * the first and five of the second, all of them `FreshnessNotice` props
+   * carrying a client-computed value.
+   */
+  srcStrongReaders: number;
   testReaders: number;
   srcWhere: string[];
   testWhere: string[];
@@ -32,6 +42,12 @@ export interface SweepField {
   declaredBy: number;
   verdict: Verdict;
   ambiguous: boolean;
+  /**
+   * Matched in `src/`, but never by a dot or bracket access — so every match is
+   * a binding of the name rather than a read of the field. Evidence of nothing,
+   * reported rather than resolved.
+   */
+  srcNamedOnly: boolean;
   /**
    * The nearest ancestor on this path that nothing in `src/` reads, or `null`.
    * A field under such an ancestor cannot be reached by the app however many
@@ -44,6 +60,22 @@ export interface SweepField {
 
 /** `typeof`, except that `null` is reported as `null` rather than `object`. */
 export declare function typeOf(value: unknown): string;
+
+/**
+ * How one file refers to a name: by reading a field, by binding the name, or
+ * not at all.
+ *
+ * `strong` is a dot or bracket access. `weak` is a destructuring or a type
+ * member, which cannot be told from a local of the same name. Comments are
+ * stripped first.
+ */
+export declare function classifyRead(src: string, name: string): 'strong' | 'weak' | 'none';
+
+/**
+ * Whether a field's only evidence in `src/` is a bound name — matched, but
+ * never by a dot or bracket access. Evidence of nothing.
+ */
+export declare function namedOnly(src: { n: number; strong: number }): boolean;
 
 /**
  * Strip comments so a field name in prose is not counted as a reader.
@@ -75,3 +107,11 @@ export declare function walk(
  * own computed `stale`.
  */
 export declare function applyReachability<T>(rows: T[]): T[];
+
+/** Attach reader counts and a verdict to one field row, in place. */
+export declare function annotateRow<T extends object>(
+  row: T,
+  src: { n: number; strong: number; where: string[] },
+  test: { n: number; where: string[] },
+  declaredBy: number,
+): T & Record<string, unknown>;

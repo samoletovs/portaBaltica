@@ -1617,12 +1617,45 @@ ships still returns `freshness 0`, verbatim, at `10c24b1`. **What was wrong was
 not the answer but the reach of the evidence** — the passage generalised from a
 population that excluded the instance a reader would have asked about.
 
-Two of the nested orphans are new and nobody has reasoned about them:
-`countries.<CC>.freshness.warnAfterMonths` and `.staleAfterMonths` are shipped
-by `api/shared/freshness.js` and read by nothing, not even a test. The client
-holds its own `WARN_AFTER_MONTHS` table and `tests/dashboardCadence.test.tsx`
-asserts the two agree, so the fields may well be deliberate — but that is a
-question, not a verdict, and the code does not answer it at the field.
+Two of the nested orphans were new and nobody had reasoned about them:
+`countries.<CC>.freshness.warnAfterMonths` and `.staleAfterMonths`, shipped by
+`api/shared/freshness.js` and read by nothing, not even a test. **`#270`
+deleted them**, along with `property-data.permitsTrend` and
+`system-status.selfSustaining.subscribers` — and that is a fourth disposition
+worth naming beside render, annotate and delete-as-tidying. `permitsTrend: 0`
+and `subscribers: {free: 0, pro: 0, enterprise: 0}` were **hardcoded**, so a
+comment saying "this is not measured" would have left a number on the wire that
+reads like one. Some orphans are not a decision, a defect or a test-only
+contract: they are a field that should not exist, and a comment is a way of
+keeping it.
+
+Re-measured after those removals, on master `0dd4770`, 2026-08-31: **339 fields,
+1 orphan** — `environment-data.airQuality.bandCount`, which is still served and
+still read by nothing.
+
+**And the same reading exposed a defect in this instrument, at the level the
+reachability fix cannot reach.** `#256` added `FreshnessNotice`, a component
+whose prop is named `freshness` and which carries the value `freshnessOf()`
+computes on the client:
+
+```
+.freshness         dot-reads in src/    0     <- what the grep above finds
+{ freshness, | :   weaker matches       5     <- props and type members
+```
+
+So the sweep reported the payload's `freshness` as read by five files while
+nothing in `src/` reads it, promoting **26 of the 28** fields in a `freshness`
+subtree to `app`. Reachability demotes children of an unread parent; here the
+*parent itself* was falsely marked read, so it did nothing. **The sweep
+contradicted this file's own grep, and the sweep was wrong** — found only
+because the two disagreed.
+
+The fix is not a better pattern, because there is not one: `const { series } =
+await fetchPortData()` is a genuine payload read in the weak form. A dot access
+reads a *field*; a destructuring binds a *name*, and a name is exactly as
+consistent with a local that happens to share it. The sweep now reports both
+counts and flags the one combination that is evidence of nothing — matched in
+`src/`, never by an access. **33 fields across 18 names** carry that flag today.
 
 `scripts/seam-sweep.mjs` runs it; `tests/seamSweep.test.ts` guards the
 instrument, each assertion pinning a defect it actually had.

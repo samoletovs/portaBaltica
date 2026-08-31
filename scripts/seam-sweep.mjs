@@ -122,24 +122,88 @@ export function stripComments(src) {
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
 }
 
-function readerCount(files, name) {
-  // Anchored forms only. A destructuring or shorthand property is
-  // `{ name`, `, name`, `name }` or `name:` — matched within a few characters
-  // rather than across an unbounded span.
+/**
+ * Count readers, keeping the *form* of each match rather than collapsing them.
+ *
+ * The four forms are not equally good evidence, and one measurement made that
+ * unavoidable. `#256` added `FreshnessNotice`, a component whose prop is named
+ * `freshness` and which carries the value `freshnessOf()` computes **on the
+ * client**. Measured on master `0dd4770`:
+ *
+ *     .freshness           dot-reads in src/   0     <- what AGENTS.md greps
+ *     { freshness, | :     weaker matches      5     <- props and type members
+ *
+ * So the sweep reported the payload's `freshness` as read by five files while
+ * nothing in `src/` reads it at all, and 26 of the 28 fields in a `freshness`
+ * subtree were promoted to `app` on the strength of a prop name. The sweep
+ * contradicted the book's own grep, and the sweep was wrong.
+ *
+ * A dot or bracket access is a read *of something*. A destructuring or a type
+ * member is a **binding of a name**, which is exactly as consistent with a
+ * local object that happens to share it. Neither can be ruled out by pattern —
+ * `const { series } = await fetchPortData()` is a genuine payload read in the
+ * weaker form — so this does not pick a winner. It reports both, and flags the
+ * one combination that is evidence of nothing: no strong read anywhere, and a
+ * weak match only.
+ */
+export function classifyRead(src, name) {
+  const body = stripComments(src);
   const dot = new RegExp('\\.' + name + '\\b');
   const bracket = new RegExp('\\[\\s*[\'"]' + name + '[\'"]\\s*\\]');
   const destructure = new RegExp('[{,]\\s*' + name + '\\s*[,}:]');
   const keyed = new RegExp('[\'"]' + name + '[\'"]\\s*:');
+  if (dot.test(body) || bracket.test(body)) return 'strong';
+  if (destructure.test(body) || keyed.test(body)) return 'weak';
+  return 'none';
+}
+
+/**
+ * Whether a field's only evidence in `src/` is a bound name.
+ *
+ * Matched somewhere, never by an access — so every match is as consistent with
+ * a local object of the same name as with a read of the payload. Reported, not
+ * resolved: no pattern can tell `const { series } = await fetchPortData()`
+ * from a component prop that happens to share a word.
+ */
+export function namedOnly(src) {
+  return src.n > 0 && src.strong === 0;
+}
+
+/**
+ * Attach the reader counts and verdict to one field, in place.
+ *
+ * Extracted from `main` so it can be tested. It was inline, and the mutation
+ * control found the consequence: replacing `srcNamedOnly` with a constant
+ * `false` left the suite green, because `namedOnly` was guarded while its one
+ * call site was not. A helper with a test and an unreachable caller is a guard
+ * on the wrong side of the seam.
+ */
+export function annotateRow(r, src, test, declaredBy) {
+  r.srcReaders = src.n;
+  r.srcStrongReaders = src.strong;
+  r.testReaders = test.n;
+  r.srcWhere = src.where.slice(0, 3);
+  r.testWhere = test.where.slice(0, 3);
+  r.declaredBy = declaredBy;
+  r.verdict = src.n > 0 ? 'app' : test.n > 0 ? 'test-only' : 'orphan';
+  r.ambiguous = src.n + test.n > 0 && declaredBy > 1;
+  r.srcNamedOnly = namedOnly(src);
+  return r;
+}
+
+function readerCount(files, name) {
   let n = 0;
+  let strong = 0;
   const where = [];
   for (const f of files) {
-    const src = stripComments(fs.readFileSync(f, 'utf8'));
-    if (dot.test(src) || bracket.test(src) || destructure.test(src) || keyed.test(src)) {
+    const kind = classifyRead(fs.readFileSync(f, 'utf8'), name);
+    if (kind !== 'none') {
       n++;
+      if (kind === 'strong') strong++;
       where.push(path.relative(REPO, f).replace(/\\/g, '/'));
     }
   }
-  return { n, where };
+  return { n, strong, where };
 }
 
 /**
@@ -224,13 +288,7 @@ async function main() {
       });
     }
     const c = cache.get(r.name);
-    r.srcReaders = c.src.n;
-    r.testReaders = c.test.n;
-    r.srcWhere = c.src.where.slice(0, 3);
-    r.testWhere = c.test.where.slice(0, 3);
-    r.declaredBy = byName.get(r.name).size;
-    r.verdict = c.src.n > 0 ? 'app' : c.test.n > 0 ? 'test-only' : 'orphan';
-    r.ambiguous = c.src.n + c.test.n > 0 && byName.get(r.name).size > 1;
+    annotateRow(r, c.src, c.test, byName.get(r.name).size);
   }
 
   applyReachability(rows);
