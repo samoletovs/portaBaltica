@@ -82,7 +82,15 @@ const REQUEST_HOURS = 36;
 const TTL_MS = 5 * 60 * 1000;
 const GRACE_MS = 30 * 60 * 1000;
 
-const CACHE_SECONDS = 5 * 60;
+// Derived, not restated. `withCache` below takes the same two windows, and both
+// were written out again there as `300000` and `1800000` — the same facts in
+// two enumerations, agreeing only because someone typed matching digits.
+//
+// That drift was already unobservable. Setting `GRACE_MS` to zero and running
+// the outage tests changed nothing a reader would see, because the literal in
+// the `withCache` options still granted the full thirty minutes: the constant
+// named for the grace window did not control the grace window.
+const CACHE_SECONDS = TTL_MS / 1000;
 
 function num(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -332,7 +340,7 @@ const handler = async function (context, req) {
 module.exports = withSecurity(withCache(handler, {
   name: 'live-grid',
   keyOn: [],
-  ttlMs: 300000,
-  graceMs: 1800000,
+  ttlMs: TTL_MS,
+  graceMs: GRACE_MS,
   staleWhileRevalidate: true,
 }));
