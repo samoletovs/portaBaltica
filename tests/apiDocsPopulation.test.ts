@@ -72,12 +72,6 @@ const NOT_A_DOCUMENTED_ENDPOINT = new Map<string, string>([
   ['news-sitemap', 'served at /sitemap.xml; for crawlers, not readers'],
   ['article-page', 'SSR helper behind the /article/<slug> rewrite'],
   ['page-shell', 'SSR helper that serves the app shell with a page-specific head'],
-
-  // Undecided. Both return 200 in production and are the same kind of thing as
-  // the twelve that ARE documented, so their absence is a choice rather than a
-  // category. Document them or delete these two lines; either resolves it.
-  ['live-grid', 'public and undocumented: listing it is a load judgement nobody has made yet'],
-  ['sea-state', 'public and undocumented: listing it is a load judgement nobody has made yet'],
 ]);
 
 /** Every `api/<name>/index.js` — the endpoints that actually exist. */
