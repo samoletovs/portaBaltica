@@ -145,10 +145,24 @@ class TestTheRevisionPromise:
 
         source = inspect.getsource(annotate)
 
+        # The damage is worse than "it disappears", and the three gates do not
+        # agree, so state what each actually does rather than summarising them
+        # as one. Measured on master 2026-08-31:
+        #
+        #   publish.is_servable        status == "published"          REFUSES
+        #   news-types.ts isServable   status === 'published'         REFUSES
+        #   news-api.ts SHOWABLE_...   ['published', 'corrected']     ADMITS
+        #
+        # So a "corrected" article stays linked from the front page and is then
+        # refused by the renderer with "It has not passed the checks we run
+        # before publishing" -- a false accusation against a piece whose only
+        # sin was being corrected. Silence would be kinder than that, and both
+        # are worse than showing it.
         assert '"status"' not in source.split('"""')[-1], (
-            "annotate() touches status; both is_servable and the frontend require "
-            '"published", so setting "corrected" would delete the article from the '
-            "site at the moment it was corrected"
+            "annotate() touches status; is_servable and the frontend renderer "
+            'both require "published", while the frontend feed admits '
+            '"corrected" -- so setting it would leave the article linked on the '
+            "front page and tell readers it failed our checks, which is false"
         )
 
 
