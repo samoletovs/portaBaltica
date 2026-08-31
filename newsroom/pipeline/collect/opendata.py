@@ -22,6 +22,7 @@ from newsroom.pipeline.detect.series import (
     SUBJECT_GEOGRAPHIES,
     Observation,
     TimeSeries,
+    origin_of,
 )
 from newsroom.pipeline.models import SourceRef, isoformat, utcnow
 from newsroom.pipeline.safety import registry
@@ -100,10 +101,16 @@ def request_params(
     # geo=LV to a per-country maritime cube that has no geo dimension is an
     # HTTP 400, not an empty series.
     requested = spec.geographies if spec.geographies is not None else geographies
+    # NO `lastTimePeriod`. The window is applied locally, after the origin has
+    # been recorded, because a bounded fetch cannot tell you where the series
+    # starts and the pipeline was publishing the window's first period as the
+    # series' own. Measured across all 82 definitions on 2026-08-30: every one
+    # answers without the bound, at 1.00x the time and 4.58x the bytes on a
+    # base of 85KB, so the bound was buying nothing that the local slice does
+    # not buy — and it was costing the truth.
     return [
         ("format", "JSON"),
         ("lang", "EN"),
-        ("lastTimePeriod", str(spec.periods)),
         *spec.params.items(),
         *[(spec.geo_dimension, geo) for geo in requested],
     ]
@@ -1236,6 +1243,17 @@ def parse_jsonstat(
             log.info("%s/%s: no observations returned", spec.dataset, geo)
             continue
         observations.sort(key=lambda o: o.period)
+        # The origin is taken from the WHOLE series, before the window is
+        # applied, because that is the only moment the whole series is in hand.
+        # Nulls were dropped above, so `observations[0]` is the first reading
+        # and not the first coordinate the cube offers -- ten of sixteen cubes
+        # measured carry leading coordinates with no data, `sts_inpp_m` by
+        # twenty-two years.
+        origin = origin_of(observations)
+        # And the detectors see exactly what they saw before: the last N
+        # readings, N being the definition's own `periods`. Detection is not
+        # part of this change.
+        windowed = observations[-spec.periods:] if spec.periods > 0 else observations
         series_out.append(
             TimeSeries(
                 metric=spec.metric,
@@ -1243,9 +1261,10 @@ def parse_jsonstat(
                 geography=geo,
                 unit=spec.unit,
                 section=spec.section,
-                observations=tuple(observations),
+                observations=tuple(windowed),
                 frequency=spec.frequency,
                 chart_ref=spec.chart_ref,
+                origin=origin,
                 source=SourceRef(
                     source_id="eurostat",
                     retrieved_at=retrieved_at,

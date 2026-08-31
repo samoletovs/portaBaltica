@@ -5,11 +5,11 @@ Nothing here touches Azure. The language model is always a stub.
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import pytest
 
-from newsroom.pipeline.detect.series import Observation, TimeSeries
+from newsroom.pipeline.detect.series import Observation, TimeSeries, origin_of
 from newsroom.pipeline.models import Signal, SourceRef
 
 RETRIEVED_AT = "2026-08-24T11:00:00Z"
@@ -48,6 +48,12 @@ def quarterly_periods(count: int, *, start_year: int = 2011, start_quarter: int 
     return periods
 
 
+#: Sentinel for `series_from(origin=...)`: absent means "derive it from the
+#: values", which is different from an explicit `None` meaning "this collector
+#: has no full history". A plain `None` default could not tell them apart.
+_DERIVE = object()
+
+
 def series_from(
     values: Sequence[float],
     *,
@@ -60,11 +66,23 @@ def series_from(
     periods: Sequence[str] | None = None,
     source_id: str = "eurostat",
     chart_ref: str | None = None,
+    origin: Any = _DERIVE,
 ) -> TimeSeries:
-    """Build a TimeSeries from bare values, with generated monthly periods."""
+    """Build a TimeSeries from bare values, with generated monthly periods.
+
+    ``origin`` defaults to being derived from the values given, because a
+    fixture's observations ARE all the data the fixture has — there is no
+    unseen history behind them. Leaving it ``None`` by default would have every
+    test exercise the degraded path, where ``_placement`` says nothing about
+    the series, and no test would cover the path production actually takes.
+
+    Pass ``origin=None`` explicitly for the collector that genuinely has no
+    full history: Elering is a rolling 120 days.
+    """
     labels = list(periods) if periods is not None else monthly_periods(len(values))
     if len(labels) != len(values):
         raise ValueError("periods and values must be the same length")
+    observations = tuple(Observation(p, float(v)) for p, v in zip(labels, values))
     return TimeSeries(
         metric=metric,
         metric_label=metric_label,
@@ -72,9 +90,10 @@ def series_from(
         unit=unit,
         section=section,
         frequency=frequency,
-        observations=tuple(Observation(p, float(v)) for p, v in zip(labels, values)),
+        observations=observations,
         source=source_ref(source_id),
         chart_ref=chart_ref,
+        origin=origin_of(observations) if origin is _DERIVE else origin,
     )
 
 

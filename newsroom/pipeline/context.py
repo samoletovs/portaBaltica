@@ -549,39 +549,68 @@ def _companions(
 
 
 def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], list[str]]:
-    """Where the latest reading sits in the series' own history."""
+    """Where the latest reading sits in the series' own history.
+
+    EVERY CLAIM HERE IS ABOUT THE SERIES, SO IT NEEDS THE SERIES
+    ------------------------------------------------------------
+    This function used to compute all of it from ``series.observations``, which
+    is a **window**. It then labelled the window's length "how many readings
+    this series contains in total", labelled the window's first reading "where
+    this series begins", and emitted "This is the highest reading anywhere in
+    the series" for a reading that led only the last sixty.
+
+    Eight published articles carried a claim the full series contradicts, and
+    two more were true by luck — the same sentence, correct because the cube's
+    real extreme happened to fall inside our window. That is why no prose guard
+    could catch it: the true and false cases are word-for-word identical.
+
+    So the facts come from ``series.origin``, recorded at collection time from
+    the whole series. When it is absent the answer is **silence** — Elering is
+    a rolling 120 days with no cheap full history, and a window-scoped fact
+    wearing a series-scoped label is exactly what this function was doing
+    wrong.
+    """
     facts: list[ContextFact] = []
     notes: list[str] = []
     observations = series.observations
     if len(observations) < 3:
         return facts, notes
 
+    origin = series.origin
+    if origin is None:
+        # Nothing here can be said truthfully about the series, and everything
+        # here is about the series. Absence resolves to saying nothing rather
+        # than to saying it about the window under the series' name.
+        return facts, notes
+
     latest = observations[-1]
-    history = observations[:-1]
-    values = [o.value for o in history]
 
     facts.append(
         ContextFact(
             field="readings_in_series",
-            value=float(len(observations)),
+            value=float(origin.total_observations),
             unit=None,
             label=f"how many {series.frequency} readings this series contains in total",
             kind="placement",
             source_id=series.source.source_id,
-            period=f"{observations[0].period}..{latest.period}",
+            period=f"{origin.first_period}..{latest.period}",
             metric=series.metric,
             geography=series.geography,
             dataset=series.source.dataset,
         )
     )
 
-    above = sum(1 for value in values if value > latest.value)
-    below = sum(1 for value in values if value < latest.value)
+    above, below = origin.higher, origin.lower
     # Every observation must be free of digits. The writer is told it may state
     # these as fact without declaring a figure, and that is only safe if there
     # is no numeral in them to declare. Series length is available as
     # `readings_in_series` and the start period sits in `series_start_value`'s
     # own label, so nothing is lost by keeping the sentence itself in words.
+    #
+    # Being digit-free is also what exempts them from `no_invented_numbers` and
+    # `figures_traceable`, which is why these sentences could publish a false
+    # record with every numeric gate green. They are only safe now because the
+    # counts above come from the whole series.
     if above == 0:
         notes.append("This is the highest reading anywhere in the series.")
     elif below == 0:
@@ -598,37 +627,52 @@ def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], l
         )
 
     # The previous record, which is what "a record" is measured against and the
-    # single most common thing a reader wants next.
+    # single most common thing a reader wants next. Taken from the whole series
+    # too: a "previous record" drawn from the window is the same lie one step
+    # removed, and it is the figure a reader is most likely to check.
     if above == 0:
-        prior = max(history, key=lambda o: o.value)
         facts.append(
-            _fact_from(
-                series,
-                prior,
+            ContextFact(
                 field="previous_record",
-                label=f"the previous highest reading, set in {prior.period}",
+                value=origin.prior_high_value,
+                unit=series.unit,
+                label=f"the previous highest reading, set in {origin.prior_high_period}",
                 kind="placement",
+                source_id=series.source.source_id,
+                period=origin.prior_high_period,
+                metric=series.metric,
+                geography=series.geography,
+                dataset=series.source.dataset,
             )
         )
     elif below == 0:
-        prior = min(history, key=lambda o: o.value)
         facts.append(
-            _fact_from(
-                series,
-                prior,
+            ContextFact(
                 field="previous_record",
-                label=f"the previous lowest reading, set in {prior.period}",
+                value=origin.prior_low_value,
+                unit=series.unit,
+                label=f"the previous lowest reading, set in {origin.prior_low_period}",
                 kind="placement",
+                source_id=series.source.source_id,
+                period=origin.prior_low_period,
+                metric=series.metric,
+                geography=series.geography,
+                dataset=series.source.dataset,
             )
         )
 
     facts.append(
-        _fact_from(
-            series,
-            observations[0],
+        ContextFact(
             field="series_start_value",
-            label=f"where this series begins, in {observations[0].period}",
+            value=origin.first_value,
+            unit=series.unit,
+            label=f"where this series begins, in {origin.first_period}",
             kind="placement",
+            source_id=series.source.source_id,
+            period=origin.first_period,
+            metric=series.metric,
+            geography=series.geography,
+            dataset=series.source.dataset,
         )
     )
     return facts, notes
