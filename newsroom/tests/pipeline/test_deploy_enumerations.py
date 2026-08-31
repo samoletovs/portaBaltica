@@ -110,6 +110,7 @@ that keep returning success after they have stopped checking.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import re
 from pathlib import Path
 
@@ -306,4 +307,67 @@ def test_the_workflow_derives_both_lists_instead_of_restating_them() -> None:
     )
     assert "deployment-contract.py settings" in text, (
         "the settings check no longer derives its list from the compiled ARM"
+    )
+
+
+def test_the_timer_derivation_agrees_with_the_structure_it_reads() -> None:
+    """The timer derivation is a regex over Python source. This pins it.
+
+    `c78d592` fixed both duplications by deriving instead of restating, and the
+    settings half went **structural**: it reads `appSettings` out of the compiled
+    ARM, where the names are JSON strings and no source-text pattern can be
+    defeated by whitespace. Its own docstring gives the reason —
+    *"Bicep does not promise one line per entry"*.
+
+    The timer half stayed lexical, matching `name="..."` with double quotes.
+    **Python does not promise double quotes**, which is the same sentence in a
+    different language.
+
+    Measured on master, single-quoting one existing name — valid Python, the file
+    still parses, behaviour byte-identical:
+
+        ast sees        newsroom_edition, newsroom_weekly
+        the derivation  newsroom_edition                    exit 0
+
+    The empty-set refusal cannot help, because the set is not empty. And the
+    compound case is the one that matters: adding a *genuinely new* third timer
+    with a single-quoted name left **2227 tests passing** while the workflow's
+    derivation could not see it — an unregistered timer invisible again, the
+    precise failure this whole chain exists to prevent.
+
+    `test_deployment_contract.py` asserts `timers(source) == ["newsroom_edition",
+    "newsroom_weekly"]`, so it catches a list that *shrinks* and not one that
+    fails to *grow*. That hardcoded pair is also the shape `c78d592` removed from
+    the workflow, reappearing in the test that guards its replacement.
+
+    So this compares the derivation against `ast` — the structure the regex is
+    approximating. It is the parity assertion that was deleted, aimed at the pair
+    that still has two enumerations rather than the pair that no longer does.
+
+    The durable fix is for `timers()` to parse rather than match; it is the last
+    lexical reader of a structured source in this chain. `scripts/` is not this
+    session's to edit, so this asserts the agreement instead, and says so.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "deployment_contract", REPO / "scripts" / "deployment-contract.py"
+    )
+    assert spec and spec.loader, "scripts/deployment-contract.py is not importable"
+    contract = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(contract)
+
+    derived = sorted(contract.timers(FUNCTION_APP.read_text(encoding="utf-8")))
+    structural = sorted(_declared_timers())
+
+    # Both sides controlled, so an equality of two empty lists cannot pass.
+    assert structural, "ast found no timers; the structural probe is broken"
+    assert derived, "the derivation found no timers"
+
+    assert derived == structural, (
+        f"scripts/deployment-contract.py derives {derived} and the decorators in "
+        f"function_app.py declare {structural}. The derivation matches source "
+        f"text and Python does not promise the spelling it looks for — a "
+        f"single-quoted `name=` is enough. A timer the derivation cannot see is "
+        f"a timer the deploy does not wait for, so it can fail to register with "
+        f"every signal green. Fix the extractor rather than this test: parse "
+        f"with `ast`, as the settings half already reads compiled ARM."
     )
