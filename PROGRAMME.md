@@ -424,6 +424,36 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   structure to inspect, so the usual instinct has nothing to work with and the
   absence looks settled after three tries. This one nearly closed the newsroom's
   highest-value open question by declaring its evidence non-existent.
+- **A non-zero exit explained away, then "confirmed" with a narrower command.**
+  This is worse than believing a bad reading, because the correct signal was in
+  hand and was discarded. Measured on my own `#301`:
+
+  ```
+  npm test            empty filtered output, EXIT CODE 2
+  my reading          "just Select-String buffering"
+  my substitute       npx vitest run          <- SKIPS the typecheck
+  reported            127 files / 2279 passed, lint 0, build 0
+  actually            tests/registryDuplicateKeys.test.ts: error TS7016
+  ```
+
+  `npm test` is `npm run typecheck && vitest run`; `npx vitest run` is the
+  second half alone. `npm run build` stays green because it is `tsc -b` over
+  the **app** project, while the tests are `tsconfig.test.json`. So all three
+  green figures in that report were true and none of them covered the gap, and
+  master was broken by a change whose author had run the command that would
+  have caught it.
+
+  Two rules. **When a command exits non-zero, read its output before
+  explaining it** — an empty *filtered* view is not an empty result, and
+  `2>&1 | Select-String` hides exactly the lines that matter. And **never
+  substitute a narrower command for one that just failed**: the substitution
+  agrees with whatever story you told yourself, which is what makes it feel
+  like confirmation.
+
+  The near-miss twin: `chartRef.test.ts` already imported that same registry
+  with `createRequire`, for this exact reason. The correct sibling was one
+  `git grep` away — *"when you audit the consumers, audit the input they
+  share"*, and I wrote a second consumer without reading the first.
 - **`az monitor app-insights query` fails with a bare `BadArgumentError`**
   whenever the KQL contains a **double-quoted** string literal. Single-quote
   them. Use `--offset P21D` rather than `ago()`.
