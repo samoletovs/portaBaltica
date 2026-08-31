@@ -1928,6 +1928,72 @@ alternative you had not conceived of rather than confirming one you had.
 So the two are complements and the newer does not supersede the older. Use the
 question to audit a mechanism you understand; use the artefact to find out that
 you did not understand it.
+
+### Sometimes the artefacts differed and the probe threw one away
+
+The remedy above — emit a new field — is right when the collapse is real, and it
+is expensive: a code change, a schema change, a deploy. Two failures on
+2026-08-31, by two people about five hours apart, needed **none** of it, because
+the two states were never one artefact. Git distinguished them perfectly. Both
+probes discarded the distinction.
+
+Measured on `e2de3d9`:
+
+```
+INSTANCE 1   git checkout master --quiet 2>&1 | Out-Null
+             exit 128 · fatal: 'master' is already used by worktree at '...'
+             probe read neither; concluded from the branch label afterwards
+
+INSTANCE 2   git show origin/master:src/polarity.ts 2>&1      (real path: src/utils/)
+             exit 128 · stderr MERGED INTO STDOUT
+             a probe reading length gets 63 -- a plausible non-zero reading
+```
+
+In both, **the exit code was correct, available and unread.** The first is the
+one worth internalising: `$LASTEXITCODE` *survives* `| Out-Null`, because the
+pipe discards the output stream and not the status. The signal was not even
+suppressed — it was sitting in a variable nobody read. The second is worse than
+silence: `2>&1` moves the error onto the channel the probe is reading, and an
+error message has a length, matches a regex, and is truthy.
+
+So the discriminating question is one word from the section's own, and the outer
+question cannot separate these because it answers the same way for both:
+
+> not *what second state produces this same artefact* —
+> **did the artefact ever differ before my probe got to it?**
+
+| | the fix | the cost |
+|---|---|---|
+| genuinely collapsed | emit a new field — `rejected_checks`, `gate_unavailable`, `revision_unavailable` | code, schema, deploy |
+| **discarded signal** | read `$LASTEXITCODE` | nothing; no code changes anywhere |
+
+**Misclassifying the second as the first builds machinery nobody needs**, and
+that is the easy direction to fail in. Note which way the table above runs: all
+**ten** of its rows are *data* — an article, a gate's verdict, a page, a count,
+a tally. Data carries no second channel unless someone adds one, which is why
+those rows all cost a field. A command is not like that: in this environment a
+native command **always** carries a status beside its output. So the burden for
+a failing command is to show the signal was *absent*, not merely unread.
+
+The shape, and it is greppable: **a verdict computed from text where a status
+was available.** `2>&1` followed by a length, a match or a truthiness test; a
+native command piped to `Out-Null`; any probe that concludes from output while
+`$LASTEXITCODE` sits beside it.
+
+And where you can, ask the question so that a failure *stays* a failure.
+`git show` answers "give me this blob" and reports a missing path as a message;
+`git cat-file -e` answers "does this exist" and reports it as a status:
+
+```
+git show      origin/master:src/polarity.ts        exit 128, 63 chars of "content"
+git cat-file -e origin/master:src/polarity.ts      exit 128, no output
+git cat-file -e origin/master:src/utils/polarity.ts exit 0        <- CONTROL, it can say yes
+```
+
+The control is not decoration: without it, `exit 128` twice is also what a
+broken invocation looks like. **A command that returns text has to be asked
+whether it failed. A command that returns a status has already said.**
+
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:
