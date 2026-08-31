@@ -986,3 +986,258 @@ class TestAMagnitudeAttachedToTheWrongSpan:
 
         with pytest.raises(ValueError, match="named_span"):
             span_correction_note(**{**ELECTRICITY, "named_span": ""})
+
+
+#: `estonia-s-core-inflation-drops-to-1-4-in-july-eb6a02`, published by the
+#: 14:00Z run on 2026-08-31 -- the FIRST edition generated with #280 on master.
+#: Measured 2026-08-31T14:35Z against `prc_hicp_minr?coicop18=TOT_X_NRG_FOOD&
+#: unit=RCH_A&geo=EE`, every dimension pinned:
+#:
+#:     296 obs 2001-12..2026-07     the count the article states -- TRUE
+#:     2026-07 = 1.4
+#:     readings lower: 71           -> the 72nd lowest, not the lowest
+#:     true minimum: -1.7 at 2020-10
+#:
+#: The article's own paragraph 3 says "Estonia has the lowest rate among the
+#: three Baltic states", which is TRUE. Paragraph 2 is that superlative joined
+#: to the series count. Both inputs correct; the sentence false.
+CORE_INFLATION = dict(
+    claim=(
+        "Estonia's 1.4% core inflation in July 2026 was \"the lowest in the 296 "
+        "observations since the series began\""
+    ),
+    observations=296,
+    series_start="December 2001",
+    beaten=71,
+    true_extreme="-1.7%",
+    true_period="October 2020",
+    true_standing=(
+        "Estonia does have the lowest core inflation of the three Baltic "
+        "states in July 2026, against Latvia's 3.6% and Lithuania's 3.8%"
+    ),
+    still_stands=(
+        "The 1.4% reading is correct, as are the peer figures and the "
+        "comparison with the four-year average of 7.88%"
+    ),
+    claims_low=True,
+)
+
+#: `foreign-visitors-spent-411-thousand-nights-in-lithuania-in-june-095fc5`,
+#: same edition. Measured 2026-08-31T14:40Z against `tour_occ_nim?c_resid=FOR&
+#: nace_r2=I551-I553&unit=NR&geo=LT`, every dimension pinned:
+#:
+#:     270 obs 2004-01..2026-06     the count the article states -- TRUE
+#:     2026-06 = 411,149
+#:     readings higher: 12          -> the 13th highest
+#:     true maximum: 567,785 in 2019-08
+#:     among the 23 Junes: SECOND highest, behind 2019-06 = 445,880
+#:
+#: This is why the field is `true_standing` and not `holds_over`. The Estonian
+#: article's local claim is itself a true superlative; this one's is a rise on
+#: the same month a year earlier, and there is NO comparison over which its
+#: superlative holds -- not even among Junes.
+VISITORS = dict(
+    claim=(
+        "Lithuania's 411 thousand nights spent by foreign visitors in June 2026 "
+        "was \"the highest recorded in the 270 observations since the series "
+        "began in January 2004\""
+    ),
+    observations=270,
+    series_start="January 2004",
+    beaten=12,
+    true_extreme="568 thousand nights",
+    true_period="August 2019",
+    true_standing=(
+        "June 2026 is the second-highest June in the series, behind June 2019's "
+        "446 thousand nights, and is up on June 2025's 359 thousand"
+    ),
+    still_stands=(
+        "The 411 thousand figure is correct, as are the four-year average of "
+        "309 thousand and the peer comparison with Estonia and Latvia"
+    ),
+    claims_low=False,
+)
+
+
+class TestASuperlativeInflatedFromATrueLocalClaim:
+    """`CORE_INFLATION` and `VISITORS` -- the shape none of the other four can
+    state, and the first defect #280 made POSSIBLE rather than prevented: the
+    count the false sentence rests on is now the whole series rather than a
+    window, so the falsehood is attached to a more authoritative number.
+    """
+
+    def test_it_denies_the_superlative_over_the_series(self):
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**CORE_INFLATION)["description"]
+
+        assert "It was not the lowest of those 296 readings" in text
+        assert "71 are lower" in text
+        assert "-1.7% in October 2020" in text
+
+    def test_it_states_what_the_reading_actually_is(self):
+        """MUTATION THIS CATCHES: dropping `true_standing`, which leaves a
+        reader who can see a related correct comparison in the next paragraph
+        unable to tell which of our sentences to believe."""
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**CORE_INFLATION)["description"]
+
+        assert "What is true is that" in text
+        assert "lowest core inflation of the three Baltic states" in text
+
+    def test_the_local_claim_need_not_be_a_superlative(self):
+        """`VISITORS` is why the field is `true_standing` and not `holds_over`.
+
+        The Estonian article's local claim IS a superlative -- lowest of the
+        three Baltic states, and true. The Lithuanian one has no peer
+        superlative at all: measured across the 23 Junes in its cube the
+        reading is the SECOND highest, so there is no comparison over which its
+        superlative holds. A shape framed as "where the superlative is true"
+        could not describe it.
+        """
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**VISITORS)["description"]
+
+        assert "It was not the highest of those 270 readings" in text
+        assert "12 are higher" in text
+        assert "second-highest June" in text
+        assert "up on June 2025" in text
+
+    def test_it_names_what_actually_went_wrong(self):
+        """Not "we made it up" -- the two inputs were true and joining them
+        was the error. A reader owed that distinction."""
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**CORE_INFLATION)["description"]
+
+        assert "attaching an unbounded superlative to them" in text
+
+    def test_it_confirms_the_count_and_the_origin(self):
+        """Both are TRUE and both are #280 working. Denying them would correct
+        the one thing the fix got right."""
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**CORE_INFLATION)["description"]
+
+        assert "296 observations since December 2001 really are the whole series" in text
+        assert "the count is right and so is the origin" in text
+
+    def test_it_never_claims_a_window_series_gap(self):
+        """THE REASON THIS SHAPE EXISTS.
+
+        `record_correction_note`'s beaten branch says "the series also does not
+        begin in X ... but in Y". After #280 window_start == series_start, so
+        for this article it renders "does not begin in 2001-12 ... but in
+        2001-12" -- a correction contradicting itself.
+
+        MUTATION THIS CATCHES: routing this case through that builder.
+        """
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        text = comparison_correction_note(**CORE_INFLATION)["description"]
+
+        assert "does not begin in" not in text
+        assert "data window starts" not in text
+        assert "the newsroom had retrieved" not in text
+
+    def test_direction_follows_the_claim(self):
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        low = comparison_correction_note(**CORE_INFLATION)["description"]
+        high = comparison_correction_note(
+            **{**CORE_INFLATION, "claims_low": False}
+        )["description"]
+
+        assert "not the lowest" in low and "71 are lower" in low
+        assert "not the highest" in high and "71 are higher" in high
+        assert "lower" not in high
+
+    def test_it_refuses_when_nothing_beats_the_reading(self):
+        """A superlative nothing beats is TRUE over the series, and there is
+        nothing to correct. Building a notice anyway would tell a reader an
+        error occurred when the fact is right -- the failure that stopped five
+        true articles being corrected in the first sweep.
+        """
+        import pytest
+
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        with pytest.raises(ValueError, match="nothing to correct"):
+            comparison_correction_note(**{**CORE_INFLATION, "beaten": 0})
+
+    def test_it_refuses_a_count_that_exceeds_the_population(self):
+        import pytest
+
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        with pytest.raises(ValueError, match="cannot beat"):
+            comparison_correction_note(**{**CORE_INFLATION, "beaten": 296})
+
+    def test_it_refuses_to_build_without_placing_the_claim(self):
+        import pytest
+
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        with pytest.raises(ValueError, match="true_standing"):
+            comparison_correction_note(**{**CORE_INFLATION, "true_standing": "  "})
+
+    def test_it_refuses_to_build_without_saying_what_stands(self):
+        import pytest
+
+        from newsroom.pipeline.revisions import comparison_correction_note
+
+        with pytest.raises(ValueError, match="still_stands"):
+            comparison_correction_note(**{**CORE_INFLATION, "still_stands": ""})
+
+
+class TestTheFiveShapesStayDistinct:
+    """Each shape is defined by a sentence the others will not say, and every
+    such sentence is true of at least one of the others. A fifth shape has to
+    keep that property or it is a duplicate wearing a new name.
+    """
+
+    @staticmethod
+    def _all():
+        from newsroom.pipeline.revisions import (
+            comparison_correction_note,
+            origin_correction_note,
+            record_correction_note,
+            span_correction_note,
+        )
+
+        return {
+            "record scope": record_correction_note(**FOOD)["description"],
+            "record beaten": record_correction_note(**RAIL)["description"],
+            "record rank": record_correction_note(**CONSTRUCTION)["description"],
+            "origin": origin_correction_note(**CARS)["description"],
+            "span": span_correction_note(**ELECTRICITY)["description"],
+            "comparison": comparison_correction_note(**CORE_INFLATION)["description"],
+        }
+
+    def test_the_new_shape_says_something_no_other_does(self):
+        shapes = self._all()
+        phrase = "attaching an unbounded superlative to them"
+
+        said_by = {n for n, t in shapes.items() if phrase in t}
+        assert said_by == {"comparison"}, said_by
+        # CONTROL: a phrase no shape says, so "exactly one" is a reading.
+        assert not {
+            n for n, t in shapes.items() if "no shape says this" in t
+        }
+
+    def test_it_refuses_the_window_sentence_the_beaten_branch_owns(self):
+        shapes = self._all()
+
+        said_by = {n for n, t in shapes.items() if "the newsroom had retrieved" in t}
+        assert "comparison" not in said_by
+        # CONTROL: some shape does say it, or the assertion is vacuous.
+        assert said_by, "no shape says it -- the phrase is wrong, not the code"
+
+    def test_every_shape_is_distinguishable_from_every_other(self):
+        """MUTATION THIS CATCHES: a fifth shape that is a copy of a fourth."""
+        shapes = self._all()
+        texts = list(shapes.values())
+
+        assert len(set(texts)) == len(texts), "two shapes render identically"
