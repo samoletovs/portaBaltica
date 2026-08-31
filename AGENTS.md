@@ -2123,6 +2123,80 @@ The control is not decoration: without it, `exit 128` twice is also what a
 broken invocation looks like. **A command that returns text has to be asked
 whether it failed. A command that returns a status has already said.**
 
+### A record that carries a duration was written at the end
+
+The two dispositions above assume you are consulting the right record. There is
+a third, found the same day, and it is the one that survives review because the
+remedy looks like an escalation rather than a repetition.
+
+The question was *did the 14:00Z newsroom run happen?* The obvious artefact is
+the run report the pipeline writes — but that is written when the run
+**finishes**, so during a run it still shows yesterday's, and three states share
+that one appearance: never fired, still running, fired and failed. Measured
+live, while a healthy run was mid-flight:
+
+```
+14:02:23Z   runs/latest.json -> finished_at 08/30      cache-busted
+14:06:18Z   runs/latest.json -> finished_at 08/30      second signal agreed
+14:08:22Z   the run finished and wrote the blob
+```
+
+**The natural remedy fails for the same reason.** Reaching past the application
+to the platform — Application Insights — and asking its `requests` table looks
+like a different instrument entirely: another system, another tool, another
+credential. It is not:
+
+```
+requests | where name == 'newsroom_edition'
+  timestamp  2026-08-31T14:00:00.008382Z     <- the START
+  duration   502514.28 ms
+  success    True
+
+  14:00:00.008 + 502514ms  ==  14:08:22.5Z  ==  the blob's own finished_at
+```
+
+A request row carries `duration` and `success`. Both are facts about how the
+thing **ended**, so the row cannot exist until it has. At 14:02Z there was no
+row, and a probe reading *no row* as *never fired* would have declared the
+pipeline dead about a run it was watching succeed.
+
+So the property to check is not which system a record comes from. It is
+**when the record was written**, and there is a one-line test for it:
+
+> **If a record carries a duration or an outcome, it was written at the end.
+> It cannot answer whether something started.**
+
+The trap is that `requests.timestamp` **is** the start instant — `14:00:00.008`,
+8 ms after the cron — so the row reads exactly like a start-time record. Nothing
+in it announces that it did not exist for another eight minutes.
+
+The record that can answer is the execution log, because it is emitted at both
+ends and says which end it is:
+
+```
+14:00:00.0106Z  Executing 'Functions.newsroom_edition' (Reason='Timer fired at ...', Id=ada01823-...)
+14:08:22.5222Z  Executed  'Functions.newsroom_edition' (Succeeded, Id=ada01823-..., Duration=502513ms)
+```
+
+Same `Id`, one at each end, so the states separate **positively** rather than by
+absence — which is what *"which way does absence resolve?"* asks for, one layer
+out:
+
+```
+Executing, no Executed         still running
+Executing + Executed(Failed)   fired and failed
+no Executing at all            never fired
+```
+
+Two things generalise past telemetry. **A margin computed from a maximum is a
+likelihood about the next sample, not a measurement**: the check above allowed
+20 minutes against a worst-ever 425.8 s, and the very next run took 502.5 s —
+still inside, but the figure the allowance rested on was stale when it was
+written. And **a control must assert a property that cannot decay.** The same
+check named an article "carrying 1 correction" as its positive control; nine
+hours later it carried 2, so an equality against the recorded reading would have
+called a working probe broken. *Non-empty* survives; `== 1` does not.
+
 ## Which way does absence resolve?
 
 Every "guard that cannot fail" found in this repo reduces to one sentence:
