@@ -1122,6 +1122,81 @@ the rule already obeyed 17/18 with zero untraceable digits, so the cut would
 have fired once and destroyed correct work. **That is the #172 trap exactly:
 an instrument aimed at a fault that was not there.**
 
+## A fixture is guidance that executes
+
+The section above is about an example in prose. This is the same fault one
+level more binding, because **a fixture does not document what good looks
+like, it defines it** — and every test importing it silently agrees.
+
+An example in prose misleads a reader, who may read critically. An example in
+a fixture misleads a test suite, **and a suite does not read critically at
+all**.
+
+Two instances, two languages, two subsystems, two authors, one day.
+
+**`GOOD_PAYLOAD`, `newsroom/tests/pipeline/test_generation.py`.** It stands
+for a draft that passes everything first time. Both its headline and its body
+made unbounded record claims — the exact fault `#257` was written to catch:
+
+```
+    "Latvian unemployment reaches the highest level in the monthly series"
+    "...above the previous record of 6.5% and the highest in the series."
+```
+
+Fixed in `#257` (`0844f90`). **Six tests failed the moment the standard was
+corrected**, in `test_generation.py` and `test_rejection_causes.py`, and that
+number is the measure of how far the wrong standard had spread. None of the
+six is about record claims; they broke because the pipeline correctly began
+spending a revision attempt on prose the fixture asserted was clean.
+
+**`tests/panelFreshness.test.tsx`.** Its *positive control* asserted the
+rendered output contains `"favourable"`, and passed for the wrong reason.
+Fixed in `#261` (`ea5ddef`):
+
+```diff
+-  <RankedComparison indicator="x" title="Test ranking" unit="%" higherIsBetter />
++  <RankedComparison indicator="gdp_per_capita" title="Test ranking" unit="%" />
+```
+
+`indicator="x"` is not in the registry, so nothing knew its polarity — and
+`higherIsBetter` **manufactured the very claim the assertion checked**. A
+positive control that could not have failed, which is the one thing a positive
+control exists not to be.
+
+**The operational form**, and it is one assertion:
+
+> A fixture named `GOOD_`/`VALID_`/`CLEAN_`, or serving as a positive control,
+> **is a standard. Run it through the checks it claims to satisfy.**
+
+Instance 1 fails `apply_house_style`. Instance 2 fails *"is this id in the
+registry"*. Neither needed a new instrument — only pointing an existing one at
+the fixture instead of at the code.
+
+**The sweep for further instances was run**, because an unmeasured claim of
+cleanliness in an entry about fixtures that lie would be a poor joke. Every
+Python fixture whose name or docstring claims a standard — `GOOD_PAYLOAD` and
+the three `conftest` articles the validator suite calls "the control
+condition" — through `check_prose` and `record_claim_problems`:
+
+```
+  tier A / tier B / tier C / GOOD_PAYLOAD     0 violations
+  POSITIVE CONTROL, pre-#257 GOOD_PAYLOAD     2 violations
+  NEGATIVE CONTROL, its corrected text        0 violations
+```
+
+The control is the load-bearing row. A clean sweep from an instrument that
+cannot fail is exactly the defect this entry is about, so the same scan was
+pointed at the known-bad text and had to find it.
+
+Two things it does **not** cover, stated rather than implied: the TSX suites,
+where "the checks it claims to satisfy" differ per fixture and there is no
+single scan; and fixtures that are *deliberately* malformed. The sibling at
+`test_generation.py:154` looks identical — `"the highest in the series"`,
+unbounded — and is correct, because it is the payload for
+`test_should_reject_when_a_dropped_figure_leaves_an_unverifiable_number`. **A
+negative fixture claims nothing and owes nothing.** Only a fixture asserting
+it is fit is a standard.
+
 ## The correct sibling that conceals the broken one
 
 A departure from a pattern **already present in the file** is harder to spot
