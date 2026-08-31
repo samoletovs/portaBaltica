@@ -1163,6 +1163,15 @@ Fixed in `#261` (`ea5ddef`):
 positive control that could not have failed, which is the one thing a positive
 control exists not to be.
 
+Its author's own account, arriving from a different session in a different
+language with no knowledge of the `GOOD_PAYLOAD` case, is the mechanism in five
+words:
+
+> **It was proving its own fixture, not the component.**
+
+Two authors reaching the same description of the same shape independently is
+better evidence than one person noticing the resemblance.
+
 **The operational form**, and it is one assertion:
 
 > A fixture named `GOOD_`/`VALID_`/`CLEAN_`, or serving as a positive control,
@@ -1173,10 +1182,19 @@ registry"*. Neither needed a new instrument — only pointing an existing one at
 the fixture instead of at the code.
 
 **The sweep for further instances was run**, because an unmeasured claim of
-cleanliness in an entry about fixtures that lie would be a poor joke. Every
-Python fixture whose name or docstring claims a standard — `GOOD_PAYLOAD` and
-the three `conftest` articles the validator suite calls "the control
-condition" — through `check_prose` and `record_claim_problems`:
+cleanliness in an entry about fixtures that lie would be a poor joke. The
+population was enumerated twice — once by fixture NAME (`GOOD_`/`VALID_`/
+`CLEAN_`/`CORRECT_`…) and once by surrounding PROSE claiming fitness ("clean",
+"control condition", "passes every") — because a fixture can assert a standard
+either way and a single axis would have missed the `conftest` three, whose
+names claim nothing. Both axes together give four: `GOOD_PAYLOAD` and the three
+`conftest` articles the validator suite calls "the control condition".
+
+The name axis also returned a fifth, `CORRECTION`, which is an
+``EditorialCorrection`` object and claims nothing — the alternative `CORRECT`
+matched inside the word. **Read what an enumeration returns before sweeping
+it**; a population is a measurement too. Through `check_prose` and
+`record_claim_problems`:
 
 ```
   tier A / tier B / tier C / GOOD_PAYLOAD     0 violations
