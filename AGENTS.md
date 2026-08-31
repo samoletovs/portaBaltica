@@ -1654,6 +1654,66 @@ enumeration rule this file already states, applied to a name rather than to a
 guard, and it has the same tell: the mismatch is invisible from the reading,
 because the reading is correct about the population it used.
 
+## A shape is defined by what it refuses to say
+
+The newsroom's correction machinery has four note shapes, and reading them
+back, **each is distinguished less by what it says than by one sentence it
+will not say.** Executed against the builders on 2026-08-31, rather than read
+off the source:
+
+| Shape | Refuses | Because |
+|---|---|---|
+| record, scope error | *"It was not the highest"* | it **was**, over the window we held |
+| record, beaten in-window | *"only in the … we had retrieved"* | it did not lead the window either |
+| record, rank claim | *"describing it as a record"* | it claimed a **placing**, not a record |
+| origin only | *"only in the … we had retrieved"* | the record is **genuine** over all history |
+| span misattribution | *"the figures are unchanged"* | the sign **inverts** |
+
+**Every one of those refused sentences is true of at least one of the other
+shapes.** *"The figures are unchanged and correct"* is the reassurance the
+first four owe a reader and the fifth must not offer. *"The record itself
+stands"* is the whole point of the origin shape and would be a lie in the
+first three.
+
+So they are not four templates with different wording. They are **four
+different things that survive**, and the closing sentence is where that
+difference lives.
+
+### Why this matters more than tidiness
+
+Forcing one shape through another is not a formatting compromise. **It
+publishes another shape's truth as this one's** — inside a correction notice,
+on the one page a reader visits already doubting us. It was nearly done three
+times in one week, and each time the note had been *approved* on its wording
+before anyone measured what it asserted:
+
+```
+rail   the approved note said the figure "was the highest only in the 39
+       observations retrieved" -- 15 of those 39 were higher
+
+cars   the same builder would have said the record was only ours -- 629 is
+       the genuine maximum of all 36 readings
+
+elec   the origin shape would have said "the figures are unchanged" -- the
+       article reports a 41.75% fall over a span in which the price rose 48.8%
+```
+
+All three were caught by building the note and **measuring what it claimed**,
+not by reviewing its prose. A sentence that is true of the general case reads
+perfectly well in the specific one where it is false.
+
+### The tell, and it is cheap
+
+When a correction, an error message, or any other explanatory artefact does
+not quite fit its template, **the mismatch is almost always in the closing
+sentence — the part that says what still holds.** The body describes the
+specific fault and is usually adaptable; the reassurance is a general claim,
+and a general claim is exactly what a specific exception breaks.
+
+So: read the sentence that says *what survives*, and ask whether it survives
+**here**. If it does not, the shape is wrong and no amount of editing the rest
+will fix it.
+
 ## Two states that produce the same artefact
 
 Everything below this line is one idea. A session that spent a run inside the
