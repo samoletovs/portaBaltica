@@ -4511,6 +4511,43 @@ content is on master rather than trusting the merge — `git show
 origin/master:path | Select-String <the thing>` takes seconds and answers the
 question the pull request's own status cannot.
 
+**⚠️ Read `.merged` before you act on that mismatch, because this check fires a
+false alarm on an already-merged pull request — and the remedy above is
+destructive there.** The two states produce the identical artefact:
+
+```
+lagging record   merged: false   the head advances eventually
+merged record    merged: true    the head NEVER advances
+```
+
+Measured on this repo, three merged PRs, using the field's real home — it is in
+the REST payload and **`gh pr view --json merged` does not exist**, which is its
+own small trap:
+
+```
+gh api repos/<owner>/<repo>/pulls/<n> --jq '.merged'
+
+#348  merged=true  mergeable=null  head fe09570  ls-remote eb176d5  agree=False
+#349  merged=true  mergeable=null  head 6e610d8  ls-remote 6e610d8  agree=True
+#353  merged=true  mergeable=null  head b474df7  ls-remote b474df7  agree=True
+```
+
+`#348` is the case: the branch was pushed to *after* the merge, so the SHAs
+disagree for ever and the disagreement means nothing. A session spent about
+fifteen minutes on exactly this, across fifteen polls, with three independent
+sources (`ls-remote`, the git-ref API, the commits API) agreeing against the PR
+record — which is precisely the `#146`/`#311` signature. Every other field they
+checked (`head.sha`, `commits`, `mergeable`, `updated_at`) is consistent with
+both states, and **`mergeable: null` actively reinforces the wrong reading**
+because it looks like "still computing".
+
+Then the documented remedy made it worse: the empty commit landed on an
+already-merged branch, and it was caught only because `gh pr close` failed with
+*"already merged"*.
+
+So the order matters and this section had it wrong: **`.merged` first, the SHA
+comparison second.** The comparison is only meaningful while `merged` is false.
+
 **And the inverse is a trap of its own: a branch head missing from master is
 not evidence that a pull request is unmerged.** With squash merging it is
 *guaranteed* missing — the merge creates a new commit and the branch head never
