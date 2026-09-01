@@ -193,6 +193,18 @@ module.exports = withSecurity(withCache(handler, {
   ttlMs: 3600000,
   graceMs: 21600000,
   staleWhileRevalidate: true,
+  // No `staleWhileRevalidateMs`, deliberately, and the two feeds have one.
+  //
+  // The horizon exists because a body built before a correction may still go
+  // out, and on /rss.xml that means a human reads a headline we have publicly
+  // withdrawn. Here the reader is a crawler and the staleness costs a `lastmod`
+  // that is a few hours behind — which is smaller than the interval at which a
+  // crawler returns anyway, against a six-hour grace protecting a page that
+  // rebuilds the whole indicator registry on every miss.
+  //
+  // `tests/staleHorizons.test.ts` asserts the set of endpoints declaring a
+  // horizon as an EQUALITY, so adding this file to it is a decision someone has
+  // to make on purpose rather than a line that drifts in.
 }));
 
 /**

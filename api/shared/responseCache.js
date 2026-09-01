@@ -100,6 +100,11 @@ function NotCacheable(res) { this.res = res; }
  * @param {number}   options.ttlMs          how long a response is reused
  * @param {number}   options.graceMs        how long it may stand once upstream fails
  * @param {boolean}  [options.staleWhileRevalidate] serve past the TTL and refresh behind
+ * @param {number}   [options.staleWhileRevalidateMs] how far past the TTL that may
+ *   go, defaulting to `graceMs`. Separate because those are different questions:
+ *   `graceMs` is protection against an upstream outage and wants to be long,
+ *   while this is how long a body known to be out of date may still be served
+ *   and wants to be short wherever staleness is itself the harm. See `cache.js`.
  */
 function withCache(handler, options) {
   const opts = options || {};
@@ -127,7 +132,13 @@ function withCache(handler, options) {
         const res = scratch.res;
         if (!res || res.status !== 200) throw new NotCacheable(res);
         return res;
-      }, { staleWhileRevalidate: !!opts.staleWhileRevalidate });
+      }, {
+        staleWhileRevalidate: !!opts.staleWhileRevalidate,
+        // Passed through rather than defaulted here, so `cache.memo` holds the
+        // single definition of what an absent horizon means. A default computed
+        // in both places is two enumerations of one rule, and they drift.
+        staleWhileRevalidateMs: opts.staleWhileRevalidateMs,
+      });
     } catch (err) {
       // The handler answered, just not with something worth keeping. Pass its
       // own response through untouched — its status and body are the answer.

@@ -2920,6 +2920,37 @@ four ordinary series that were also absent were on the **same chart**, which is
 the only reason the zero was disbelieved. This costs one extra assertion and it is the only thing standing
 between a tooling failure and a confident wrong bug report.
 
+**And a control certifies the artefact it ran on, not the one beside it.** That
+is the same clause stated as a limit rather than as an instruction, and it is
+the form that catches the case where controls are present, correct, and cover
+the wrong document. Measured on 2026-09-01, in my own reported measurement of
+the feeds:
+
+```
+CONTROL rss <title> tags   44      <- on the RSS document
+CONTROL rss "zzzNEVER"      0      <- on the RSS document
+rss  'correct'              0
+json 'correct'              0      <- NO control ran on this document at all
+```
+
+Both controls ran on one of the two documents, and both readings were reported
+with equal confidence. The JSON line was produced by a blind probe:
+PowerShell's `Invoke-WebRequest` returns `.Content` as a **`Byte[]`** for
+`application/feed+json`, because that is not a recognised text type, so a regex
+over it matches nothing. Re-run unchanged against the same endpoint after the
+marks shipped, that expression still answers `0` where the truth is `19` — and
+`application/rss+xml` came back as a `String`, which is why the RSS half worked
+and its green covered a document it never touched.
+
+So this is the population rule applied to controls themselves: **write down
+which artefact each control ran on, and require that set to equal the set of
+artefacts you are about to make claims about.** Two documents fetched in one
+command look like one measurement and are two.
+
+The reading was right anyway — production genuinely had no marks at that
+instant — which is the property that makes it survive: a correct conclusion
+from a broken instrument collides with nothing, ever.
+
 The manager did this twice in one evening, both times against merged and
 working code: probing an endpoint for a field named `electricity` when it was
 `electricityPrices`, and testing a JavaScript bundle for a hex colour after a
