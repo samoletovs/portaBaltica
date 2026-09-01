@@ -651,6 +651,172 @@ def comparison_correction_note(
     }
 
 
+def unit_correction_note(
+    *,
+    claim: str,
+    start_value: float,
+    start_period: str,
+    latest_value: float,
+    latest_period: str,
+    change: float,
+    still_stands: str,
+    corrected_at: str | None = None,
+) -> dict[str, str]:
+    """The notice for a right number under the wrong unit.
+
+    A SIXTH SHAPE, AND THE FIRST WHERE NEITHER THE NUMBER NOR THE
+    CHARACTERISATION IS WRONG
+    -------------------------------------------------------------------
+    Three articles published a distance across a rate series labelled as a
+    percentage. `latvia-s-house-prices-rise-10-9-year-on-year` says
+
+        "The cumulative change of 5.5% year on year indicates a strong upward
+         trend in the housing market"
+
+    5.4% and 10.9% are two readings of "% year on year", and the distance
+    between them is 5.5 **percentage points**. Written as "5.5%" it asserts a
+    change of 5.5 where the change from 5.4 to 10.9 is 101.9% — understated
+    18.5-fold. ``#344`` fixed :func:`newsroom.pipeline.units.unit_for_field` so
+    the writer is no longer told the wrong label; this is the pass over what
+    had already printed.
+
+    WHAT THIS SHAPE REFUSES TO SAY, WHICH IS WHAT MAKES IT A SHAPE
+    --------------------------------------------------------------
+    Two sentences are available to every other builder here and false in this
+    one, and forcing this through either would publish another shape's truth
+    as this one's.
+
+    **"The figures are unchanged and correct."** :func:`record_correction_note`
+    and :func:`origin_correction_note` both end on it, and it is the
+    reassurance a correction on a sound article owes. Here it is a trade on an
+    ambiguity: 5.5 is the correct distance and "5.5%" is not a correct figure.
+    A notice read by someone already doubting us must not rest on which of
+    those two the reader has in mind.
+
+    **"the opposite direction to the ... reported".**
+    :func:`span_correction_note` hardcodes it, because there the sign inverts.
+    Here it does not: all three readings rose, and telling a reader the
+    direction was wrong would be a fresh falsehood inside the correction —
+    exactly the fault that builder exists to avoid, arriving from the other
+    side. :func:`comparison_correction_note` and the record shapes need a
+    superlative or a placing, and no superlative is involved at all.
+
+    So what survives here is its own sentence: **both readings stand, the
+    distance between them stands, the direction stands, and the size does
+    not.** No other shape can say that, because in every other shape the size
+    was never in question.
+
+    THE RELATIVE CHANGE AND THE FACTOR ARE DERIVED, NOT DECLARED
+    ------------------------------------------------------------
+    ``AGENTS.md`` records a correction notice whose own stated interval was
+    typed from memory and was two years out — inside a notice about a figure
+    on the wrong span. Both figures this note turns on are therefore computed
+    here, from ``start_value`` and ``latest_value``, in the run that writes the
+    sentence. The factor is exactly ``100 / start_value``; a caller cannot
+    supply it and so cannot get it wrong.
+
+    ``change`` is a required argument even though it is ``latest_value -
+    start_value``, for the reason ``beaten_in_window`` is required on
+    :func:`record_correction_note`: it is the number that was *published*, and
+    making the caller state it lets this refuse the case where the published
+    distance and the two readings disagree. A notice cannot rest on figures
+    that contradict each other.
+
+    A NON-POSITIVE BASE IS REFUSED RATHER THAN RENDERED
+    ---------------------------------------------------
+    "N times as large" has no meaning against a base of zero, and against a
+    negative one it silently inverts: a series running -1.38 to 4.8 gives a
+    relative change of -448%, which is arithmetic rather than a fact about the
+    world. None of the three subjects has such a base. A future one would need
+    a differently-worded notice, so this refuses instead of publishing a number
+    it cannot mean.
+
+    THE SERIES UNIT IS NOT A PARAMETER, AND THAT WAS MEASURED
+    ----------------------------------------------------------
+    An earlier draft took ``unit: str`` and refused a non-rate series through
+    :func:`newsroom.pipeline.units.is_rate_unit` — the same function ``#344``
+    fixed, asked rather than respelled. It is not here, because the guard it
+    bought is smaller than the one it broke.
+
+    ``AGENTS.md``'s parameter table records that every string parameter these
+    builders show a reader has at some point carried a figure, and that the two
+    rules by which one might count those parameters give the same number over
+    different sets. Measured across the registry, **0 of the 14 rate-like units
+    in** ``collect/opendata.py`` **contains a digit** — 0 of all 38 do — so a
+    ``unit`` argument can never honestly carry one. Printed, it falsifies the
+    first claim; unprinted, it is a second never-shown string and dissolves the
+    second. Interpolating it only into the exception would break the first
+    anyway, since that classifier counts any f-string; concatenating it to
+    slip past the classifier would be worse than either.
+
+    So the check lives where the risk actually is. Every notice filed here goes
+    through ``corrections.PENDING``, and
+    ``newsroom/tests/pipeline/test_unit_correction.py`` asserts each one's
+    series unit is rate-like by calling ``is_rate_unit`` on the unit the
+    published article declares. That tests the three real subjects rather than
+    a hypothetical caller, and it still cannot drift from ``#344``.
+    """
+    if change == 0:
+        raise ValueError("a distance of zero has no unit worth correcting")
+    if abs((latest_value - start_value) - change) > 1e-9:
+        raise ValueError(
+            f"{latest_value} - {start_value} is {latest_value - start_value}, not "
+            f"the published {change}; the notice would rest on three figures two "
+            "of which disagree, and a correction cannot"
+        )
+    if start_value <= 0:
+        raise ValueError(
+            f"a relative change against a base of {start_value} is meaningless — "
+            "zero cannot be divided into and a negative base inverts the sign; "
+            "this article needs a notice that does not state a factor"
+        )
+    if not still_stands.strip():
+        raise ValueError(
+            "this shape exists because the reading, the distance and the "
+            "direction all stand; say what stands, or a notice that corrects a "
+            "unit reads as a retraction of the story"
+        )
+
+    relative = 100.0 * (latest_value - start_value) / start_value
+    factor = relative / change
+    rose = change > 0
+
+    return {
+        "corrected_at": corrected_at or isoformat(utcnow()),
+        "description": (
+            f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
+            f"That figure is the distance between two readings of the same "
+            f"rate: {_number(start_value)}% in {start_period.strip()} and "
+            f"{_number(latest_value)}% in {latest_period.strip()}. The distance "
+            f"between two percentages is measured in percentage points, not in "
+            f"percent, and it is {_number(abs(change))} percentage points. "
+            f"Written with a percent sign it reads as a change of "
+            f"{_number(abs(change))}%, when the change from "
+            f"{_number(start_value)}% to {_number(latest_value)}% is "
+            f"{_number(relative)}% — {_number(abs(factor))} times as large. "
+            f"Both readings are correct, the distance between them is correct, "
+            f"and the figure {'rose' if rose else 'fell'} as reported: "
+            f"{still_stands.strip().rstrip('.')}. What was wrong is the unit, "
+            "and on a rate series the unit is what carries the size. The figure "
+            "table this article was written from labelled the distance with the "
+            "series' own unit; it now reads percentage points, so no later "
+            "article is told the same thing."
+        ),
+    }
+
+
+def _number(value: float) -> str:
+    """A figure for a reader: at most one decimal, and no trailing zero.
+
+    Percentages read at one decimal — the same limit ``formatFigures`` applies
+    in the browser, so the notice and the prose beside it do not disagree about
+    how precisely this newsroom claims to measure. ``101.85185185185185``
+    becomes ``101.9`` and ``4.048582995951417`` becomes ``4``.
+    """
+    text = f"{value:.1f}".rstrip("0").rstrip(".")
+    return text if text not in {"", "-", "-0"} else "0"
+
+
 _WORDS = {
     1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six",
     7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten", 11: "Eleven", 12: "Twelve",
@@ -777,4 +943,5 @@ __all__ = [
     "origin_correction_note",
     "record_correction_note",
     "span_correction_note",
+    "unit_correction_note",
 ]

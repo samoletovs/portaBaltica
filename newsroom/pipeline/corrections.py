@@ -80,6 +80,7 @@ from typing import Any, Mapping, Sequence
 
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.revisions import unit_correction_note
 
 log = logging.getLogger(__name__)
 
@@ -381,10 +382,112 @@ CORRECTION_INTERVAL = EditorialCorrection(
 )
 
 
+#: THE PERCENTAGE-POINT PASS. Three articles stated a distance across a rate
+#: series as a percentage. `#344` fixed `units.unit_for_field` so the writer is
+#: no longer told the wrong label; these are the three that had already printed.
+#:
+#: THE POPULATION IS THE PROSE, NOT THE METADATA, AND THE TWO DISAGREE
+#: -------------------------------------------------------------------
+#: Swept against the served blobs on 2026-09-01 (`index.json` generated
+#: 2026-08-31T14:08:21Z): 93 index entries, 39 with declared figures, 257
+#: figures. Nine of those figures, across eight articles, carry a
+#: `signal_field` in `units.ABSOLUTE_DIFFERENCE_FIELDS` under a rate unit — the
+#: stale label. But `unit` and `rendered_as` are internal: nothing in `src/`
+#: reads `block.figures`, so `ArticleView` renders `block.text` and no reader
+#: ever sees them. Read the sentences instead and the nine split cleanly:
+#:
+#:     deviation  (seasonal)  5 rendered "N percentage points"   CORRECT
+#:     deviation  (seasonal)  1 not rendered in its paragraph    n/a
+#:     cumulative_change (streak)  3 rendered "N%"               WRONG
+#:
+#: which independently reproduces the count `units.py` already records — "the
+#: seasonal section carries a percentage-points example and got 5 of 5 right,
+#: the streak section does not and got 0 of 3". Six of the nine need no notice,
+#: because a reader was never told anything false; correcting them would file a
+#: correction against correct journalism.
+#:
+#: Every figure below is read out of the article's own declared figures and the
+#: identity `latest - start == cumulative_change` is asserted before the notice
+#: is built, by `unit_correction_note` itself. The relative change and the
+#: understatement factor are computed there, in the run that writes the
+#: sentence, and cannot be supplied by a caller.
+UNIT_HOUSE_PRICES = EditorialCorrection(
+    slug="latvia-s-house-prices-rise-10-9-year-on-year-b069b5",
+    description=unit_correction_note(
+        claim=(
+            'that Latvia\'s house prices showed a "cumulative change of 5.5% '
+            'year on year"'
+        ),
+        start_value=5.4,
+        start_period="2025-Q1",
+        latest_value=10.9,
+        latest_period="2026-Q1",
+        change=5.5,
+        still_stands=(
+            "Latvian house price growth did accelerate across those four "
+            "quarters, and by more than the article's own wording conveyed"
+        ),
+    )["description"],
+    previous_value="The cumulative change of 5.5% year on year",
+)
+
+
+UNIT_GOODS_INFLATION = EditorialCorrection(
+    slug="lithuania-s-goods-inflation-reaches-4-8-after-six-consecutive-6e1271",
+    description=unit_correction_note(
+        claim=(
+            'that Lithuania\'s goods inflation showed "a cumulative change of '
+            '3.2% across the six-month streak"'
+        ),
+        start_value=1.6,
+        start_period="January 2026",
+        latest_value=4.8,
+        latest_period="July 2026",
+        change=3.2,
+        still_stands=(
+            "Lithuanian goods inflation did rise in each of those six months, "
+            "and the streak the article reports is real"
+        ),
+    )["description"],
+    previous_value="a cumulative change of 3.2% across the six-month streak",
+)
+
+
+#: This article already carries a notice — `#342`'s, on the origin of the
+#: series and on where the run of seven begins. The two must not disagree, and
+#: were read against each other rather than assumed to be independent: that
+#: notice establishes 2018 as the start of the run and says "the record itself
+#: stands: 38.5% in 2025 is the highest of all 22 readings". Both halves of
+#: `still_stands` below are that notice's own findings, restated rather than
+#: re-derived, so a reader meeting the two together is not told two things.
+UNIT_RENEWABLES = EditorialCorrection(
+    slug="lithuania-s-renewable-energy-share-hits-record-38-5-in-bb595c",
+    description=unit_correction_note(
+        claim=(
+            'that Lithuania\'s renewable share showed "a cumulative change of '
+            '13.8%"'
+        ),
+        start_value=24.7,
+        start_period="2018",
+        latest_value=38.5,
+        latest_period="2025",
+        change=13.8,
+        still_stands=(
+            "the share did rise in each of the seven years from 2018, and "
+            "38.5% remains the highest of the 22 readings in the series"
+        ),
+    )["description"],
+    previous_value="with a cumulative change of 13.8%",
+)
+
+
 PENDING: tuple[EditorialCorrection, ...] = (
     INVENTED_ANALYST,
     WEEKLY_WRAP_BASIS,
     CORRECTION_INTERVAL,
+    UNIT_HOUSE_PRICES,
+    UNIT_GOODS_INFLATION,
+    UNIT_RENEWABLES,
 )
 
 
@@ -392,6 +495,9 @@ __all__ = [
     "CORRECTION_INTERVAL",
     "INVENTED_ANALYST",
     "PENDING",
+    "UNIT_GOODS_INFLATION",
+    "UNIT_HOUSE_PRICES",
+    "UNIT_RENEWABLES",
     "WEEKLY_WRAP_BASIS",
     "EditorialCorrection",
     "already_recorded",
