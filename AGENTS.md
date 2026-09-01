@@ -2495,6 +2495,56 @@ The same rule one layer out: `git diff --stat` is empty for an untracked file,
 after `git checkout --`, and when an edit lands on an already-dirty line.
 **Verify a plant and its restore by content, never by the diff.**
 
+### A plant proves the mutation you chose is caught, not the line
+
+The rules above are about a plant that fails to *apply*. This is the one where it
+applies perfectly, fires perfectly, and still certifies nothing — because a line
+admits more than one mutation and a plant only ever tests the one you picked.
+
+The instance is exact. A guard asserted that a workflow's alert banner carried a
+rehearsal marker. Its author planted a fault, watched it fire, and concluded the
+behaviour was covered:
+
+```
+their plant   remove the banner TEXT          -> fired. Text asserted, text mutated.
+the real gap  keep the text, kill the BRANCH  -> passed. Nothing checked it was REACHED.
+```
+
+Both are mutations of the same line. **The first cannot distinguish the second**,
+so watching it fire was evidence about the assertion's spelling and not about the
+behaviour. The gap was found by someone else planting `if false; then`, which
+leaves every asserted string in place.
+
+Their own diagnosis is better than a rule about care, because it names why this
+is the default rather than an oversight:
+
+> a text assertion is what is **available** when you are looking at a file, and
+> it takes a mutation to find out it was never enough
+
+And it is the same shape as the `provenance.revision` guard recorded elsewhere in
+this file — a substring assertion that a shadowing assignment satisfied while
+changing the behaviour, with all 2,749 tests green. **Text preserved, behaviour
+changed**, from the guard side there and from the plant side here.
+
+So: **plant at least two mutations of the same line, and make one of them
+structural.** For anything conditional the pair is nearly always the same — break
+the *value* the check reads, and separately break the *branch* that produces it.
+If both fire you have learned something; if only the textual one fires you have
+learned that your assertion is spelled correctly.
+
+Two instrument notes from the same work, both of which read as findings about the
+subject rather than about the tool:
+
+- **`on:` is not the string `"on"` after `yaml.safe_load`.** YAML 1.1 reads it as
+  the boolean `True`. Executed: `safe_load("name: x\non:\n  workflow_dispatch:\njobs: {}")`
+  gives top-level keys `['name', True, 'jobs']`, and `'on' in d` is **False**. A
+  test indexing `["on"]` raises `KeyError` against a perfectly correct workflow,
+  which reads as *"the input is not declared"*.
+- **`bash` on this machine is the WSL stub**, which writes UTF-16LE prose to
+  **stdout** and exits 1. "The binary exists" is therefore not the test; the
+  control has to be behavioural — make it echo something and check what comes
+  back.
+
 ### A green that is a fact about the environment, not about the code
 
 A check that *cannot* fail is inert, and its greens say nothing. The worse case
