@@ -558,9 +558,22 @@ def test_the_recovery_message_uses_the_same_channel_as_the_alert() -> None:
 # Every rehearse option was a fault, so every one alerted, so every one opened a
 # `*-rehearsal` issue and nothing could ever close one. The issue accumulated
 # for ever while carrying the body text "closes itself when a later run reads
-# clean". Worse since #362 added the recovery notification: that step had never
-# delivered, and a notification path that has never delivered is not a
-# notification path.
+# clean". Worse since #362 added the recovery notification -- though not for the
+# reason first written here, which said that step "had never delivered" and was
+# false by 98 minutes when it was committed. It had delivered at 16:11:38Z
+# against real production issue #350; what had never happened was a REHEARSAL of
+# it, which is the argument that survives. See wire-alert.yml.
+#
+# THE UNMEASURED CLAIM IS WORTH MORE THAN THE FIX.
+# The probe behind it ran `gh issue list --label wire-alert-rehearsal` and got 0
+# -- true, and a fact about ISSUES. The sentence written from it was about
+# DELIVERIES, which nothing had counted, and the two differ exactly where the
+# recovery path ran outside a rehearsal. The output block was even labelled "has
+# EITHER leg ever actually delivered?" above a command that counted issues: the
+# `tracked files scanned` shape, where the label names a wider population than
+# the code walks. `AGENTS.md` calls the general case the claim you never
+# measured at all, and notes it lands in prose rather than in a code block
+# because a number in a sentence reads as known.
 #
 # THE ASSERTION IS A PROPERTY, NOT A NAME LIST, AND THAT IS NOT STYLE.
 # The finding itself was first reported as "all four options alert" when there
