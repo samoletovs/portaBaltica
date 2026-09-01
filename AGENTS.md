@@ -3229,6 +3229,39 @@ a comment mentioning an UNREAD thing   ->  reported READ
 Same mechanism, opposite subjects, and **both fail toward "no finding here"** —
 one hides a completed deletion, the other hides a dead field.
 
+**The other polarity exists and is not equally dangerous.** A content check can
+also report a finding that is not there, and the two failures are not
+symmetrical:
+
+```
+false ABSENT    -> "nothing here"   SILENT   closes the enquiry, nobody looks
+false PRESENCE  -> "something here" LOUD     costs a look, and the look ends it
+```
+
+Measured across one day's probe faults, ten in total, nine of them absents:
+
+```
+a query widened from a scoped clause to a bare phrase   3 hits, 2 of them
+  'the opposite direction from the four bad months'  ->  'the opposite direction'
+  ...and two of the three matches were the searcher's own unrelated writing
+
+'^\+#' counting PR numbers in a code block as markdown headings   5, true 0
+a mixed grep attributing one entry's `deadlineMs` to another      1, true 0
+```
+
+Every one of the three cost a re-read and no more, because **a false presence
+arrives as a claim, and a claim gets checked.** The nine absents each needed
+someone to go back and doubt a `0` that nobody had reason to doubt.
+
+So the tally is not evidence that absents are more common. It is evidence that
+they are the ones that **survive to be counted** — the presences were caught in
+the same minute they were made, by the reading that follows any finding.
+
+Which yields a small piece of advice with a large effect: **when a probe must be
+imperfect, prefer the direction that produces noise.** A check that occasionally
+cries wolf is repairable by whoever it wakes. A check that occasionally says
+nothing is repaired by nobody, because nothing happened.
+
 **So: strip comments on both sides before any content check**, and when the
 subject is a change someone explained carefully, treat the naive count as
 evidence about the prose until you have separated them. The stripped read is
