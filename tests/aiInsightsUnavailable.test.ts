@@ -38,7 +38,12 @@ const handler = require('../api/ai-insights/index.js') as (
   req: { query: Record<string, string> },
 ) => Promise<void>;
 
-type Envelope = { insights: { headline: string }[]; unavailable: string[] };
+type Envelope = {
+  insights: { headline: string }[];
+  // `{ source, reason }` rather than a bare name since the reason vocabulary
+  // landed; the cases below read `.source`, so what they assert is unchanged.
+  unavailable: { source: string; reason: string }[];
+};
 
 function bodyFor(url: string): string {
   if (url.includes('elering')) {
@@ -140,18 +145,21 @@ describe('ai-insights says what was unavailable', () => {
     // The defect this reproduces: a shorter list, and nothing else.
     expect(degraded.insights.length).toBeLessThan(full.insights.length);
 
-    // And what makes it legible now.
-    expect(degraded.unavailable).toContain('weather');
-    expect(degraded.unavailable).toContain('air quality');
+    // And what makes it legible now. Read through `.source`: `#329` shipped
+    // bare names and the element now carries a `reason` beside them, because a
+    // source that answered HTTP 200 with no reading is a different message from
+    // one that timed out. The sources this case asserts are unchanged.
+    expect(degraded.unavailable.map((u) => u.source)).toContain('weather');
+    expect(degraded.unavailable.map((u) => u.source)).toContain('air quality');
   });
 
   it('names the electricity source when Elering refuses', async () => {
     const degraded = await insightsFor(/elering/i);
 
-    expect(degraded.unavailable).toContain('electricity prices');
+    expect(degraded.unavailable.map((u) => u.source)).toContain('electricity prices');
     // The negative half on the same object: an unrelated source must not be
     // blamed, or the field is a vague alarm rather than a diagnosis.
-    expect(degraded.unavailable).not.toContain('weather');
+    expect(degraded.unavailable.map((u) => u.source)).not.toContain('weather');
   });
 
   it('is still a 200 with usable insights when one source is down', async () => {
@@ -209,7 +217,9 @@ describe('the Open-Meteo transport retries and Elering does not', () => {
     const body = JSON.parse(context.res!.body) as Envelope;
 
     expect(attempts.filter((u) => /elering/i.test(u))).toHaveLength(1);
-    // And it is honest about the consequence rather than silently short.
-    expect(body.unavailable).toContain('electricity prices');
+    // And it is honest about the consequence rather than silently short. Read
+    // through `.source`: elements carry a `reason` beside the name since the
+    // vocabulary landed, and the source asserted here is unchanged.
+    expect(body.unavailable.map((u) => u.source)).toContain('electricity prices');
   });
 });
