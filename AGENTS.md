@@ -3190,6 +3190,53 @@ one line:
 const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 ```
 
+⚠️ **That rule as stated is over-broad, and the discriminator is which way a
+comment pushes the verdict.** A mention either *satisfies* the check or merely
+*triggers* it, and only one of those can hide anything:
+
+```
+SATISFIES  -> a false PASS   dangerous; strip
+TRIGGERS   -> a false FAIL   noisy, loud, self-correcting; leave it
+```
+
+Almost every text sweep in this repo is *"collect offenders, expect none"*,
+where a comment can only ever **add** a phantom offender. That fails loudly,
+someone looks, and the sweep gets fixed. **A comment cannot make live code
+invisible**, so that shape is safe by construction. The dangerous shape is the
+one asserting a thing is *present* — a field is read, a horizon is declared, a
+symbol still exists — where prose about the thing counts as the thing.
+
+Checked against every known instance: the seam sweep counting `.allowed` in a
+comment, an endpoint sweep reading a comment naming the field it deliberately
+does *not* set, and `describeChange` after deletion all **satisfy**, and all
+three were real. `typography.test.ts` matching `text-sm` in prose and
+`cacheKeyCoverage.test.ts` matching a phantom `req.query.x` both **trigger**,
+and both are harmless.
+
+⚠️ **Two of us sized the safe population and got different numbers, because we
+used different keys** — 51 of 65 by *"does this sweep strip or discuss
+comments"*, 40 of 69 by *"does it assert an offender list is empty"*. Neither is
+wrong and neither is the other; the count is a property of the key, which is
+this file's own rule about a dedup arriving in its own footnotes. The figure
+that matters is not either total but that **the population is genuinely mixed**,
+so a blanket "always strip" would edit dozens of files that cannot be wrong.
+
+**And documentation does not merely inflate the count — it attracts the
+anchor.** The prose describing a defect is the best textual match for that
+defect anywhere in the file, so a search *for* the defect lands in the
+explanation preferentially. Measured: re-planting `#360`'s `--apply` fault, the
+anchor matched exactly **one** occurrence, the read-back confirmed it, and the
+suite passed 16 of 16 — which reads as *"the fix does not work"*. The match was
+inside `build_parser`'s own docstring, where the original defect is quoted
+verbatim to explain it; the real declaration is four lines lower and spans five
+lines. Separate docstring lines from code with `ast` before choosing an anchor.
+
+**The general answer needs none of this.** A plant that changes no behaviour is
+not a plant, so assert the behaviour you are about to break, before you break
+it. Under that docstring plant `build_parser().parse_args([]).apply` was still
+`False`, which settles it in one line with no comment stripping, no `ast`, and
+no judgement about direction.
+
 Four instances across two people in two days, and the tell is always the same:
 **print the matching lines, not the count.** A count cannot distinguish a symbol
 from a sentence about a symbol; the lines can, instantly, and every one of the
