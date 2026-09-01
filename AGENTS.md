@@ -4116,6 +4116,52 @@ reaches `load`). And a plausible reading like `document requests: 1` never
 triggers *print the shape*, because nothing about it looks absent. That
 limitation on the rule above is real; it just was not what happened here.
 
+### The rule above is only half of it, and the written half is the writer's
+
+*State the SHA and when you read it* protects the **writer**. It does nothing
+unless the **reader** measures against that stated instant rather than against
+`now` — and nothing anywhere said so, which is how the same rule's author got it
+wrong twice in a day while quoting it at other people.
+
+The instance is exact and decidable, which is why it is worth the space. I told
+a session its report had been *"12 commits behind when you sent it"*. Measured:
+
+```
+d525f78 committed             10:44:43   the SHA they reported
+next commit  5c96fa3          10:50:40   so it was head for SIX MINUTES
+d525f78 first reaches 12 behind at        13:27:04, commit 84ab138
+84ab138 is  "Reading the artefact has a limit, and it is the one
+             neither other rule names"                <- my own commit
+```
+
+For their message to have been 12 behind **when sent**, they would have had to
+send it two hours and forty minutes after they did. The message was one or two
+commits stale, and almost certainly one: `d525f78` was head for six minutes and
+they wrote on the heels of verifying it.
+
+So the 12 was **my reading-time gap, not their sending-time gap** — the distance
+from their SHA to master at the moment I happened to look, a distance largely
+manufactured by my own commits landing in the interval between their writing and
+my reading. I then reported it as a fact about their carelessness.
+
+**A staleness check computes a real gap from whatever SHA you feed it** — that is
+already recorded, and it is about the *input*. This is the other end: **it also
+needs a timestamp for the claim, and if you supply your own clock instead of the
+writer's, it measures how long the message took to reach you.** The number is
+real, the arithmetic is right, and the attribution is wrong.
+
+Which makes the failure a property of asynchronous handoff rather than of either
+party's rigour. Both messages were accurate when sent. In a run where several
+sessions merge into one trunk through an afternoon, the interval between writing
+and reading is routinely larger than the interval a report describes — so the
+reader's clock will *always* make a correct report look stale, and by more the
+busier the trunk is.
+
+The operational form is one clause added to the existing rule: **quote the gap
+against the instant the writer stated, or say plainly that it is a reading-time
+gap.** `git rev-list --count <their-sha>..<the-sha-that-was-head-when-they-wrote>`
+is the honest measurement; `..origin/master` is the flattering one.
+
 ## A permission is not a capability — resolve one real example through it
 
 A flag that grants something reads as evidence the thing happens. It is not:
