@@ -669,23 +669,13 @@ def speculative_impact_phrase(text: str) -> str | None:
 
 #: Fields holding a DIFFERENCE between two things rather than a level of one.
 #:
-#: A threshold is only meaningful against the quantity it is a threshold on, so
-#: one of these can bound another difference and never a single reading. The
-#: distinction is not visible in the prose — both render as a bare number — so
-#: it has to be read off the field the figure was declared against.
-#:
-#: Named per detector family rather than guessed from the name: ``margin`` and
-#: ``deviation`` carry no suffix that marks them out, and ``latest_value`` is a
-#: level despite sitting beside them in the same figure table.
-DIFFERENCE_FIELDS: Final[frozenset[str]] = frozenset({
-    "gap", "latest_gap", "early_gap", "recent_gap", "gap_pct",
-    "spread", "typical_spread", "spread_pct", "spread_vs_typical",
-    "margin", "margin_pct",
-    "deviation", "deviation_pct",
-    "change", "change_pct", "cumulative_change", "cumulative_change_pct",
-    "distance_from_threshold", "widening_ratio",
-    "typical_move", "move_vs_typical",
-})
+#: Re-exported from :mod:`newsroom.pipeline.units`, which is where it now lives:
+#: :func:`units.unit_for_field` needs the same set to know that a distance
+#: across a rate series is in percentage points, and this module already imports
+#: that one, so the set could not travel in this direction without a cycle.
+#: Bound here rather than restated so existing callers keep working and there is
+#: still exactly one definition.
+DIFFERENCE_FIELDS: Final[frozenset[str]] = units.DIFFERENCE_FIELDS
 
 #: A threshold proposed on a single reading, as opposed to on a difference.
 _THRESHOLD_ON_A_LEVEL = re.compile(
@@ -815,6 +805,173 @@ def _field_of(figure) -> str | None:
 def _threshold_word(text: str) -> str:
     found = _THRESHOLD_ON_A_LEVEL.search(text)
     return found.group(0).lower() if found else "beyond"
+
+
+def _unit_of(figure) -> str | None:
+    """``unit``, whether the figure is a dict or a dataclass."""
+    if isinstance(figure, Mapping):
+        return figure.get("unit")
+    return getattr(figure, "unit", None)
+
+
+def _magnitudes(figure) -> tuple[str, ...]:
+    """How this figure's number may appear in prose, longest form first.
+
+    ``rendered_as`` is the writer's own account of what it typed, so it is
+    tried first and stripped of any trailing per-cent sign — that sign is the
+    thing under examination and must not be part of what we search for. The
+    value is the fallback at the two precisions the pipeline offers a writer:
+    :func:`units.display_value` rounds to two places before showing it, and the
+    exact value is what ``figures_traceable`` matches.
+    """
+    out: list[str] = []
+    rendered = str(getattr(figure, "rendered_as", "") or "").strip()
+    if isinstance(figure, Mapping):
+        rendered = str(figure.get("rendered_as") or "").strip()
+    if rendered:
+        out.append(rendered.rstrip("%").strip())
+    value = figure.get("value") if isinstance(figure, Mapping) else getattr(figure, "value", None)
+    if value is not None:
+        number = float(value)
+        for candidate in (f"{number:g}", f"{abs(number):g}", f"{abs(number):.2f}"):
+            out.append(candidate)
+    # Longest first so "0.475" is tried before "0.47" and the narrower match
+    # cannot claim a prefix of the wider one.
+    return tuple(sorted({m for m in out if m}, key=len, reverse=True))
+
+
+def _percent_sign_after(magnitude: str) -> re.Pattern[str]:
+    """``5.5%``, and not the ``5.5%`` inside ``15.5%``.
+
+    The lookbehind is the whole correctness of this: without it a figure of 5.5
+    matches inside 15.5, 25.5 and 105.5, and the check reports a fault in a
+    sentence that never mentioned it.
+    """
+    return re.compile(rf"(?<![\d.]){re.escape(magnitude)}\s*%")
+
+
+def percentage_point_problems(text: str, figures, *, where: str = "body") -> list[str]:
+    """A distance across a rate series written with a per-cent sign.
+
+    THE PUBLISHED CASE. Three articles carried one, all on ``cumulative_change``:
+
+        "The cumulative change of 5.5% year on year indicates a strong upward
+         trend in the housing market"
+
+    The rate ran from 5.4% to 10.9%. The distance is 5.5 PERCENTAGE POINTS and
+    the change is 101.9%, so the sentence understates it eighteenfold. The other
+    two understate by 62x and 4x.
+
+    Every existing check passed and was right to. ``figures_traceable`` traced
+    5.5 to ``cumulative_change``, and that field holds 5.5; ``no_invented_numbers``
+    found nothing invented. The number was real and the unit attached to it was
+    false, which is the third member of the family this repo keeps finding —
+    the contract protects figures, not what surrounds them. The first two were a
+    wrong SUBJECT, from a shared cache key, and a wrong RENDERING, "4653
+    thousand" for 4.65 million.
+
+    READ OFF THE FIGURE, NOT THE PROSE. The rule fires on ``unit``, which
+    ``generator.py`` sets from :func:`units.unit_for_field` and never from the
+    model, so it cannot be beaten by a phrasing nobody imagined. A word list of
+    "cumulative change of" would have missed the deviation, margin and spread
+    forms of the identical fault, and the corpus sweep that found this used the
+    declared field precisely because a regex over two phrasings found a third of
+    what was there.
+
+    A LEVEL IS UNTOUCHED, and that is the control worth stating. ``latest_value``
+    on the same series is a genuine rate reading, so "10.9%" in the very same
+    sentence is correct and must stay; and on a price series ``cumulative_change``
+    keeps the series unit, so "down 0.1 EUR per kWh" is correct and never reaches
+    this rule at all. Both are asserted in the suite.
+    """
+    if not text:
+        return []
+    problems: list[str] = []
+    for figure in figures or []:
+        if _unit_of(figure) != units.PERCENTAGE_POINTS:
+            continue
+        field_name = _field_of(figure) or "the figure"
+        for magnitude in _magnitudes(figure):
+            if _percent_sign_after(magnitude).search(text):
+                problems.append(
+                    f"{where}: writes {magnitude}% for {field_name!r}, which is a "
+                    f"distance between two readings of a series that is itself "
+                    f"measured in per cent. That distance is in PERCENTAGE POINTS "
+                    f"— write '{magnitude} percentage points'. As a per cent it "
+                    f"states a different and much smaller change"
+                )
+                break
+    return problems
+
+
+def _repair_percentage_points(article, report: StyleReport) -> None:
+    """Write the percentage points in, on the final attempt.
+
+    ASK FIRST, THEN CORRECT — the shape ``_cut_empty_closings`` uses, and for
+    the reason stated there: house style has no rejection path, so an article
+    whose attempts have run out publishes with its faults intact.
+
+    But this one CORRECTS where those two CUT, and the difference is not
+    stylistic. An empty closing has no right answer to substitute — there is
+    nothing to say, which is why it was empty — so deleting it is the only
+    move. A false unit has exactly one right answer, and the pipeline already
+    knows it: the figure was declared against a field, the field resolves to
+    "percentage points", and the substitution is determined. Nothing is lost
+    and no attempt is spent.
+
+    That is also why this is not a validator check. ``record_claim_holds`` must
+    reject, because a false superlative needs information the writer does not
+    have and no rewrite makes it true. Here the writer needs nothing: rejecting
+    the article would burn six model calls to obtain a rewrite that can be
+    performed directly.
+
+    AMBIGUITY IS LEFT ALONE. If another figure in the same paragraph is written
+    with the same digits and is genuinely a per cent, the two occurrences of
+    "5.5%" cannot be told apart by their text, and rewriting would risk moving
+    the correct one. The advisory still fires, so the fault is reported rather
+    than silently passed over.
+    """
+    for index, block in enumerate(article.body or []):
+        text = getattr(block, "text", None)
+        figures = list(getattr(block, "figures", None) or ())
+        if not text or not figures:
+            continue
+        for figure in figures:
+            if _unit_of(figure) != units.PERCENTAGE_POINTS:
+                continue
+            for magnitude in _magnitudes(figure):
+                pattern = _percent_sign_after(magnitude)
+                if not pattern.search(text):
+                    continue
+                if _shares_a_magnitude(magnitude, figure, figures):
+                    break
+                text = pattern.sub(f"{magnitude} {units.PERCENTAGE_POINTS}", text)
+                block.text = text
+                # The declaration follows the prose. ``_after_the_figure`` locates
+                # a figure by ``rendered_as``, so leaving "5.5%" here would make
+                # that helper stop finding this figure at all — a check quietly
+                # skipping rather than passing, which is worse than the fault.
+                if getattr(figure, "rendered_as", None):
+                    figure.rendered_as = f"{magnitude} {units.PERCENTAGE_POINTS}"
+                report.corrections.append(
+                    f"body[{index}]: {magnitude}% -> {magnitude} "
+                    f"{units.PERCENTAGE_POINTS} ({_field_of(figure)} is a distance "
+                    f"across a rate series)"
+                )
+                break
+
+
+def _shares_a_magnitude(magnitude: str, figure, figures) -> bool:
+    """Is another figure in this block written the same way and truly a per cent?"""
+    for other in figures:
+        if other is figure:
+            continue
+        if _unit_of(other) == units.PERCENTAGE_POINTS:
+            continue
+        if magnitude in _magnitudes(other):
+            return True
+    return False
+
 
 
 def check_prose(text: str, *, where: str = "body") -> list[str]:
@@ -1247,6 +1404,7 @@ def apply_house_style(
     *,
     cut_empty_closings: bool = False,
     cut_speculative_impact: bool = False,
+    repair_percentage_points: bool = False,
 ) -> StyleReport:
     """Copy-edit an article in place and report what is left.
 
@@ -1294,9 +1452,26 @@ def apply_house_style(
     if cut_speculative_impact:
         _cut_speculative_impact(article, report)
 
+    # Same ordering, same reason: correct the unit first, then scan, so the
+    # advisory below describes the prose as it now stands. A repaired sentence
+    # must not also be reported as faulty.
+    if repair_percentage_points:
+        _repair_percentage_points(article, report)
+
     for index, block in enumerate(article.body or []):
         if block.text:
             report.violations.extend(check_prose(block.text, where=f"body[{index}]"))
+            # A distance across a rate series written with a per-cent sign.
+            # Advisory while the writer still has an attempt, corrected outright
+            # above when it does not — the same ask-first shape as the two cuts,
+            # except that this one has a right answer to substitute.
+            report.violations.extend(
+                percentage_point_problems(
+                    block.text,
+                    getattr(block, "figures", None),
+                    where=f"body[{index}]",
+                )
+            )
             # Sentence by sentence: a paragraph may state the record in one
             # sentence and its window in the next, and reading the paragraph
             # whole would accept that. It is a reader's sentence that has to be

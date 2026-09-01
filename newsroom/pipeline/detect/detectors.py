@@ -493,7 +493,13 @@ def detect_divergence(
         value=spread,
         unit=sample.unit,
         comparison_basis=(
-            f"the median spread of {units.quantity(typical, sample.unit)} "
+            # display_quantity, not quantity: ``typical`` is a DISTANCE between
+            # two countries, and on a rate series a distance is in percentage
+            # points rather than in "%". Asking by field name routes through
+            # ``unit_for_field`` and cannot drift from the figure table; naming
+            # the series unit here would restate it and be free to disagree.
+            f"the median spread of "
+            f"{units.display_quantity('typical_spread', typical, sample.unit)} "
             f"between the same countries "
             # "in the series" attributed the count to the series, which has
             # more: ``historical`` only takes periods where EVERY country
@@ -691,7 +697,7 @@ def detect_structural_divergence(
         unit=sample.unit,
         comparison_basis=(
             f"the same countries' average difference of "
-            f"{units.quantity(early_gap, sample.unit)} "
+            f"{units.display_quantity('early_gap', early_gap, sample.unit)} "
             # NOT "the first {window} {period_word} of the series". That reads
             # as a POSITION in a calendar -- the opening eight quarters -- and
             # it is built by slicing ``common``, which is an INTERSECTION: a
@@ -938,7 +944,8 @@ def detect_sharp_move(
         comparison_basis=(
             f"the previous reading of {units.quantity(previous.value, series.unit)} "
             f"in {previous.period}, "
-            f"against a typical move of {units.quantity(sigma, series.unit)} "
+            f"against a typical move of "
+            f"{units.display_quantity('typical_move', sigma, series.unit)}"
             f"across {len(deltas)} readings since {series.periods[0]}"
         ),
         score=score,

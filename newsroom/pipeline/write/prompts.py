@@ -407,6 +407,26 @@ keeps it legal — put that exact phrase in that paragraph:
        GOOD: "0.13 EUR per kWh, against 0.23 EUR per kWh when the run of falls
              began in 2022-S2"
 
+     AND A DISTANCE ACROSS A RATE IS IN PERCENTAGE POINTS, NOT PER CENT. The
+     three GOOD lines above are a PRICE, where a distance carries the series'
+     own unit. When the series is itself measured in per cent, it does not:
+     the distance between two rates is in PERCENTAGE POINTS, and your figure
+     table says so — the unit beside `cumulative_change` reads "percentage
+     points" and not "%". Use the words it gives you.
+       BAD:  "a cumulative change of 5.5% year on year"
+             — published. The rate ran from 5.4% to 10.9%, so the distance is
+             5.5 PERCENTAGE POINTS and the change is 101.9%. Written as "5.5%"
+             it tells a reader the change was five and a half per cent when it
+             was a hundred and two — understating it eighteenfold, with every
+             figure in the sentence correct.
+       GOOD: "5.5 percentage points, from 5.4% to 10.9%"
+       GOOD: "10.9%, against 5.4% when the run of rises began in 2025-Q1"
+     `cumulative_change_pct` IS a per cent and does take the "%" sign. The two
+     sit beside each other in the table and the unit column is what tells them
+     apart. This applies to every distance, not only to a run: a `deviation`
+     from a seasonal norm, a `margin` over a record and a `spread` between two
+     countries are all in percentage points when the series is a rate.
+
   3. THE NEIGHBOURS. How the other Baltic states stand on the same measure,
      and what the gap between them is doing. This is usually the most
      interesting paragraph in the piece and it is the one previous drafts

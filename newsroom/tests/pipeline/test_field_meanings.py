@@ -230,21 +230,34 @@ class TestTheGuardCanFail:
         The tempting structural rule is: no field name may be a word-boundary
         sub-name of another field in the same unit. It catches the real defect
         — ``gap`` inside ``early_gap`` and ``recent_gap``. It also fires on
-        ``divergence`` twice and on ``record_extreme`` once, and the published
-        articles from both of those are correct. A check that rejects true work
-        is a worse defect than the one it was built to catch, so the fix is the
-        meaning, not a gate.
+        ``divergence``, whose published articles are correct. A check that
+        rejects true work is a worse defect than the one it was built to catch,
+        so the fix is the meaning, not a gate.
 
-        Two of those three flags are also an artefact of the series' own unit
-        rather than of the field names: ``spread_pct`` and ``margin_pct`` are
-        "%" whatever the series is, so they collide with ``spread`` and
-        ``margin`` only when the series is itself measured in "%" — as an
-        unemployment rate is and a cargo tonnage is not. A rule that fires on
-        one series and not another for the same field names is not describing a
-        property of the code.
+        THE UNIT ARTEFACT, AND ITS DISAPPEARANCE. This test used to record two
+        more flags — ``("spread", "spread_pct")`` on ``divergence`` and
+        ``("margin", "margin_pct")`` on ``record_extreme`` — and argued they
+        were "an artefact of the series' own unit rather than of the field
+        names", because ``spread_pct`` is "%" whatever the series is and so
+        collided with ``spread`` only when the series was itself in "%", as
+        both those fixtures are. The closing line was that a rule firing on one
+        series and not another for the same field names "is not describing a
+        property of the code".
+
+        That reasoning was right and it is now enforced rather than believed.
+        ``unit_for_field`` gives an absolute difference across a rate series its
+        own unit — ``spread`` is "percentage points", ``spread_pct`` is "%" —
+        so the two no longer share one and the artefact cannot arise. Both
+        flags went of their own accord; neither was excepted.
+
+        What is left on ``divergence`` is the genuine article: ``spread`` and
+        ``typical_spread`` are BOTH absolute differences, so they share a unit
+        on every series, in "%" and in tonnes alike. It is a property of the
+        names, which is exactly the case the docstring above says a rule may
+        not distinguish from the real defect.
 
         The exact figures below are the measurement, and the first draft of
-        this test asserted one pair for ``divergence`` where there are two.
+        this test asserted one pair for ``divergence`` where there were two.
         Running it is what corrected that, which is the whole argument for
         executing an example rather than writing one down.
         """
@@ -266,14 +279,17 @@ class TestTheGuardCanFail:
 
         by_detector = {n: sub_names(s) for n, s in all_detector_signals()}
 
-        # Detectors the rule would flag whose published articles are correct.
-        assert by_detector["divergence"] == [
-            ("spread", "spread_pct"),
-            ("spread", "typical_spread"),
-        ]
-        assert by_detector["record_extreme"] == [("margin", "margin_pct")]
-        # And the one it was aimed at, now clean, because the bare name is gone.
+        # The detector the rule would still flag, whose published articles are
+        # correct: two absolute differences, colliding on any series.
+        assert by_detector["divergence"] == [("spread", "typical_spread")]
+        # Was [("margin", "margin_pct")] while a difference across a rate series
+        # was labelled "%". Both fields are on a "%" fixture, so this is the
+        # controlled half: the flag went because the units diverged, not because
+        # anything about the names changed.
+        assert by_detector["record_extreme"] == []
+        # And the one it was aimed at, clean because the bare name is gone.
         assert by_detector["structural_divergence"] == []
+
 
 
 class TestTheRegistryIsNotAWordList:
