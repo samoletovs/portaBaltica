@@ -3238,7 +3238,7 @@ false ABSENT    -> "nothing here"   SILENT   closes the enquiry, nobody looks
 false PRESENCE  -> "something here" LOUD     costs a look, and the look ends it
 ```
 
-Measured across one day's probe faults, ten in total, nine of them absents:
+Measured across one day's probe faults, twelve in total, nine of them absents:
 
 ```
 a query widened from a scoped clause to a bare phrase   3 hits, 2 of them
