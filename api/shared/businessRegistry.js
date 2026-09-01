@@ -94,9 +94,13 @@ async function primaryResource(datasetId, options) {
  * Businesses whose economic activity is suspended right now.
  *
  * Scans the two decision-date columns for the whole log — two requests, a few
- * MB — because the portal disables `datastore_search_sql` (HTTP 409) and
- * `filters` only does equality, so neither "is blank" nor "later than today"
- * can be pushed to the server.
+ * MB — because `filters` only does equality, so neither "is blank" nor "later
+ * than today" can be pushed to the server.
+ *
+ * ⚠️ This used to say the portal "disables `datastore_search_sql` (HTTP 409)".
+ * It does not — see `api/shared/ckan.js` and the measurement in
+ * `api/shared/tradeStats.js`. The scan is still right here, for the `filters`
+ * reason alone; only the stated cause was wrong.
  */
 async function fetchSuspendedBusinesses(options) {
   const resource = await primaryResource(SUSPENSIONS_DATASET, options);

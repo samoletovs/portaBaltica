@@ -79,15 +79,17 @@ describe('the CN-8 trade dataset is alive', () => {
     }
   });
 
-  it('answers SQL aggregates, which ckan.js\'s docstring says it does not', async () => {
-    // `api/shared/ckan.js` records "The portal's `datastore_search_sql` action
-    // is disabled (it answers HTTP 409)". Measured 2026-09-01, it is not — a
-    // 409 is what the portal returns for a *bad query*, and reading that as a
-    // disabled action is two states collapsed into one artefact.
+  it('answers SQL aggregates, which ckan.js\'s docstring once denied', async () => {
+    // `api/shared/ckan.js` used to record "The portal's `datastore_search_sql`
+    // action is disabled (it answers HTTP 409)". Measured 2026-09-01, it is not —
+    // a 409 is what the portal returns for a *bad query*, and reading that as a
+    // disabled action is two states collapsed into one artefact. The docstring
+    // was corrected, along with a second copy of the same false claim in
+    // `api/shared/businessRegistry.js` that nobody had noticed.
     //
-    // This endpoint depends on the aggregate, so the disagreement is pinned
-    // rather than left in a comment. If the portal ever genuinely disables it,
-    // this fails and names the reason.
+    // This endpoint depends on the aggregate, so the fact is pinned here rather
+    // than left to prose. If the portal ever genuinely disables it, this fails
+    // and names the reason.
     const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, OPTIONS);
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
 
