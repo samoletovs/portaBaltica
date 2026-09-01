@@ -890,6 +890,35 @@ will too. Traps measured this run, on top of the six the last prompt recorded:
   agrees with whatever story you told yourself, which is what makes it feel
   like confirmation.
 
+  **The second rule did not fire on the next run, because of its own
+  precondition.** The 2026-09-01 manager never ran `npm test` at all — the
+  gate was `npx vitest run`, `eslint`, `vite build`, `pytest`, four commands
+  none of which typechecks. Nothing had "just failed", so a rule about what to
+  do *after* a failure had nothing to attach to, and `#349` merged with nine
+  `error TS2345`s in it. Master went red across two merges and the deploy was
+  skipped for 35 minutes, taking `#349`'s own fix off the site.
+
+  So state it unconditionally: **the gate is `npm test`.** Not a command that
+  runs some of what it runs. A composite script exists precisely because the
+  parts are separable, and the part that gets dropped is invisible — a suite
+  that passes looks identical whether or not a typechecker ran before it.
+  `vitest` cannot see a type error at all, because esbuild strips types
+  without checking them.
+
+  And a second one, from the same merge and cheaper still. `gh pr view`
+  reports two fields about mergeability and I read one:
+
+  ```
+  mergeable         MERGEABLE     <- what I checked
+  mergeStateStatus  UNSTABLE      <- a required check is FAILING
+  ```
+
+  `UNSTABLE` is not a caveat on `MERGEABLE`; it is the CI result, and GitHub
+  was telling me the answer while I merged past it. **Refuse to merge on
+  anything but `CLEAN`** — or `BLOCKED`, which here means awaiting review
+  rather than failing. Swept across all 18 merges that day, this was the only
+  one I introduced; the other reds were a genuine wire alert.
+
   The near-miss twin: `chartRef.test.ts` already imported that same registry
   with `createRequire`, for this exact reason. The correct sibling was one
   `git grep` away — *"when you audit the consumers, audit the input they
