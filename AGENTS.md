@@ -949,6 +949,28 @@ The second is mine, and it was the denominator of a Fisher test whose
 who had declined to claim causality and was right to. A wrong `n` does not make
 a p-value approximately right; it makes it uninterpretable.
 
+**There is a third instance, and it is the one that argues for a rule rather
+than an intention.** The same person wrote the first two — deduping the status
+probe, catching it, and then not deduping `ai-insights`, minutes later, in the
+same sitting, having just used the technique and written the reason down in
+prose between the two:
+
+```
+the control   system-status  8 requests -> 4 distinct   DEDUPED, caught
+the subject   ai-insights    a loop     -> far fewer    NOT deduped, missed
+```
+
+**Care did not transfer between two probes I wrote myself.** Not between two
+authors, not across a day, not under pressure — between adjacent commands by one
+person who had just articulated the rule. That is the same shape as the
+`isSeriesStale` docstring three lines from the loop it was about: *having
+articulated a fact is what made it feel discharged*, and the feeling is
+strongest immediately after articulating it.
+
+So the rule below is written to be applied mechanically, on every run, rather
+than recalled when it seems relevant — because the moment it seems least
+relevant is the moment just after you used it.
+
 **Two rules follow, and the first is mechanical.** Dedupe on the response's own
 timestamp — `generatedAt`, `fetchedAt`, whatever the body already carries for
 this purpose — and report distinct readings, never requests. The field is
