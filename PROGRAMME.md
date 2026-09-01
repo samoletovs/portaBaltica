@@ -181,6 +181,24 @@ answer. That habit caught all four.
    `environment-data.airQuality.bandCount`, recorded as the last seam orphan,
    now has two readers and is not one.
 
+7. **One question is left deliberately open, and leaving it open is the
+   answer.** `#333` made `/api/ai-insights` retry Open-Meteo, which hangs on
+   this egress. **The mechanism is sound and the magnitude is unmeasured** — we
+   know the retry is the right shape and not how much it bought.
+
+   The honest instrument was specified and not built: pair the `unavailable`
+   field with the non-retrying probe, dedupe **both** on their own timestamps,
+   and read it over a **week** rather than a morning. Attribution arrives on a
+   day the probe shows the host hanging while `unavailable` stays empty; a
+   morning's data cannot separate "the retry worked" from "the host was up".
+
+   Its author's resting place is the right one and worth quoting: *"I would
+   rather a successor found it open than found a p-value."* Three instruments
+   were declined on the same run after measuring that the fault was absent — a
+   `cacheableIf` cache option, a doc-claims test, and a 400% reflow
+   instrument. **Declining on measurement is a result, and it is invisible in
+   any PR count**, which is the other half of the throughput caveat above.
+
 ## Starting state at the start of the PREVIOUS run — historical, do not act on it
 
 **Superseded by the block above.** Kept because the reasoning around it is
