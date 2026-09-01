@@ -256,12 +256,23 @@ class ResearchContext:
     #: headlines and nothing more, which is the state that produced the shallow
     #: articles this stage exists to fix.
     documents_fetched: int = 0
+    #: Which discovery provider ran this article, or why none did.
+    #:
+    #: ``documents_fetched: 0`` was ambiguous in a way that mattered: it is the
+    #: reading produced by discovery finding nothing, by every hit belonging to
+    #: an unregistered publisher, and by discovery never having been configured
+    #: at all. Those are three different facts about the newsroom and one of
+    #: them is an outage. Measured on the published corpus, two of the five
+    #: articles with a causal panel recorded zero documents, and nothing in the
+    #: record said which of the three had happened.
+    discovery: str = "not_configured"
 
     def to_provenance(self) -> dict[str, Any]:
         return {
             "method": "registered_feeds",
             "candidates_considered": self.candidates_considered,
             "documents_fetched": self.documents_fetched,
+            "discovery": self.discovery,
             "consulted": [item.provenance_record() for item in self.items],
         }
 

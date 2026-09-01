@@ -364,6 +364,27 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'NEWSROOM_CONTAINER_APPROVALS', value: 'approvals' }
         { name: 'NEWSROOM_SCHEDULE', value: newsroomSchedule }
         { name: 'NEWSROOM_WEEKLY_SCHEDULE', value: newsroomWeeklySchedule }
+        // Search discovery for the causal panel is deliberately NOT declared
+        // here, and this comment is the reason so it does not get added back.
+        //
+        // Both halves must be set out of band, together:
+        //
+        //   az functionapp config appsettings set -n portabaltica-func \
+        //     -g portabaltica-rg --settings \
+        //     NEWSROOM_SEARCH_PROVIDER=brave NEWSROOM_SEARCH_API_KEY=<key>
+        //
+        // `NEWSROOM_SEARCH_API_KEY` cannot live in this template: there is no
+        // API key, connection string or @secure() parameter anywhere in
+        // `infrastructure/`, and the auth posture rests on that staying true.
+        // Brave has no managed-identity path, so the key is set out of band.
+        //
+        // Templating the PROVIDER alone was tried and reverted. It reads as
+        // reviewable configuration and is a dead knob twice over:
+        // `newsroom-ci.yml` publishes code and sets NEWSROOM_REVISION only, so
+        // it never applies this template — and `search_provider()` returns the
+        // null provider for `brave` with no key anyway, so the templated half
+        // could not have taken effect even once deployed. Setting the two
+        // together, in one command, is the only form that does anything.
       ]
     }
   }
