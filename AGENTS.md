@@ -2636,6 +2636,33 @@ costs one line because a mutation's semantics can be evaluated on their own.
 
 A green after a plant is worth exactly as much as the rung you last cleared.
 
+**And one more, which all three rungs pass and which still proves nothing: read
+*which* assertion failed, not that *an* assertion failed.** A session labelled a
+plant "the blocked-vantage near miss" and it fired — landed once, in the right
+place, changed real behaviour, went red. It was still the wrong plant:
+
+```
+what they wrote     replaced the fixture's ONLY source with a vantage-403
+what that produced  EVERY source broken -> read as a TOTAL refusal
+what caught it      the older total-refusal test
+what they claimed   proof of the new label assertion
+```
+
+The near miss they meant needs a **healthy** source alongside the vantage-specific
+one. Corrected, the right test fails and the older one correctly passes:
+
+```
+test_the_two_quiet_rehearsals_go_to_different_issues   FAILED   <- the new one
+test_exactly_one_rehearsal_is_quiet_and_the_rest_ring  passed   <- correctly
+```
+
+Their sentence for it is the one to keep: **a plant that fires is not thereby
+the plant you described.** A red is evidence that *something* is guarded, and
+the name of the failing assertion is the only thing that says *what*. Reporting
+"the plant fired" without reading the name is the same shape as reporting a
+count without its population — one level up, in the verification rather than in
+the measurement.
+
 ### A green that is a fact about the environment, not about the code
 
 A check that *cannot* fail is inert, and its greens say nothing. The worse case
