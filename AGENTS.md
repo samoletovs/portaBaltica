@@ -2375,6 +2375,38 @@ So the two are complements and the newer does not supersede the older. Use the
 question to audit a mechanism you understand; use the artefact to find out that
 you did not understand it.
 
+**And the artefact has a limit of its own, which is the third leg and the one
+neither of the other two names.** Reading the artefact has been the
+highest-yield habit in this programme by a wide margin — it found the analyst
+who does not exist, the false superlative eleven checks passed, the wrong
+subject behind a shared cache key. Every one of those was a thing somebody
+could look at.
+
+It cannot reach a check that **can** fail and has not, because there is nothing
+to look at. *"A wrong check with no failing run leaves nothing to read"* is
+stated above as a local fact about two checks; it is also a bound on the
+technique. Both defects existed continuously and were visible almost never:
+the `LATE_QUARTER` fixture went red in **4 months of 12**, and the sanity band
+would have gone red on **7 readings of 296** — one in 2021-12 and six running
+2022-04 to 2022-09, so outside the energy crisis it was silent for years at a
+stretch. No amount of reading closes either, because between those dates the
+reading material is a green.
+
+So the three fail in different places, and knowing which you are in is the
+whole of the choice:
+
+```
+the question          fails when you cannot enumerate the second state
+read the artefact     fails when the defect produced no artefact
+assert across a range reaches what never produced one -- and is the only
+                      one of the three that needs no imagination at all
+```
+
+The last is why the remedy above is structural rather than diligent. A larger
+population over the *inputs* does not require anyone to have suspected
+anything: `af3c394` would have caught its own defect in March whether or not
+its author had thought about calendars.
+
 ### Sometimes the artefacts differed and the probe threw one away
 
 The remedy above — emit a new field — is right when the collapse is real, and it
