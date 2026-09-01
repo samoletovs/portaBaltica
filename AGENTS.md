@@ -3340,6 +3340,36 @@ thereby in this file. It has to be a **property**: pick a token with no
 connection to the subject matter, and **run it first** — an absent control is
 cheap to establish and worthless to assume.
 
+**And the hazard is one-directional, which bounds what needs fixing.** Every
+collision above was an *ad-hoc grep over prose*, where a control token that
+turns up returns a positive and reads as a finding. A **committed test asserting
+absence** cannot fail that way:
+
+```
+correctionsReachReaders.live.test.ts
+  expect(entries.has('zzzneverinasitemap')).toBe(false)
+  expect(html.includes('zzzNEVERINAHEAD')).toBe(false)
+
+  a collision makes the token PRESENT -> the assertion FAILS, loudly
+  an ad-hoc control collides          -> returns 1 -> reads as a finding, silently
+```
+
+`zzzNEVER` is in this file **and** in that test, and the test is unaffected —
+because it searches the deployed feed and sitemap rather than this file, and
+because a collision there announces itself as a red rather than as a result.
+Verified: neither token appears in the live artefacts, with a positive control
+proving the read works.
+
+So do not go hardening negative controls in committed tests after reading this.
+They are safe by construction, and an instrument aimed at a fault that is not
+there is the trap two sections down. **The exposure is ad-hoc probes, and only
+those.**
+
+⚠️ The control that established the paragraph above is deliberately **not named
+here**, which is the shortest possible statement of the whole entry: naming it
+would put it in the file, and the next reader would inherit a burned token
+recommended by the sentence that burned it.
+
 That last clause is the one that generalises past strings. A control is an
 assertion that the instrument can say *no*, so a control you have not checked is
 an assumption wearing evidence's clothes — the same shape as a plant nobody
