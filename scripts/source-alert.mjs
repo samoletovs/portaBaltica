@@ -511,7 +511,7 @@ export async function run(options = {}) {
  * `sourceAlert.test.ts` for why that has to be asserted with inequality.
  */
 export function alertRouting(verdict = {}) {
-  const rehearsal = false;
+  const rehearsal = String(verdict.source ?? '').startsWith('fixture:');
   return {
     label: rehearsal ? 'source-alert-rehearsal' : 'source-alert',
     // The title is the whole of what most people read — it is what arrives in a
