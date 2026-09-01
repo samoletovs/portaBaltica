@@ -3520,9 +3520,25 @@ registry().resolve_feed_item({"link": "https://ec.europa.eu/eurostat/web/..."})
 # UnregisteredSourceError -- against a source configured document_fetch_allowed
 ```
 
+**And the obvious fix for the third one was another instance of the fault.**
+Worth recording, because it happened to someone who had just written this
+section. `NEWSROOM_SEARCH_PROVIDER` was duly added to `main.bicep`, which reads
+as reviewable configuration and is a dead knob **twice over**:
+`newsroom-ci.yml` publishes code and sets `NEWSROOM_REVISION` only, so it never
+applies the template — and `search_provider()` returns the null provider for
+`brave` with no key regardless, so the templated half could not have taken
+effect even once deployed.
+
+`test_deployed_settings.py` caught it, and note what kind of test that is: it
+compares the template against a **recorded observation of the running app**,
+which is the consumer-side check this section asks for, one layer out in the
+infrastructure. Declaring the setting is the grant; the app carrying it is the
+capability. The two are now set together, out of band, in the single command
+that actually does something — and a comment sits where the parameter was, so
+the next person does not add the knob back.
+
 **The tell is a permission with no consumer-side test.** A grant is trivially
-easy to assert (`assert source.document_fetch_allowed`) and that assertion
-passes on a source that can never be reached, because it re-reads the config
+easy to assert (`assert source.document_fetch_allowed`) and that assertionpasses on a source that can never be reached, because it re-reads the config
 rather than exercising the path. Same failure as a guard that rebuilds the
 logic it guards: it agrees with the declaration instead of testing the
 behaviour.

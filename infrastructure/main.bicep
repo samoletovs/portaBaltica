@@ -77,10 +77,6 @@ param newsroomSchedule string = '0 0 5,11,17 * * *'
 @description('NCRONTAB schedule for the weekly wrap. Its own setting rather than sharing the daily one: the two cadences move independently, and a second timer reading the first\'s setting would reintroduce the disconnected-knob failure in a new place. Sunday 15:00 UTC sits an hour after the last daily edition, so the week\'s findings are in the vintage ledger the wrap reads.')
 param newsroomWeeklySchedule string = '0 0 15 * * 0'
 
-@description('Search provider for the causal panel\'s document discovery. "none" (the default) makes no network call and the pipeline behaves exactly as it did before discovery existed. Set to "brave" only together with the out-of-band key below — a provider named here without a key logs a warning and falls back to none, which is a state worth being able to see.')
-@allowed(['none', 'brave'])
-param newsroomSearchProvider string = 'none'
-
 @description('Python version for the Flex Consumption Function App.')
 @allowed(['3.11', '3.12'])
 param pythonVersion string = '3.12'
@@ -368,25 +364,27 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'NEWSROOM_CONTAINER_APPROVALS', value: 'approvals' }
         { name: 'NEWSROOM_SCHEDULE', value: newsroomSchedule }
         { name: 'NEWSROOM_WEEKLY_SCHEDULE', value: newsroomWeeklySchedule }
-        // Which discovery provider the causal panel may use. NOT the key.
+        // Search discovery for the causal panel is deliberately NOT declared
+        // here, and this comment is the reason so it does not get added back.
         //
-        // `NEWSROOM_SEARCH_API_KEY` is deliberately absent from this template
-        // and must stay absent. There is no API key, connection string or
-        // @secure() parameter anywhere in `infrastructure/`, and the whole
-        // auth posture rests on that being true rather than mostly true — the
-        // storage account sets `allowSharedKeyAccess: false` and the Foundry
-        // account sets `disableLocalAuth: true` precisely so a key could not
-        // work even if somebody added one.
-        //
-        // Brave has no managed-identity path, so its key is set out of band and
-        // survives a redeploy because ARM leaves unlisted app settings alone:
+        // Both halves must be set out of band, together:
         //
         //   az functionapp config appsettings set -n portabaltica-func \
-        //     -g portabaltica-rg --settings NEWSROOM_SEARCH_API_KEY=<key>
+        //     -g portabaltica-rg --settings \
+        //     NEWSROOM_SEARCH_PROVIDER=brave NEWSROOM_SEARCH_API_KEY=<key>
         //
-        // Naming the provider here and the key there is what keeps the setting
-        // reviewable in source while the secret is not in it.
-        { name: 'NEWSROOM_SEARCH_PROVIDER', value: newsroomSearchProvider }
+        // `NEWSROOM_SEARCH_API_KEY` cannot live in this template: there is no
+        // API key, connection string or @secure() parameter anywhere in
+        // `infrastructure/`, and the auth posture rests on that staying true.
+        // Brave has no managed-identity path, so the key is set out of band.
+        //
+        // Templating the PROVIDER alone was tried and reverted. It reads as
+        // reviewable configuration and is a dead knob twice over:
+        // `newsroom-ci.yml` publishes code and sets NEWSROOM_REVISION only, so
+        // it never applies this template — and `search_provider()` returns the
+        // null provider for `brave` with no key anyway, so the templated half
+        // could not have taken effect even once deployed. Setting the two
+        // together, in one command, is the only form that does anything.
       ]
     }
   }
