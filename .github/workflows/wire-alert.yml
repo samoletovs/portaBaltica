@@ -45,6 +45,7 @@ on:
           - 'no'
           - 'dead-feed'
           - 'blocked-vantage'
+          - 'total-refusal'
           - 'empty-wire'
           - 'drought'
   # Run when this monitor's own moving parts change, so a break is found by the
@@ -78,6 +79,9 @@ jobs:
       label: ${{ steps.judge.outputs.label }}
       subject: ${{ steps.judge.outputs.subject }}
       rehearsal: ${{ steps.judge.outputs.rehearsal }}
+      # ok | unresolved | alert. Published so the reading is legible from the
+      # run's own outputs on a green run, where there is no issue to read it in.
+      severity: ${{ steps.judge.outputs.severity }}
 
     steps:
       - uses: actions/checkout@v5
@@ -150,6 +154,15 @@ jobs:
               # does not tell the reader to write a 403 into a `verified:` note
               # about a publisher that is up.
               #
+              # SINCE #349 THIS REHEARSES THE QUIET PATH, WHICH IS THE POINT.
+              # It is severity `unresolved`: the run stays green, no Telegram is
+              # sent, the reading is annotated and summarised, and the routing
+              # goes to `wire-vantage` so the recovery step cannot close a live
+              # `wire-alert` issue as "Recovered." A rehearsal of a state that
+              # deliberately does not ring is still worth having -- it is how you
+              # find out the state is reachable at all, and that it is legible
+              # once reached. `total-refusal` below rehearses the loud escalation.
+              #
               # It rehearses the excerpt too. The body is the artefact the probe
               # used to measure and discard, which is why nobody could settle the
               # question from the run log.
@@ -172,6 +185,40 @@ jobs:
                 "http_status": 200, "bytes": 37440, "items": 50, "latency_ms": 485,
                 "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
                 "state": "ok", "detail": null
+              }
+            ]
+          }
+          JSON
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+            total-refusal)
+              # The escalation that keeps `unresolved` from being a way to go
+              # quiet, exercised rather than asserted. Every source refuses, so
+              # nothing delivered, so this probe has learned nothing about the
+              # wire at all -- and a probe that has learned nothing must not
+              # report health. It rings, and it is the same 403 as the fixture
+              # above, so the two differ only in whether anything got through.
+              cat > rehearsal.json <<'JSON'
+          {
+            "results": [
+              {
+                "id": "err_en", "name": "ERR News (English)", "tier": "C",
+                "endpoint": "https://news.err.ee/rss",
+                "http_status": 403, "bytes": 1070, "items": 0, "latency_ms": 417,
+                "verified": "2026-08-28 - HTTP 200, 50 items parsed by scripts/wire_check.py",
+                "verified_age_days": 4,
+                "state": "http_error", "vantage_specific": true,
+                "body_excerpt": "Access denied - error code 1020 (a rehearsal body, not a real reading)",
+                "detail": "answered HTTP 403"
+              },
+              {
+                "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
+                "endpoint": "https://eng.lsm.lv/rss",
+                "http_status": 403, "bytes": 1070, "items": 0, "latency_ms": 402,
+                "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
+                "state": "http_error", "vantage_specific": true,
+                "body_excerpt": "Access denied - error code 1020 (a rehearsal body, not a real reading)",
+                "detail": "answered HTTP 403"
               }
             ]
           }
@@ -262,12 +309,9 @@ jobs:
           # Anything other than a clean 0 is an alert, usage errors included: a
           # monitor invoked wrongly has checked nothing, and treating that as
           # health is the failure this whole file is built against.
-          if [ "$code" -eq 0 ]; then
-            echo "alert=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "alert=true" >> "$GITHUB_OUTPUT"
-          fi
-
+          #
+          # The report is read BEFORE that decision is taken, because the
+          # decision now consults it -- see the `alert` line below.
           python - <<'PY'
           import json
           r = json.load(open("report.json"))
@@ -298,7 +342,51 @@ jobs:
           # which is the direction that never suppresses a real alarm.
           open("rehearsal.txt", "w", encoding="utf-8").write(
               routing.get("rehearsal") or "false")
+
+          # ok | unresolved | alert. A reading the probe has declared
+          # inconclusive about the publisher is reported here and does not ring;
+          # see scripts/wire_check.py for the measurement that forced that.
+          #
+          # ABSENCE RESOLVES TO ALERTING. A report with no severity -- the
+          # synthesised one written when the probe died, or one from an older
+          # revision of the script -- reads as `alert`, so the one state that
+          # suppresses a notification is reachable only by being named.
+          open("severity.txt", "w", encoding="utf-8").write(
+              routing.get("severity") or "alert")
           PY
+
+          severity=$(cat severity.txt)
+          echo "Probe severity ${severity}"
+
+          # Ring when the probe exited non-zero OR when the report says alert.
+          # Two independent sources, and either one is enough, because they fail
+          # in opposite directions: the exit code catches a crash that never
+          # reached a verdict, and the severity catches a verdict that somehow
+          # failed to reach the exit code. Silence needs both to agree.
+          if [ "$code" -eq 0 ] && [ "$severity" != "alert" ]; then
+            echo "alert=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "alert=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          # An unresolved reading is reported rather than rung, so it needs
+          # somewhere to be seen on a green run. An annotation shows on the run
+          # page and in the Actions list without failing anything, and the full
+          # report reaches the job summary either way via the notifier.
+          if [ "$severity" = "unresolved" ]; then
+            echo "::warning::$(cat headline.txt)"
+            {
+              echo "### Newsroom wire: unresolved"
+              echo
+              echo "This run did not fail. A source declined this vantage and the"
+              echo "publisher state is unknown; the wire is otherwise delivering."
+              echo
+              echo '```'
+              cat message.txt
+              echo ""
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
           # The delimiter form is required: the report is multi-line, and a bare
           # `key=value` would silently keep only its first line.
@@ -318,6 +406,7 @@ jobs:
           echo "label=$(cat label.txt)" >> "$GITHUB_OUTPUT"
           echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
           echo "rehearsal=$(cat rehearsal.txt)" >> "$GITHUB_OUTPUT"
+          echo "severity=${severity}" >> "$GITHUB_OUTPUT"
 
   # Same reasoning as source-alert.yml: `if: always()` plus the
   # `result != 'success'` test means a check job that dies outright still
