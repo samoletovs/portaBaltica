@@ -53,7 +53,7 @@ master        40e66aa · working tree clean · 0 open PRs · all checks green
 site          healthy · required 9/9 · all sources 13/13 · 0 stale
 live suite    242 passed / 18 files, run against production at 16:58Z
 newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
-articles      99 published · 31 corrections · 7 correction surfaces green
+articles      99 published · 31 corrections · 8 correction surfaces green
 tests         154 files · npm test = typecheck + vitest (see the trap below)
 books         AGENTS.md 3744 lines · PROGRAMME.md 2002 lines
 
@@ -98,32 +98,48 @@ answer. That habit caught all four.
    and a branch name is a moving reference. `gh pr list`, `npm test`,
    `npm run test:live`, and `irm .../api/system-status`.
 
-2. **The share card still carries withdrawn claims.** Measured and left
-   deliberately, because it crosses two file owners:
-   `api/shared/articleMeta.js` already prefixes `Retracted: ` onto the served
-   `<title>` and `og:title`, with a comment arguing exactly why — but a
-   **corrected** article renders a card carrying the superseded superlative.
-   Two lines in `articleMeta.js` and two in
-   `src/components/news/ArticlePage.tsx`, whose heads a parity test requires to
-   match. This is the cleanest ready-to-dispatch job in the repo.
+2. ⚠️ **This slot held a task that was already done, and it is left here as the
+   argument for step 1.** It read: *"the share card still carries withdrawn
+   claims — `api/shared/articleMeta.js` marks `Retracted: ` but not
+   `Corrected: `; two lines there and two in `ArticlePage.tsx`."* Measured
+   ninety minutes after it was published:
 
-3. **Decide what to do about the 31 unclassified corrections.** `#364` added
-   `kind` (`our_error` | `source_revision`) and deliberately does **not**
-   backfill: every existing entry resolves to `UNSPECIFIED_KIND`, and a test
-   forbids any module stamping a kind onto an entry that lacks one. Classifying
-   them is a judgement call a human may want to make, not a migration.
+   ```
+   articleMeta.js L456   const prefix = corrected ? 'Corrected: ' : '';
+   ArticlePage.tsx       'Corrected: ' x1  — the hydrated mirror
+   landed in             c91df2b, "Mark a corrected article in the share card,
+                         and check the mirror (#354)"
+   ```
+
+   **`#354` was merged by the manager who then wrote the task.** It is the
+   `#172` trap — an instrument aimed at a fault that is not there — produced by
+   the same expired-premise failure that run spent the day correcting in other
+   people's reports, arriving in its own handover. A session taking it at face
+   value would have spent a run re-implementing shipped code and, worse, might
+   have "fixed" a working surface. Verify before you build, including against
+   this file.
+
+3. **Classify the 31 corrections, or decide not to.** `#364` added `kind`
+   (`our_error` | `source_revision`) and deliberately does **not** backfill:
+   verified against production, all 31 carry no `kind` and resolve to
+   `UNSPECIFIED_KIND`, and a test forbids any module stamping one onto an entry
+   that lacks it. Classifying them is a human judgement, not a migration.
 
 4. **The dashboard has had two mobile passes and both found real defects.**
    Assume a third will. `tests/reducedMotionLayout.live.test.ts` is the guard;
-   one backlog item (`PowerMarketCard` overflowing its own card by 4px at
-   320px) was dispatched and never verified.
+   it tests 320px and currently passes with **two `KNOWN` exemptions**. Check
+   those first — this file's own rule is that an exemption resting on someone
+   else's code is never permanent, and an exemption matching nothing is a dead
+   clause that still reads as coverage.
 
 5. **Do not re-open these.** The four `data.gov.lv` endpoints using the raw
    socket-idle-timer transport were re-measured against their own stated
    trigger and both conditions are unmet — no stall (79–2426 ms) and no new
    host behind the pattern. `api/ai-insights/index.js` L253-262 already argues
    the same decline for Elering and the ECB with 51 sampled generations behind
-   it. The `dashboardCadence` flake was fixed in `#207`.
+   it. The `dashboardCadence` flake was fixed in `#207`. And
+   `environment-data.airQuality.bandCount`, recorded as the last seam orphan,
+   now has two readers and is not one.
 
 ## Starting state at the start of the PREVIOUS run — historical, do not act on it
 
