@@ -307,6 +307,6 @@ jobs:
       # absence resolves to the LIVE issue, because a dead monitor during a real
       # outage must reach the real one, and an empty label would make
       # `gh issue list --label ''` match nothing.
-      label: ${{ needs.check.outputs.label || 'source-alert' }}
+      label: source-alert
       subject: ${{ needs.check.outputs.subject || 'Data sources' }}
     secrets: inherit
