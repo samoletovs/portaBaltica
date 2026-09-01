@@ -2960,8 +2960,40 @@ bad reading, three different responses:
 | The reading is | Likely cause | What to do |
 |---|---|---|
 | **absent** — nothing, empty, null | wrong field, wrong selector | print the shape before the conclusion |
-| **plausible** — a value you'd believe | right probe, wrong subject | confirm which tree you measured |
+| **plausible** — a value you'd believe | right probe, wrong subject | confirm which tree you measured, **and which population** |
 | **absurd** — obviously impossible | broken instrument | suspect the probe, not the code |
+
+**"Which population" is the half that hides**, because a wrong population is
+*structurally* always plausible: a subset produces a well-formed reading of
+itself, so it can never come out absent or absurd and neither of the other two
+rows will catch it. In one session's words, **a third of a population reads
+exactly like a whole one.** Their three, all the probe working and the
+population wrong:
+
+```
+pp defect over src/**        0 hits    the renderer is in api/
+PR body via .Length        151         PowerShell returned an ARRAY, counted lines
+the corpus sweep             3 of 93   read as 3 of 3
+```
+
+The first two defended themselves — an absent and an absurd reading. The third
+did not, and it is the one that would have shipped.
+
+Demonstrated again while judging whether that was worth writing down. Verifying
+five claims of theirs, two came back `False` and looked like a regression
+against merged work:
+
+```
+git show origin/master:newsroom/pipeline/generator.py   fatal: path does not exist
+                                                        -> $c -match ... -> False
+real path: newsroom/pipeline/write/generator.py         -> True
+```
+
+Guessed paths, `2>$null` swallowing `fatal:`, and a `-match` on the empty
+result. **Absence resolved to "not present" rather than "I could not look"** —
+so state the population beside the reading, and when a check reports a thing
+missing, prove the path you read exists before believing the file does not
+contain it.
 
 The third is the session that built the modulepreload recovery, counting
 reloads three ways before getting one that meant anything. `framenavigated`
