@@ -560,15 +560,36 @@ _GLOSS = (
 
 def _payload_with_gloss() -> dict:
     """A draft of the shape all five rejected originals had: six prose blocks,
-    a figure-free attributed mechanism, then a figure-free unattributed gloss."""
+    a figure-free attributed mechanism, then a figure-free unattributed gloss.
+
+    THE LEAD AND DEK WERE CORRECTED, AND THE CORRECTION IS THE POINT
+    ---------------------------------------------------------------
+    This fixture asserts a draft is publishable, so it is a standard, and a
+    standard has to survive the checks it claims to satisfy. It did not. The
+    lead said "the highest since the series began in 2021" and the dek said the
+    reading "sits above every earlier month Eurostat has published" — two
+    whole-series claims on a signal whose series origin was never recorded.
+    That is the published food-inflation failure word for word: a record over
+    the sixty periods we fetched, out of 348, asserted over all of them.
+
+    ``record_claim_holds`` rejects the lead, as it should. The dek it does not
+    reach — a superlative expressed as a universal quantification carries no
+    superlative word — and that gap is stated in the check's own docstring
+    rather than papered over. It is corrected here anyway, because a fixture
+    that models unsupportable copy teaches every test importing it that the
+    copy is fine.
+
+    The gloss paragraph, which is what these tests are actually about, is
+    untouched.
+    """
     return {
         "headline": "Latvian unemployment reaches its highest level since 2021",
-        "dek": "The July reading sits above every earlier month Eurostat has published.",
+        "dek": "The July reading sits above the previous record Eurostat has published.",
         "blocks": [
             {
                 "text": (
                     "Latvia's unemployment rate reached 6.8% in July, above the previous "
-                    "record of 6.5% and the highest since the series began in 2021."
+                    "record of 6.5%."
                 ),
                 "figures": [
                     {"value": 6.8, "signal_field": "latest_value", "unit": "%", "rendered_as": "6.8%"},

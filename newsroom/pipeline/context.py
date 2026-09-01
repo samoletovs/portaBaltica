@@ -198,6 +198,51 @@ class ContextFact:
 
 
 @dataclass(frozen=True, slots=True)
+class Placement:
+    """Where the latest reading sits in its own series, as counts.
+
+    WHY THIS IS A RECORD AND NOT JUST A SENTENCE
+    --------------------------------------------
+    ``_placement`` already turns these counts into deterministic English —
+    "This is the lowest reading anywhere in the series." — and that sentence is
+    what the writer sees. It is not what a gate can be built on. A gate reading
+    our own generated prose is a second enumeration of a fact we already hold,
+    and it breaks the day someone rewords the sentence.
+
+    So the counts travel as numbers, into ``provenance.context.placement``, and
+    ``newsroom.validator.check_record_claim_holds`` compares a published
+    superlative against them. The note and the gate then read one fact.
+
+    THE VOCABULARY IS ``revisions.py``'s, DELIBERATELY
+    -------------------------------------------------
+    :func:`newsroom.pipeline.revisions.record_correction_note` already had the
+    words for this — ``beaten_in_series``, ``rank`` — but only *after* the fact,
+    to describe a falsehood in a correction notice. ``higher`` and ``lower``
+    are the direction-free pair :class:`SeriesOrigin` records; ``beaten_in_series``
+    is whichever of them a given claim's direction selects, and the check names
+    it that so the gate and the correction that may follow it use one word for
+    one number.
+    """
+
+    #: How many readings the WHOLE series holds, not the fetched window.
+    readings_in_series: int
+    #: How much of the rest of the series is above / below the latest reading.
+    higher: int
+    lower: int
+    first_period: str
+    latest_period: str
+
+    def provenance_record(self) -> dict[str, Any]:
+        return {
+            "readings_in_series": self.readings_in_series,
+            "higher": self.higher,
+            "lower": self.lower,
+            "first_period": self.first_period,
+            "latest_period": self.latest_period,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ContextPack:
     """Everything the newsroom knows that bears on one signal.
 
@@ -213,6 +258,10 @@ class ContextPack:
     observations: tuple[str, ...] = ()
     period_labels: tuple[str, ...] = ()
     series_considered: int = 0
+    #: The same placement the notes describe, as counts a gate can compare
+    #: against. ``None`` when the series' own extent is unknown, which is the
+    #: state in which nothing may be said about the series at all.
+    placement: Placement | None = None
 
     def __bool__(self) -> bool:
         return bool(self.facts or self.observations)
@@ -227,12 +276,15 @@ class ContextPack:
         return {fact.field: fact.unit for fact in self.facts}
 
     def to_provenance(self) -> dict[str, Any]:
-        return {
+        record: dict[str, Any] = {
             "method": "collected_series",
             "series_considered": self.series_considered,
             "facts": [fact.provenance_record() for fact in self.facts],
             "observations": list(self.observations),
         }
+        if self.placement is not None:
+            record["placement"] = self.placement.provenance_record()
+        return record
 
 
 # ── period arithmetic ───────────────────────────────────────────────────
@@ -548,7 +600,9 @@ def _companions(
     return facts
 
 
-def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], list[str]]:
+def _placement(
+    signal: Signal, series: TimeSeries
+) -> tuple[list[ContextFact], list[str], Placement | None]:
     """Where the latest reading sits in the series' own history.
 
     EVERY CLAIM HERE IS ABOUT THE SERIES, SO IT NEEDS THE SERIES
@@ -574,14 +628,14 @@ def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], l
     notes: list[str] = []
     observations = series.observations
     if len(observations) < 3:
-        return facts, notes
+        return facts, notes, None
 
     origin = series.origin
     if origin is None:
         # Nothing here can be said truthfully about the series, and everything
         # here is about the series. Absence resolves to saying nothing rather
         # than to saying it about the window under the series' name.
-        return facts, notes
+        return facts, notes, None
 
     latest = observations[-1]
 
@@ -625,6 +679,29 @@ def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], l
             "Only a handful of readings in the series have ever been lower; "
             f"this is the {_RANK_WORDS_LOW[below]} on record."
         )
+    else:
+        # THE BRANCH THAT USED TO BE SILENT, AND WHAT SILENCE COST
+        # -------------------------------------------------------
+        # Every branch above hands the writer a placement it may state. This
+        # one -- an ordinary reading, well inside its own history -- handed it
+        # nothing, while `readings_in_series` still arrived as a verified
+        # figure and the prompt still asked for a PLACEMENT paragraph whose
+        # worked examples are all superlatives. So the writer had the
+        # population, an instruction to place the reading in it, and no fact
+        # saying where. It filled the gap:
+        #
+        #     "This reading is the lowest in the 296 observations since the
+        #      series began."          71 of those 296 are lower.
+        #
+        # Both numbers in that sentence are true and every numeric gate passed
+        # it, because the falsehood is the superlative and a superlative has no
+        # digits. Measured across the 93 articles published to
+        # 2026-08-31T14:08Z, seven series-scoped superlatives name their window
+        # correctly and six of the seven are false.
+        #
+        # Digit-free like its siblings, and true whenever it is reached: this
+        # branch is only taken when readings exist on both sides.
+        notes.append("This is neither the highest nor the lowest reading in the series.")
 
     # The previous record, which is what "a record" is measured against and the
     # single most common thing a reader wants next. Taken from the whole series
@@ -675,7 +752,14 @@ def _placement(signal: Signal, series: TimeSeries) -> tuple[list[ContextFact], l
             dataset=series.source.dataset,
         )
     )
-    return facts, notes
+    placement = Placement(
+        readings_in_series=origin.total_observations,
+        higher=above,
+        lower=below,
+        first_period=origin.first_period,
+        latest_period=latest.period,
+    )
+    return facts, notes, placement
 
 
 def _shift_years(period: str, years: int) -> str | None:
@@ -843,8 +927,9 @@ def build_context(signal: Signal, series: Sequence[TimeSeries]) -> ContextPack:
     trajectory: list[ContextFact] = []
     notes: list[str] = []
     denominator: list[ContextFact] = []
+    placement_record: Placement | None = None
     if own is not None:
-        placement, notes = _placement(signal, own)
+        placement, notes, placement_record = _placement(signal, own)
         trajectory = _trajectory(signal, own)
         denominator = _denominator(signal, own, by_metric)
 
@@ -861,6 +946,13 @@ def build_context(signal: Signal, series: Sequence[TimeSeries]) -> ContextPack:
         observations=tuple(observations),
         period_labels=tuple(period_labels),
         series_considered=len(series),
+        # Taken from `_placement` directly rather than rebuilt from `facts`.
+        # `_without_collisions` drops `readings_in_series` whenever the
+        # detector already published the same count under another name --
+        # `record_extreme` does, as `observation_count` -- so a placement
+        # reconstructed from the surviving facts would be absent for exactly
+        # the articles that claim records.
+        placement=placement_record,
     )
 
 
@@ -894,6 +986,7 @@ __all__ = [
     "COUNTRY_NAMES",
     "ContextFact",
     "ContextPack",
+    "Placement",
     "build_context",
     "build_context_for",
     "enrich_signal",

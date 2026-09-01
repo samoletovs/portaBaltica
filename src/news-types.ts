@@ -42,7 +42,17 @@ export type ValidatorCheckName =
    * vacuously: the paragraph carried no figures, so every numeric gate had
    * nothing to look at.
    */
-  | 'no_unsupported_mechanism';
+  | 'no_unsupported_mechanism'
+  /**
+   * A superlative over the series must hold over the series.
+   *
+   * Added after "This reading is the lowest in the 296 observations since the
+   * series began" published with 71 of those 296 lower. Every numeric gate
+   * passed it, and correctly: 296 is the real length of the series and it
+   * traces to a verified figure. The falsehood was the word "lowest", which
+   * carries no digits, so nothing numeric could see it.
+   */
+  | 'record_claim_holds';
 
 export interface ValidatorCheck {
   name: ValidatorCheckName;

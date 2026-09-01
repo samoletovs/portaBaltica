@@ -48,6 +48,7 @@ const CHECK_LABELS: Record<ValidatorCheckName, string> = {
   comparison_basis_stated: 'Every change states what it is measured against',
   no_repeated_findings: 'No paragraph restates a figure another has already made',
   no_unsupported_mechanism: 'No paragraph explains a movement the figures do not evidence',
+  record_claim_holds: 'Any “highest” or “lowest” holds over the whole series, not just the part we fetched',
 };
 
 function formatTimestamp(value: string | undefined): string {

@@ -44,6 +44,7 @@ CHECK_NAMES: Final[tuple[str, ...]] = (
     "comparison_basis_stated",
     "no_repeated_findings",
     "no_unsupported_mechanism",
+    "record_claim_holds",
 )
 
 #: How far a declared figure may sit from the signal value it claims to come
@@ -1491,6 +1492,377 @@ def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
     return CheckResult(name, True, "no unevidenced explanation")
 
 
+# ── check: record_claim_holds ───────────────────────────────────────────
+#
+# THE DEFECT, AND WHY NOTHING NUMERIC COULD SEE IT
+# ------------------------------------------------
+# Published 2026-08-31T14:04Z, revision 56554c8, and false::
+#
+#     "This reading is the lowest in the 296 observations since the series
+#      began."                          71 of those 296 readings are lower.
+#
+# The detector never claimed a record -- the signal was a seasonal deviation.
+# 296 is genuinely how long the series is, and it traces to a verified figure,
+# so `figures_traceable` and `no_invented_numbers` both pass and are right to.
+# The falsehood is the word "lowest", and a superlative carries no digits.
+#
+# It is the same shape as two faults this repo has already recorded: the cache
+# collision that published real figures under the wrong subject, and the
+# digit-free placement notes that stated a record over a window. In each case
+# the contract protects figures rather than what surrounds them.
+#
+# WHY THE EXISTING RULE DOES NOT REACH IT
+# ---------------------------------------
+# `house_style.record_claim_problems` already demands that a record claim name
+# its window, and that rule works: the writer learned it. These sentences name
+# their window *correctly* -- 296 observations, since December 2001 -- and are
+# still false, because naming a population does not make you its extremum.
+# Measured across the 93 articles published to 2026-08-31T14:08Z, seven
+# series-scoped superlatives satisfy the bounding rule and six of the seven are
+# false. Bounding is checked; truth was not.
+#
+# WHY THIS IS A GATE AND NOT HOUSE STYLE
+# --------------------------------------
+# `record_claim_problems` argues its own case for being a style violation: the
+# honest form already existed in the corpus, so a hard gate would have been
+# tightening a rule the writer half kept. The opposite holds here. There is no
+# honest way to write a false superlative, the claim is not recoverable by
+# rewording, and 6 of 7 is not a minority failure. A style violation feeds the
+# revision loop and then publishes anyway when the attempts run out, which is
+# how the two 14:08Z articles reached readers.
+
+#: Directional superlatives, as a vocabulary rather than a morphology.
+#:
+#: `\w+est` is the tempting structural form and it is wrong here, because the
+#: check needs the DIRECTION -- `higher` or `lower` is what the data records --
+#: and "latest", "earliest", "modest", "nearest" and "honest" carry none. This
+#: wire writes "This latest figure is the third-highest on record" constantly,
+#: so a morphological rule needs a stop-list, and a stop-list fires on a true
+#: sentence the first time it is incomplete. A false positive on a true article
+#: is the worse defect.
+#:
+#: A superlative is also one of the few properties that genuinely IS a
+#: vocabulary: there is no way to assert an extremum in a direction without one
+#: of these words. Measured against the published corpus, this set reaches
+#: every series-scoped claim in it, including the six false ones.
+_HIGH_WORDS: Final[str] = (
+    r"highest|largest|biggest|greatest|strongest|steepest|peak|maximum|"
+    r"the\s+most\s+\w+|record\s+high|all[-\s]?time\s+high|never\s+been\s+higher"
+)
+_LOW_WORDS: Final[str] = (
+    r"lowest|smallest|weakest|shallowest|trough|minimum|"
+    r"the\s+least\s+\w+|record\s+low|all[-\s]?time\s+low|never\s+been\s+lower"
+)
+#: ``most`` and ``least`` carry ``the`` deliberately, and it is not tidiness.
+#: A bare ``most\s+\w+`` matches "most of the series" and a bare
+#: ``least\s+\w+`` matches "at least 5 readings" — both ordinary phrases, both
+#: of which would have been read as a rank-1 claim and rejected a true article.
+#: Neither appears in the published corpus, so no measurement would have found
+#: them; they are excluded by construction instead. The English superlative
+#: with these two words takes the article: "the most expensive", "the least
+#: affected".
+_HIGH_CLAIM: Final[re.Pattern[str]] = re.compile(r"\b(?:" + _HIGH_WORDS + r")\b", re.I)
+_LOW_CLAIM: Final[re.Pattern[str]] = re.compile(r"\b(?:" + _LOW_WORDS + r")\b", re.I)
+
+#: A record claim with no direction of its own -- "set a record", "a record
+#: 1,175 thousand tonnes", "an unprecedented spread". It still asserts rank 1,
+#: just not which end, so it is judged by the weaker test that holds either
+#: way: a reading with something above it AND something below it is not the
+#: extreme of anything.
+#:
+#: `\brecord\b` deliberately does not match "recorded" or "recording", which
+#: are ordinary reporting words this wire uses in almost every article.
+_UNDIRECTED_CLAIM: Final[re.Pattern[str]] = re.compile(
+    r"\ba\s+record\b|\bsets?\s+(?:an?\s+)?record\b|"
+    r"\bunprecedented\b|\bon\s+record\b|\ball[-\s]?time\b",
+    re.I,
+)
+
+#: The scope that makes a superlative a claim about the WHOLE series.
+#:
+#: This is the half that keeps the check off correct work. "Latvia has the
+#: highest energy inflation among the Baltic states" is a superlative over a
+#: peer group at one moment; it needs no window and it is item 3 of the
+#: writer's own plan, so the wire produces them constantly. Only a superlative
+#: scoped to the series' own history is judged here.
+_SERIES_SCOPE: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:in|of|for|across|anywhere\s+in|throughout|within)\s+"
+    r"(?:the|this|its)\s+(?:\w+[-\s])?(?:series|record|history)\b|"
+    r"\bthe\s+series\b|\bseries\s+(?:began|begins|started|starts)\b|"
+    r"\bon\s+record\b|\bin\s+history\b|\bever\s+recorded\b|"
+    r"\ball[-\s]?time\b|\bnever\s+been\s+(?:higher|lower)\b",
+    re.I,
+)
+
+#: A counted population — "the 296 observations", "40 quarters". Whether it
+#: scopes the whole series is decided by COMPARING IT TO THE DATA rather than
+#: by reading it: a count equal to `readings_in_series` is the series, and a
+#: smaller one is a window the writer has honestly narrowed to.
+_COUNTED_POPULATION: Final[re.Pattern[str]] = re.compile(
+    r"\b(\d[\d,]*)\s+(?:observations?|readings?|quarters?|months?|years?|"
+    r"weeks?|days?|periods?)\b",
+    re.I,
+)
+
+#: "one of the highest", "among the lowest", "close to the highest" — a hedge,
+#: not a rank claim. It asserts membership of a group rather than a position,
+#: so there is no rank to check and judging it would reject correct copy.
+#:
+#: ``_NEAR`` rather than ``[^.]`` for the gap: a full stop inside a figure is
+#: not a sentence boundary, and the sentences carrying figures are exactly the
+#: ones this can least afford to mis-scan. The trap is recorded in
+#: ``house_style`` and in ``AGENTS.md``; it costs one alternation to avoid.
+_NEAR_HEDGE: Final[str] = r"(?:[^.]|\.(?=\d))"
+_HEDGED: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:one\s+of|among|amongst|close\s+to|nearly|almost|approaching)\b"
+    + _NEAR_HEDGE
+    + r"{0,24}?\b(?:"
+    + _HIGH_WORDS
+    + r"|"
+    + _LOW_WORDS
+    + r")\b",
+    re.I,
+)
+
+#: A DENIAL is not a claim. "This is neither the highest nor the lowest reading
+#: in the series" is the note ``context.py`` emits for an ordinary reading, and
+#: the prompt hands it to the writer as the correct thing to say — so a check
+#: that read it as a rank-1 claim would reject the sentence it was built to
+#: encourage. Found exactly that way: the prompt's own GOOD example failed the
+#: gate the same prompt was written to serve.
+#:
+#: "never been higher" is deliberately absent from this list. It is an
+#: assertion, not a denial, and it belongs in ``_HIGH_WORDS`` where it is.
+_DENIED: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:not|neither|nor|no\s+longer|far\s+from|nowhere\s+near)\b"
+    + _NEAR_HEDGE
+    + r"{0,24}?\b(?:"
+    + _HIGH_WORDS
+    + r"|"
+    + _LOW_WORDS
+    + r")\b",
+    re.I,
+)
+
+#: How far down the series a claim places the reading. "second-highest" is
+#: rank 2, a bare superlative is rank 1. Spelled and numeric ordinals both
+#: appear in the corpus — "the second-highest on record", "the 3rd highest".
+_ORDINAL_WORDS: Final[Mapping[str, int]] = {
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+}
+_RANK_PREFIX: Final[re.Pattern[str]] = re.compile(
+    r"\b(" + "|".join(_ORDINAL_WORDS) + r"|\d+(?:st|nd|rd|th))[-\s]+"
+    r"(?:" + _HIGH_WORDS + r"|" + _LOW_WORDS + r")\b",
+    re.I,
+)
+
+
+def _placement_of(context: ValidationContext) -> Mapping[str, Any] | None:
+    """The counts ``context.py`` recorded from the whole series, or ``None``.
+
+    Read from the article's own provenance rather than from the signal: the
+    signal's ``fields`` carry ``readings_in_series`` but not the position
+    within it, and ``_without_collisions`` drops even that whenever the
+    detector already published the same count under another name.
+    """
+    block = context.provenance.get("context")
+    if not isinstance(block, Mapping):
+        return None
+    placement = block.get("placement")
+    if not isinstance(placement, Mapping):
+        return None
+    if not isinstance(placement.get("higher"), int) or not isinstance(
+        placement.get("lower"), int
+    ):
+        return None
+    return placement
+
+
+def _claimed_rank(sentence: str) -> int:
+    match = _RANK_PREFIX.search(sentence)
+    if match is None:
+        return 1
+    token = match.group(1).lower()
+    if token in _ORDINAL_WORDS:
+        return _ORDINAL_WORDS[token]
+    digits = re.sub(r"\D", "", token)
+    return int(digits) if digits else 1
+
+
+def _scopes_the_series(sentence: str, total: int | None) -> bool:
+    """Does this sentence claim its extremum over the series' whole history?
+
+    Two ways, and the second is the one that reads the data. A phrase naming
+    the series is decisive. A COUNT is decisive only when it equals the number
+    of readings the series actually holds: "the highest in the 296
+    observations" is a claim about all 296, while "the lowest in the 60
+    readings the newsroom holds" is a writer correctly narrowing to a window
+    and must stay legal.
+    """
+    if _SERIES_SCOPE.search(sentence):
+        return True
+    if total is None:
+        return False
+    for match in _COUNTED_POPULATION.finditer(sentence):
+        try:
+            counted = int(match.group(1).replace(",", ""))
+        except ValueError:  # pragma: no cover - the group is digits and commas
+            continue
+        if counted == total:
+            return True
+    return False
+
+
+def check_record_claim_holds(context: ValidationContext) -> CheckResult:
+    """A superlative over the series must hold over the series.
+
+    THE COMPARISON IS AGAINST THE DATA, NOT AGAINST OUR OWN PROSE
+    -------------------------------------------------------------
+    ``context.py`` already turns the same counts into a deterministic sentence
+    the writer may restate. Licensing a published superlative by matching that
+    sentence would be a second enumeration of one fact, and it would break the
+    day someone rewords it. So the licence is ``provenance.context.placement``:
+    ``higher`` and ``lower``, recorded from the whole series at collection
+    time, which is what ``_placement``'s own note is derived from.
+
+    The vocabulary is :func:`newsroom.pipeline.revisions.record_correction_note`'s.
+    ``beaten_in_series`` is whichever of ``higher``/``lower`` the claim's
+    direction selects, and a claim of rank *n* asserts exactly ``n - 1``
+    readings beat it — the same invariant that function refuses to violate when
+    it writes the correction afterwards.
+
+    FAIL CLOSED, INCLUDING ON A SERIES WE NEVER MEASURED
+    ----------------------------------------------------
+    A whole-series superlative with no placement block fails. That is not
+    caution: it is the published failure. "Latvia's food inflation drops to
+    record low" was a record over the sixty periods we fetched, out of 348, and
+    the collector had never been asked for the rest. When the series' extent is
+    unknown, ``_placement`` deliberately says nothing, and a claim about a
+    series nobody measured is unverifiable rather than merely unsupported.
+
+    WHAT THIS DOES NOT REACH, STATED RATHER THAN IMPLIED
+    ----------------------------------------------------
+    A superlative expressed as a universal quantification — "sits above every
+    earlier month Eurostat has published", "no quarter has been higher" —
+    carries no superlative word and is not seen here. It is the shape a word
+    list cannot be widened into safely, because the next phrasing is always one
+    nobody imagined.
+
+    It is left alone on measurement rather than on principle: across the 39
+    tier A articles published to 2026-08-31T14:08Z, the construction occurs
+    **zero** times in prose. Its one occurrence anywhere in the repository was
+    in a test fixture asserting that a draft was publishable, which is corrected
+    in the same change. If it ever appears in the corpus, the answer is a
+    different property — comparing the claim to the data it quantifies over —
+    and not a longer vocabulary.
+    """
+    name = "record_claim_holds"
+    if context.tier in SYNDICATED_TIERS:
+        return CheckResult(name, True, "syndicated; the outlet's own words")
+
+    placement = _placement_of(context)
+    total = placement.get("readings_in_series") if placement else None
+    total = total if isinstance(total, int) else None
+
+    problems: list[tuple[int, str]] = []
+    judged = 0
+    for location, text in context.generated_prose():
+        for sentence in _SENTENCE_SPLIT.split(text):
+            high = bool(_HIGH_CLAIM.search(sentence))
+            low = bool(_LOW_CLAIM.search(sentence))
+            undirected = bool(_UNDIRECTED_CLAIM.search(sentence))
+            if not (high or low or undirected):
+                continue
+            if _HEDGED.search(sentence) or _DENIED.search(sentence):
+                continue
+            if high and low and not undirected:
+                # Both ends named and no record word to settle which is being
+                # claimed — "the gap between the highest and lowest reading in
+                # the series" claims neither. Judging it would mean guessing a
+                # direction, and the guess is wrong half the time on a gate
+                # whose false positives destroy correct articles.
+                continue
+            if not _scopes_the_series(sentence, total):
+                continue
+
+            index = _block_index(location)
+            if placement is None:
+                problems.append(
+                    (
+                        index,
+                        f"{location}: claims a place in the series, and the series' "
+                        "own extent was never recorded. Nothing here can be "
+                        "checked against the whole series, so it may not be "
+                        "claimed over it",
+                    )
+                )
+                continue
+
+            judged += 1
+            rank = _claimed_rank(sentence)
+            higher, lower = int(placement["higher"]), int(placement["lower"])
+            if high and not low:
+                beaten_in_series, end = higher, "higher"
+            elif low and not high:
+                beaten_in_series, end = lower, "lower"
+            else:
+                # An undirected record claim carrying no direction of its own,
+                # or one carrying both alongside a record word. Rank 1 in SOME
+                # direction is still refutable: a reading with something above
+                # it AND something below it is the extreme of neither end.
+                if higher > 0 and lower > 0:
+                    problems.append(
+                        (
+                            index,
+                            f"{location}: claims a record over the series, and the "
+                            f"reading is the extreme of neither end — {higher} "
+                            f"reading(s) are higher and {lower} lower",
+                        )
+                    )
+                continue
+
+            if beaten_in_series != rank - 1:
+                problems.append(
+                    (
+                        index,
+                        f"{location}: claims rank {rank} over the series, but "
+                        f"beaten_in_series is {beaten_in_series} — "
+                        f"{beaten_in_series} of the {total} reading(s) are {end}, "
+                        f"making it the {_nth(beaten_in_series + 1)}",
+                    )
+                )
+
+    if problems:
+        return CheckResult(
+            name,
+            False,
+            "; ".join(message for _, message in problems),
+            blocks=tuple(sorted({index for index, _ in problems if index >= 0})),
+        )
+    return CheckResult(name, True, f"{judged} series-scoped claim(s) hold")
+
+
+def _block_index(location: str) -> int:
+    match = re.fullmatch(r"body\[(\d+)\]", location)
+    return int(match.group(1)) if match else -1
+
+
+def _nth(n: int) -> str:
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 # ── runner ──────────────────────────────────────────────────────────────
 
 _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
@@ -1504,6 +1876,7 @@ _CHECKS: Final[Mapping[str, Callable[[ValidationContext], CheckResult]]] = {
     "comparison_basis_stated": check_comparison_basis_stated,
     "no_repeated_findings": check_no_repeated_findings,
     "no_unsupported_mechanism": check_no_unsupported_mechanism,
+    "record_claim_holds": check_record_claim_holds,
 }
 
 
@@ -1604,6 +1977,7 @@ __all__ = [
     "check_no_invented_numbers",
     "check_no_lived_experience_claims",
     "check_no_rewrite_of_restricted_source",
+    "check_record_claim_holds",
     "check_snippet_verbatim",
     "figure_value_tolerance",
     "is_servable",

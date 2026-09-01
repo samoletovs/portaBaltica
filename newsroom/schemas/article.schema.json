@@ -225,6 +225,19 @@
               "type": "array",
               "description": "Deterministic statements computed from the series by code, not by a model.",
               "items": { "type": "string" }
+            },
+            "placement": {
+              "type": "object",
+              "description": "Where the latest reading sits in the WHOLE series, as counts, so record_claim_holds can compare a published superlative against the data rather than against the deterministic sentence describing it. Absent when the series' own extent is unknown, in which case nothing may be claimed about the series at all.",
+              "required": ["readings_in_series", "higher", "lower", "first_period", "latest_period"],
+              "additionalProperties": false,
+              "properties": {
+                "readings_in_series": { "type": "integer", "minimum": 0 },
+                "higher": { "type": "integer", "minimum": 0 },
+                "lower": { "type": "integer", "minimum": 0 },
+                "first_period": { "type": "string" },
+                "latest_period": { "type": "string" }
+              }
             }
           }
         },
@@ -362,7 +375,8 @@
                       "attribution_present",
                       "comparison_basis_stated",
                       "no_repeated_findings",
-                      "no_unsupported_mechanism"
+                      "no_unsupported_mechanism",
+                      "record_claim_holds"
                     ]
                   },
                   "passed": { "type": "boolean" },
