@@ -273,6 +273,59 @@ export async function fetchCorrections(signal?: AbortSignal): Promise<Correction
     .sort((a, b) => b.corrected_at.localeCompare(a.corrected_at));
 }
 
+/**
+ * Which articles carry a correction, for a surface that lists headlines.
+ *
+ * WHY THE LOG AND NOT THE INDEX
+ * -----------------------------
+ * The obvious place for this is `ArticleSummary`, written by `write_index`. It
+ * would mark nothing. A correction is applied by `apply_correction_note` in
+ * `newsroom/pipeline/revisions.py`, which writes `<slug>.json` and appends to
+ * `corrections.json` and NEVER TOUCHES `index.json` — and `write_index` merges
+ * pre-existing index entries verbatim, so no later run retrofits a field onto
+ * them either. Measured against production on 2026-09-01: 16 of the 20
+ * feed-visible correction entries were applied more than five minutes before
+ * the index was last written, the oldest four days earlier and many index
+ * rewrites ago, and 0 of 93 entries carried anything about a correction.
+ *
+ * So a summary field marks 0 of 18 today and goes on marking 0. The log is the
+ * only store that has the answer, it is already public, and reading it here
+ * means the feed and `/corrections` cannot disagree about who was corrected —
+ * they are the same file.
+ *
+ * A SET OF SLUGS, DELIBERATELY, RATHER THAN A COUNT
+ * ------------------------------------------------
+ * The log counts entries and the feed marks articles: 28 entries over 25 slugs.
+ * They are different populations and are supposed to differ, so nothing here
+ * should tempt a caller into showing "corrected twice". That is a fact about
+ * our process rather than about the claim a reader is looking at, and it does
+ * not survive contact with the log — one of the three doubly-corrected articles
+ * is doubly-corrected because we corrected our own correction, which a "2"
+ * would present to a reader as two errors.
+ */
+export function correctedSlugs(entries: readonly CorrectionLogEntry[]): Set<string> {
+  return new Set(entries.map((entry) => entry.slug));
+}
+
+/**
+ * What a headline-listing surface knows about which articles were corrected.
+ *
+ * Three states rather than a set that is empty when we could not find out. An
+ * unmarked card would otherwise mean either "not corrected" or "we could not
+ * read the log", which is one artefact for two states — and the second is the
+ * dangerous one, because the entire point of the marker is that a reader who
+ * sees none concludes the headline stands.
+ *
+ * Note that a 404 is `ok`, not `failed`. `fetchCorrections` returns an empty
+ * array for it, because the log genuinely does not exist until the first
+ * correction is ever issued — "none have been issued" is an answer, not a
+ * failure to get one.
+ */
+export type CorrectionState =
+  | { state: 'loading' }
+  | { state: 'ok'; slugs: Set<string> }
+  | { state: 'failed' };
+
 export type ArticleLoad =
   | { state: 'ok'; article: Article }
   | { state: 'not-found' }

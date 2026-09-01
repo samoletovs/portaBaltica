@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
-import { fetchArticleIndex } from '../../news-api';
+import { correctedSlugs, fetchArticleIndex, fetchCorrections } from '../../news-api';
+import type { CorrectionState } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
-import { ArticleCard, FeedItem } from './NewsCard';
+import { ArticleCard, CorrectionsUnavailable, FeedItem } from './NewsCard';
 import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { useOverflowFade } from '../../utils/useOverflowFade';
@@ -76,6 +77,7 @@ export default function NewsFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
+  const [corrections, setCorrections] = useState<CorrectionState>({ state: 'loading' });
 
   usePageMeta({
     title: 'portaBaltica | Baltic open data, reported',
@@ -94,6 +96,23 @@ export default function NewsFeed() {
           setArticles([]);
         }
       });
+
+    // Fetched separately and failing separately, on purpose — the idiom
+    // `WeeklyPage` already uses for its run report. Folding this into the
+    // promise above would let a failure to read the corrections log take down
+    // the front page, and the articles are by far the more important artefact.
+    // The reverse is guarded too: a reader whose corrections log did not arrive
+    // is told so rather than shown an unmarked feed that looks clean.
+    fetchCorrections(controller.signal)
+      .then((entries) => {
+        if (!controller.signal.aborted) {
+          setCorrections({ state: 'ok', slugs: correctedSlugs(entries) });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCorrections({ state: 'failed' });
+      });
+
     return () => controller.abort();
   }, []);
 
@@ -145,6 +164,8 @@ export default function NewsFeed() {
   }
 
   const [lead, ...rest] = ours;
+  const isCorrected = (summary: ArticleSummary) =>
+    corrections.state === 'ok' && corrections.slugs.has(summary.slug);
 
   return (
     <div>
@@ -187,10 +208,15 @@ export default function NewsFeed() {
           ) : (
             <>
               <h1 className="sr-only">Front page</h1>
-              <ArticleCard summary={lead} variant="lead" />
+              {corrections.state === 'failed' && <CorrectionsUnavailable />}
+              <ArticleCard summary={lead} variant="lead" corrected={isCorrected(lead)} />
               <div className="mt-8 space-y-6">
                 {rest.map((summary) => (
-                  <FeedItem key={summary.id ?? summary.slug} summary={summary} />
+                  <FeedItem
+                    key={summary.id ?? summary.slug}
+                    summary={summary}
+                    corrected={isCorrected(summary)}
+                  />
                 ))}
               </div>
             </>
