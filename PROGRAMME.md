@@ -1810,6 +1810,51 @@ correct one, because it makes someone measure something nobody had reason to
 measure.** Say so explicitly: *"measure this before implementing it; report if
 I am wrong."*
 
+**And add a fourth field: `MEASURED ON <sha> at <instant>` — on both ends of the
+contract.** Marking the guess tells a session which part it may overturn; the
+SHA tells it whether the whole brief has already expired, which is a different
+failure with a much larger bill.
+
+**A report needs it for the same reason a brief does, in the other direction.**
+A completion report and a statement of intent are the same sentence: *"deployed
+shows 0 of 18"* reads identically whether the fix merged an hour ago or is
+sitting in a branch. I stood a session down on exactly that ambiguity — its
+message was a past-tense summary of work that had already merged, and I read it
+as present-tense intent. The session's own framing is the right one:
+
+> a brief needs it so a session can tell the premise has expired, and a report
+> needs it so you can tell a finished measurement from a live one
+
+Measured on this run's last day, **three instances of work nearly rebuilt after
+it had shipped** — the population stated, because a count without one is the
+fault this file spends pages on:
+
+```
+13dbac17  discarded three finished pieces mid-build when #349 landed under it
+c4c8f6a6  specified the sixth correction surface — already live in #354
+me        published a brief whose first task had shipped that morning in a
+          pull request I merged myself, with a second false clause beside it
+```
+
+Two of the three are the same underlying work — `articleMeta.js`, the share
+card — reached independently by two people who could not see each other. None
+was caught by a brief. Each was caught late, by an artefact contradicting
+itself: a live guard going green on an assertion that should have been red, or a
+stale message that happened to make someone re-check their own claim.
+
+⚠️ **I first wrote "four sessions" here, and the fourth was `#359` — which was
+not an instance at all**, but the remainder that session shipped *because* of the
+first, merged normally. The session corrected me. So the paragraph warning about
+unstated populations had an inflated one, until someone counted it.
+
+The suggestion is that session's and it is exact:
+
+> a task brief could carry the SHA it was measured on, so *"measured on
+> 894a871"* makes an expired premise visible **on arrival** instead of at the
+> first green assertion that should have been red
+
+It costs one line and it is the only field that fails *early*.
+
 **The manager should write code too.** The last prompt implied the manager only
 verifies. Six of this run's commits were mine, and three of them came from
 reading artefacts nobody had been asked to read — the pricing page selling a
