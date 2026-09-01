@@ -2545,6 +2545,66 @@ subject rather than about the tool:
   control has to be behavioural — make it echo something and check what comes
   back.
 
+### The three rungs a plant has to clear, and each catches what the others cannot
+
+The rules above accumulated one failure at a time and read as a list. A session
+that had hit all three arranged them, and the ordering is the useful part:
+
+```
+count      the plant did not LAND         zero sites, or many
+identity   it landed on the WRONG SITE    one site, but not the one you meant
+behaviour  it landed and did NOTHING      right site, semantically inert
+```
+
+**Count** is already here: require the anchor to occur exactly once, because zero
+is a no-op wearing a result's clothes and two is a mutation you did not intend.
+
+**Identity** is the rung this file did not have, and it is invisible to count. An
+anchor can occur exactly once, apply perfectly, change real behaviour — in a
+different function from the one you are reasoning about. The plant fires, a test
+goes red, and you conclude that *this* code is guarded when what you proved is
+that *something else* is. I produced the instance: I named a regex in
+`_percent_sign_after` and claimed it as the ticker's parse. Run against a harness
+that resolves each anchor's enclosing definition through the AST:
+
+```
+anchor occurrences        1                        <- passes the count rule
+anchor actually lands in  '_percent_sign_after'
+
+claimed as _indicators    INVALID  "lands in '_percent_sign_after', meant '_indicators'"
+named honestly            CAUGHT   test_a_figure_is_not_matched_inside_a_larger_number
+```
+
+**Both rows are identical under the count rule.** The second is the control: the
+check refuses a misaimed anchor without refusing a correct one. The remedy is to
+**declare the definition each plant must land in** and resolve it structurally —
+by AST where the language has one, by nearest enclosing structural line
+otherwise.
+
+The same session then checked its own sixteen plants and found all sixteen
+correct — *"by luck rather than by construction, and nothing in the harness would
+have told me otherwise."* That is the honest form of a clean sweep, and it is
+worth more than the sweep.
+
+**Behaviour** is the bottom rung and the one with the nastiest artefact, because
+the harness does not go quiet — it reports `MISSED`, and `MISSED` is two states
+pointing in *opposite* directions:
+
+```
+nothing guards this code   ->  a finding about the TESTS     -> write one
+the mutation was inert     ->  a finding about the HARNESS   -> fix the plant
+```
+
+The default reading is the first, so acting on it writes a test for behaviour
+that is already guarded — the failure the plant exists to prevent, arriving
+through the instrument built to prevent it. The checkable form is not *"a plant
+must change behaviour"*, which is true and which nobody can inspect directly; it
+is **`MISSED` is two states, separate them before acting**, and the discriminator
+costs one line because a mutation's semantics can be evaluated on their own.
+`frozenset(fs) is fs` answers it without running the suite at all.
+
+A green after a plant is worth exactly as much as the rung you last cleared.
+
 ### A green that is a fact about the environment, not about the code
 
 A check that *cannot* fail is inert, and its greens say nothing. The worse case
