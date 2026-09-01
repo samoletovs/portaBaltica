@@ -1641,6 +1641,34 @@ records a decline, and each was two turns of measurement that saved a session.
 >   attribution: BalticCompareChart 10, IndicatorCard 8, PowerMarketCard 1
 > ```
 >
+> **UPDATE 2026-09-01T09:35Z: this one is now closed too, and it was the
+> careful one.** The entry above is the correction to four premature "already
+> done" claims — it was measured in a browser precisely because a source grep
+> had been wrong. Re-measured in Chromium this morning, same method, four
+> sections:
+>
+> ```
+>                    role="application"   unnamed
+>   /data/economy            10              0
+>   /data/property            1              0
+>   /data/environment         1              0
+>   /data/maritime            1              0
+>                            13              0     was: 19, all unnamed
+>   controls: 33 buttons, 25 links seen · [role="zzz-not-a-role"] 0
+> ```
+>
+> So the list's own most carefully-verified open item expired within four days,
+> and `migr_asyappctzm` — which `AGENTS.md` still describes as *"needs one pass
+> across four files"* — is at `api/shared/indicators.js:563`, in a registry that
+> has grown to **72** indicators. **Eight of nine status claims checked across
+> this programme have been closed by the time someone went to act on them.**
+>
+> That ratio is high enough to change what the list is *for*. It is not a
+> backlog; it is a record of reasoning, and every status sentence in it should
+> be read as a claim about a tree that no longer exists. The fifteen-second
+> re-measure is not diligence, it is the **normal case** — and it now costs
+> less than reading the entry it checks.
+
 > `IndicatorCard`'s well-named `role="img"` wrapper is real — and the unnamed
 > focusable `application` sits **inside** it, so a source read sees the good half.
 > **The fix's own documentation matched a grep for the defect**, which is the
