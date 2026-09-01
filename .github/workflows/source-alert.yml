@@ -59,6 +59,7 @@ on:
           - 'stale-required'
           - 'empty-checks'
           - 'unreachable'
+          - 'recovered'
   # Run when this monitor's own moving parts change, so a break is found by the
   # commit that caused it rather than at the next scheduled run. A monitor that
   # is only ever exercised on a schedule is one whose breakage is discovered by
@@ -161,6 +162,49 @@ jobs:
               # 203.0.113.0/24 is TEST-NET-3, reserved for documentation and
               # guaranteed not to route. A short timeout keeps the job brief.
               echo "args=--url http://203.0.113.1/api/system-status --timeout 3000" >> "$GITHUB_OUTPUT"
+              ;;
+            recovered)
+              # The stand-down, which is the only leg no rehearsal could reach.
+              #
+              # Every other option here is a fault, so every one alerts, so every
+              # one opens a `source-alert-rehearsal` issue and nothing could ever
+              # close one. The issue accumulated for ever while carrying the body
+              # text "closes itself when a later run reads clean".
+              #
+              # It is worse since #362 added the recovery notification: that step
+              # has never delivered, and a notification path that has never
+              # delivered is not a notification path.
+              #
+              # Run it after any of the options above and the pair rehearses the
+              # whole lifecycle: open, notify, stand down, close.
+              cat > rehearsal.json <<'JSON'
+          {
+            "status": "healthy",
+            "version": "rehearsal",
+            "dataSources": {
+              "healthy": 2, "stale": 0, "total": 2,
+              "requiredHealthy": 1, "requiredTotal": 1,
+              "optionalHealthy": 1, "optionalTotal": 1,
+              "checks": [
+                {
+                  "name": "Eurostat", "status": "healthy", "freshness": "fresh",
+                  "latency": 118, "required": true,
+                  "powers": "All Baltic comparison charts",
+                  "dataPeriod": "2026-08", "ageInCadenceUnits": 0.4,
+                  "maxLag": 3, "cadence": "M"
+                },
+                {
+                  "name": "Open-Meteo Weather", "status": "healthy",
+                  "freshness": "fresh", "latency": 90, "required": false,
+                  "powers": "Environment tile", "dataPeriod": "2026-09-01",
+                  "ageInCadenceUnits": 0.2, "maxLag": 3, "cadence": "H"
+                }
+              ]
+            },
+            "fetchedAt": "2026-09-01T17:00:00.000Z"
+          }
+          JSON
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
               ;;
           esac
 

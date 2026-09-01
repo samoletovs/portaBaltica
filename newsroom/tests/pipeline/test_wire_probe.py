@@ -1541,6 +1541,22 @@ def test_exactly_one_rehearsal_is_quiet_and_the_rest_ring() -> None:
     it is how you find out the state is reachable and legible once reached. The
     assertion that matters is the other four: a change making rehearsals quiet
     in general would pass a test that only checked the one.
+
+    THE QUIET ARMS ARE NOW TWO, AND THEY ARE QUIET FOR DIFFERENT REASONS.
+    `recovered` was added because every arm being a fault meant every arm opened
+    a `wire-alert-rehearsal` issue and nothing could ever close one -- so the
+    stand-down leg, and after #362 the recovery notification with it, had never
+    been exercised at all.
+
+    Both are quiet and only one of them stands anything down, which is why the
+    severity check below is not enough on its own and the label is asserted too:
+
+        blocked-vantage  unresolved  -> wire-vantage-rehearsal   closes nothing
+        recovered        ok          -> wire-alert-rehearsal     closes the issue
+
+    Routing `recovered` to the vantage label would leave it quiet, keep this
+    list correct, and still close nothing -- the near miss the label assertion
+    exists to catch.
     """
     import json
 
@@ -1551,8 +1567,33 @@ def test_exactly_one_rehearsal_is_quiet_and_the_rest_ring() -> None:
         )
         (quiet if verdict["severity"] != wire_check.SEVERITY_ALERT else loud).append(arm)
 
-    assert quiet == ["blocked-vantage"]
+    assert quiet == ["blocked-vantage", "recovered"]
     assert loud == ["dead-feed", "drought", "empty-wire", "total-refusal"]
+
+
+def test_the_two_quiet_rehearsals_go_to_different_issues() -> None:
+    """Severity alone cannot tell them apart, and the difference is the point.
+
+    Only a reading routed to the label the fault arms open can close what they
+    opened. `blocked-vantage` is deliberately routed elsewhere by #356, so a
+    stand-down that drifted onto that label would look identical here -- quiet,
+    correctly listed above -- and stand nothing down.
+    """
+    import json
+
+    fixtures = _rehearsal_fixtures()
+    labels = {}
+    for arm in ("blocked-vantage", "recovered"):
+        body = json.loads(fixtures[arm])
+        verdict = wire_check.evaluate(
+            body["results"], [], now=_NOW, drought=body.get("drought")
+        )
+        verdict["source"] = "fixture:rehearsal.json"
+        labels[arm] = wire_check.alert_routing(verdict)["label"]
+
+    assert labels["recovered"] == "wire-alert-rehearsal"
+    assert labels["blocked-vantage"] == "wire-vantage-rehearsal"
+    assert labels["recovered"] != labels["blocked-vantage"]
 
 
 def test_the_loud_escalation_has_a_rehearsal_of_its_own() -> None:
