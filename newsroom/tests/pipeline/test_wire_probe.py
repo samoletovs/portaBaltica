@@ -601,3 +601,335 @@ def test_run_reports_an_unreadable_registry_rather_than_raising(monkeypatch: pyt
     assert verdict["alert"]
     assert "could not be read" in verdict["headline"]
     assert "not valid YAML" in wire_check.render_text(verdict)
+
+# ── one vantage, and what a reading from it licences ────────────────────────
+#
+# The defect these close, stated once: `FAIL err_en HTTP 403` and
+# `FAIL baltictimes HTTP 403` are the same line, and on 2026-09-01 one of them
+# was a dead publisher and the other was a blocked runner. Measured with the
+# probe's own user agent from a third network on that day, err_en answered 200
+# with 50 items while baltictimes answered 403 — and the collector, in Azure,
+# had published 27 ERR-attributed cards the afternoon before. The report told
+# the reader the registry "contradicts this reading" and to fix the note.
+
+
+def _refused(source_id: str = "err_en", *, status: int = 403, verified: str | None = "2026-08-28 — HTTP 200") -> dict[str, Any]:
+    return wire_check.judge_source(
+        _FakeSource(id=source_id, name=source_id, verified=verified),
+        {
+            "http_status": status,
+            "body": b"<html><title>Access denied</title>error code: 1020</html>",
+            "latency_ms": 417,
+            "transport_error": None,
+        },
+        today=_TODAY,
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "expected", "why"),
+    [
+        (401, True, "not authenticated is a statement about the caller"),
+        (403, True, "not allowed is a statement about the caller"),
+        (407, True, "proxy authentication is a statement about the path"),
+        (429, True, "rate limiting is a statement about the caller"),
+        (451, True, "a legal or geographic refusal is aimed at the caller"),
+        (404, False, "a missing resource is a statement about the resource"),
+        (410, False, "a withdrawn resource is a statement about the resource"),
+        (500, False, "a server error is the server describing itself"),
+        (503, False, "unavailable is the server describing itself"),
+    ],
+)
+def test_only_a_refusal_status_names_this_caller(status: int, expected: bool, why: str) -> None:
+    """Read off RFC 9110 semantics, never off the body.
+
+    Both halves are asserted, because a rule that marked everything would be as
+    useless as one that marked nothing: 4xx-decline statuses are the server
+    saying *not you*, and 404/410/5xx are the server describing the resource or
+    itself, which a single vantage may reasonably repeat.
+    """
+    assert _refused(status=status)["vantage_specific"] is expected, why
+
+
+def test_a_transport_failure_is_a_reading_of_the_path() -> None:
+    """Nothing was answered, so there is no statement by the publisher to repeat."""
+    result = wire_check.judge_source(
+        _FakeSource(id="s", name="Source"),
+        {"http_status": None, "body": b"", "latency_ms": 9, "transport_error": "connection reset"},
+        today=_TODAY,
+    )
+    assert result["state"] == "unreachable"
+    assert result["vantage_specific"] is True
+
+
+def test_the_fix_the_note_advice_does_not_fire_on_a_refusal() -> None:
+    """The false sentence, named: a 403 does not contradict a 200 seen elsewhere.
+
+    err_en's registry note recorded HTTP 200 four days earlier and was true. The
+    report called it contradicted and told the reader to fix it, which would have
+    written a false claim about a third party into the file the newsroom trusts
+    to say what is safe to use.
+    """
+    verdict = wire_check.evaluate([_refused()], [], now=_NOW)
+    text = wire_check.render_text(verdict)
+
+    assert "contradicts this reading" not in text
+    assert "fix the note as well as the feed" not in text
+    assert "does NOT contradict it" in text
+    assert "a verified: line is a claim about the publisher" in text
+
+
+def test_the_fix_the_note_advice_still_fires_where_it_was_written_for() -> None:
+    """The companion, and the reason the advice is kept rather than deleted.
+
+    ep_news answered HTTP 202 with nothing in it while the registry vouched for
+    it. Nothing about that names this caller, so the original sentence is right
+    and must survive.
+    """
+    verdict = wire_check.evaluate([_broken_result("ep_news", verified="2026-08-24 — HTTP 200")], [], now=_NOW)
+    text = wire_check.render_text(verdict)
+
+    assert "contradicts this reading" in text
+    assert "fix the note as well as the feed" in text
+
+
+def test_a_refusal_is_still_an_alert() -> None:
+    """Nothing here is softened. A block reaching this runner may reach Azure next.
+
+    "We cannot yet say which" is a reason to look, not a reason to wait, so the
+    reading still fails the run and still opens the issue.
+    """
+    verdict = wire_check.evaluate([_refused()], [], now=_NOW)
+    assert verdict["alert"] is True
+    assert len(verdict["problems"]) == 1
+
+
+def test_the_headline_does_not_blame_the_publisher_when_every_problem_is_ours() -> None:
+    """The issue title is the whole of what most people read.
+
+    It arrives in a notification at breakfast, and "1 wire source in trouble" is
+    the sentence that sends somebody to disable a feed that answers 200 from
+    everywhere except one runner.
+    """
+    headline = wire_check.evaluate([_refused()], [], now=_NOW)["headline"]
+    assert headline == "1 wire source refused or unreachable from this vantage"
+
+
+def test_a_mixed_reading_does_not_claim_every_problem_is_ours() -> None:
+    """The negative control for the headline above."""
+    verdict = wire_check.evaluate(
+        [_refused(), _broken_result("ep_news", verified=None)], [], now=_NOW
+    )
+    assert verdict["headline"] == "2 wire sources in trouble"
+    assert verdict["summary"]["vantage_specific"] == 1
+
+
+def test_a_fixture_without_the_new_field_still_alerts_rather_than_raising() -> None:
+    """The rehearsal path judges hand-written JSON, and a probe that raises is silent.
+
+    Absence resolves to the pre-existing branch, which is the louder of the two
+    and never a silence.
+    """
+    legacy = {
+        "id": "x", "name": "X", "tier": "C", "endpoint": "https://x.test/rss",
+        "http_status": 403, "bytes": 10, "items": 0, "latency_ms": 5,
+        "verified": "2026-08-24 — HTTP 200", "verified_age_days": 4,
+        "state": "http_error", "detail": "answered HTTP 403",
+    }
+    verdict = wire_check.evaluate([legacy], [], now=_NOW)
+    assert verdict["alert"] is True
+    assert "contradicts this reading" in wire_check.render_text(verdict)
+
+
+# ── the body it used to throw away ──────────────────────────────────────────
+
+
+def test_the_failing_body_is_carried_into_the_report() -> None:
+    """The artefact that did not exist: 1070 bytes reported as the number 1070.
+
+    A reader sent to the run log to see whether a 403 was a WAF or a geo-block
+    found a byte count, because the probe measured the body and discarded it.
+    """
+    text = wire_check.render_text(wire_check.evaluate([_refused()], [], now=_NOW))
+    assert "error code: 1020" in text
+
+
+def test_a_body_that_arrives_with_http_200_is_kept_too() -> None:
+    """A challenge page served as 200 is a block the status code cannot show."""
+    result = wire_check.judge_source(
+        _FakeSource(id="s", name="Source"),
+        {
+            "http_status": 200,
+            "body": b"<html>Checking your browser before accessing</html>",
+            "latency_ms": 9,
+            "transport_error": None,
+        },
+        today=_TODAY,
+    )
+    assert result["state"] == "no_items"
+    assert "Checking your browser" in result["body_excerpt"]
+
+
+def test_a_healthy_source_carries_no_excerpt() -> None:
+    """The negative control: this is evidence about a failure, not a body dump."""
+    assert _ok_result()["body_excerpt"] is None
+
+
+def test_the_body_is_evidence_and_decides_nothing() -> None:
+    """No word list. Two bodies a lexical check would separate; one verdict.
+
+    `AGENTS.md` records four checks written as vocabularies in a single day, all
+    four beaten by phrasing their author had not imagined. The status code is the
+    structure here; the body is quoted to a human and read by nothing.
+    """
+    named = wire_check.judge_source(
+        _FakeSource(id="s", name="S"),
+        {"http_status": 403, "body": b"Attention Required! | Cloudflare", "latency_ms": 1, "transport_error": None},
+        today=_TODAY,
+    )
+    silent = wire_check.judge_source(
+        _FakeSource(id="s", name="S"),
+        {"http_status": 403, "body": b"nope", "latency_ms": 1, "transport_error": None},
+        today=_TODAY,
+    )
+    assert named["state"] == silent["state"] == "http_error"
+    assert named["vantage_specific"] == silent["vantage_specific"] is True
+
+
+def test_an_excerpt_cannot_close_the_issue_body_fence() -> None:
+    """A third party's bytes must not decide how our own alert renders.
+
+    The report is interpolated into a fenced block in a GitHub issue, so a body
+    containing a fence would end it early.
+    """
+    excerpt = wire_check.body_excerpt(b"```\nnow I am outside the fence\n```")
+    assert "`" not in excerpt
+
+
+def test_an_excerpt_is_bounded_and_says_it_was_cut() -> None:
+    excerpt = wire_check.body_excerpt(b"x" * 9000)
+    assert len(excerpt) < 400
+    assert "9000 bytes in total" in excerpt
+
+
+def test_an_excerpt_strips_control_characters() -> None:
+    """A response must not be able to move a cursor around in somebody's terminal."""
+    excerpt = wire_check.body_excerpt(b"before\x1b[2Jafter\x00end")
+    assert "\x1b" not in excerpt and "\x00" not in excerpt
+    assert "before" in excerpt and "end" in excerpt
+
+
+def test_an_empty_body_has_no_excerpt_rather_than_an_empty_one() -> None:
+    assert wire_check.body_excerpt(b"") is None
+    assert wire_check.body_excerpt(b"   \n\t ") is None
+
+
+# ── saying where it stood ───────────────────────────────────────────────────
+
+
+def test_the_vantage_is_read_from_the_environment_not_guessed() -> None:
+    """Asserted with startswith, and that is not fussiness.
+
+    Written as `"GitHub Actions" in name` this test could not fail: the honest
+    non-CI description is "a host that does not identify itself as GitHub
+    Actions", which contains the substring, so replacing the whole environment
+    check with `if False:` left it green. A planted fault found that; reading it
+    did not.
+    """
+    described = wire_check.describe_vantage(
+        {"GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted"}
+    )
+    assert described["name"].startswith("GitHub Actions")
+    assert "github-hosted" in described["name"]
+    assert described["collector"] == wire_check.COLLECTOR_VANTAGE
+    assert described["egress_ip"] is None, "no network call is made to describe a vantage"
+
+
+def test_a_host_that_does_not_say_it_is_ci_is_not_called_ci() -> None:
+    """The negative control, and it is the one that matters.
+
+    A probe run from anywhere else must not be described as a runner, because the
+    whole value of the field is the contrast it draws with Azure.
+
+    Asserted as a property rather than as absence of a substring: the honest
+    description *names* GitHub Actions in order to say it is not that, so
+    `"GitHub Actions" not in name` fails on correct output. This is the
+    file's own rule about lexical checks arriving in its own test.
+    """
+    plain = wire_check.describe_vantage({})["name"]
+    runner = wire_check.describe_vantage({"GITHUB_ACTIONS": "true"})["name"]
+
+    assert plain != runner
+    assert not plain.startswith("GitHub Actions")
+    assert "does not identify itself" in plain
+
+
+@pytest.mark.parametrize("value", ["", "false", "False", "0", "no", "  "])
+def test_only_a_true_flag_counts_as_ci(value: str) -> None:
+    """Absence and denial resolve the same way, and neither invents a runner."""
+    assert not wire_check.describe_vantage({"GITHUB_ACTIONS": value})["name"].startswith(
+        "GitHub Actions"
+    )
+
+
+def test_the_report_says_where_it_stood_and_where_the_collector_stands() -> None:
+    """The coverage-gap instinct, one level down.
+
+    This report already names the sources it does not cover, every time. It said
+    nothing about standing on a different network from the collector, which is
+    the same omission about a different axis.
+    """
+    verdict = wire_check.evaluate(
+        [_ok_result()], [], now=_NOW, vantage=wire_check.describe_vantage({"GITHUB_ACTIONS": "true"})
+    )
+    text = wire_check.render_text(verdict)
+    assert "vantage GitHub Actions" in text
+    assert wire_check.COLLECTOR_VANTAGE in text
+
+
+def test_a_verdict_with_no_vantage_still_renders() -> None:
+    """Absence is an absent line, never an invented one."""
+    text = wire_check.render_text(wire_check.evaluate([_ok_result()], [], now=_NOW))
+    assert "vantage" not in text
+
+
+def test_the_egress_lookup_refuses_an_answer_that_is_not_an_address() -> None:
+    """The control on the control: a successful request is not by itself an answer.
+
+    The opener is injectable, so a double handing back a feed body must not put
+    35 kilobytes of RSS into an alert.
+    """
+
+    class _Response:
+        def __init__(self, payload: bytes) -> None:
+            self._payload = payload
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> Any:
+            return self
+
+        def __exit__(self, *_: Any) -> bool:
+            return False
+
+    assert wire_check.fetch_egress_ip(opener=lambda *_a, **_k: _Response(b"<rss>lots</rss>")) is None
+    assert wire_check.fetch_egress_ip(opener=lambda *_a, **_k: _Response(b" 20.1.2.3\n")) == "20.1.2.3"
+
+
+def test_the_egress_lookup_never_raises() -> None:
+    def exploding(*_: Any, **__: Any) -> Any:
+        raise OSError("no route to host")
+
+    assert wire_check.fetch_egress_ip(opener=exploding) is None
+
+
+def test_the_egress_lookup_is_not_made_on_a_healthy_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A daily alert must not acquire a daily third-party dependency it never reads."""
+    calls: list[int] = []
+    monkeypatch.setattr(wire_check, "fetch_egress_ip", lambda **_: calls.append(1))
+    monkeypatch.setattr(wire_check, "wire_sources", lambda _reg: ())
+    monkeypatch.setattr(wire_check, "uncovered_sources", lambda _reg: ())
+    monkeypatch.setattr(wire_check, "fetch_run_report", lambda **_: {"body": None, "error": "skip"})
+    wire_check.run(timeout=1)
+    assert calls == []

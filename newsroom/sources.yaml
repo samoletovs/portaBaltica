@@ -340,7 +340,25 @@ sources:
     research_language: en
     max_snippet_source: "rss_description_verbatim"
     cache_ttl_minutes: 30
-    notes: "Feed declares <language>et</language> despite English content — a metadata error on their side, not a content signal."
+    notes: >-
+      Feed declares <language>et</language> despite English content — a metadata
+      error on their side, not a content signal.
+
+      2026-09-01, and deliberately not recorded in verified:. This feed answered
+      HTTP 403 to a GitHub Actions runner at 06:54Z (wire-alert run 33479592219,
+      1070 bytes, 0 items) and the alert advised editing the verified: note to
+      match. Measured the same morning with the same user agent, it answered
+      HTTP 200 with 50 items to scripts/wire_check.py from an unrelated network
+      at 07:15Z; and the collector, which fetches from Azure rather than from a
+      runner, had published 27 ERR-attributed cards in the 14:08Z edition the
+      day before. So the 403 was a reading of one network path. A verified: line
+      is a claim about the publisher, and writing 403 into it would have made
+      this file assert something false about a third party.
+
+      The control that makes that checkable is in this same file: baltictimes
+      answered 403 from that unrelated network on that same day, from the same
+      machine that err_en answered 200 to. Both produce an identical
+      "FAIL … HTTP 403" line, and only one of them is a dead publisher.
 
   - id: baltictimes
     name: "The Baltic Times"

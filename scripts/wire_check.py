@@ -75,6 +75,49 @@ looks at and blind to the rest, which is the failure mode this file is written
 against — so the report names the sources it did not probe, every time, and
 makes no claim about whether something else covers them.
 
+ONE VANTAGE, AND WHAT A READING FROM IT DOES NOT LICENCE
+--------------------------------------------------------
+This runs on a GitHub Actions runner. The collector runs in Azure. Those are
+different networks, so every line below is a reading of **one path** and only
+indirectly a statement about the publisher — and on 2026-09-01 that distinction
+produced a false alarm this file now refuses to repeat.
+
+``err_en`` answered HTTP 403 to the runner at 06:54Z. Measured against the same
+feed, with the user agent this probe already takes from the pipeline:
+
+    GitHub Actions runner   2026-09-01 06:54Z   HTTP 403,  1070 bytes,  0 items
+    a third network         2026-09-01 07:15Z   HTTP 200, 35465 bytes
+    the collector, in Azure 2026-08-31 14:08Z   27 items attributed and published
+
+The report nevertheless said the registry's ``verified: "… HTTP 200 …"`` note
+"contradicts this reading" and told the reader to fix it. It does not contradict
+it. A 403 is the server declining **this caller**, which is exactly as
+consistent with "it blocks this runner" as with "it is down" — so acting on that
+advice would have written a false claim about a third party into the file the
+newsroom trusts to say what is safe to use.
+
+The registry carries its own control, which is what makes this checkable rather
+than a story. ``baltictimes`` records ``verified: "2026-08-28 — HTTP 403.
+Dead."`` and answers 403 from that third network too, on the same day and from
+the same machine that ``err_en`` answered 200 to. One of those two 403s is a
+dead publisher and the other is a blocked vantage, and **they produce the
+identical ``FAIL … HTTP 403`` line**.
+
+The remedy is the one ``AGENTS.md`` prescribes for two states with one artefact:
+a new field rather than new logic. ``vantage_specific`` marks a reading that
+names *this caller* — a refusal status, or a transport failure that answered
+nothing — and the "fix the note" advice fires only where the reading does not.
+Nothing is made quieter: a refusal still alerts, because a block reaching this
+runner today may reach Azure tomorrow. What changes is what the alert claims.
+
+Two supporting changes fall out of the same morning. The probe now says **where
+it stood**, because "7 enabled source(s) outside this probe" was already the
+right instinct about a coverage gap and this is the same omission one level
+down. And it keeps a short excerpt of a failing response body, which it used to
+measure and discard: the 1070 bytes that would have settled the question existed
+only inside the process that threw them away, and the reader sent to the run log
+for them found a byte count.
+
 ABSENCE RESOLVES TO AN ALERT
 ----------------------------
 The same rule as `scripts/source-alert.mjs`, and it matters more here. These
@@ -91,6 +134,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import ssl
 import sys
@@ -113,6 +157,42 @@ from newsroom.pipeline.safety import registry  # noqa: E402
 #: generous: an old date on a *working* feed is untidy, not urgent, and a daily
 #: alert about untidiness is how an alert channel becomes wallpaper.
 STALE_VERIFICATION_DAYS = 45
+
+#: HTTP statuses in which the server answered and declined **this caller**.
+#:
+#: This is read off the status semantics (RFC 9110), not off the body, and the
+#: difference is the whole point. Classifying a 403 by looking for "Cloudflare"
+#: or "Access denied" in the response would be a word list encoding the examples
+#: we happen to have seen — ``AGENTS.md`` records four checks written that way in
+#: a single day, every one beaten by ordinary prose their author had not thought
+#: of. A status, by contrast, *is* the structure:
+#:
+#:     401  you are not authenticated          -> about the caller
+#:     403  you are not allowed                -> about the caller
+#:     407  your proxy did not authenticate    -> about the path
+#:     429  you have asked too often           -> about the caller
+#:     451  you are refused for legal reasons  -> about the caller, often by geography
+#:
+#: Every one of those is the server saying *not you*, so it is as consistent with
+#: "it refuses this vantage" as with "it refuses everyone" — and a probe standing
+#: in one place cannot tell those apart. 404, 410 and 5xx are excluded because
+#: they are the server describing the *resource* or *itself*, which is a claim a
+#: single vantage may reasonably repeat.
+CALLER_DECLINED_STATUSES = frozenset({401, 403, 407, 429, 451})
+
+#: Where the newsroom's collector actually fetches these feeds from. Stated as a
+#: constant so the report can say plainly that this probe is not standing there,
+#: rather than leaving a reader to infer it from `runs-on:` in a workflow file.
+COLLECTOR_VANTAGE = "portabaltica-func, Azure northeurope"
+
+#: How much of a failing response body to carry into the report. Long enough for
+#: a WAF's own explanation of itself, short enough for a Telegram message.
+BODY_EXCERPT_CHARS = 300
+
+#: Answers with the caller's own egress address, in plain text. Read only when a
+#: reading has already turned on which network we are standing in, so a healthy
+#: run never touches it.
+EGRESS_IP_URL = "https://api.ipify.org"
 
 #: How long the newsroom may go without publishing an original article before
 #: that is worth waking somebody for.
@@ -155,6 +235,16 @@ RUN_REPORT_URL = (
 #: a human note: `2026-08-24 — HTTP 200, RSS 2.0`. Only the date is parsed.
 _VERIFIED_DATE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})")
 
+#: An egress lookup's answer has to look like an address before it is believed.
+#: The opener is injectable for tests, and a double handing back a feed body must
+#: not put 35 kilobytes of RSS into an alert.
+_ADDRESS_SHAPED = re.compile(r"^[0-9a-fA-F:.]{7,45}$")
+
+#: Control characters, minus tab/newline/carriage-return, which the whitespace
+#: collapse below handles. A third party's bytes must not be able to move a
+#: cursor around in somebody's terminal.
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
 EXIT_CLEAN = 0
 EXIT_ALERT = 1
 EXIT_USAGE = 2
@@ -192,6 +282,96 @@ def uncovered_sources(reg: Any) -> tuple[Any, ...]:
     """Enabled sources this probe does *not* look at, so the gap is never implicit."""
     on_wire = {source.id for source in wire_sources(reg)}
     return tuple(source for source in reg.enabled_sources() if source.id not in on_wire)
+
+
+# ── where this reading was taken ────────────────────────────────────────────
+
+
+def describe_vantage(env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Where this probe is standing, read from the environment rather than guessed.
+
+    Free, and it cannot fail: no network call, no third party, nothing to time
+    out inside an alerting path. The egress address is a separate, optional
+    lookup — see ``fetch_egress_ip`` — because it costs a request and is only
+    worth making once a reading has turned on which network we are in.
+
+    The point of the field is the contrast it sets up. This probe answers "can
+    *I* fetch this feed"; the question anybody actually has is "can the
+    *collector* fetch this feed", and those differ by a whole network.
+    ``AGENTS.md`` names that gap directly: a control validates the mechanism, not
+    the mapping from the question to the measurement. Naming both ends is the
+    cheapest honest thing available, and it is the same instinct as the coverage
+    gap this report already states every time.
+    """
+    env = os.environ if env is None else env
+    if str(env.get("GITHUB_ACTIONS", "")).strip().lower() == "true":
+        where = str(env.get("RUNNER_ENVIRONMENT") or "unspecified")
+        name = f"GitHub Actions ({where} runner)"
+    else:
+        # Not "a developer machine": this is what the environment does not say,
+        # and a probe run from anywhere else must not be described as one.
+        name = "a host that does not identify itself as GitHub Actions"
+    return {"name": name, "egress_ip": None, "collector": COLLECTOR_VANTAGE}
+
+
+def fetch_egress_ip(*, timeout: float = 5.0, opener: Any = None) -> str | None:
+    """Which address this probe leaves from, when that has become the question.
+
+    Evidence only, and it decides nothing. It is here because it turns "somewhere
+    inside GitHub Actions" into a fact somebody can paste into a support request
+    or check against a published range — which is precisely the step between the
+    guess "they may block CI ranges" and knowing.
+
+    Never raises, and never returns something merely because a request
+    succeeded: the answer is checked for the shape of an address first. An
+    unreadable one is ``None``, which renders as an absent field rather than as a
+    confident wrong address.
+    """
+    request = urllib.request.Request(
+        EGRESS_IP_URL,
+        headers={"User-Agent": config.USER_AGENT, "Accept": "text/plain"},
+    )
+    try:
+        open_url = opener or urllib.request.urlopen
+        with open_url(request, timeout=timeout) as response:
+            text = response.read().decode("utf-8", "replace").strip()
+    except Exception:  # noqa: BLE001 - an address we cannot read is a detail, not a failure
+        return None
+    return text if _ADDRESS_SHAPED.match(text) else None
+
+
+def body_excerpt(body: bytes) -> str | None:
+    """A short, safe rendering of a failing response body, as evidence for a human.
+
+    WHY THE BODY IS KEPT AT ALL
+    ---------------------------
+    Because throwing it away cost the programme its decisive artefact. This probe
+    used to compute ``len(body)`` and discard the bytes, so ``err_en`` was
+    reported as ``HTTP 403 … 1070B`` and the 1070 bytes — which say who refused
+    us and why, in as many words — existed only inside the process that dropped
+    them. Somebody then went to the run log for a body the run log had never
+    carried. A probe holding the discriminating evidence and reporting a summary
+    statistic of it is the cheapest kind of self-inflicted blindness there is.
+
+    WHY IT IS EVIDENCE AND NEVER A DECISION
+    ---------------------------------------
+    Nothing in this file matches on what is in here, and nothing should. The
+    verdict is taken from the status code's own semantics — see
+    ``CALLER_DECLINED_STATUSES`` — so a WAF vendor nobody has met yet is
+    classified correctly while still being quoted verbatim to the reader.
+    """
+    if not body:
+        return None
+    text = _CONTROL_CHARS.sub(" ", body.decode("utf-8", "replace"))
+    # Backticks are neutralised because this is interpolated into a fenced block
+    # in a GitHub issue body. A response containing ``` would close the fence
+    # early and let a third party's bytes decide how our own alert renders.
+    text = " ".join(text.replace("`", "'").split())
+    if not text:
+        return None
+    if len(text) > BODY_EXCERPT_CHARS:
+        text = f"{text[:BODY_EXCERPT_CHARS].rstrip()}… ({len(body)} bytes in total)"
+    return text
 
 
 # ── one source ──────────────────────────────────────────────────────────────
@@ -287,10 +467,23 @@ def judge_source(source: Any, fetched: dict[str, Any], *, today: date) -> dict[s
         "verified_age_days": verified_age_days(source.verified, today=today),
         "state": "ok",
         "detail": None,
+        # Does this reading name *this caller* rather than the publisher? See
+        # CALLER_DECLINED_STATUSES for what sets it.
+        #
+        # False is not a claim that another vantage would see the same thing. It
+        # is the absence of a claim that it would not — which is why it is the
+        # branch that keeps the louder, pre-existing advice.
+        "vantage_specific": False,
+        # What the server actually said, when it said no. Evidence for a human;
+        # nothing in this file reads it. See body_excerpt.
+        "body_excerpt": None,
     }
 
     if fetched.get("transport_error"):
         result["state"] = "unreachable"
+        # Nothing was answered, so there is no statement by the publisher here to
+        # repeat. Whatever else it is, it is a fact about the path from here.
+        result["vantage_specific"] = True
         result["detail"] = f"could not be reached: {fetched['transport_error']}"
         return result
 
@@ -301,6 +494,8 @@ def judge_source(source: Any, fetched: dict[str, Any], *, today: date) -> dict[s
 
     if isinstance(http_status, int) and http_status >= 400:
         result["state"] = "http_error"
+        result["vantage_specific"] = http_status in CALLER_DECLINED_STATUSES
+        result["body_excerpt"] = body_excerpt(body)
         result["detail"] = f"answered HTTP {http_status}"
         return result
 
@@ -317,6 +512,9 @@ def judge_source(source: Any, fetched: dict[str, Any], *, today: date) -> dict[s
     items = parse_feed(body, source_id=source.id, raw_blob="probe", retrieved_at=None)
     result["items"] = len(items)
     if not items:
+        # The other place the body is the only evidence there is: a challenge
+        # page served with HTTP 200 is a block that the status code cannot show.
+        result["body_excerpt"] = body_excerpt(body)
         result["state"] = "no_items"
         result["detail"] = (
             f"answered HTTP {http_status} with {len(body)} bytes that yielded no feed "
@@ -328,6 +526,52 @@ def judge_source(source: Any, fetched: dict[str, Any], *, today: date) -> dict[s
 
 
 BROKEN_STATES = frozenset({"unreachable", "http_error", "empty_body", "no_items", "misconfigured"})
+
+
+def vantage_caveat(
+    result: Mapping[str, Any], *, verified_age: int | None, vantage: Mapping[str, Any] | None
+) -> str:
+    """What a reading that names *this caller* does, and does not, licence.
+
+    This is the sentence that replaces "fix the note as well as the feed" when
+    the probe cannot know whether the publisher is refusing everyone or refusing
+    us. It says three things and no more: what was measured, from where, and
+    that a `verified:` line is a claim about a third party rather than about our
+    own network.
+
+    It does not soften the alert. The reading still counts as a problem, still
+    fails the run, and still opens the issue — because a block that reaches this
+    runner today may reach the collector tomorrow, and "we cannot yet say which"
+    is a reason to look rather than a reason to wait.
+    """
+    where = (vantage or {}).get("name") or "this probe's own network"
+    address = (vantage or {}).get("egress_ip")
+    if address:
+        where = f"{where}, egress {address}"
+    collector = (vantage or {}).get("collector") or COLLECTOR_VANTAGE
+
+    if result.get("state") == "unreachable":
+        what = "Nothing was answered at all, so this is a reading of the path from here"
+    else:
+        what = (
+            f"HTTP {result.get('http_status')} is the server declining this caller, which is "
+            "as consistent with it blocking this vantage as with it refusing everyone"
+        )
+
+    line = f"{what} — measured from {where}, while the collector fetches from {collector}. "
+
+    verified = result.get("verified")
+    if verified and verified_age is not None and verified_age <= STALE_VERIFICATION_DAYS:
+        line += (
+            f'The registry records verified: "{verified}" ({verified_age} day(s) ago) and this '
+            "reading does NOT contradict it. "
+        )
+    line += (
+        "Confirm the publisher refuses a second vantage before recording this against the "
+        "source: a verified: line is a claim about the publisher, and this is a reading of "
+        "one network path."
+    )
+    return line
 
 
 # ── the newsroom's output ───────────────────────────────────────────────────
@@ -465,6 +709,7 @@ def evaluate(
     *,
     now: datetime,
     drought: Mapping[str, Any] | None = None,
+    vantage: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Decide whether this reading is worth waking somebody for.
 
@@ -480,6 +725,12 @@ def evaluate(
         person who looks — and it is the specific thing that let ep_news and
         baltictimes run for weeks.
 
+        That advice fires only where the reading is *about the publisher*. A
+        refusal or an unreachable path names this caller instead, and a note
+        recording a 200 from somewhere else does not contradict it; saying it
+        did is how a false claim about a third party gets written into the
+        registry. Those readings get ``vantage_caveat`` and still alert.
+
     Noting, never alerting:
       * a merely old ``verified:`` date on a feed that works;
       * the sources this probe does not cover.
@@ -487,6 +738,7 @@ def evaluate(
     problems: list[str] = []
     notes: list[str] = []
     feed_problems = 0
+    vantage_problems = 0
 
     if not results:
         problems.append(
@@ -498,7 +750,14 @@ def evaluate(
         if result["state"] in BROKEN_STATES:
             line = f"{result['name']} ({result['id']}) {result['detail']}."
             age = result["verified_age_days"]
-            if age is not None and age <= STALE_VERIFICATION_DAYS:
+            # `.get` rather than `[]`: this also judges hand-written rehearsal
+            # fixtures, and a probe that can raise is a probe that can take the
+            # alert down with it. A missing key resolves to the pre-existing
+            # branch, which is the louder of the two and never a silence.
+            if result.get("vantage_specific"):
+                vantage_problems += 1
+                line += " " + vantage_caveat(result, verified_age=age, vantage=vantage)
+            elif age is not None and age <= STALE_VERIFICATION_DAYS:
                 # The registry is actively vouching for a feed that is down.
                 line += (
                     f" The registry still records verified: \"{result['verified']}\" "
@@ -567,6 +826,15 @@ def evaluate(
         )
     elif drought_problem:
         headline = "the wire is fine and no original journalism is being published"
+    elif feed_problems and vantage_problems == feed_problems:
+        # Every problem names this caller, so the headline must not assert the
+        # publishers are in trouble. The issue title is the whole of what most
+        # people read -- it arrives in a notification at breakfast -- and "1 wire
+        # source in trouble" is what sends somebody to disable a working feed.
+        headline = (
+            f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} "
+            "refused or unreachable from this vantage"
+        )
     elif alert:
         headline = f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} in trouble"
     else:
@@ -583,9 +851,11 @@ def evaluate(
             "broken": len(results) - healthy,
             "items": total_items,
             "uncovered": len(uncovered),
+            "vantage_specific": vantage_problems,
         },
         "results": results,
         "drought": dict(drought) if drought is not None else None,
+        "vantage": dict(vantage) if vantage is not None else None,
         "source": "newsroom/sources.yaml",
         "checkedAt": now.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
@@ -603,8 +873,22 @@ def render_text(verdict: dict[str, Any]) -> str:
         f"portaBaltica newsroom wire: {mark} — {verdict['headline']}",
         f"checked {verdict['checkedAt']}",
         f"source  {verdict['source']}",
-        "",
     ]
+
+    # Where this reading was taken, printed on every run and not only when it
+    # matters, so a reader never has to work out from a workflow file that the
+    # probe and the collector sit on different networks.
+    v = verdict.get("vantage")
+    if v:
+        where = v.get("name") or "not recorded"
+        if v.get("egress_ip"):
+            where = f"{where}, egress {v['egress_ip']}"
+        lines.append(
+            f"vantage {where} — the collector fetches from "
+            f"{v.get('collector') or COLLECTOR_VANTAGE}"
+        )
+
+    lines.append("")
 
     s = verdict["summary"]
     lines.append(
@@ -635,6 +919,11 @@ def render_text(verdict: dict[str, Any]) -> str:
                 f"  {flag} {r['id']:<20} HTTP {str(status):<4} "
                 f"{r['bytes']:>7}B  {r['items']:>3} items  {r['latency_ms']}ms"
             )
+            # What the server said, under the line saying how much of it there
+            # was. The byte count on its own is what sent a reader to the run log
+            # for a body the run log never had.
+            if r.get("body_excerpt"):
+                lines.append(f"       said: {r['body_excerpt']}")
 
     if verdict["problems"]:
         lines.append("")
@@ -659,6 +948,7 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
     exit with a traceback the workflow has to guess at.
     """
     moment = now or datetime.now(timezone.utc)
+    where = describe_vantage()
 
     try:
         reg = registry()
@@ -670,9 +960,17 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
             "headline": "the source registry could not be read",
             "problems": [f"Could not load newsroom/sources.yaml: {exc}."],
             "notes": [],
-            "summary": {"probed": 0, "healthy": 0, "broken": 0, "items": 0, "uncovered": 0},
+            "summary": {
+                "probed": 0,
+                "healthy": 0,
+                "broken": 0,
+                "items": 0,
+                "uncovered": 0,
+                "vantage_specific": 0,
+            },
             "results": [],
             "drought": None,
+            "vantage": where,
             "source": "newsroom/sources.yaml",
             "checkedAt": moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         }
@@ -687,9 +985,15 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
         )
         results.append(judge_source(source, fetched, today=today))
 
+    # Pay for the egress lookup only once a reading has turned on which network
+    # this is. A healthy run must not acquire a daily third-party dependency for
+    # a field nothing would read, and an alerting path must not wait on one.
+    if any(r.get("vantage_specific") for r in results):
+        where["egress_ip"] = fetch_egress_ip(timeout=min(timeout, 5.0), opener=opener)
+
     drought = judge_drought(fetch_run_report(timeout=timeout, opener=opener), now=moment)
 
-    return evaluate(results, uncovered, now=moment, drought=drought)
+    return evaluate(results, uncovered, now=moment, drought=drought, vantage=where)
 
 
 def main(argv: Sequence[str]) -> int:
@@ -722,6 +1026,7 @@ def main(argv: Sequence[str]) -> int:
                 # `evaluate` prints nothing for `None`, so a fixture cannot
                 # accidentally certify output it said nothing about.
                 drought=recorded.get("drought"),
+                vantage=describe_vantage(),
             )
             verdict["source"] = f"fixture:{args.fixture}"
         except Exception as exc:  # noqa: BLE001
@@ -730,9 +1035,17 @@ def main(argv: Sequence[str]) -> int:
                 "headline": "the fixture could not be read",
                 "problems": [f"Could not read {args.fixture}: {exc}."],
                 "notes": [],
-                "summary": {"probed": 0, "healthy": 0, "broken": 0, "items": 0, "uncovered": 0},
+                "summary": {
+                    "probed": 0,
+                    "healthy": 0,
+                    "broken": 0,
+                    "items": 0,
+                    "uncovered": 0,
+                    "vantage_specific": 0,
+                },
                 "results": [],
                 "drought": None,
+                "vantage": describe_vantage(),
                 "source": f"fixture:{args.fixture}",
                 "checkedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             }

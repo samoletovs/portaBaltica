@@ -44,6 +44,7 @@ on:
         options:
           - 'no'
           - 'dead-feed'
+          - 'blocked-vantage'
           - 'empty-wire'
           - 'drought'
   # Run when this monitor's own moving parts change, so a break is found by the
@@ -123,8 +124,44 @@ jobs:
                 "endpoint": "https://www.europarl.europa.eu/rss/doc/top-stories/en.xml",
                 "http_status": 202, "bytes": 0, "items": 0, "latency_ms": 180,
                 "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
-                "state": "empty_body",
+                "state": "empty_body", "vantage_specific": false,
                 "detail": "answered HTTP 202 with a zero-byte body, which every check written against response.ok reads as success"
+              },
+              {
+                "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
+                "endpoint": "https://eng.lsm.lv/rss",
+                "http_status": 200, "bytes": 37440, "items": 50, "latency_ms": 485,
+                "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
+                "state": "ok", "detail": null
+              }
+            ]
+          }
+          JSON
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+            blocked-vantage)
+              # The 2026-09-01 case, which the dead-feed rehearsal cannot reach:
+              # a source that refuses THIS runner while answering everyone else.
+              # It produces the identical `FAIL ... HTTP 403` line as a genuinely
+              # dead publisher, and must produce a different message -- one that
+              # does not tell the reader to write a 403 into a `verified:` note
+              # about a publisher that is up.
+              #
+              # It rehearses the excerpt too. The body is the artefact the probe
+              # used to measure and discard, which is why nobody could settle the
+              # question from the run log.
+              cat > rehearsal.json <<'JSON'
+          {
+            "results": [
+              {
+                "id": "err_en", "name": "ERR News (English)", "tier": "C",
+                "endpoint": "https://news.err.ee/rss",
+                "http_status": 403, "bytes": 1070, "items": 0, "latency_ms": 417,
+                "verified": "2026-08-28 - HTTP 200, 50 items parsed by scripts/wire_check.py",
+                "verified_age_days": 4,
+                "state": "http_error", "vantage_specific": true,
+                "body_excerpt": "Access denied - error code 1020 (a rehearsal body, not a real reading)",
+                "detail": "answered HTTP 403"
               },
               {
                 "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
