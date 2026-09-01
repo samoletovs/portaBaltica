@@ -962,16 +962,29 @@ of polling this morning will produce them, and polling harder produces only a
 larger wrong denominator. `Age` and `X-Cache` tell you which reading you are
 holding; there is no excuse for counting it twice.
 
+⚠️ **Treat that figure as an order of magnitude, not a schedule.** The TTL says
+when revalidation *may begin*, not how long a body is served: `ai-insights`
+carries `graceMs: 3600000` and `staleWhileRevalidate: true`, so one body can be
+served for up to an hour past its TTL while a replacement is fetched behind it,
+and the replacement lands whenever it lands. The count is therefore bounded
+below by neither and above by neither — see the revalidation paragraphs below,
+which is where that was measured rather than assumed. **Plan for the order of
+magnitude; count what you actually got.**
+
 ⚠️ **The distinct count is not fixed, and assuming it is repeats the error one
-level down.** Separate Function instances hold their own cache, so a loop
-collects a few genuinely independent readings rather than exactly one — and the
-number moves between runs of the *same* loop:
+level down.** The number moves between runs of the *same* loop:
 
 ```
 18 requests over ~90s, LV/EE/LT, deduped on generatedAt
   first run    3 distinct     ee|08:12:54 x6  lt|08:12:55 x6  lv|08:12:54 x6
   35 min later 5 distinct     same loop, same cadence
 ```
+
+That variation is the finding. **The sentence that stood here attributed it to
+separate Function instances holding separate caches, and nothing measured
+established that** — the two paragraphs below are the record of two people
+reaching for a mechanism neither had evidence for, and the reason the claim is
+now stated as the observation rather than as its cause.
 
 ⚠️ **That reading is true and the evidence above does not establish it**, which
 is worth more than either. `ai-insights` declares `keyOn: ['country']`, so
