@@ -72,7 +72,8 @@ function fetchIndex() {
 }
 
 /**
- * Turns a fetched corrections log into a set of slugs, or throws.
+ * Turns a fetched corrections log into slug → the timestamp of its most recent
+ * correction, or throws.
  *
  * The same three-way distinction `parseIndex` draws, and it lands differently
  * on each branch:
@@ -88,17 +89,55 @@ function fetchIndex() {
  *   - an entry without a string slug is skipped rather than fatal. The log is
  *     append-only and written by a different process; one malformed row must
  *     not take down a feed that can still mark the other twenty-seven.
+ *
+ * WHY A MAP AND NOT THE SET THIS RETURNED FIRST
+ * ---------------------------------------------
+ * A set answers "was this corrected", which is all a title prefix needs, and it
+ * is all this returned when `#349` added it. Two callers since need to know
+ * WHEN: `date_modified` in the JSON feed and `<lastmod>` in the sitemap both
+ * name a moment rather than a fact. A `Map` answers both — `.has()` behaves
+ * exactly as the set's did, so `feedTitle` is unchanged — and it keeps ONE
+ * parser over this file. Two would drift, and the drift would be silent in the
+ * direction that marks the wrong articles.
+ *
+ * The value is the LATEST correction, not the first. The log is append-only and
+ * not sorted, and measured against production on 2026-09-01 it holds 28 entries
+ * over 25 slugs — so three articles carry more than one, and taking whichever
+ * came first would date them to a correction we have since superseded.
+ *
+ * Compared as strings rather than parsed. The pipeline writes ISO-8601 UTC and
+ * `src/news-api.ts` already sorts this very field with `localeCompare`, so a
+ * lexicographic maximum is the same answer the client gets — and a timestamp we
+ * cannot parse cannot silently become `Invalid Date` on the way through.
+ *
+ * A count is deliberately not available. `src/news-api.ts` gives the reason: one
+ * of those three articles is doubly corrected because we corrected our own
+ * correction, and a "2" would present that to a reader as two errors.
  */
 function parseCorrections(raw, sourceUrl) {
-  if (raw === null || raw === undefined) return new Set();
+  if (raw === null || raw === undefined) return new Map();
   if (!Array.isArray(raw)) {
     throw new Error('Corrections log at ' + sourceUrl + ' is malformed');
   }
-  const slugs = new Set();
+  const latest = new Map();
   raw.forEach(function (entry) {
-    if (entry && typeof entry.slug === 'string' && entry.slug) slugs.add(entry.slug);
+    if (!entry || typeof entry.slug !== 'string' || !entry.slug) return;
+    const at = typeof entry.corrected_at === 'string' ? entry.corrected_at : '';
+    const known = latest.get(entry.slug);
+    // The comparison must not require `at` to be truthy. A log row with no
+    // timestamp yields `''`, and gating the assignment on it — `if (at && ...)`
+    // — would drop the slug from the map entirely and serve that article's
+    // withdrawn headline unmarked. Losing the date costs a `date_modified`;
+    // losing the slug costs the notice, which is the part a reader acts on.
+    //
+    // `known === undefined` rather than `!known` is honesty about intent rather
+    // than a behaviour change: measured with a planted mutation, the two are
+    // indistinguishable on every input this log can produce, because an empty
+    // string loses every `>` comparison anyway. The explicit form says which
+    // question is being asked.
+    if (known === undefined || at > known) latest.set(entry.slug, at);
   });
-  return slugs;
+  return latest;
 }
 
 /**
@@ -131,7 +170,7 @@ function parseCorrections(raw, sourceUrl) {
  * shorter than that serves the last good, correctly marked feed with
  * `X-Cache: stale` and nobody notices at all.
  */
-function fetchCorrectedSlugs() {
+function fetchCorrections() {
   const url = ARTICLES_BASE_URL + '/corrections.json';
   return jsonGet(url).then(function (raw) { return parseCorrections(raw, url); });
 }
@@ -274,15 +313,21 @@ function bylineFor(article) {
  * The permalink is deliberately untouched, so `<guid>` and JSON Feed's `id`
  * still identify the same item and no reader treats this as a new story.
  *
- * WHAT IT CANNOT DO
- * -----------------
+ * WHAT IT CANNOT DO, AND WHAT PARTLY CAN
+ * --------------------------------------
  * An item already delivered keeps the title in the reader's own store. Nothing
  * we serve now rewrites it. This marks every item served from here on, which is
- * the whole of what a feed can promise.
+ * most of what a feed can promise — but not all of it: JSON Feed 1.1 has
+ * `date_modified`, which the readers that honour it use to re-read an entry they
+ * already hold. `api/news-jsonfeed/index.js` emits it for exactly this gap. RSS
+ * 2.0 has no equivalent element, so for that feed this really is the limit.
  */
-function feedTitle(article, correctedSlugs) {
+function feedTitle(article, corrected) {
   const headline = String(article && article.headline != null ? article.headline : '');
-  if (!correctedSlugs || !correctedSlugs.has(article && article.slug)) return headline;
+  // A `Map` from `parseCorrections`, but only `.has` is used — the same call
+  // that worked when this was a `Set`, which is why widening it to carry dates
+  // left this function alone.
+  if (!corrected || !corrected.has(article && article.slug)) return headline;
   return 'Corrected: ' + headline;
 }
 
@@ -301,7 +346,7 @@ module.exports = {
   jsonGet,
   fetchIndex,
   parseIndex,
-  fetchCorrectedSlugs,
+  fetchCorrections,
   parseCorrections,
   feedTitle,
   ourArticles,
