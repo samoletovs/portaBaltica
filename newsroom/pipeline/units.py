@@ -50,6 +50,74 @@ _COUNT_SUFFIXES: Final[tuple[str, ...]] = ("_count", "_length")
 #: Ratios: "x times the usual", not a quantity in the series' unit.
 _RATIO_FIELDS: Final[frozenset[str]] = frozenset({"spread_vs_typical", "ratio_vs_typical"})
 
+#: Fields holding a DIFFERENCE between two things rather than a level of one.
+#:
+#: A threshold is only meaningful against the quantity it is a threshold on, so
+#: one of these can bound another difference and never a single reading. The
+#: distinction is not visible in the prose — both render as a bare number — so
+#: it has to be read off the field the figure was declared against.
+#:
+#: Named per detector family rather than guessed from the name: ``margin`` and
+#: ``deviation`` carry no suffix that marks them out, and ``latest_value`` is a
+#: level despite sitting beside them in the same figure table.
+#:
+#: THIS LIVES HERE, not in ``house_style``, where it was written. Two consumers
+#: now need it — that rule and :func:`unit_for_field` below — and ``house_style``
+#: already imports this module, so the set cannot travel the other way without a
+#: cycle. One enumeration; a second would drift, which is the failure this file
+#: exists to prevent.
+DIFFERENCE_FIELDS: Final[frozenset[str]] = frozenset({
+    "gap", "latest_gap", "early_gap", "recent_gap", "gap_pct",
+    "spread", "typical_spread", "spread_pct", "spread_vs_typical",
+    "margin", "margin_pct",
+    "deviation", "deviation_pct",
+    "change", "change_pct", "cumulative_change", "cumulative_change_pct",
+    "distance_from_threshold", "widening_ratio",
+    "typical_move", "move_vs_typical",
+})
+
+#: The members of the above that are distances IN THE SERIES' OWN UNIT.
+#:
+#: DERIVED rather than listed, so adding a member to ``DIFFERENCE_FIELDS``
+#: classifies it instead of silently omitting it. The rest of that set is the
+#: same distance re-expressed — as a percentage (``_pct``) or as a multiple
+#: (``_ratio``, ``_vs_typical``) — and so was never in the series' unit to
+#: begin with. ``widening_ratio`` is the one that makes the suffix rule worth
+#: having: it is a difference and it is dimensionless, and a hand-written list
+#: would have to remember that.
+ABSOLUTE_DIFFERENCE_FIELDS: Final[frozenset[str]] = frozenset(
+    name
+    for name in DIFFERENCE_FIELDS
+    if "pct" not in name and not name.endswith(("_ratio", "_vs_typical"))
+)
+
+
+#: The unit a distance across a rate series is in. Named once, here, and read
+#: by ``house_style`` rather than respelled there: the check that a figure was
+#: written correctly and the label that told the writer how to write it must be
+#: the same string, or the guard tests a vocabulary of its own.
+PERCENTAGE_POINTS: Final[str] = "percentage points"
+
+
+def is_rate_unit(unit: str | None) -> bool:
+    """Is this series measured in percent — so that a distance across it is not?
+
+    Matched on the leading ``%`` rather than on a list of the qualifiers that
+    may follow it. Measured across the 38 distinct units in
+    ``collect/opendata.py``: 14 are rate-like, ``%`` never appears anywhere but
+    the first character, and the qualifier varies freely — "% of GDP", "% year
+    on year", "% of the young labour force". A list of those would be a word
+    list encoding today's registry, and the next indicator would be added with
+    a qualifier nobody had written down.
+
+    The raw Eurostat codes that also mean percent — ``PC_GDP``, ``RCH_A``,
+    ``PCH_PRE``, ``PC_ACT`` — are query PARAMETERS in that file, never a
+    ``Series.unit``, which is always the human label beside them. Checked
+    rather than assumed, because a code reaching here would be a rate this
+    misses.
+    """
+    return bool(unit) and unit.strip().startswith("%")
+
 
 def is_count(name: str) -> bool:
     """Is this field a tally of things rather than a measurement of them?"""
@@ -79,6 +147,28 @@ def unit_for_field(
         return None
     if "pct" in name or name.endswith("_percent"):
         return "%"
+    # A DISTANCE ACROSS A RATE IS NOT A RATE. Two readings of "% year on year"
+    # are 5.4 and 10.9; the distance between them is 5.5 PERCENTAGE POINTS, and
+    # calling it 5.5% states a change of 5.5 where the true change is 101.9%.
+    #
+    # Three published articles said exactly that, all on ``cumulative_change``,
+    # understating by 18.5x, 62x and 4x. Every check passed and was right to:
+    # ``figures_traceable`` traced 5.5 to the field it came from, and the field
+    # held 5.5. The unit was the lie, and no gate reads units.
+    #
+    # It reached print because the writer was TOLD this. Its figure table said
+    # "cumulative_change = 5.5 (% year on year)", built from this function, and
+    # it copied the label faithfully. So the fix belongs here and not in the
+    # prompt: the prompt competes with the table, and which wins is a coin toss
+    # the corpus already shows landing both ways — the seasonal section carries
+    # a percentage-points example and got 5 of 5 right, the streak section does
+    # not and got 0 of 3.
+    #
+    # A LEVEL is untouched: ``latest_value`` on the same series is a genuine
+    # rate reading and keeps its "%", and a distance on a level series keeps
+    # the series unit, because "down 0.1 EUR per kWh" is correct.
+    if name in ABSOLUTE_DIFFERENCE_FIELDS and is_rate_unit(series_unit):
+        return PERCENTAGE_POINTS
     return series_unit
 
 

@@ -255,6 +255,7 @@ def generate_article(
             result.article,
             cut_empty_closings=last_attempt,
             cut_speculative_impact=last_attempt,
+            repair_percentage_points=last_attempt,
         )
         # A cut deletes prose the verdict was computed against, so the stored
         # verdict now describes an article that no longer exists. Re-run it.
@@ -262,7 +263,15 @@ def generate_article(
         # passing article into a failing one on the traceability checks — but
         # "cannot" is a belief about eight interacting rules, and re-validating
         # costs nothing and needs no such belief.
-        if style.cuts:
+        #
+        # A percentage-point repair is a correction rather than a cut, and it
+        # rewrites prose in exactly the same way: "5.5%" becomes "5.5 percentage
+        # points" and ``rendered_as`` follows it. So it is re-validated on the
+        # same terms and for the same reason. Note the asymmetry with the cuts —
+        # a repair ADDS words rather than withdrawing claims, so the argument
+        # above about traceability does not carry, which makes re-running the
+        # verdict necessary here rather than merely cheap.
+        if style.cuts or style.corrections:
             result.verdict = _revalidate(result.article, signal)
 
         # ASK FIRST, THEN CUT — the third application of the shape above, and
