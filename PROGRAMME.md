@@ -345,6 +345,53 @@ provenance.discovery             present on published articles the schema now re
 errors                           ''                            +304 lines that have never run
 ```
 
+#### CONDITIONS CHANGED AFTER THE PREDICTION, 2026-09-01T09:03Z
+
+`#342` merged at `37819c5`, **4h57m before the run this block predicts**. I am
+recording that here rather than noting it afterwards, because a prediction
+scored against conditions it did not anticipate is worth nothing, and the
+temptation to explain the difference *after* seeing the result is exactly what
+a pre-registered prediction exists to remove.
+
+What changed, and it is not small: `record_claim_holds` is an **eleventh
+check**, and `_placement` now emits a note for an ordinary reading where it
+was previously silent. So tonight's drafts meet one more gate that can reject
+them, and every draft's placement paragraph is built from a different input
+than the baseline's was.
+
+```
+                          baseline 56554c8    tonight
+CHECK_NAMES                        10             11
+placement on an ordinary reading   silent    "neither the highest nor the lowest"
+```
+
+**Which predictions this touches, stated before the result is known:**
+
+| | affected | why |
+|---|---|---|
+| `causal_panel.discarded >= 8` | **no** | a different panel; `#342` touches neither `hypothesis.py` nor `_admissible` |
+| `articles_stating_a_cause <= 1` | **indirectly** | a rejection here consumes a revision attempt, so fewer drafts survive to state anything — which pushes toward the predicted direction for a reason the prediction did not name |
+| `provenance.discovery` present | **no** | independent field |
+| `errors ''` | **yes, and it is now a harder test** | +374 validator lines and +99 context lines that have never run against a live draft, on top of the 304 already predicted |
+
+The second row is the one to be careful with. If it comes in at ≤ 1 I must
+**not** score it as a hit without checking the rejection log, because `#342`
+supplies a second sufficient cause and the prediction cannot distinguish them.
+`runs/latest.json`'s `rejected_checks` — the field `#329`'s sibling added for
+exactly this reason — is what separates them: a draft rejected on
+`record_claim_holds` is `#342`'s doing, not the causal gate's.
+
+**Why merge anyway.** Six of seven measured false superlatives reached readers
+from the branch `#342` closes, and `estonia-s-core-inflation` published *"the
+lowest in the 296 observations"* when 71 are lower. Holding a fix for published
+falsehoods to protect the tidiness of my own forecast would be optimising the
+instrument over the thing it measures.
+
+Verified before merging: head guard on a **derived** branch name, test-merge on
+pinned `55b57fb`, pytest 2559 / npm 2333 / lint 0 / build 0, and three planted
+faults each caught by a named test — including one proving that removing the
+`origin is None` silence brings the original defect back (6 named failures).
+
 The second is the one worth watching, and it is deliberately the **unflattering**
 direction: a gate that discards more can only reduce what is left to state. If
 `articles_stating_a_cause` *rises*, the model behind this table is wrong and the
