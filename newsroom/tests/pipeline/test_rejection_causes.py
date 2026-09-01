@@ -746,3 +746,50 @@ class TestTheArticleSaysWhichCodeWroteIt:
         assert 'REVISION = _setting("NEWSROOM_REVISION")' in source, (
             "the revision must come from the environment the app runs in"
         )
+
+    def test_the_revision_really_comes_from_the_environment(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """The behaviour, because the assertion above is a substring and a
+        substring survives an ADDITION.
+
+        Measured rather than supposed. Appending one line to `config.py`, so
+        that the guarded text is still present verbatim:
+
+            REVISION = _setting("NEWSROOM_REVISION")
+            REVISION = "deadbeef-not-from-the-environment"
+
+        leaves the substring assertion green -- and the whole newsroom suite
+        green, 2749 passed. The shadowed value is what every article would then
+        carry, and `provenance.revision` is the one field that says which code
+        produced a piece. It was used on 2026-09-01 to prove a timeout fix was
+        live; a hardcoded value would have made that proof a formality.
+
+        Reading the environment is trivially testable, so there is no reason
+        for the source-text check to be the only one. It stays as a second
+        line: it names the specific construction we want, which a behavioural
+        test cannot.
+        """
+        import importlib
+
+        import newsroom.pipeline.config as config
+
+        monkeypatch.setenv("NEWSROOM_REVISION", "b0a7c0ffee")
+        reloaded = importlib.reload(config)
+        try:
+            assert reloaded.REVISION == "b0a7c0ffee", (
+                "REVISION did not follow the environment; something in config.py "
+                "is overriding it"
+            )
+
+            # CONTROL: it must also follow the environment DOWN, or a hardcoded
+            # value equal to the fixture would pass the assertion above.
+            monkeypatch.delenv("NEWSROOM_REVISION", raising=False)
+            assert importlib.reload(config).REVISION == "", (
+                "REVISION survived the variable being unset, so it is not "
+                "reading it"
+            )
+        finally:
+            # Leave the module as the rest of the suite expects to find it.
+            monkeypatch.delenv("NEWSROOM_REVISION", raising=False)
+            importlib.reload(config)
