@@ -514,6 +514,100 @@ class TestItIsWiredIn:
         assert call in source
 
 
+class TestTheDashboardAlreadyKnewThis:
+    """The other half of the repo applies this rule, and nothing compared them.
+
+    The header ticker on the live site renders::
+
+        GDP Growth      3.0%   ▲+1.4pp
+        CPI Inflation   3.4%   ▲+0.5pp
+
+    A level on a rate series takes "%"; a distance across one takes "pp". That
+    is the same rule ``unit_for_field`` now applies, written independently in
+    ``api/economy-data/index.js`` — and correct there while the newsroom
+    published "a cumulative change of 3.2%" for 4.8 − 1.6 on the same day.
+
+    So this was never one half of the repo knowing and the other not. Counting
+    the newsroom's own test fixtures, which paired "0.3 percentage points" with
+    ``{"unit": "pp"}`` long before the pipeline agreed, the rule was written
+    correctly in THREE places and wrongly in one. It is the shape ``AGENTS.md``
+    records for "4653 thousand" against "4.65m": two halves of one repository,
+    one convention, two answers, and nothing comparing them because nothing had
+    ever needed both.
+
+    THIS FILE IS WHERE THEY MEET. It cannot be a shared module — one side is
+    JavaScript and the other Python — so it is a shared assertion instead, which
+    is the strongest seam available across that boundary. The abbreviations
+    differ by register and that is not drift: a ticker has room for "pp" and an
+    article spells the words out. What must agree is the RULE.
+
+    And it guards something the dashboard does not guard itself. The ticker
+    hand-rolls the rule at each site with no shared helper, so its correctness
+    today rests on whoever wrote each one remembering.
+    """
+
+    TICKER = REPO_ROOT / "api/economy-data/index.js"
+
+    def _indicators(self) -> list[tuple[str, bool, bool, bool]]:
+        """``(label, value_is_a_rate, change_uses_percent, change_uses_pp)``."""
+        source = self.TICKER.read_text(encoding="utf-8")
+        rows = []
+        for match in re.finditer(r"indicators\.push\(\{(.*?)\}\);", source, re.S):
+            block = match.group(1)
+            label = re.search(r"label:\s*'([^']*)'", block)
+            value = re.search(r"value:\s*([^\n]*)", block)
+            if not (label and value):
+                continue
+            change = re.search(r"change:\s*([^\n]*)", block)
+            rendered = change.group(1) if change else ""
+            rows.append(
+                (label.group(1), "'%'" in value.group(1), "'%'" in rendered, "'pp'" in rendered)
+            )
+        return rows
+
+    def test_the_parse_can_see_the_ticker(self) -> None:
+        """The positive control, and it is load-bearing.
+
+        This reads another language's source with a regex, so a refactor can
+        make it match nothing — and a rule asserting "no indicator does X" is
+        satisfied by finding no indicators at all. Absence must not resolve to
+        success in the check whose whole subject is a false unit.
+        """
+        rows = self._indicators()
+        assert rows, "parsed no ticker indicators — the probe is broken, not the ticker"
+        assert any(rate for _, rate, _, _ in rows), "saw no rate-valued indicator"
+
+    def test_no_rate_indicator_renders_its_change_as_a_percent(self) -> None:
+        # The rule itself. Measured when written: 0 offenders, and the two
+        # rate-valued indicators that DO show a change both use "pp".
+        offenders = [label for label, rate, pct, _ in self._indicators() if rate and pct]
+        assert offenders == []
+        with_pp = [label for label, rate, _, pp in self._indicators() if rate and pp]
+        assert with_pp, "no rate indicator shows a pp change — the example is gone"
+
+    def test_a_level_indicator_may_render_a_percent_change(self) -> None:
+        """THE NEGATIVE CONTROL, and it is the live one rather than an invented one.
+
+        "Avg Salary" is a level in EUR, so a change in it expressed as a
+        percentage IS a percentage and takes "%". A rule that banned "%" on
+        every change would flag it, and would be wrong — the same mistake as
+        flagging "down 0.1 EUR per kWh".
+        """
+        levels = [label for label, rate, pct, _ in self._indicators() if not rate and pct]
+        assert levels, "the live negative control has gone — re-derive before trusting this"
+
+    def test_the_newsroom_gives_the_same_answers(self) -> None:
+        """The seam. Both halves, one assertion, the ticker's own two cases."""
+        # GDP Growth and CPI Inflation: a rate, so a distance is not a per cent.
+        assert units.unit_for_field("change", "%") == units.PERCENTAGE_POINTS
+        assert units.unit_for_field("cumulative_change", "%") == units.PERCENTAGE_POINTS
+        # Avg Salary: a level in EUR, so a change stated as a proportion is a
+        # genuine per cent, exactly as the ticker renders it.
+        assert units.unit_for_field("change_pct", "EUR per month") == "%"
+        # And the level itself keeps the series unit on both sides.
+        assert units.unit_for_field("latest_value", "%") == "%"
+
+
 class TestThePromptTellsTheTruth:
     """An example in guidance is a claim about behaviour — resolve it.
 
