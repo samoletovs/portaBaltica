@@ -48,6 +48,7 @@ on:
           - 'total-refusal'
           - 'empty-wire'
           - 'drought'
+          - 'recovered'
   # Run when this monitor's own moving parts change, so a break is found by the
   # commit that caused it rather than at the next scheduled run. `sources.yaml`
   # is included because adding a feed is the most likely way to add a dead one.
@@ -248,6 +249,54 @@ jobs:
               "detail": "no original article has been published for 96.0 hours (budget 72h, which is three scheduled runs). The wire may still be full of syndicated cards, and every other check stays green through this",
               "last_original_at": "2026-08-24T12:00:00Z",
               "hours": 96.0,
+              "runs_without_originals": 0
+            }
+          }
+          JSON
+              echo "args=--fixture rehearsal.json" >> "$GITHUB_OUTPUT"
+              ;;
+            recovered)
+              # THE STAND-DOWN, WHICH IS THE ONLY LEG NO REHEARSAL COULD REACH.
+              #
+              # Every other option here is a fault, so every one produces an
+              # alert. Measured against the five that existed before this:
+              #
+              #   dead-feed        alert=true   -> opens wire-alert-rehearsal
+              #   total-refusal    alert=true   -> opens wire-alert-rehearsal
+              #   empty-wire       alert=true   -> opens wire-alert-rehearsal
+              #   drought          alert=true   -> opens wire-alert-rehearsal
+              #   blocked-vantage  alert=false  -> wire-VANTAGE-rehearsal
+              #
+              # So four options open a `wire-alert-rehearsal` issue and nothing
+              # could ever close one. `blocked-vantage` is the near miss: it is
+              # clean, but #356 correctly routes an unresolved reading to its own
+              # label, so it looks for an issue that is not there. A rehearsal
+              # issue therefore accumulated for ever, while carrying the body
+              # text "closes itself when a later run reads clean".
+              #
+              # It is worse since #362 added the recovery notification: that step
+              # has never delivered, and a notification path that has never
+              # delivered is not a notification path -- the argument this file
+              # already makes about the alerting side.
+              #
+              # Run it after any of the alerting options above, and the pair
+              # rehearses the whole lifecycle: open, notify, stand down, close.
+              cat > rehearsal.json <<'JSON'
+          {
+            "results": [
+              {
+                "id": "lsm_en", "name": "LSM.lv English", "tier": "C",
+                "endpoint": "https://eng.lsm.lv/rss",
+                "http_status": 200, "bytes": 37440, "items": 50, "latency_ms": 485,
+                "verified": "2026-08-28 - HTTP 200", "verified_age_days": 0,
+                "state": "ok", "detail": null
+              }
+            ],
+            "drought": {
+              "state": "ok",
+              "detail": null,
+              "last_original_at": "2026-09-01T14:08:22Z",
+              "hours": 2.0,
               "runs_without_originals": 0
             }
           }

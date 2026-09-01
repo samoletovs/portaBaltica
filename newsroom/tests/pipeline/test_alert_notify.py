@@ -552,3 +552,148 @@ def test_the_recovery_message_uses_the_same_channel_as_the_alert() -> None:
     assert "NAURO_BOT_TOKEN" in send["env"]
     assert "NAURO_CHAT_ID" in send["env"]
     assert "sendMessage" in send["run"]
+
+# ── the stand-down leg ──────────────────────────────────────────────────────
+#
+# Every rehearse option was a fault, so every one alerted, so every one opened a
+# `*-rehearsal` issue and nothing could ever close one. The issue accumulated
+# for ever while carrying the body text "closes itself when a later run reads
+# clean". Worse since #362 added the recovery notification: that step had never
+# delivered, and a notification path that has never delivered is not a
+# notification path.
+#
+# THE ASSERTION IS A PROPERTY, NOT A NAME LIST, AND THAT IS NOT STYLE.
+# The finding itself was first reported as "all four options alert" when there
+# were five: the probe grepped for the option names it expected, so
+# `total-refusal` -- added by #356, which the reporter had no part in -- was
+# invisible. A guard that enumerates what it expects to find cannot see what it
+# did not think of, which is this repository's most-repeated fault and was
+# committed here in the act of reporting it. So this asks the workflow for its
+# own options and runs every one of them.
+
+
+def _rehearse_options(workflow: str) -> list[str]:
+    """The options the workflow declares, asked for rather than listed here."""
+    parsed = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8"))
+    # `on:` is the boolean True after safe_load -- YAML 1.1. See _workflow_call_inputs.
+    key = True if True in parsed else "on"
+    options = parsed[key]["workflow_dispatch"]["inputs"]["rehearse"]["options"]
+    return [o for o in options if o != "no"]
+
+
+@pytest.mark.parametrize("workflow", ["wire-alert.yml", "source-alert.yml"])
+def test_a_rehearsal_can_reach_the_stand_down(workflow: str) -> None:
+    """Some option must produce a clean reading, or an opened issue never closes.
+
+    Named rather than derived, deliberately: the fixture that produces it has to
+    be written by hand, so `recovered` is a fact about the workflow rather than
+    something a property can discover. What the property below guards is that it
+    still *behaves* as the stand-down.
+    """
+    assert "recovered" in _rehearse_options(workflow)
+
+
+@pytest.mark.parametrize("workflow", ["wire-alert.yml", "source-alert.yml"])
+def test_every_other_option_is_a_fault(workflow: str) -> None:
+    """The companion, and the reason the stand-down was missing for so long.
+
+    A rehearsal exists to drive a real path with a broken reading, so a monitor
+    whose every option is a fault is the natural state -- and it is exactly the
+    state in which the recovery leg is unreachable. This asserts the imbalance
+    is deliberate rather than accidental: if someone adds a second clean option,
+    they have to come here and say so.
+    """
+    options = _rehearse_options(workflow)
+    faults = [o for o in options if o != "recovered"]
+
+    assert faults, "a monitor with no fault rehearsal cannot rehearse an alert"
+    assert len(faults) == len(options) - 1
+
+
+def test_the_wire_stand_down_fixture_reads_clean() -> None:
+    """Executed, because "an option named recovered" is not the property.
+
+    The name is a label; what matters is that the fixture behind it produces a
+    verdict the recovery step will act on -- clean, and routed to the same label
+    the alerting options open. `blocked-vantage` is the near miss that shows why
+    both halves are needed: it is also clean, and #356 correctly routes it to
+    `wire-vantage-rehearsal`, so it looks for an issue that is not there.
+    """
+    import json
+    import subprocess
+    import sys
+
+    fixture = _rehearsal_fixture("wire-alert.yml", "recovered")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp, "f.json")
+        path.write_text(json.dumps(fixture), encoding="utf-8")
+        out = Path(tmp, "r.json")
+        done = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "scripts" / "wire_check.py"),
+             "--fixture", str(path), "--json", str(out)],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=120,
+        )
+        verdict = json.loads(out.read_text(encoding="utf-8"))
+
+    assert done.returncode == 0, "the stand-down fixture must read clean"
+    assert verdict["alert"] is False
+    # The same label the alerting options open, or it closes nothing.
+    assert verdict["routing"]["label"] == "wire-alert-rehearsal"
+
+
+def test_the_wire_fault_options_open_the_issue_the_stand_down_closes() -> None:
+    """The pair, measured, so the lifecycle is asserted end to end.
+
+    Every fault option that carries a fixture must open the label `recovered`
+    closes. An option routed elsewhere -- as `blocked-vantage` correctly is --
+    is reported rather than asserted, because it is not a defect.
+    """
+    import json
+    import subprocess
+    import sys
+
+    opened: dict[str, str] = {}
+    for option in _rehearse_options("wire-alert.yml"):
+        fixture = _rehearsal_fixture("wire-alert.yml", option)
+        if fixture is None:
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "f.json")
+            path.write_text(json.dumps(fixture), encoding="utf-8")
+            out = Path(tmp, "r.json")
+            subprocess.run(
+                [sys.executable, str(REPO_ROOT / "scripts" / "wire_check.py"),
+                 "--fixture", str(path), "--json", str(out)],
+                cwd=REPO_ROOT, capture_output=True, text=True, timeout=120,
+            )
+            verdict = json.loads(out.read_text(encoding="utf-8"))
+        if verdict["alert"]:
+            opened[option] = verdict["routing"]["label"]
+
+    assert opened, "no option opens an issue, so there is nothing to stand down from"
+    assert set(opened.values()) == {"wire-alert-rehearsal"}, (
+        f"an alerting option opens a label the stand-down cannot close: {opened}"
+    )
+
+
+def _rehearsal_fixture(workflow: str, option: str) -> Any:
+    """The JSON heredoc for one rehearse option, or None if it takes flags instead.
+
+    Read out of the workflow rather than duplicated here: a fixture restated in
+    a test is a second copy that can disagree with the one that ships.
+    """
+    import json
+
+    lines = (REPO_ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8").splitlines()
+    starts = [i for i, line in enumerate(lines) if line.strip() == option + ")"]
+    assert len(starts) == 1, f"expected one case anchor for {option}, got {len(starts)}"
+
+    opens = [k for k in range(starts[0], len(lines)) if lines[k].rstrip().endswith("<<'JSON'")]
+    if not opens:
+        return None
+    begin = opens[0] + 1
+    # `esac` guards against running past this case into the next one's heredoc.
+    end = next(k for k in range(begin, len(lines)) if lines[k].strip() in ("JSON", "esac"))
+    assert lines[end].strip() == "JSON", f"{option}: no JSON terminator before esac"
+    body = "\n".join(line[10:] if line.startswith(" " * 10) else line for line in lines[begin:end])
+    return json.loads(body)
