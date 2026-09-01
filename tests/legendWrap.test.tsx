@@ -165,3 +165,84 @@ describe('the API docs endpoint rows', () => {
     }
   });
 });
+
+describe('the key indicator rows', () => {
+  /**
+   * The same mechanism a third time, with a unit label where the legend entry
+   * was — and this one was hidden behind an ellipsis rather than a scrollbar.
+   *
+   * The row is a grid whose title track resolves to 98px at 320px. Inside it,
+   * the name and the unit were two flex items and the unit carried `shrink-0`,
+   * so it took its full width and the name absorbed the whole shortfall.
+   * Measured in Chromium against a production build at 320px, on `ebf7c4f`:
+   *
+   *     Hourly labour cost     114px needed,  39px given  ->  "Hou…"
+   *     Industrial production  129px needed,  48px given  ->  "Indus…"
+   *     Population              66px needed,  48px given  ->  "Popul…"
+   *
+   * Eight of eight rows, and the document never scrolled — `overflow-hidden`
+   * on the cell absorbed it — so the sideways-scroll check was right to pass.
+   *
+   * Wiring guard, as in the two cases above: jsdom does not lay out, so it
+   * cannot prove the name fits. The measurement is
+   * `labelTruncation.live.test.ts`, which drives a browser at 320px and fails
+   * against production today. This holds the two mechanisms that starved the
+   * name, so neither comes back while someone is tidying a class list.
+   */
+  const source = readFileSync(resolve('src/components/IndicatorTable.tsx'), 'utf8');
+
+  /**
+   * The className on the element that *renders* a given expression.
+   *
+   * Anchored on `>{expr}<`, the rendered form. Matching the bare `{row.title}`
+   * finds the row's `aria-label={`View ${row.title} details`}` first — a line
+   * with no className at all — and returns null, which reads as "the name is
+   * not rendered" rather than as "the scan looked in the wrong place".
+   */
+  const classOf = (expr: string): string | null =>
+    source
+      .split('\n')
+      .find((line) => line.includes(`>{${expr}}<`))
+      ?.match(/className="([^"]*)"/)?.[1] ?? null;
+
+  /** A class applied at every width, rather than from a breakpoint up. */
+  const unconditional = (classes: string, name: string) =>
+    classes.split(/\s+/).includes(name);
+
+  it('matches an unprefixed class and not a prefixed one', () => {
+    // The scanner's own control. Without it, "no unconditional truncate" would
+    // read the same whether the class is absent or the matcher is broken — and
+    // a matcher that never fires is the quietest way to stop checking.
+    expect(unconditional('text-ui truncate shrink', 'truncate')).toBe(true);
+    expect(unconditional('text-ui sm:truncate sm:shrink', 'truncate')).toBe(false);
+    expect(unconditional('a shrink-0 b', 'shrink-0')).toBe(true);
+    expect(unconditional('a sm:shrink-0 b', 'shrink-0')).toBe(false);
+  });
+
+  it('renders a name and a unit, so the scan below is looking at something', () => {
+    expect(classOf('row.title'), 'no element renders the indicator name').not.toBeNull();
+    expect(classOf('row.unit'), 'no element renders the unit').not.toBeNull();
+  });
+
+  it('does not cut the indicator name at a phone width', () => {
+    // The name is what the number is *of*. An ellipsis is a treatment only when
+    // what it removes is not the informative part (DESIGN.md §4.7) — here it
+    // removed the name and kept a unit the value column mostly repeats.
+    const title = classOf('row.title')!;
+    expect(
+      unconditional(title, 'truncate'),
+      `the indicator name truncates at every width: "${title}"`,
+    ).toBe(false);
+  });
+
+  it('does not let the unit hold its full width against the name', () => {
+    // `shrink-0` on the unit is what made the name absorb the entire shortfall
+    // rather than the two sharing it. Below `sm` they are no longer competing
+    // on one line at all.
+    const unit = classOf('row.unit')!;
+    expect(
+      unconditional(unit, 'shrink-0'),
+      `the unit refuses to give way at every width: "${unit}"`,
+    ).toBe(false);
+  });
+});

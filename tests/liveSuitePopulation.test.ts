@@ -78,6 +78,12 @@ const LIVE_CHECKS = new Map<string, string>([
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
   ['historicalData.live.test.ts', 'every Latvian indicator the API advertises still returns data'],
   [
+    'labelTruncation.live.test.ts',
+    'every indicator name in the key table is fully readable at 320px — the cut this ' +
+      'catches is absorbed by overflow-hidden, so the document never scrolls and the ' +
+      'sideways-scroll check is right to pass it',
+  ],
+  [
     'indicators.live.test.ts',
     'every indicator definition still returns real data, its series is contiguous, ' +
       'and goods plus services still reconciles against the trade balance — the ' +
