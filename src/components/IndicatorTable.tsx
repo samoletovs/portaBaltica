@@ -191,9 +191,28 @@ export function IndicatorTable() {
             className="grid grid-cols-[1fr_70px_70px] sm:grid-cols-[1fr_80px_80px_80px_100px] gap-2 px-4 py-2 w-full text-left dash-hover-raised transition-colors border-b dash-edge last:border-0 group"
             aria-label={`View ${row.title} details`}
           >
-            <div className="min-w-0 flex items-baseline gap-2 overflow-hidden">
-              <span className="text-ui dash-fg dash-hover-fg transition-colors truncate shrink">{row.title}</span>
-              <span className="text-caption dash-subtle shrink-0">{row.unit}</span>
+            {/* Stacked on a phone, one baseline-aligned row from `sm`.
+
+                The three-track fix above sizes the *column* to 98px. It does
+                not reach the span inside it: the unit label is `shrink-0`, so
+                it takes its full width and the title absorbs the entire
+                shortfall. Measured in Chromium at 320px, all eight titles were
+                cut, the worst to a third of itself — "Hourly labour cost" got
+                39px of the 114px it needs and rendered as `Hou…`, because
+                "EUR/hour" beside it is 51px and never yields.
+
+                So the column was measured and the span in it was not, which is
+                why the comment above reads as though the width were handled.
+
+                An ellipsis is a treatment only when what it removes is not the
+                informative part (DESIGN.md §4.7) — here it removes the name of
+                the indicator and keeps a unit the value column mostly repeats
+                (`EUR/hour` renders as `€16.3/h` two cells away). Stacking gives
+                the name the whole 98px and lets it wrap, so nothing is cut and
+                no information is dropped. `sm` and up is untouched. */}
+            <div className="min-w-0 block sm:flex sm:items-baseline sm:gap-2 overflow-hidden">
+              <span className="text-ui dash-fg dash-hover-fg transition-colors sm:truncate sm:shrink">{row.title}</span>{' '}
+              <span className="text-caption dash-subtle sm:shrink-0">{row.unit}</span>
               {/* The same ambiguity as on the cards, in a row that has no space
                   for the full sentence: a green ▼ here and a red ▼ two rows
                   down are both correct and, without this, indistinguishable in
