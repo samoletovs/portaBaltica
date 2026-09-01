@@ -398,7 +398,12 @@
         "properties": {
           "corrected_at": { "type": "string", "format": "date-time" },
           "description": { "type": "string" },
-          "previous_value": { "type": "string" }
+          "previous_value": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["our_error", "source_revision"],
+            "description": "Which kind of correction this is: `our_error` when we published something wrong, `source_revision` when the source restated a figure we reported faithfully. An ENUM rather than a free string, so a typo cannot become a third silent category the surfaces would then have to guess about. OPTIONAL, and deliberately not backfilled: the 31 entries written before this field existed carry nothing, and `correction_kind` in newsroom/pipeline/revisions.py resolves absence to a third value that claims neither. Defaulting them either way would assert something about corrections we cannot re-derive - and defaulting to `source_revision` would be the flattering guess, which is the one thing this machinery must not make."
+          }
         }
       }
     },

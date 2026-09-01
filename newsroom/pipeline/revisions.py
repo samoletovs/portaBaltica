@@ -52,6 +52,52 @@ from newsroom.pipeline.vintage import PublishedFigure, VintageLedger
 log = logging.getLogger(__name__)
 
 
+#: We published something that was wrong when we published it.
+OUR_ERROR = "our_error"
+#: The source restated a figure we reported faithfully. Our text was never wrong.
+SOURCE_REVISION = "source_revision"
+#: Every value a correction may declare. The schema pins the same set, so a typo
+#: cannot become a third silent category.
+CORRECTION_KINDS: tuple[str, ...] = (OUR_ERROR, SOURCE_REVISION)
+
+#: What a correction that does not say means. NOT one of the two above.
+UNSPECIFIED_KIND = "unspecified"
+
+
+def correction_kind(correction: Mapping[str, object]) -> str:
+    """Which kind of correction this is, resolving absence to the weaker claim.
+
+    WHY ABSENCE IS A THIRD ANSWER AND NOT A DEFAULT TO EITHER
+    --------------------------------------------------------
+    The log holds two facts that a reader must not have confused: *we got this
+    wrong*, and *the source restated its figure and our text was faithful*. Until
+    this field existed every surface said one word for both, which is two states
+    wearing one artefact in the machinery whose whole subject is telling a reader
+    the truth about what changed.
+
+    The 31 entries written before it carry nothing, and nothing here invents a
+    value for them. Defaulting them to ``SOURCE_REVISION`` would be the
+    flattering guess — "the source moved, not us" — asserted about corrections we
+    know include our own errors. Defaulting them to ``OUR_ERROR`` would be the
+    opposite falsehood, and unfair to the four revision notes that say in their
+    own text "a restatement by the source, not a reporting error".
+
+    So absence resolves to ``UNSPECIFIED_KIND``, which grants no claim in either
+    direction and leaves every surface saying exactly what it says today. A
+    surface may say *more* only where one of the two declared values is present.
+
+    An UNRECOGNISED value resolves the same way, deliberately. The schema refuses
+    one on the way in, and if a value ever reaches a reader that this build does
+    not understand, the safe reading is the one that claims nothing — the same
+    allow-list reasoning as ``SHOWABLE_STATUSES`` in ``src/news-api.ts``, where an
+    unknown state is withheld rather than shown.
+    """
+    declared = correction.get("kind")
+    if isinstance(declared, str) and declared in CORRECTION_KINDS:
+        return declared
+    return UNSPECIFIED_KIND
+
+
 @dataclass(frozen=True, slots=True)
 class Revision:
     """A published figure the source no longer agrees with."""
@@ -90,6 +136,12 @@ class Revision:
             "corrected_at": isoformat(utcnow()),
             "description": self.description(),
             "previous_value": f"{self.figure.value:g}{_unit(self.figure.unit)}",
+            # Set here rather than inferred anywhere, because THIS CLASS IS THE
+            # CLAIM: a `Revision` exists only when the source restated a figure
+            # we reported faithfully, which is what `description()` two methods
+            # up says in its own last sentence. Reading that sentence back to
+            # decide the kind would be a word list standing in for a property.
+            "kind": SOURCE_REVISION,
         }
 
     def to_log_entry(self, correction: dict[str, str]) -> dict[str, str]:
@@ -105,6 +157,10 @@ class Revision:
             "corrected_at": correction["corrected_at"],
             "description": correction["description"],
             "previous_value": correction["previous_value"],
+            # Carried from the correction rather than restated, for the reason
+            # the docstring gives about the wording: a second source of truth
+            # for the kind is a second thing that can disagree about it.
+            "kind": correction["kind"],
         }
 
     @property
@@ -340,6 +396,11 @@ def record_correction_note(
             )
         return {
             "corrected_at": corrected_at or isoformat(utcnow()),
+            # Every builder here composes a notice about SOMETHING WE PUBLISHED
+            # WRONG. The kind is a property of which builder ran, not of the
+            # sentence it produced, so it is stamped rather than read back out
+            # of the prose.
+            "kind": OUR_ERROR,
             "description": (
                 f"{opening}"
                 f"It was the {described} only in the "
@@ -360,6 +421,11 @@ def record_correction_note(
         )
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
+        # Every builder here composes a notice about SOMETHING WE PUBLISHED
+        # WRONG. The kind is a property of which builder ran, not of the
+        # sentence it produced, so it is stamped rather than read back out
+        # of the prose.
+        "kind": OUR_ERROR,
         "description": (
             f"{opening}"
             f"It was not the {superlative}. "
@@ -439,6 +505,11 @@ def origin_correction_note(
     extra = f"{also.strip().rstrip('.')}. " if also and also.strip() else ""
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
+        # Every builder here composes a notice about SOMETHING WE PUBLISHED
+        # WRONG. The kind is a property of which builder ran, not of the
+        # sentence it produced, so it is stamped rather than read back out
+        # of the prose.
+        "kind": OUR_ERROR,
         "description": (
             f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
             f"{window_start} is where the newsroom's data window starts, not "
@@ -519,6 +590,11 @@ def span_correction_note(
             )
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
+        # Every builder here composes a notice about SOMETHING WE PUBLISHED
+        # WRONG. The kind is a property of which builder ran, not of the
+        # sentence it produced, so it is stamped rather than read back out
+        # of the prose.
+        "kind": OUR_ERROR,
         "description": (
             f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
             f"That change is real but belongs to a different, shorter period: "
@@ -636,6 +712,11 @@ def comparison_correction_note(
     lower_or_higher = "lower" if claims_low else "higher"
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
+        # Every builder here composes a notice about SOMETHING WE PUBLISHED
+        # WRONG. The kind is a property of which builder ran, not of the
+        # sentence it produced, so it is stamped rather than read back out
+        # of the prose.
+        "kind": OUR_ERROR,
         "description": (
             f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
             f"It was not the {superlative} of those {observations} readings: "
@@ -783,6 +864,11 @@ def unit_correction_note(
 
     return {
         "corrected_at": corrected_at or isoformat(utcnow()),
+        # Every builder here composes a notice about SOMETHING WE PUBLISHED
+        # WRONG. The kind is a property of which builder ran, not of the
+        # sentence it produced, so it is stamped rather than read back out
+        # of the prose.
+        "kind": OUR_ERROR,
         "description": (
             f"CORRECTED. This article said {claim.strip().rstrip('.')}. "
             f"That figure is the distance between two readings of the same "
@@ -925,6 +1011,11 @@ async def apply_correction_note(
                 "headline": str(document.get("headline") or ""),
                 "corrected_at": note["corrected_at"],
                 "description": note["description"],
+                # Carried through rather than recomputed. A note reaching here
+                # from one of the builders above declares `our_error`; one that
+                # does not declare anything stays silent, and `correction_kind`
+                # resolves that to the weaker claim at the point of reading.
+                **({"kind": note["kind"]} if note.get("kind") else {}),
             }
         ]
     )

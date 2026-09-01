@@ -80,7 +80,7 @@ from typing import Any, Mapping, Sequence
 
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
-from newsroom.pipeline.revisions import unit_correction_note
+from newsroom.pipeline.revisions import OUR_ERROR, unit_correction_note
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +104,11 @@ class EditorialCorrection:
         note: dict[str, str] = {
             "corrected_at": isoformat(utcnow()),
             "description": self.description,
+            # THIS CLASS IS THE CLAIM. Its docstring says so in six words — "a
+            # factual error of ours, on an article that otherwise stands" — so
+            # every notice issued through this path is one, by construction and
+            # not by inspection of the sentence it carries.
+            "kind": OUR_ERROR,
         }
         if self.previous_value:
             note["previous_value"] = self.previous_value
@@ -125,6 +130,12 @@ class EditorialCorrection:
         }
         if note.get("previous_value"):
             entry["previous_value"] = note["previous_value"]
+        # Carried from the note for the reason the docstring gives about the
+        # wording: a second source of truth for the kind is a second thing that
+        # can disagree about it. A note with none stays silent here, and
+        # `correction_kind` resolves that to the weaker claim when it is read.
+        if note.get("kind"):
+            entry["kind"] = note["kind"]
         return entry
 
 
