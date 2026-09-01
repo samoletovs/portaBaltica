@@ -3813,6 +3813,32 @@ matching. And note the sibling trap on the checking side: Python's `read_text`
 translates newlines, so a CRLF-preservation check written with it reports
 `False` on a file that was never touched. Compare bytes.
 
+**And `$` in a multiline regex is a reader too — it reads `\r` as content.**
+Everything above is about *literal* anchors, and no wording of it reaches the
+case where the pattern's own anchor is what fails. Executed:
+
+```python
+crlf = 'a = 1,\r\nb = 2,\r\nc = 3,\r\n'
+
+re.findall(r',$',     crlf, re.M)  ->  0   <- a confident zero
+re.findall(r',$',     crlf.replace('\r\n','\n'), re.M)  ->  3   <- CONTROL
+re.findall(r',\r?$',  crlf, re.M)  ->  3   <- the fix
+```
+
+`$` matches before a `\n`, and in a CRLF file the `\r` sits between it and the
+comma, so a pattern that should find six sites finds **none**. A session hit
+this searching for six real call sites and got zero — and the only reason it
+noticed is that its harness **refuses a verdict on anything but exactly one
+anchor**, so a clean run over nothing was reported as invalid rather than as a
+pass. That is the count rule paying for itself in a case it was not written for.
+
+⚠️ **And the repair has its own trap.** Fixing the pattern so it matched then
+introduced 6 bare `LF`s into a pure-CRLF file, because the replacement consumed
+the `\r` it had just learned to match. Caught by counting endings before and
+after, and confirmed by a diff of **91 insertions, 0 deletions** — a rewritten
+ending shows as a deleted line and an added one, so *zero deletions* is the
+assertion that the file's endings survived.
+
 **And the same harness, one hour later, produced the two remaining failures —
 both of which report success rather than an error, and neither of which the
 anchor count can see.** They are worth stating because they are the last two

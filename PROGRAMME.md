@@ -137,6 +137,15 @@ answer. That habit caught all four.
    `UNSPECIFIED_KIND`, and a test forbids any module stamping one onto an entry
    that lacks it. Classifying them is a human judgement, not a migration.
 
+   Two things left open there on purpose. **`retract.py` writes correction
+   entries and was outside that PR's file set**, so a retraction carries no kind
+   and resolves to `unspecified` — correct under the design, and the natural
+   next stamp. Note it is arguably a *third* kind rather than a weak
+   `our_error`, which is a wording decision rather than a mechanical one. And
+   **no surface reads the field yet**: establishing it and making a surface say
+   more are separate changes, and the second deserves its own before/after
+   rather than being smuggled into the first.
+
 4. **The dashboard has had two mobile passes and both found real defects.**
    Assume a third will. `tests/reducedMotionLayout.live.test.ts` is the guard;
    it tests 320px and currently passes with **two `KNOWN` exemptions**. Check
