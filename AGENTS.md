@@ -2995,6 +2995,24 @@ so state the population beside the reading, and when a check reports a thing
 missing, prove the path you read exists before believing the file does not
 contain it.
 
+⚠️ **And the commit that added this paragraph got it wrong in the sentence
+claiming otherwise.** It says the examples were *"executed rather than
+asserted"*, and the exit code was not:
+
+```
+git show <guessed path> 2>&1 | Select-Object -First 1   ->  $LASTEXITCODE 0
+git show <guessed path> 2>$null | Out-Null              ->  $LASTEXITCODE 128
+```
+
+A pipeline's `$LASTEXITCODE` is the **last element's**, not the command's, so
+`| Select-Object` reports success for a `git` that failed. The written claim —
+128 — happened to be true, and was verified only afterwards. That is worse than
+a wrong number: **a correct conclusion reached by a broken instrument collides
+with nothing, ever**, so nothing would have prompted the re-measurement. It was
+caught because the printed `exit=0` sat next to a `fatal:` on the line above and
+the pair was impossible — the taxonomy's own *"could the world have produced
+this combination?"*, which is the only check that reaches it.
+
 The third is the session that built the modulepreload recovery, counting
 reloads three ways before getting one that meant anything. `framenavigated`
 made a healthy page look reloaded, because it fires for SPA history
