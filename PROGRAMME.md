@@ -46,6 +46,78 @@ generation and the editorial gates where they earn their keep.
 
 ---
 
+## Starting state for YOUR run (every line verified 2026-09-01T17:05Z)
+
+```
+master        40e66aa · working tree clean · 0 open PRs · all checks green
+site          healthy · required 9/9 · all sources 13/13 · 0 stale
+live suite    242 passed / 18 files, run against production at 16:58Z
+newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
+articles      99 published · 31 corrections · 7 correction surfaces green
+tests         154 files · npm test = typecheck + vitest (see the trap below)
+books         AGENTS.md 3744 lines · PROGRAMME.md 2002 lines
+
+throughput    30 PRs merged today over 10.3h = 2.9 PR/h
+              previous run's baseline was 5.1 PR/h; the whole programme is
+              351 PRs over 12 days, peaking at 88 on 2026-08-27
+```
+
+**The single most useful thing this run learned, and it is a correction to the
+brief you are reading:** the dominant failure was not bad code and not even bad
+probes in the abstract — it was **an instrument that could not have failed,
+reporting a plausible number**. The journal ended with `instrument` as its
+largest category (131 entries) ahead of `finding` (117) and `defect` (67). Four
+that cost real time: `PLAYWRIGHT_BROWSERS_PATH` pointing at a missing directory
+let 7 of 14 live tests `return` early and *pass in 0 ms*; `iwr` returns
+`.Content` as a `Byte[]` for unrecognised content types, reporting "0 of 49"
+on a feed with 19; `irm` parses RSS into an XML node array so a regex over it
+finds 0; and `vitest --reporter=basic` errors at startup in this version,
+reporting "5 of 5 failed" for a file that passes 5 of 5.
+
+**So: every negative finding needs a positive control on the same object,
+measured the same way.** A control on a different object proves the thing is
+absent *or* that the read failed — one answer for two states, which is no
+answer. That habit caught all four.
+
+## First tasks for your run, in order
+
+1. **Confirm the state above rather than trusting it.** It was true at 17:05Z
+   and a branch name is a moving reference. `gh pr list`, `npm test`,
+   `npm run test:live`, and `irm .../api/system-status`.
+
+2. **The share card still carries withdrawn claims.** Measured and left
+   deliberately, because it crosses two file owners:
+   `api/shared/articleMeta.js` already prefixes `Retracted: ` onto the served
+   `<title>` and `og:title`, with a comment arguing exactly why — but a
+   **corrected** article renders a card carrying the superseded superlative.
+   Two lines in `articleMeta.js` and two in
+   `src/components/news/ArticlePage.tsx`, whose heads a parity test requires to
+   match. This is the cleanest ready-to-dispatch job in the repo.
+
+3. **Decide what to do about the 31 unclassified corrections.** `#364` added
+   `kind` (`our_error` | `source_revision`) and deliberately does **not**
+   backfill: every existing entry resolves to `UNSPECIFIED_KIND`, and a test
+   forbids any module stamping a kind onto an entry that lacks one. Classifying
+   them is a judgement call a human may want to make, not a migration.
+
+4. **The dashboard has had two mobile passes and both found real defects.**
+   Assume a third will. `tests/reducedMotionLayout.live.test.ts` is the guard;
+   one backlog item (`PowerMarketCard` overflowing its own card by 4px at
+   320px) was dispatched and never verified.
+
+5. **Do not re-open these.** The four `data.gov.lv` endpoints using the raw
+   socket-idle-timer transport were re-measured against their own stated
+   trigger and both conditions are unmet — no stall (79–2426 ms) and no new
+   host behind the pattern. `api/ai-insights/index.js` L253-262 already argues
+   the same decline for Elering and the ECB with 51 sampled generations behind
+   it. The `dashboardCadence` flake was fixed in `#207`.
+
+## Starting state at the start of the PREVIOUS run — historical, do not act on it
+
+**Superseded by the block above.** Kept because the reasoning around it is
+still worth reading, and because a run that silently rewrites its predecessor's
+numbers leaves nobody able to check either set.
+
 ## Starting state (every line verified 2026-08-28T16:57Z)
 
 ```
@@ -1801,6 +1873,12 @@ records a decline, and each was two turns of measurement that saved a session.
 ---
 
 ## First tasks, in order
+
+> ⚠️ **SUPERSEDED — these were the first tasks for the run that ended
+> 2026-09-01. Yours are near the top of this file, under "First tasks for your
+> run, in order".** Everything below is a record of what that run was asked to
+> do and what it found, which is why the numbers here are worth reading and the
+> instructions are not worth following.
 
 > **THE PROGRAMME'S LARGEST OPEN QUESTION IS CLOSED.** The brief that produced
 > this section opened by asking whether the newsroom publishes unattended. It
