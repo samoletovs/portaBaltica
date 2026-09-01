@@ -3003,6 +3003,54 @@ matching. And note the sibling trap on the checking side: Python's `read_text`
 translates newlines, so a CRLF-preservation check written with it reports
 `False` on a file that was never touched. Compare bytes.
 
+**And the same harness, one hour later, produced the two remaining failures —
+both of which report success rather than an error, and neither of which the
+anchor count can see.** They are worth stating because they are the last two
+places a plant harness can lie.
+
+**A plant's verdict must be a named assertion, not an exit code.** The harness
+was run with `--reporter=basic`, which vitest 4 does not have. That is a
+*startup error*, so every run exited non-zero — and every plant assertion is
+"the suite fails". It reported **CAUGHT fifteen times while executing no tests
+at all**:
+
+```
+15 plants   verdict CAUGHT   named failing assertions: 0
+                             Error: Failed to load custom Reporter from basic
+```
+
+*The suite failed* and *the suite never ran* are the same exit code, so this is
+a check that cannot fail arriving **inside the instrument built to prove checks
+can fail**. The tell was in the output the whole time: zero named assertions
+across fifteen plants is not a slightly-wrong regex, it is a suite that ran
+nothing. So parse the failure *names*, refuse a CAUGHT verdict that names none,
+and — the load-bearing half — **run a baseline before the first mutation and
+stop if it is not green.** Every plant assertion is satisfied by an already-red
+suite, so without that baseline the whole table is unfalsifiable.
+
+**A harness's cleanup check must be derived from the plant list, not written by
+hand.** A run was killed between writing a mutation and reverting it, leaving
+`num()` as `return value ? value : null;` — which silently discards a genuine
+0°C reading. The *"is anything still mutated?"* check then run enumerated
+**seven patterns against eighteen plants**, and the survivor was in the gap:
+
+```
+patterns checked   7        plants that can mutate the file   18
+                            reported: clean
+```
+
+That is this file's own enumeration rule arriving in the cleanup — the guard
+walked a smaller set than its subject and reported success, in the direction
+nobody re-checks. A pattern list cannot be inspected for completeness, so do not
+keep one: **snapshot the file before the first mutation and restore from that
+snapshot on every exit path, including a signal.** A byte comparison against a
+snapshot has no set to get wrong.
+
+It was caught only because the baseline control went red on the next run — the
+control firing on its first genuine opportunity, against its own author's
+contaminated tree. Which is the argument for the baseline in one line: *the
+thing it protects you from is most often yourself, an hour ago.*
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the

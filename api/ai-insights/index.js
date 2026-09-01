@@ -1,8 +1,8 @@
 const https = require('https');
+const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const airQuality = require('../shared/airQuality.js');
-const es = require('../shared/eurostat.js');
 const countries = require('../shared/country.js');
 
 /**
@@ -86,6 +86,104 @@ function splitByDay(rows, todayKey) {
 }
 
 /**
+ * A reading, or null. Never a zero.
+ *
+ * Lifted from `api/sea-state/index.js`, which carries the argument in full: on
+ * the Baltic a zero is an ordinary wave height, air temperature and wind speed,
+ * so a zero standing in for "no answer" is indistinguishable from an
+ * observation.
+ */
+function num(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Why a source produced no insight — a closed vocabulary, deliberately.
+ *
+ * `#329` established `unavailable` and answered *which* source was lost. This
+ * answers *why*, and the distinction that earns the field is `NO_READING`:
+ * three of the four sources can answer HTTP 200, parse cleanly, and still yield
+ * nothing, because `if (prices.length > 0)`, `if (usdMatch)` and `if (band)`
+ * each had no `else`. Those never reach a `catch` — nothing threw — so after
+ * `#329` they still dropped in silence. Four of the seven paths were covered;
+ * these are the other three.
+ *
+ * A network failure and an empty answer are different messages to whoever reads
+ * this. One says look at the channel; the other says the source published
+ * nothing. Collapsing them sends a reader hunting an outage that never happened.
+ *
+ * NOT the upstream's own error text. `jsonGet` rejects with the full request URL
+ * in the message, so `e.message` would publish our query strings and the
+ * capital-city coordinates in a public response body. Nothing leaks today —
+ * `#329`'s four pushes are fixed literals — and this vocabulary is what keeps it
+ * that way, because attaching reasons is exactly the change that tempts someone
+ * to pass the error through. `tests/aiInsightsReasons.test.ts` asserts nothing
+ * outside this set plus `http-<nnn>` ever reaches the wire.
+ *
+ * `UNKNOWN` is the default and says so. Defaulting to `UNREACHABLE` would be a
+ * confident claim about a network nobody examined — absence resolving to a
+ * specific cause, which is the fault this endpoint keeps being fixed for.
+ */
+const REASONS = {
+  TIMEOUT: 'timeout',
+  UNREACHABLE: 'unreachable',
+  MALFORMED: 'malformed',
+  NO_READING: 'no-reading',
+  UNKNOWN: 'unknown',
+};
+
+/** An upstream that answered, but not with success. */
+function httpReason(statusCode) { return 'http-' + statusCode; }
+
+/** An error carrying its own classification, so no caller has to parse text. */
+function tagged(reason, message) {
+  const err = new Error(message);
+  err.reason = reason;
+  return err;
+}
+
+/**
+ * The classification an error carries, read structurally.
+ *
+ * Three error shapes reach here, because three producers do. `es.httpJson`
+ * (which `#333` routes Open-Meteo through) sets `status` on a non-2xx and
+ * `transient` on anything worth retrying; Node sets `code` on a real socket
+ * failure; and `jsonGet`/`httpGetText` below tag their own with `reason`. Each
+ * branch reads a PROPERTY rather than matching the message text, so a reworded
+ * error upstream cannot silently reclassify a failure — this file has been
+ * bitten by lexical proxies before.
+ *
+ * The `transient` fallback resolves to `TIMEOUT` deliberately. Everything es
+ * marks transient without a status or a code is one of its two deadline paths,
+ * because a genuine socket error carries `code`. On this egress a hang IS the
+ * dominant failure, so resolving it to `unreachable` would misdirect a reader
+ * to a source that is answering a laptop in 110-302ms.
+ *
+ * KNOWN GAP, stated rather than papered over: `es.httpJson` throws a plain
+ * `Error('JSON parse failed for ' + url)` on a body that arrives and will not
+ * parse — no `status`, no `code`, no `transient` — so an unparseable Open-Meteo
+ * response classifies as `unknown` rather than `malformed`. `MALFORMED` remains
+ * reachable for Elering, which keeps `jsonGet`. Closing the gap would mean
+ * either parsing at this end (a second transport for one reason code) or
+ * matching that message text (the lexical proxy this function exists to avoid),
+ * and the case has never been observed. `unknown` is honest about it; a guessed
+ * `malformed` would not be. Asserted in `tests/aiInsightsReasons.test.ts` so the
+ * behaviour is pinned rather than accidental.
+ *
+ * `UNKNOWN` is last and says so. Defaulting an unclassified error to any named
+ * cause would be a confident claim about something nobody examined — absence
+ * resolving to success's cousin, a confident diagnosis.
+ */
+function reasonOf(err) {
+  if (!err) return REASONS.UNKNOWN;
+  if (typeof err.reason === 'string' && err.reason) return err.reason;
+  if (typeof err.status === 'number') return httpReason(err.status);
+  if (typeof err.code === 'string' && err.code) return REASONS.UNREACHABLE;
+  if (err.transient) return REASONS.TIMEOUT;
+  return REASONS.UNKNOWN;
+}
+
+/**
  * A JSON GET with a socket timeout and no retry.
  *
  * Kept for Elering, which is reliable on this egress: measured across 18
@@ -109,16 +207,20 @@ function jsonGet(url) {
     var req = https.get(url, { timeout: 15000 }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+        return reject(tagged(httpReason(res.statusCode), 'HTTP ' + res.statusCode + ' from ' + url));
       }
       var data = '';
       res.on('data', function (c) { data += c; });
       res.on('end', function () {
-        try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Parse failed')); }
+        try { resolve(JSON.parse(data)); } catch (e) { reject(tagged(REASONS.MALFORMED, 'Parse failed')); }
       });
     });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
+    // `destroy(err)` re-emits that same object on 'error', so the tag survives
+    // to the handler below rather than being rebuilt from the message there.
+    req.on('timeout', function () { req.destroy(tagged(REASONS.TIMEOUT, 'Timeout: ' + url)); });
+    req.on('error', function (err) {
+      reject(err && err.reason ? err : tagged(REASONS.UNREACHABLE, (err && err.message) || 'Request failed'));
+    });
   });
 }
 
@@ -148,19 +250,35 @@ var OPEN_METEO_AQ = 'https://air-quality-api.open-meteo.com/v1/air-quality';
 var OPEN_METEO_WX = 'https://api.open-meteo.com/v1/forecast';
 var ECB_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 
+/**
+ * Elering and the ECB keep `jsonGet`/`httpGetText`, and that is a decision.
+ *
+ * Both would arguably be better through `es.httpJson` too — the
+ * socket-idle-timer argument `#333` makes for Open-Meteo is general. But neither
+ * is failing: across 34 generations sampled on 2026-08-31 and 17 more on
+ * 2026-09-01, every degradation was Open-Meteo and **zero** lost electricity
+ * prices or exchange rates. Measured directly, Elering answers a 30-day window
+ * (488KB) in 425-1585ms and the ECB file in 61-220ms. Moving them would mean
+ * inventing deadlines for two sources with no observed failures, which is how a
+ * currently-reliable source gets made less reliable. Left as a separate change
+ * with its own evidence.
+ */
+
 function httpGetText(url) {
   return new Promise(function (resolve, reject) {
     var req = https.get(url, { timeout: 10000 }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
         res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
+        return reject(tagged(httpReason(res.statusCode), 'HTTP ' + res.statusCode + ' from ' + url));
       }
       var data = '';
       res.on('data', function (c) { data += c; });
       res.on('end', function () { resolve(data); });
     });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
+    req.on('timeout', function () { req.destroy(tagged(REASONS.TIMEOUT, 'Timeout: ' + url)); });
+    req.on('error', function (err) {
+      reject(err && err.reason ? err : tagged(REASONS.UNREACHABLE, (err && err.message) || 'Request failed'));
+    });
   });
 }
 
@@ -251,6 +369,18 @@ const handler = async function (context, req) {
     // `unavailable` field — `sea-state` serves `unavailable: []` today — and
     // the correctness of those siblings is why nobody looked at this one.
     var unavailable = [];
+    /**
+     * Record a source that produced no insight, and why.
+     *
+     * `#329` established this field with bare source names and covered the four
+     * `catch` clauses. Three more paths reach here without ever throwing — the
+     * `if` guards below — and a fourth was the weather block fabricating rather
+     * than dropping. Same field and the same four source names; the element
+     * carries a `reason` so "reached, and empty" is not reported as an outage.
+     */
+    function lost(source, reason) {
+      unavailable.push({ source: source, reason: reason });
+    }
     try {
       var elData = await eleringPromise;
       var allRows = (elData.data && elData.data[zone]) || [];
@@ -321,8 +451,13 @@ const handler = async function (context, req) {
             level: 'routine', category: 'economy', timestamp: now.toISOString(),
           });
         }
+      } else {
+        // Elering answered and carried no priced interval for today. Not an
+        // outage, and `if (prices.length > 0)` had no `else`, so this dropped
+        // in silence even after #329 — nothing threw, so no `catch` ran.
+        lost('electricity prices', REASONS.NO_READING);
       }
-    } catch (e) { unavailable.push('electricity prices'); }
+    } catch (e) { lost('electricity prices', reasonOf(e)); }
 
     // 2. ECB exchange rates
     try {
@@ -350,8 +485,11 @@ const handler = async function (context, req) {
           category: 'economy',
           timestamp: new Date().toISOString(),
         });
+      } else {
+        // The file arrived and carries no USD line. Reached, and nothing to say.
+        lost('exchange rates', REASONS.NO_READING);
       }
-    } catch (e) { unavailable.push('exchange rates'); }
+    } catch (e) { lost('exchange rates', reasonOf(e)); }
 
     // 3. Air quality
     try {
@@ -396,22 +534,127 @@ const handler = async function (context, req) {
           category: 'environment',
           timestamp: new Date().toISOString(),
         });
+      } else {
+        // `classifyEuropeanAqi` returned null, correctly, because there was no
+        // index in the payload. `if (band)` had no `else`, so a source that
+        // answered HTTP 200 and parsed cleanly vanished exactly like one that
+        // timed out — the widest of the three unguarded branches, since this is
+        // one of the two insights production was measured losing.
+        lost('air quality', REASONS.NO_READING);
       }
-    } catch (e) { unavailable.push('air quality'); }
+    } catch (e) { lost('air quality', reasonOf(e)); }
 
     // 4. Weather
     try {
       var wxData = await weatherPromise;
       var wxCurrent = wxData.current || {};
-      var temp = wxCurrent.temperature_2m || 0;
-      var wind = wxCurrent.wind_speed_10m || 0;
+      // No `|| 0`, for the reason the air-quality block 46 lines above already
+      // gives — and more urgently here, because of where zero sits on each
+      // scale:
+      //
+      //   AQI  0 is the BEST band there is  -> "perfect air", odd enough to query
+      //   TEMP 0 is the freezing point      -> an ordinary Riga winter reading
+      //
+      // Both downstream branches then waved it through. `temp < -10 || temp >
+      // 35` is false at 0, so the level was `routine`; `temp < 0` is false at 0,
+      // so the advice was "Conditions within seasonal range." With `wind || 0`
+      // beside it a missing field rendered as a real, still, overcast day:
+      //
+      //   Riga: 0°C, overcast — Wind 0 km/h. Conditions within seasonal range.
+      //
+      // Nothing in that says a field was absent, which is what makes it worse
+      // than the AQI version it was copied from: a reader might query perfect
+      // air, and nobody queries a freezing day in Riga. It is the third time
+      // this substitution has been found against this same upstream, after a
+      // fabricated calm sea and fabricated clean air.
+      //
+      // This does not rest on Open-Meteo's contract, and it is worth saying why,
+      // because measurement alone does not settle it: 6 of 6 live replies
+      // carried a finite `temperature_2m`, and asking for an unknown variable
+      // returns HTTP 400, which `jsonGet` rejects before reaching here. But the
+      // line above already writes `wxData.current || {}`, conceding that
+      // `current` may be absent. If it cannot be, that guard is dead code; if it
+      // can be, `|| 0` invents a reading. The two lines contradicted each other
+      // on the file's own terms, with no appeal to the upstream at all — and
+      // `jsonGet` accepts any 2xx that parses, without checking the shape.
+      var temp = num(wxCurrent.temperature_2m);
+      var wind = num(wxCurrent.wind_speed_10m);
       var codes = { 0: 'clear sky', 1: 'mainly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 51: 'drizzle', 61: 'rain', 71: 'snow', 80: 'rain showers', 95: 'thunderstorm' };
       var desc = codes[wxCurrent.weather_code] || 'variable';
-      insights.push({ headline: capital.name + ': ' + temp.toFixed(0) + '°C, ' + desc, description: 'Wind ' + wind.toFixed(0) + ' km/h. ' + (temp < -10 ? 'Severe cold — expect elevated heating demand.' : temp < 0 ? 'Below freezing — monitor transport and energy costs.' : temp > 30 ? 'Heat wave — increased cooling demand.' : 'Conditions within seasonal range.'), level: temp < -10 || temp > 35 || wind > 80 ? 'significant' : 'routine', category: 'environment', timestamp: new Date().toISOString() });
-    } catch (e) { unavailable.push('weather'); }
+
+      if (temp === null) {
+        // Declared, not merely dropped. Fixing a fabrication must not quietly
+        // convert it into the silent vanish `#329` has just removed, so this
+        // reuses that field and its existing 'weather' source name rather than
+        // adding a second vocabulary for the same fact.
+        lost('weather', REASONS.NO_READING);
+      } else {
+        insights.push({
+          headline: capital.name + ': ' + temp.toFixed(0) + '°C, ' + desc,
+          // The temperature is the headline; the wind is context beside it. So a
+          // missing wind states itself and the card stands, exactly as the
+          // air-quality block prints "PM2.5 unavailable." and still reports its
+          // band. Dropping the whole card here would discard a temperature we
+          // actually hold — an over-correction in the opposite direction.
+          description: 'Wind ' + (wind === null ? 'unavailable' : wind.toFixed(0) + ' km/h') + '. '
+            + (temp < -10 ? 'Severe cold — expect elevated heating demand.'
+              : temp < 0 ? 'Below freezing — monitor transport and energy costs.'
+                : temp > 30 ? 'Heat wave — increased cooling demand.'
+                  : 'Conditions within seasonal range.'),
+          // `wind !== null` is spelled out rather than left to `null > 80`.
+          // Both are false, so this is a readability change and not a
+          // behavioural one — and it is not asserted anywhere, because a test
+          // that cannot distinguish the two spellings could not fail.
+          level: temp < -10 || temp > 35 || (wind !== null && wind > 80) ? 'significant' : 'routine',
+          category: 'environment',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (e) { lost('weather', reasonOf(e)); }
 
     // Limit to 5
     insights = insights.slice(0, 5);
+
+    // Nothing at all is a failure, and has to read as one.
+    //
+    // `/api/sea-state` makes the same call for the same reason — "all three
+    // failing is a failure and has to read as one rather than as an empty,
+    // becalmed coastline" — and here it buys something concrete. A non-200 is
+    // `NotCacheable`, so `responseCache` declines to remember it and
+    // `cache.memo` falls back to the last good answer inside its hour of grace,
+    // serving that with `Age` and `X-Cache: stale`. A reader gets the insights
+    // we last had rather than an empty strip standing in front of them.
+    //
+    // Without this branch, `200 {insights: [], unavailable: [4]}` is a perfectly
+    // cacheable answer and is remembered for the full fifteen-minute TTL — which
+    // is exactly the case `responseCache.js` refuses a 502 for: turning a blip
+    // into a fixed outage.
+    //
+    // A PARTIAL answer is still remembered, deliberately, and the deciding fact
+    // is the rate rather than the principle. `api/shared/statusChecks.js`
+    // records roughly half of all calls from this egress address hanging while
+    // the same endpoint answers a laptop in 110-302ms; `api/shared/eurostat.js`
+    // records about one in three. At that rate, refusing to cache partials would
+    // leave the cache mostly empty and send most requests upstream on a channel
+    // that is throttled precisely for being asked too often — and it would do it
+    // to Elering and the ECB too, which had answered. The `unavailable` field is
+    // what makes a partial answer honest; the TTL is deliberately unchanged.
+    if (insights.length === 0) {
+      context.res = {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'No source produced an insight',
+          insights: [],
+          // Carried on the failure too, so even a total outage says which four
+          // sources were lost and why.
+          unavailable: unavailable,
+          generatedAt: new Date().toISOString(),
+          source: 'portaBaltica AI (data-driven)',
+        }),
+      };
+      return;
+    }
 
     context.res = {
       status: 200,
@@ -421,6 +664,14 @@ const handler = async function (context, req) {
         // Always present, `[]` when nothing failed — so a consumer can tell
         // "this source was quiet" from "we do not offer that insight", and an
         // empty array is a measurement rather than a missing key.
+        //
+        // Each element is `{ source, reason }` rather than a bare name. A source
+        // that answered HTTP 200 and carried no reading is a different message
+        // from one that timed out — the first says the source published nothing,
+        // the second says look at the channel — and collapsing them sends a
+        // reader hunting an outage that never happened. The reason comes from a
+        // closed vocabulary and never from the upstream's own error text, which
+        // carries our request URL.
         unavailable: unavailable,
         generatedAt: new Date().toISOString(),
         source: 'portaBaltica AI (data-driven)',
@@ -449,3 +700,9 @@ module.exports.splitByDay = splitByDay;
 module.exports.PRICE_ALERT_PERCENTILE = PRICE_ALERT_PERCENTILE;
 module.exports.PRICE_WINDOW_DAYS = PRICE_WINDOW_DAYS;
 module.exports.MIN_BASELINE_DAYS = MIN_BASELINE_DAYS;
+// The reason vocabulary, exported so a test asserts against the closed set the
+// handler actually uses rather than against its own copy of the words. A second
+// copy is a second enumeration, and two enumerations always drift.
+module.exports.REASONS = REASONS;
+module.exports.reasonOf = reasonOf;
+module.exports.httpReason = httpReason;
