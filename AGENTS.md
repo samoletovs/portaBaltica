@@ -3075,11 +3075,53 @@ single-line anchors applied   8 of 8
 multi-line  anchors INVALID   5 of 5
 ```
 
-A script writing `\n` in a multi-line anchor matches **nothing** in a CRLF file.
 So most plants work, and the ones that silently do not are the *structural*
 mutations — the ones testing the most. `8 of 13` looks like five badly written
 anchors; it is one broken instrument. The plant that vanished was the one for
 the very defect that harness had been pointed at.
+
+⚠️ **This paragraph used to blame the file, and the file is not the variable.**
+It read *"a script writing `\n` in a multi-line anchor matches nothing in a CRLF
+file"*, which is true only of a **byte-mode reader**. Another session ran
+multi-line `\n` anchors against these same files and all of them landed.
+Measured on one file, one anchor, two readers:
+
+```
+newsroom/pipeline/context.py      CRLF=993  bare-LF=0
+
+                          contains CR   \n-anchor matches
+  read_bytes().decode()      True              0
+  read_text()                False             1
+```
+
+Python's text mode does universal-newline translation, so `read_text` hands you
+`\n` whatever is on disk. **The variable is how you read, not what you read** —
+and the remedy the old wording implies, normalising the anchor, is work you do
+not need and a complication that hides the real rule: *match your reader to your
+writer.*
+
+The file already contained that fact and applied it to the wrong half. Three
+lines below, the checking side is warned that `read_text` translates newlines —
+correct, and never carried across to the matching side directly above it. The
+concealing sibling, inside the entry about broken instruments.
+
+⚠️ **And the obvious repair opens a worse hole.** Reading text-mode for the
+mutation while snapshotting bytes for the restore is symmetric only while the
+file is *pure*:
+
+```
+pure CRLF   before CRLF=3 bareLF=0   after CRLF=3 bareLF=0   unchanged
+mixed       before CRLF=2 bareLF=1   after CRLF=3 bareLF=0   ALL ENDINGS REWRITTEN
+```
+
+One bare LF anywhere and a mutation silently rewrites every line ending in the
+file. A byte-exact restore hides it **while the run completes** — interrupt
+between mutate and restore and the tree carries a whole-file ending change that
+no `git diff --stat` count would explain. That harness passed because both files
+happened to be pure, which is a property of the environment rather than of the
+harness.
+
+So: **byte-mode on both sides, or text-mode on both sides. Never one of each.**
 
 So state the assertion as a count, not a boolean: **a plant harness must count
 its anchor's occurrences and refuse to report a verdict on anything but exactly
