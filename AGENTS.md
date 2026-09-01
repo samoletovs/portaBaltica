@@ -3861,6 +3861,42 @@ control firing on its first genuine opportunity, against its own author's
 contaminated tree. Which is the argument for the baseline in one line: *the
 thing it protects you from is most often yourself, an hour ago.*
 
+### The operational form: a control must be able to fail under the error you are running
+
+The rule above is a diagnosis and the hardest part of using it is knowing when
+it applies. A session supplied the clause that makes it checkable, from a
+control of its own that passed for the wrong reason.
+
+It searched history with `git log -S`, got nothing three times, and reached for
+a control:
+
+```
+CONTROL 'Two mechanisms, one symptom'  -> found, 4eeafe7
+4eeafe7 in HEAD's history?             -> YES
+
+the actual fault: HEAD was 30 commits behind, and the target commit
+                  did not exist in that tree at all
+same query against origin/master       -> found immediately
+```
+
+**The control was a phrase old enough to exist in *both* trees.** So it proved
+`-S` works and was *structurally incapable* of detecting the scope error — no
+reading of it could have discriminated, because the thing it searched for was in
+the shared ancestry of both candidate objects.
+
+That is worse than a control on a different object, which at least *could* have
+come out differently. This one could not.
+
+So the clause is one longer than the rule above: **a control must be capable of
+failing under the specific error you are exposed to.** Theirs could fail if `-S`
+were broken. It could not fail if they were searching the wrong tree, and the
+wrong tree was the risk they were actually running.
+
+The check is to name the risk first and then pick the control against it — for a
+history search, a phrase that exists in **one** tree and not the other; for a
+scope question, an object present in one scope only. A control chosen before the
+risk is named will validate whatever is convenient.
+
 ### The next probe fails for a different reason
 
 Every row above treats one bad reading in isolation. In practice you fix the
