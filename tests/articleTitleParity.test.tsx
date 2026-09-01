@@ -145,12 +145,31 @@ describe('the served <title> and the hydrated one agree', () => {
   ];
 
   for (const [label, build] of CASES) {
-    it(`for ${label}`, async () => {
-      const article = build();
-      const served = servedTitle(article);
-      const hydrated = await hydratedTitle(article);
-      expect(hydrated, `${label}: a crawler and a reader are told different things`).toBe(served);
-    });
+    it(
+      `for ${label}`,
+      async () => {
+        const article = build();
+        const served = servedTitle(article);
+        const hydrated = await hydratedTitle(article);
+        expect(hydrated, `${label}: a crawler and a reader are told different things`).toBe(served);
+      },
+      // Explicit, because vitest's default is 5s and this renders React and
+      // then turns the event loop until the title changes. Measured twice on a
+      // loaded machine: `for a retracted article` failed at 13180ms and again
+      // at 16119ms, both `retry x2` — three attempts of roughly 5s each. It
+      // passes 3/3 when the file runs alone, on the same tree, so the variable
+      // is contention across a 2459-test suite rather than anything here.
+      //
+      // This is NOT the raised timeout the config comment above warns against.
+      // That one was a network wait, and the remedy was to refuse the socket —
+      // `tests/noNetwork.ts` makes one impossible here, so nothing this test
+      // waits on can be a statistics office replying slowly. It waits on jsdom.
+      //
+      // `settle` cannot be the thing that hangs: it yields 50 turns and throws
+      // `did not settle after 50 turns` if the condition never holds. A timeout
+      // rather than that message is what says the work was slow, not stuck.
+      20_000,
+    );
   }
 
   it('produced three different answers, so the comparison is not trivially true', async () => {
