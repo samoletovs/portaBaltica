@@ -3326,6 +3326,48 @@ instrument is wrong however plausible each row looks — and you know that
 row cannot: readings individually unremarkable and jointly impossible. Both of
 the above would have been believed one at a time.
 
+### A post-merge probe inherits your branch's vocabulary, and master renames things
+
+The `#146`/`#311` material above is about a merge taking the wrong SHA. This is
+the quieter one that looks like it and is not: **the merge was perfect, and
+master moved on afterwards.**
+
+A session verified its merged work by grepping master for a helper it had
+written. `False`. It reported a rename "between branch and master", and so did
+I — a diagnosis that suggests reviewing the merge. Measured, that is not what
+happened:
+
+```
+9528923  (#349)  2026-09-01T15:13:02  introduced fetchCorrectedSlugs
+7c91e96  (#359)  2026-09-01T18:00:46  removed it, in an unrelated refactor
+                                       — 2h48m later, by a different session
+
+master now   fetchCorrectedSlugs 0 · fetchCorrections 13 · feedTitle 5
+CONTROL      an impossible string  0
+```
+
+Nothing went wrong at the merge at all. The probe was built from the vocabulary
+of the branch, and **the branch's vocabulary is only current until someone
+refactors the thing you merged.**
+
+The failure is silent in the usual direction: **a name that no longer exists is
+indistinguishable from a feature that was never there.** Both return a confident
+`False`, and the second reading is the one that sends you looking for a lost
+merge.
+
+Two consequences. The wrong diagnosis is expensive — *"review the merge"* is
+work aimed at a mechanism that did not fire, while the real remedy is to build
+the probe from **master's** vocabulary, or to check the *behaviour* rather than
+the *name*. And the rescue, again, was a control: the `False` sat beside
+`'Corrected: '` present, an impossible string absent, and the live feeds saying
+19 of 49 — an incoherent set, so someone looked. Fourth time in one day that a
+paired reading caught what a single one could not.
+
+The check that settles it costs one command, and it distinguishes the two
+mechanisms rather than assuming either: `git log -S '<the name>' --diff-filter=D`
+names the commit that removed it. If that commit is *after* your merge, the
+merge was fine and your vocabulary is stale.
+
 ### A control drawn from the corpus you are searching is not independent of it
 
 Everything above tells you to pair a reading with a control. It does not tell
