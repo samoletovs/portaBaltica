@@ -91,6 +91,8 @@ jobs:
       alert: ${{ steps.judge.outputs.alert }}
       headline: ${{ steps.judge.outputs.headline }}
       message: ${{ steps.judge.outputs.message }}
+      label: ${{ steps.judge.outputs.label }}
+      subject: ${{ steps.judge.outputs.subject }}
 
     steps:
       - uses: actions/checkout@v5
@@ -223,6 +225,22 @@ jobs:
             fs.writeFileSync("headline.txt", r.headline || "status could not be summarised");
             fs.writeFileSync("message.txt",
               r.text || "portaBaltica data sources: ALERT - the report carried no text.");
+
+            // Where to deliver it. A rehearsal must not write into the
+            // production incident record, so the probe says which issue this
+            // belongs in -- derived from what it actually judged, not from the
+            // `rehearse` input.
+            //
+            // ABSENCE RESOLVES TO THE LIVE ISSUE, and that direction is chosen
+            // rather than inherited. This also runs for the synthesised report
+            // written when the script died without producing one, which carries
+            // no routing at all. A dead monitor during a real outage must reach
+            // the real issue; being wrong the other way costs a rehearsal
+            // touching the live issue, which is exactly the old behaviour and
+            // so not a regression.
+            const routing = r.routing || {};
+            fs.writeFileSync("label.txt", routing.label || "source-alert");
+            fs.writeFileSync("subject.txt", routing.subject || "Data sources");
           '
 
           # Hand the report to the notification job. The delimiter form is
@@ -238,6 +256,11 @@ jobs:
             echo ""
             echo "__EOF__"
           } >> "$GITHUB_OUTPUT"
+
+          # Single-line, so the plain form is correct and the delimiter form
+          # would only add a way to get it wrong.
+          echo "label=$(cat label.txt)" >> "$GITHUB_OUTPUT"
+          echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Attach the shape received
         run: |
@@ -278,6 +301,12 @@ jobs:
       alert: ${{ (needs.check.result != 'success' || needs.check.outputs.alert == 'true') && 'true' || 'false' }}
       headline: ${{ needs.check.outputs.headline }}
       message: ${{ needs.check.outputs.message }}
-      label: source-alert
-      subject: Data sources
+      # The probe decides which issue this belongs in, so a rehearsal cannot
+      # retitle a live outage or manufacture one on healthy sources. The `||`
+      # covers the check job dying outright, where there is no output at all:
+      # absence resolves to the LIVE issue, because a dead monitor during a real
+      # outage must reach the real one, and an empty label would make
+      # `gh issue list --label ''` match nothing.
+      label: ${{ needs.check.outputs.label || 'source-alert' }}
+      subject: ${{ needs.check.outputs.subject || 'Data sources' }}
     secrets: inherit
