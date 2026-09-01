@@ -3267,8 +3267,18 @@ Two consequences. A collision is **not** a finding — it invalidates every read
 taken from that object in the same pass, and the temptation is to read it as
 evidence about the subject. And the remedy is one line: **choose a token from
 outside the corpus's subject matter, and assert it is absent before trusting it
-as a control.** `perihelion` and `qqqAbsentControl` both return 0 against this
-file; `zzzNEVER` and `quaternion` do not.
+as a control.**
+
+⚠️ **And this entry burned its own example in the act of writing it.** The
+sentence above originally read *"`perihelion` and `qqqAbsentControl` both return
+0 against this file"*. Measured immediately after committing: `perihelion`
+returns **1**, because naming it here put it here. It is now exactly as unusable
+against `AGENTS.md` as `quaternion`, and for exactly the same reason.
+
+So the rule cannot be *"use this word"*, because any word this file recommends is
+thereby in this file. It has to be a **property**: pick a token with no
+connection to the subject matter, and **run it first** — an absent control is
+cheap to establish and worthless to assume.
 
 That last clause is the one that generalises past strings. A control is an
 assertion that the instrument can say *no*, so a control you have not checked is
