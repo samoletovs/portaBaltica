@@ -117,7 +117,7 @@ jobs:
           # a rehearsal exists to prove this path delivers, and a path that has
           # never delivered is not a path. So it sends, first line first.
           if [ "${REHEARSAL:-false}" = "true" ]; then
-            message="$message
+            message="*** REHEARSAL - NOT A REAL ALERT. The reading below came from a fixture. ***
           ${message}"
           fi
 
@@ -196,7 +196,7 @@ jobs:
           fi
 
       - name: Send the Telegram message
-        if: inputs.rehearsal != 'true'
+        if: inputs.alert == 'true'
         env:
           NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
           NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
