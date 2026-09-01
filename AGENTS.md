@@ -1974,6 +1974,54 @@ enumeration rule this file already states, applied to a name rather than to a
 guard, and it has the same tell: the mismatch is invisible from the reading,
 because the reading is correct about the population it used.
 
+### And the same asymmetry arrives in a summary
+
+A name is not the only short thing that can overstate a long one. **A summary
+of your own careful work can claim more than the work does**, and it is the
+more dangerous of the two, because a name is at least attached to its
+definition — a summary travels alone.
+
+Two instances, two authors, one day, both verified against their artefacts:
+
+```
+a session's report      artefact: "...and the sideways-scroll check IS RIGHT
+                                   TO PASS IT. An element wider than its
+                                   container and a document that scrolls
+                                   sideways are different defects"
+                        message : the mechanism only -- "it `continue`s on
+                                   everything else, so this class was
+                                   unmeasured"
+                        effect  : a description read as an accusation
+
+dd2a3cd (mine)          artefact: a section arguing that a correct conclusion
+                                   from a broken instrument collides with
+                                   nothing
+                        message : "Examples executed rather than asserted"
+                        effect  : one of the three had been asserted
+```
+
+Their artefacts were right and stayed right — checked on master, `is right to
+pass it` present, `mis-scoped` absent, control absent. Nothing needed
+changing. **What was wrong was the retelling**, by the author, minutes after
+writing the careful version, by dropping one clause from a sentence of four.
+
+That is the mechanism and it is compression, not carelessness. A summary is
+shorter *by construction*, so every summary drops clauses; the question is only
+whether it drops a load-bearing one. And the summary is the artefact that gets
+read — a commit message, a PR body, a message to whoever decides what happens
+next — while the careful version sits in a file nobody opens twice.
+
+So: **when you summarise your own work, check the summary against the artefact,
+not against your memory of writing it.** The failure is not available to
+introspection, because you remember the careful version — you wrote it.
+
+⚠️ **And it defeats the obvious search.** Grepping this repo's log for
+`Examples executed rather than asserted` returns `71c6702` — the *correction* —
+because a correction quotes the text it corrects, and the original `dd2a3cd`
+does not surface first. The same rule as *the better you document a removal,
+the more present it looks*, one level up: **a retraction is the best textual
+match for the thing retracted.**
+
 ## A shape is defined by what it refuses to say
 
 The newsroom's correction machinery has six note shapes, and reading them
