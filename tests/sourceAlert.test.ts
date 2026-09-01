@@ -607,3 +607,62 @@ describe('the workflow reads what the probe writes', () => {
     expect(workflow).toContain('subject: ${{ steps.judge.outputs.subject }}');
   });
 });
+describe('the rehearsal flag reaches the loud channel', () => {
+  const sourceAlert = readFileSync(resolve('.github/workflows/source-alert.yml'), 'utf-8');
+  const notifier = readFileSync(resolve('.github/workflows/alert-notify.yml'), 'utf-8');
+
+  /*
+   * A seam orphan that rang the real alarm. Both probes have written
+   * `routing.rehearsal` since #340 and #343, and NOTHING read it — measured on
+   * master at 752a335: 2 producers, 0 consumers.
+   *
+   * #340 and #343 routed a rehearsal away from the production issue and stopped
+   * there, because the issue is where a rehearsal leaves a lasting mark. It is
+   * not where a rehearsal is loudest. Measured, Telegram message 1173 at
+   * 2026-09-01T08:18Z, a rehearsal delivered to the real chat:
+   *
+   *     portaBaltica newsroom wire: ALERT - 1 wire source refused or ...
+   *     checked 2026-09-01T08:17:59Z
+   *     source  fixture:rehearsal.json      <- line 3, below the preview
+   *
+   * The body was honest and the notification was not. This is asserted about
+   * the SHARED notifier here and nowhere else: two copies of an assertion about
+   * one file is the drift this repository keeps writing post-mortems about.
+   */
+
+  it('passes the flag the probe already wrote', () => {
+    expect(sourceAlert).toContain('rehearsal.txt');
+    expect(sourceAlert).toContain('rehearsal: ${{ steps.judge.outputs.rehearsal }}');
+    expect(sourceAlert).toContain("needs.check.outputs.rehearsal || 'false'");
+  });
+
+  it('resolves a lost flag to a real alarm, at every step of the chain', () => {
+    // Dressing a real alarm as a rehearsal is the one direction that could get
+    // a live outage ignored, so absence must never resolve to 'true'.
+    expect(sourceAlert).toContain('routing.rehearsal || "false"');
+    expect(sourceAlert).toContain("needs.check.outputs.rehearsal || 'false'");
+    expect(notifier).toContain("default: 'false'");
+  });
+
+  it('declares the input on the shared notifier', () => {
+    expect(notifier).toMatch(/^ {6}rehearsal:$/m);
+    expect(notifier).toContain('REHEARSAL: ${{ inputs.rehearsal }}');
+  });
+
+  it('marks the first line, because that is what a phone preview shows', () => {
+    // The same argument #340 made for putting "(rehearsal)" in the issue title
+    // rather than only in the body, applied to the louder channel. `source
+    // fixture:...` sits on line 3 and no notification preview reaches it.
+    const marker = notifier.match(/message="(\*\*\* REHEARSAL[^\n"]*)/);
+    expect(marker, 'the banner must be the first thing in the message').not.toBeNull();
+  });
+
+  it('still sends, because a path that has never delivered is not a path', () => {
+    // Suppressing the send is the tempting fix and it is the wrong one: a
+    // rehearsal exists to prove this path delivers. The Telegram step's
+    // condition must stay keyed on `alert` alone.
+    expect(notifier).toContain("- name: Send the Telegram message");
+    expect(notifier).not.toMatch(/if: inputs\.alert == 'true' && inputs\.rehearsal/);
+    expect(notifier).not.toMatch(/if: inputs\.rehearsal != 'true'/);
+  });
+});
