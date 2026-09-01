@@ -2663,6 +2663,55 @@ the name of the failing assertion is the only thing that says *what*. Reporting
 count without its population — one level up, in the verification rather than in
 the measurement.
 
+### A green needs an opportunity count, and a working fix can erase it
+
+Everything above is about a red that means less than it looks. This is the
+green, and it is worse, because a green after a fix is exactly what you went
+looking for.
+
+A session verified a merged fix against the freshly regenerated corpus:
+
+```
+6 post-fix articles · 47 figures · 0 defects
+CONTROL a known-bad pre-fix article           1 defect
+```
+
+Then it asked the question that decides whether that means anything — **did
+those 47 figures have the opportunity to fail?**
+
+```
+difference figures on a RATE series, in the 6 : 0
+difference figures at all                     : 1   (a deviation in GWh)
+expected at the pre-fix rate                  : 1.4
+```
+
+**Zero opportunities.** So `0 of 47` is a fact about which signals happened to
+fire that afternoon, not about the code, and it was one sentence from being
+reported as production verification. Same family as a fixture whose verdict
+depends on the day you run it.
+
+**And the sharper half: the probe measuring opportunity was keyed on a field the
+fix itself rewrites.** `is_rate_unit(served_unit)` — and post-fix a *correctly
+handled* rate difference is served as `percentage points`, which is not
+rate-like:
+
+```
+pre-fix   unit='% year on year'     -> at_risk True
+post-fix  unit='percentage points'  -> at_risk False
+```
+
+**A working fix reads as "no opportunity".** The population being counted was
+the session's own success, and the fix had changed the evidence used to look for
+it. So key opportunity on the **input** — the series unit — never on the served
+field, which is downstream of the thing under test.
+
+Two things about how it was handed over, both worth copying. It **did not
+bite**: the one difference was GWh, rate-like on neither side, so `at_risk=0`
+was right for the right reason. And the probe was shown able to say yes — it
+finds 9 on the pre-fix corpus. So the confound is **latent, not demonstrated**,
+and it was reported that way: *"a latent confound and a demonstrated one are
+different claims, and I would rather hand over the weaker true one."*
+
 ### A green that is a fact about the environment, not about the code
 
 A check that *cannot* fail is inert, and its greens say nothing. The worse case
