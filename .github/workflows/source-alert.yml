@@ -319,5 +319,5 @@ jobs:
       # Absence resolves to 'false' — a real alarm that lost its flag must not be
       # dressed as a rehearsal, which is the one direction that could get a live
       # outage ignored.
-      rehearsal: 'false'
+      rehearsal: ${{ needs.check.outputs.rehearsal || 'false' }}
     secrets: inherit
