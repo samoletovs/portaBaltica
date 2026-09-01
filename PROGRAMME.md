@@ -53,6 +53,18 @@ master        40e66aa · working tree clean · 0 open PRs · all checks green
 site          healthy · required 9/9 · all sources 13/13 · 0 stale
 live suite    242 passed / 18 files, run against production at 16:58Z
 newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
+
+              ⚠️ **No SCHEDULED run has completed under that timeout.** The
+              14:00Z timer run was killed at 600011 ms; `d82233b` raised the
+              limit at **14:14:51Z**; and the only edition since was the
+              **manual** re-run I fired at 14:29:57Z — `runs/latest.json` says
+              `trigger: manual`, which is how a session caught this. So the fix
+              is proven *necessary* (the re-run took 625.8 s, past the old
+              600 s ceiling) and the scheduled path under it is **unverified**.
+              Your first newsroom task is to watch the 14:00Z run and read
+              `trigger` on the artefact, not just its freshness — a manual and
+              a scheduled edition are indistinguishable from the article
+              timestamps alone, which is the whole reason `trigger` exists.
 articles      99 published · 31 corrections · 8 correction surfaces green
 tests         154 files · npm test = typecheck + vitest (see the trap below)
 books         AGENTS.md 3744 lines · PROGRAMME.md 2002 lines
