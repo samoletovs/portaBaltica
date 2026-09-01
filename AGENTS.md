@@ -973,6 +973,32 @@ number moves between runs of the *same* loop:
   35 min later 5 distinct     same loop, same cadence
 ```
 
+⚠️ **That reading is true and the evidence above does not establish it**, which
+is worth more than either. `ai-insights` declares `keyOn: ['country']`, so
+LV/EE/LT are three cache *entries* by design — three distinct readings from
+three countries is exactly what one cache predicts, and five is what a
+fifteen-minute TTL predicts when a loop straddles an expiry. Neither figure
+needs a second instance to explain it.
+
+The discriminating test is one key hammered inside one TTL:
+
+```
+24 requests · country=LV only · 75 seconds · TTL 15 minutes
+
+  distinct generatedAt : 2
+    2026-09-01T10:58:17.305Z  x6
+    2026-09-01T10:58:30.646Z  x18
+  Age seen: 0 .. 61
+
+CONTROL  one request per country -> 3 distinct, so the probe can see several
+```
+
+**Two generation instants thirteen seconds apart for a single cache key.** One
+cache cannot produce that; separate instances can. So the conclusion stands and
+is now measured rather than inferred — but it was reached from a reading that a
+simpler mechanism also explains, and a sceptic would have been right to reject
+it on the evidence first offered.
+
 So the ratio of requests to readings is not knowable in advance and cannot be
 divided out afterwards. **Assuming 18 and assuming 1 are both wrong; only
 deduping tells you**, and it has to be done on every run rather than calibrated
