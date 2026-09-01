@@ -349,16 +349,30 @@ describe('later than usual, but still publishing', () => {
    * fall, and at six it is not `> WARN_AFTER_MONTHS.Q`, so the notice
    * correctly stays silent and the assertion below fails.
    *
-   * That is not hypothetical. Computed across a year it fails in **March,
-   * June, September and December** — a third of the calendar — and it fired
-   * for real: CI run 33451604598 on commit `b2abeab` concluded `success` at
-   * 2026-08-31T23:39:30Z and, re-run on the identical tree, `failure` at
-   * 2026-09-01T06:13Z. Nothing about the code changed; only the clock moved.
+   * That is not hypothetical. It fired for real: CI run 33451604598 on commit
+   * `b2abeab` concluded `success` on **attempt 1** at 2026-08-31T23:39:30Z
+   * and `failure` on **attempt 2** at 2026-09-01T06:12:29Z, re-run on the
+   * identical tree. Nothing about the code changed; only the clock moved. The
+   * attempt number matters to anyone checking: `gh run view 33451604598`
+   * reports only the latest conclusion, so the pair is visible through
+   * `gh api repos/{owner}/{repo}/actions/runs/33451604598/attempts/1`.
+   *
+   * Measured per **day** rather than per month, because the month grid hides a
+   * second mechanism: `246 of 730 days`, 33.7%. All of March, June, September
+   * and December — and `May 31` alone, where `setUTCMonth(getUTCMonth() - 8)`
+   * asks for 31 September, which does not exist, so the Date rolls forward to
+   * 1 October and lands a quarter later still. The first version of this note
+   * said "March, June, September and December" and was written from a
+   * mid-month sample, which cannot see a day-of-month overflow at all.
    *
    * Three quarters back is 7, 8 or 9 months in every month of the year, which
    * clears `WARN_AFTER_MONTHS.Q` (6) and stays well inside
-   * `STALE_AFTER_MONTHS.Q` (14). The test below asserts that across two full
-   * years rather than trusting this paragraph.
+   * `STALE_AFTER_MONTHS.Q` (14). It is **day-safe by construction** rather than
+   * by testing: the derivation below reads only the year and the month, so no
+   * day-of-month can change its answer, and `0 of 1096` days over three years
+   * fall outside the band against `369` for the original. That is why the test
+   * below samples months and not days — a day loop would assert something that
+   * cannot vary, which is a denominator bought without evidence.
    */
   function lateQuarterAt(now: Date): string {
     const qi = now.getUTCFullYear() * 4 + Math.floor(now.getUTCMonth() / 3) - 3;
