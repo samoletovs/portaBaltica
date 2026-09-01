@@ -28,8 +28,11 @@
  * legitimately report `freshness: 'unknown'`.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  alertRouting,
   describeShape,
   evaluate,
   renderText,
@@ -493,5 +496,114 @@ describe('renderText', () => {
     const text = renderText(verdict);
     expect(text).toContain('https://example.test/status');
     expect(text).toContain(verdict.checkedAt);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Where the alert is delivered                                               */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A rehearsal drives the real notification path on purpose. What it must not do
+ * is write into the record of real incidents, and it did: `source-alert.yml`
+ * passed a hardcoded `label: source-alert`.
+ *
+ * This is the SECOND instance. `wire-alert.yml` had it identically and was
+ * fixed in #340, after a rehearsal at 2026-09-01T08:18:15Z retitled live issue
+ * #335 and replaced its body during an outage that was still happening.
+ *
+ * The permanent-record case is measured rather than reasoned about.
+ * `alert-notify.yml` closes on recovery with `gh issue comment` and
+ * `gh issue close` and never edits the body, so a closed issue keeps whatever
+ * the last ALERT wrote. #335 closed at 08:45:52Z carrying the 08:19 body — had
+ * the 08:18 rehearsal been the last alert, 26 minutes earlier, the permanent
+ * record of a real outage would show a fixture.
+ */
+
+const LIVE_VERDICT = { source: 'https://portabaltica.naurolabs.com/api/system-status' };
+const FIXTURE_VERDICT = { source: 'fixture:rehearsal.json' };
+
+describe('alertRouting', () => {
+  it('routes a rehearsal away from the live issue', () => {
+    expect(alertRouting(LIVE_VERDICT).label).toBe('source-alert');
+    expect(alertRouting(FIXTURE_VERDICT).label).toBe('source-alert-rehearsal');
+  });
+
+  it('is compared by inequality, because one label is a prefix of the other', () => {
+    // `'source-alert-rehearsal'.includes('source-alert')` is TRUE, so any
+    // assertion written with `includes` passes whichever label is returned and
+    // certifies nothing. It is the same shape as `'GitHub Actions' in 'a host
+    // that does not identify itself as GitHub Actions'`, which a planted fault
+    // caught in the wire probe.
+    //
+    // So the property is asserted as inequality — which no prefix relation can
+    // satisfy — and the prefix relation is asserted to EXIST, so a later rename
+    // that made `includes` accidentally safe cannot quietly delete the reason
+    // this test is written this way.
+    const live = alertRouting(LIVE_VERDICT).label;
+    const rehearsal = alertRouting(FIXTURE_VERDICT).label;
+
+    expect(live).not.toBe(rehearsal);
+    expect(rehearsal.startsWith(live)).toBe(true);
+  });
+
+  it('says it is a rehearsal in the title, not only in the body', () => {
+    // The title is what arrives in a notification and is the whole of what most
+    // people read. The body already said `source fixture:...`, honestly, and
+    // that does not help somebody scanning a list of issues.
+    expect(alertRouting(FIXTURE_VERDICT).subject).toContain('rehearsal');
+    expect(alertRouting(LIVE_VERDICT).subject).not.toContain('rehearsal');
+  });
+
+  it('derives the routing from what was judged, not from the workflow input', () => {
+    // A run given --fixture without setting `rehearse` is still a rehearsal.
+    // Routing on `source` reports it as one; routing on the input would not.
+    expect(alertRouting({ source: 'fixture:/tmp/anything.json' }).label).toBe('source-alert-rehearsal');
+    expect(alertRouting({ source: 'https://example.test/status' }).label).toBe('source-alert');
+  });
+
+  it.each([{}, { source: undefined }, { source: '' }])(
+    'routes a verdict that cannot say to the LIVE issue (%o)',
+    (verdict) => {
+      // Which way does absence resolve, chosen rather than inherited. This is
+      // the one place here where absence does NOT resolve to the loudest
+      // reading: a monitor that died during a real outage must reach the real
+      // issue. Being wrong the other way costs a rehearsal touching the live
+      // issue, which is exactly the old behaviour and so not a regression.
+      expect(alertRouting(verdict as never).label).toBe('source-alert');
+      expect(alertRouting(verdict as never).subject).toBe('Data sources');
+    },
+  );
+
+  it('marks the rehearsal flag as a string, because a shell reads it', () => {
+    expect(alertRouting(FIXTURE_VERDICT).rehearsal).toBe('true');
+    expect(alertRouting(LIVE_VERDICT).rehearsal).toBe('false');
+  });
+});
+
+describe('the workflow reads what the probe writes', () => {
+  const workflow = readFileSync(resolve('.github/workflows/source-alert.yml'), 'utf-8');
+
+  it('no longer hardcodes the live label', () => {
+    // The consumer half of the seam. No amount of correctness in alertRouting
+    // fixes anything while the caller ignores the answer.
+    expect(workflow).not.toMatch(/^ {6}label: source-alert$/m);
+    expect(workflow).toContain("needs.check.outputs.label || 'source-alert'");
+    expect(workflow).toContain("needs.check.outputs.subject || 'Data sources'");
+  });
+
+  it('falls back to the live issue when the check job dies', () => {
+    // A check job that dies emits no outputs at all, and an empty label makes
+    // `gh issue list --label ''` match nothing — losing the alert at the moment
+    // it matters most.
+    expect(workflow).toContain('routing.label || "source-alert"');
+    expect(workflow).toContain('routing.subject || "Data sources"');
+  });
+
+  it('publishes the routing the check job computes', () => {
+    // Producer and consumer named together: the notify job reads
+    // `needs.check.outputs.label`, so the check job has to declare it.
+    expect(workflow).toContain('label: ${{ steps.judge.outputs.label }}');
+    expect(workflow).toContain('subject: ${{ steps.judge.outputs.subject }}');
   });
 });

@@ -468,6 +468,60 @@ export async function run(options = {}) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Where the alert is delivered                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Which issue this verdict belongs in, and under what name.
+ *
+ * WHY THIS IS COMPUTED HERE AND NOT IN THE WORKFLOW
+ * -------------------------------------------------
+ * A rehearsal drives the real notification path — deliberately, because a
+ * notification path that has never delivered is not a notification path. What it
+ * must not do is write into the **production incident record**, and until now it
+ * did: `source-alert.yml` passed a hardcoded `label: source-alert`, so a
+ * rehearsal reached for the same issue a real outage uses.
+ *
+ * This is the second instance of that defect, not the first. `wire-alert.yml`
+ * had it identically and was fixed in #340 after a rehearsal at
+ * 2026-09-01T08:18:15Z retitled live issue #335 and replaced its body during an
+ * outage that was still happening. Leaving this one is what `AGENTS.md` calls
+ * the correct sibling concealing the broken one: anybody reading the fixed
+ * workflow concludes the codebase handles this.
+ *
+ * The worse case is measured rather than reasoned about, and it is worse here
+ * than the transient masking above. `alert-notify.yml` closes on recovery with
+ * `gh issue comment` and `gh issue close` and **never edits the body**, so a
+ * closed issue keeps whatever the last *alert* wrote. Read off issue #335: it
+ * closed at 08:45:52Z carrying the body of the 08:19 alert. Had the rehearsal
+ * at 08:18 been the last alert — 26 minutes earlier — the permanent record of a
+ * real 90-minute outage would show a fixture. On a healthy wire it is worse
+ * still: the rehearsal opens a real labelled issue and the next clean run
+ * comments "Recovered." and closes it, writing a fabricated outage *and* a
+ * fabricated recovery.
+ *
+ * The routing is derived from `source`, which already records whether a fixture
+ * was judged, rather than from the workflow's `rehearse` input. That is asking
+ * the application instead of restating it: a run given `--fixture` without
+ * setting `rehearse` is still a rehearsal, and this reports it as one. One field
+ * decides, so the two cannot drift.
+ *
+ * Note that `label` is a *prefix* of the rehearsal label, so any assertion
+ * written with `includes` passes whichever value is returned. See
+ * `sourceAlert.test.ts` for why that has to be asserted with inequality.
+ */
+export function alertRouting(verdict = {}) {
+  const rehearsal = String(verdict.source ?? '').startsWith('fixture:');
+  return {
+    label: rehearsal ? 'source-alert-rehearsal' : 'source-alert',
+    // The title is the whole of what most people read — it is what arrives in a
+    // notification — so it says so there, not only in the body.
+    subject: rehearsal ? 'Data sources (rehearsal)' : 'Data sources',
+    rehearsal: rehearsal ? 'true' : 'false',
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Rendering                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -611,7 +665,14 @@ async function main(argv) {
 
   if (opts.json) {
     const { payload: _payload, ...withoutBody } = verdict;
-    writeFileSync(opts.json, `${JSON.stringify({ ...withoutBody, text: renderText(verdict) }, null, 2)}\n`);
+    // Where this verdict should be delivered. Written beside the text rather
+    // than decided in YAML, so a rehearsal cannot reach the production incident
+    // record — see alertRouting.
+    const routing = alertRouting(verdict);
+    writeFileSync(
+      opts.json,
+      `${JSON.stringify({ ...withoutBody, text: renderText(verdict), routing }, null, 2)}\n`,
+    );
   }
 
   return verdict.alert ? EXIT.ALERT : EXIT.CLEAN;

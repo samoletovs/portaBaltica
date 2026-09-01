@@ -135,3 +135,19 @@ export declare function run(options?: RunOptions): Promise<Verdict>;
 
 /** The report as plain text, for both the issue body and the Telegram message. */
 export declare function renderText(verdict: Verdict): string;
+
+/** Where an alert issue lives, so a rehearsal cannot write into the real one. */
+export interface AlertRouting {
+  /** Issue label. `source-alert` live, `source-alert-rehearsal` for a fixture. */
+  label: string;
+  /** Issue title prefix, which is what arrives in a notification. */
+  subject: string;
+  /** `'true'` or `'false'` — a string, because it is read by a shell. */
+  rehearsal: string;
+}
+
+/**
+ * Which issue this verdict belongs in. Derived from `verdict.source`, so a run
+ * given `--fixture` is routed as a rehearsal whatever the workflow input said.
+ */
+export declare function alertRouting(verdict?: Partial<Verdict>): AlertRouting;
