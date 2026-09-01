@@ -18,11 +18,13 @@
  * collector's default moved underneath it. So the builder lives here, the
  * handler calls it, the probe calls it, and the two cannot disagree.
  *
- * WHY SQL, WHEN `ckan.js` SAYS THE ACTION IS DISABLED
- * ---------------------------------------------------
- * `ckan.js`'s docstring states that `datastore_search_sql` "is disabled (it
- * answers HTTP 409)". Measured against the live portal on 2026-09-01, it is
- * not:
+ * WHY SQL, WHEN `ckan.js` ONCE SAID THE ACTION WAS DISABLED
+ * ---------------------------------------------------------
+ * `ckan.js`'s docstring used to state that `datastore_search_sql` "is disabled
+ * (it answers HTTP 409)"; `a843ad7` retired that claim on the strength of what
+ * follows, and this heading is kept because a reader arriving from the old
+ * comment needs to find the measurement that overturned it. Measured against
+ * the live portal on 2026-09-01, the action is not disabled:
  *
  *     SELECT "Gads","Menesis",COUNT(*),SUM(...) GROUP BY   -> 200 in 446ms
  *     four aggregates in parallel                          -> 356ms total
