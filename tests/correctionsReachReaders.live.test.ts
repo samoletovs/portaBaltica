@@ -192,7 +192,21 @@ async function axTreeOf(path: string, settleFor = 6000) {
   return { page, status: response?.status() ?? 0, ax: axText(await page.locator('body').ariaSnapshot()) };
 }
 
-type LivePage = Awaited<ReturnType<NonNullable<typeof browser>['newPage']>>;
+/**
+ * One live page.
+ *
+ * Derived from the DECLARED type, not from `typeof browser`. A `typeof` query
+ * in a type position is narrowed by control flow, and `browser` is
+ * `let ... = null` whose only assignment is inside `beforeAll` — which does not
+ * run in source order. So at this line TypeScript narrowed it to `null`,
+ * `NonNullable<null>` is `never`, and every page in this file silently became
+ * `never`.
+ *
+ * `vitest` cannot see this: esbuild strips types without checking them. Only
+ * `tsc -p tsconfig.test.json` does, which is what `npm test` runs and
+ * `npx vitest run` does not — so it was green locally and red on master.
+ */
+type LivePage = Awaited<ReturnType<LiveBrowser['newPage']>>;
 
 /**
  * The accessibility tree of the block holding one article's link, on one route.
