@@ -197,17 +197,26 @@ class TestWhatThisShapeRefusesToSay:
 
         A notice read by someone already doubting us must not rest on which of
         those two the reader has in mind.
+
+        Case-folded, and that is not tidiness. A refused phrase reaches a
+        notice most naturally at the START of a sentence, where it is
+        capitalised -- so a case-sensitive `not in` misses the single likeliest
+        way the fault would actually appear. Verified by planting
+        "The figures are unchanged and correct." into the builder: the
+        lower-case form of this check passed it, 32 of 32 green. The sibling
+        four assertions below already folds case; this one did not, which is
+        why nobody looked.
         """
         phrase = "the figures are unchanged"
-        assert phrase not in _text()
+        assert phrase not in _text().lower()
         # CONTROL: some other shape does say it, or this asserts nothing.
-        said_by = {n for n, t in self._others().items() if phrase in t}
+        said_by = {n for n, t in self._others().items() if phrase in t.lower()}
         assert said_by, "no shape says it — the phrase is wrong, not the code"
 
     def test_it_refuses_the_figure_itself_is_unchanged_and_correct(self):
-        phrase = "The figure itself is unchanged and correct"
-        assert phrase not in _text()
-        said_by = {n for n, t in self._others().items() if phrase in t}
+        phrase = "the figure itself is unchanged and correct"
+        assert phrase not in _text().lower()
+        said_by = {n for n, t in self._others().items() if phrase in t.lower()}
         assert said_by, "no shape says it — the phrase is wrong, not the code"
 
     def test_it_refuses_the_opposite_direction_sentence_span_owns(self):
@@ -216,8 +225,8 @@ class TestWhatThisShapeRefusesToSay:
         correction — the fault that builder exists to avoid, from the other
         side."""
         phrase = "the opposite direction to the"
-        assert phrase not in _text()
-        said_by = {n for n, t in self._others().items() if phrase in t}
+        assert phrase not in _text().lower()
+        said_by = {n for n, t in self._others().items() if phrase in t.lower()}
         assert said_by == {"span"}, said_by
 
     def test_it_claims_no_record_and_no_placing(self):
