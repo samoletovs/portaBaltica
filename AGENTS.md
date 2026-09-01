@@ -993,11 +993,34 @@ The discriminating test is one key hammered inside one TTL:
 CONTROL  one request per country -> 3 distinct, so the probe can see several
 ```
 
-**Two generation instants thirteen seconds apart for a single cache key.** One
-cache cannot produce that; separate instances can. So the conclusion stands and
-is now measured rather than inferred — but it was reached from a reading that a
-simpler mechanism also explains, and a sceptic would have been right to reject
-it on the evidence first offered.
+⚠️ **And that reading does not establish separate instances either — I
+committed the claim that it did, an hour after writing this section, in the act
+of correcting someone else for insufficient evidence.** Re-run, the same test
+gave **1** distinct reading, not 2, and the `Age` values say why:
+
+```
+run 1   Age  0 ..  61     a regeneration happened DURING the loop
+run 2   Age 715 .. 789     no expiry crossed -> one reading
+```
+
+`api/shared/responseCache.js` passes a `graceMs` into `cache.memo` and emits
+`X-Cache: revalidating` — `ai-insights` declares `ttlMs: 900000` and
+`graceMs: 3600000`, an hour of grace behind a fifteen-minute TTL. **A single
+cache with stale-while-revalidate serves the old body while regenerating and
+the new one once it lands** — which is exactly two instants a few seconds
+apart, from one cache. So the second generation instant was a revalidation
+completing, not a second instance.
+
+**Neither proposed measurement discriminates.** Three readings across three
+countries is what `keyOn` predicts; two instants seconds apart is what
+revalidation predicts. What is actually established is weaker and sufficient:
+**the distinct count varies for reasons you do not control — expiry, grace,
+revalidation — so it must be counted on every run and cannot be calibrated
+once.** That was the operative conclusion all along, and it never needed the
+mechanism either of us reached for.
+
+The rule below is unchanged. What changed is that it now rests on something
+measured.
 
 So the ratio of requests to readings is not knowable in advance and cannot be
 divided out afterwards. **Assuming 18 and assuming 1 are both wrong; only
