@@ -4528,15 +4528,24 @@ The instance is exact and decidable, which is why it is worth the space. I told
 a session its report had been *"12 commits behind when you sent it"*. Measured:
 
 ```
-d525f78 committed             10:44:43   the SHA they reported
-next commit  5c96fa3          10:50:40   so it was head for SIX MINUTES
-d525f78 first reaches 12 behind at        13:27:04, commit 84ab138
+d525f78 committed             07:44:43Z   the SHA they reported
+next commit  5c96fa3          07:50:40Z   so it was head for SIX MINUTES
+d525f78 first reaches 12 behind at        10:27:04Z, commit 84ab138
 84ab138 is  "Reading the artefact has a limit, and it is the one
              neither other rule names"                <- my own commit
 ```
 
+⚠️ **Those were bare local times until a session pointed it out**, which is the
+smaller sibling of the bug this section is about. There was no false `Z` — the
+figures were honest — but they were **unlabelled**, and every figure the other
+party had sent was UTC, so a reader holding both saw three hours of apparent
+disagreement with nothing to resolve it. The relative arithmetic never moved:
+six minutes is six minutes in any zone. **A wrong offset corrupts an instant; a
+missing one corrupts the comparison**, and a passage about clocks is the worst
+place to leave one out.
+
 For their message to have been 12 behind **when sent**, they would have had to
-send it two hours and forty minutes after they did. The message was one or two
+send it two hours and forty-two minutes after they did. The message was one or two
 commits stale, and almost certainly one: `d525f78` was head for six minutes and
 they wrote on the heels of verifying it.
 
