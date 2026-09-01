@@ -108,14 +108,52 @@ def _usable_bash() -> str | None:
 BASH = _usable_bash()
 
 
-def _first_line(rehearsal: str | None, message: str = REAL_MESSAGE) -> str:
-    """Run the real step and return the line a notification preview would show."""
+def _parse_github_output(raw: str) -> dict[str, str]:
+    """Read a step's outputs the way the Actions runner does.
+
+    Only the heredoc form is handled, because that is the only form this step
+    uses and a parser that silently accepted `key=value` would be describing a
+    file this one does not write.
+    """
+    outputs: dict[str, str] = {}
+    lines = raw.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if "<<" in line:
+            key, delimiter = line.split("<<", 1)
+            body: list[str] = []
+            index += 1
+            while index < len(lines) and lines[index] != delimiter:
+                body.append(lines[index])
+                index += 1
+            outputs[key] = "\n".join(body)
+        index += 1
+    return outputs
+
+
+def _run(rehearsal: str | None, message: str = REAL_MESSAGE) -> dict[str, Any]:
+    """Run the real step and return both what it printed and what it published.
+
+    WHY BOTH, AND WHY THE OUTPUT IS THE ONE THAT MATTERS
+    ----------------------------------------------------
+    Every consumer reads ``steps.verdict.outputs.message`` — the Telegram send,
+    the issue body, the step summary, the recovery comment, four call sites. The
+    step *also* prints the message, and the first version of this file asserted
+    on that print, because it was the thing subprocess handed back.
+
+    They agree today, both being ``$message``. Nothing said so. A print is what
+    is convenient to read and an output is what is consumed, which is the same
+    distinction that put a text assertion where a behavioural one was meant one
+    commit ago.
+    """
     assert BASH, "guarded by the skip below"
     script = _normalise_script()
     with tempfile.TemporaryDirectory() as tmp:
+        output_file = Path(tmp, "github_output")
         env = {
             **os.environ,
-            "GITHUB_OUTPUT": str(Path(tmp, "github_output")),
+            "GITHUB_OUTPUT": str(output_file),
             "ALERT": "true",
             "HEADLINE": "1 wire source refused or unreachable",
             "MESSAGE": message,
@@ -128,8 +166,18 @@ def _first_line(rehearsal: str | None, message: str = REAL_MESSAGE) -> str:
         done = subprocess.run(
             [BASH, "-c", script], cwd=tmp, env=env, capture_output=True, text=True, timeout=120
         )
-    assert done.returncode == 0, f"the Normalise step failed: {done.stderr}"
-    return done.stdout.splitlines()[0]
+        assert done.returncode == 0, f"the Normalise step failed: {done.stderr}"
+        published = _parse_github_output(output_file.read_text(encoding="utf-8"))
+    return {"stdout": done.stdout, "outputs": published}
+
+
+def _first_line(rehearsal: str | None, message: str = REAL_MESSAGE) -> str:
+    """The line a notification preview would show, taken from the PUBLISHED message.
+
+    Read from the output rather than from stdout, because the output is what
+    every consumer of this step receives.
+    """
+    return _run(rehearsal, message)["outputs"]["message"].splitlines()[0]
 
 
 # ── the instrument ──────────────────────────────────────────────────────────
@@ -199,24 +247,30 @@ def test_the_banner_adds_to_the_report_rather_than_replacing_it() -> None:
     real alert would deliver. A banner that swallowed the body would prove a
     path this repository does not use.
     """
-    script = _normalise_script()
-    assert BASH
-    with tempfile.TemporaryDirectory() as tmp:
-        env = {
-            **os.environ,
-            "GITHUB_OUTPUT": str(Path(tmp, "github_output")),
-            "ALERT": "true",
-            "HEADLINE": "h",
-            "MESSAGE": REAL_MESSAGE,
-            "SUBJECT": "Newsroom wire",
-            "REHEARSAL": "true",
-        }
-        done = subprocess.run(
-            [BASH, "-c", script], cwd=tmp, env=env, capture_output=True, text=True, timeout=120
-        )
-    assert done.returncode == 0, done.stderr
+    published = _run("true")["outputs"]["message"]
     for line in REAL_MESSAGE.splitlines():
-        assert line in done.stdout, f"the rehearsal lost a line of the real report: {line!r}"
+        assert line in published, f"the rehearsal lost a line of the real report: {line!r}"
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+def test_what_the_step_prints_is_what_it_publishes() -> None:
+    """The seam inside the step, which every other test here would step over.
+
+    Four consumers read ``steps.verdict.outputs.message`` — the Telegram send,
+    the issue body, the step summary, the recovery comment. The step also
+    *prints* the message, and a print is what a subprocess hands back, so it is
+    what a test naturally reaches for. This file did exactly that until it was
+    pointed at the output instead.
+
+    They are the same variable today. Nothing said so, and a change that
+    corrected one without the other would leave every assertion here green while
+    the notification carried something else.
+    """
+    for rehearsal in ("true", "false"):
+        result = _run(rehearsal)
+        assert result["stdout"].strip() == result["outputs"]["message"].strip(), (
+            f"printed and published disagree with REHEARSAL={rehearsal}"
+        )
 
 
 @pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
