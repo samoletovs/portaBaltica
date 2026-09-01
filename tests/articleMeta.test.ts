@@ -282,6 +282,100 @@ describe('a retracted article', () => {
   });
 });
 
+describe('a corrected article', () => {
+  /**
+   * THE SIXTH SURFACE, and the one that travels furthest.
+   *
+   * A corrected article shared to Slack, Twitter or a chat preview rendered a
+   * card carrying the withdrawn superlative with nothing to say it had been
+   * corrected. Measured on master `033a819`, before this: `'Retracted: '`
+   * appeared twice in `articleMeta.js` and `'Corrected: '` not at all.
+   *
+   * The concealing sibling is in the same file. `newsArticleJsonLd` sets
+   * `creativeWorkStatus = 'Corrected'` and maps every note into `correction`,
+   * so anyone checking whether this file knows about corrections found that it
+   * does — MACHINE-READABLY, in a place no human sees. The argument for marking
+   * the card was also already written here, for retraction: "a card is exactly
+   * where a withdrawn claim most needs one, because a share card carries no
+   * page around it to say so."
+   */
+  const CORRECTED_HEADLINE = article().headline;
+
+  function corrected(): TestArticle {
+    return article({
+      corrections: [
+        {
+          corrected_at: '2026-08-31T14:08:22Z',
+          description: 'CORRECTED. It said the reading was a record; it was not.',
+        },
+      ],
+    });
+  }
+
+  it('marks the share card and the document title', () => {
+    const html = render(corrected(), corrected().slug);
+    expect(ogTitle(html)).toBe(`Corrected: ${CORRECTED_HEADLINE}`);
+    expect(title(html)).toBe(`Corrected: ${CORRECTED_HEADLINE} | portaBaltica`);
+  });
+
+  it('leaves an uncorrected article alone', () => {
+    // The negative control, on the same renderer. Without it the assertion
+    // above is satisfied by a prefix pasted onto every article.
+    const html = render(article(), article().slug);
+    expect(ogTitle(html)).toBe(CORRECTED_HEADLINE);
+    expect(title(html)).toBe(`${CORRECTED_HEADLINE} | portaBaltica`);
+    expect(html).not.toContain('Corrected:');
+  });
+
+  it('treats an empty corrections array as no correction', () => {
+    // `Array.isArray([]) && [].length` is the whole guard, and an empty array
+    // is a shape the stored document can legitimately carry.
+    const html = render(article({ corrections: [] }), article().slug);
+    expect(ogTitle(html)).toBe(CORRECTED_HEADLINE);
+  });
+
+  it('stays retracted when it is both, because that is the stronger fact', () => {
+    // Retracted means WITHDRAWN; corrected means AMENDED AND STILL STANDING.
+    // Collapsing them would tell a reader a withdrawn piece still stands, and
+    // every retracted article in the live log carries a `corrections` entry —
+    // so this is the common case, not a corner.
+    const html = render(retracted(), RETRACTED_SLUG);
+    expect(title(html)).toBe(`Retracted: ${RETRACTED_HEADLINE} | portaBaltica`);
+    expect(title(html)).not.toContain('Corrected:');
+  });
+
+  it('still carries the correction machine-readably, which is what made this easy to miss', () => {
+    // A control on the DIAGNOSIS rather than on the fix: the machine-readable
+    // half was always right, and that is precisely why the human half went
+    // unnoticed for weeks.
+    const html = render(corrected(), corrected().slug);
+    expect(html).toContain('CORRECTED. It said the reading was a record');
+    expect(html).toContain('CorrectionComment');
+  });
+
+  it('does not claim a schema.org status the pipeline never writes', () => {
+    // MEASURED WHILE WRITING THE TEST ABOVE, and left as a finding rather than
+    // repaired here.
+    //
+    // `creativeWorkStatus` is `article.status === 'corrected' ? 'Corrected' :
+    // 'Published'`, and `revisions.py` deliberately keeps a corrected article
+    // `published` because both `isServable` and `is_servable` require it. So
+    // the `'corrected'` arm is UNREACHABLE, and production serves
+    // `creativeWorkStatus: "Published"` beside a populated `correction` array —
+    // verified against the live wrap on 2026-09-01.
+    //
+    // That reads as a contradiction and is arguably not one: the article IS
+    // published, and `correction` already carries the amendment. Making the
+    // dead arm fire would swap a documented schema.org value for one this
+    // repository invented, which is a bigger claim than the defect. So the
+    // behaviour is PINNED here rather than changed, and the dead arm is
+    // reported in the PR for someone to rule on.
+    const html = render(corrected(), corrected().slug);
+    expect(html).toContain('"creativeWorkStatus":"Published"');
+    expect(html).not.toContain('"creativeWorkStatus":"Corrected"');
+  });
+});
+
 describe('an article the client would refuse', () => {
   it('refuses an article whose validator did not pass, however published', () => {
     const failed = article({
