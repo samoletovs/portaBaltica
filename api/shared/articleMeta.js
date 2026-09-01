@@ -413,23 +413,49 @@ function buildHead(article, slug, kind) {
   const withdrawn = state === 'retracted';
   const canonical = slug ? articleUrl(slug) : SITE_URL;
 
+  /**
+   * Whether this piece carries a published correction.
+   *
+   * Costs a read rather than a fetch: `newsArticleJsonLd` above already takes
+   * `article.corrections` off the same stored document, which is why this
+   * surface turned out to be two lines rather than a plumbing job.
+   *
+   * Gated on `servable` so `withdrawn` wins by construction. The two are
+   * different claims and must not collapse into one branch — retracted means
+   * WITHDRAWN, corrected means AMENDED AND STILL STANDING — and an article that
+   * is somehow both reads as retracted, because that is the stronger fact and
+   * the one a reader must not miss.
+   */
+  const corrected =
+    servable && Array.isArray(article.corrections) && article.corrections.length > 0;
+
   // Mirrors ArticlePage's titles exactly, so the served head and the head
   // after hydration are the same strings:
   //
   //   servable   `${headline} | portaBaltica`
+  //   corrected  `Corrected: ${headline} | portaBaltica`
   //   retracted  `Retracted: ${headline} | portaBaltica`
   //
   // `og:title` drops the site suffix: every social card renderer already
   // prints `og:site_name` beside the title, so repeating it there spends
   // fourteen characters of a truncated headline saying what the card says
-  // anyway. The "Retracted:" prefix is NOT dropped — it is the marking, and a
-  // card is exactly where a withdrawn claim most needs one, because a share
-  // card carries no page around it to say so.
+  // anyway. The "Retracted:"/"Corrected:" prefix is NOT dropped — it is the
+  // marking, and a card is exactly where a withdrawn claim most needs one,
+  // because a share card carries no page around it to say so.
+  //
+  // THAT ARGUMENT ALREADY EXISTED HERE AND APPLIED TO ONLY ONE OF THE TWO.
+  // Measured on master 033a819: `'Retracted: '` appeared twice in this file and
+  // `'Corrected: '` not at all, while the JSON-LD ten lines up set
+  // `creativeWorkStatus = 'Corrected'`. So the file handled a correction
+  // MACHINE-READABLY and not HUMANLY — which is exactly why nobody noticed that
+  // a corrected article shared to a chat preview carried the withdrawn
+  // superlative with nothing to say so.
   let title = GENERIC_TITLE;
   let ogTitle = GENERIC_TITLE;
   if (servable) {
-    title = article.headline + ' | ' + SITE_NAME;
-    ogTitle = article.headline;
+    const prefix = corrected ? 'Corrected: ' : '';
+    title = prefix + article.headline + ' | ' + SITE_NAME;
+    ogTitle = prefix + article.headline;
   } else if (withdrawn) {
     title = 'Retracted: ' + article.headline + ' | ' + SITE_NAME;
     ogTitle = 'Retracted: ' + article.headline;

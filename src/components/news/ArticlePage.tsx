@@ -26,10 +26,21 @@ export default function ArticlePage() {
 
   const article = load?.state === 'ok' ? load.article : null;
   const withdrawn = load?.state === 'retracted' ? load.article : null;
+  /**
+   * Whether this piece carries a published correction.
+   *
+   * Mirrors `buildHead` in `api/shared/articleMeta.js`, which a parity test
+   * enforces: the served head and the head after hydration must be the same
+   * strings, or a crawler and a reader are told different things about the same
+   * page. Deliberately not folded into `withdrawn` — retracted means withdrawn,
+   * corrected means amended and still standing, and only the first branch here
+   * can be reached by a retracted piece.
+   */
+  const corrected = Boolean(article?.corrections?.length);
 
   usePageMeta({
     title: article
-      ? `${article.headline} | portaBaltica`
+      ? `${corrected ? 'Corrected: ' : ''}${article.headline} | portaBaltica`
       : withdrawn
         ? `Retracted: ${withdrawn.headline} | portaBaltica`
         : 'portaBaltica',

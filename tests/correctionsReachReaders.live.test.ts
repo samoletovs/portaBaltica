@@ -127,9 +127,27 @@ const SURFACES = {
   weekly: '/weekly — the review and its archive',
   rss: '/rss.xml — syndicated, and unreachable afterwards',
   jsonFeed: '/feed.json — the same items, the same problem',
+  socialMeta: 'og:title — the share card, which travels furthest of all',
 } as const;
 
 type Surface = keyof typeof SURFACES;
+
+/**
+ * The surfaces that need no browser, and therefore no early return.
+ *
+ * A feed and a served `<head>` are not rendered by us — a reader's app or a
+ * crawler decides that — so the document IS the artefact and fetching it is the
+ * honest instrument. The four browser surfaces are different: the served body
+ * is 51 bytes, so only a real render answers the question.
+ *
+ * The split is load-bearing for the coverage equality below, not a note. That
+ * assertion used to share the `if (!browser) return` it exists to detect, so
+ * locally it was inert for exactly the reason the guards were — a meta-guard
+ * with the failure mode of its subject. It now asserts these three
+ * unconditionally and the full six only when a browser was obtained, which
+ * makes it live in both environments rather than only in CI.
+ */
+const NO_BROWSER_NEEDED: readonly Surface[] = ['rss', 'jsonFeed', 'socialMeta'];
 
 /** What this run actually exercised, recorded by the tests themselves. */
 const covered = new Set<Surface>();
@@ -689,13 +707,82 @@ describe('...and in the feeds, which cannot be taken back', () => {
   });
 });
 
+/**
+ * The share card — the surface that travels furthest, because the reader never
+ * visits us at all.
+ *
+ * `articleMeta.js` marks a RETRACTED article in `<title>` and `og:title` and,
+ * until this, marked a corrected one nowhere a human sees. Its own comment
+ * argued the case for the other half: "a card is exactly where a withdrawn
+ * claim most needs one, because a share card carries no page around it to say
+ * so."
+ *
+ * No browser: the served `<head>` is exactly what a crawler receives, so the
+ * document is the artefact rather than a 51-byte shell.
+ */
+describe('...and in the share card, where the reader never arrives', () => {
+  const MARK = 'Corrected: ';
+
+  async function headOf(slug: string): Promise<{ status: number; html: string }> {
+    const response = await fetch(`${BASE}/article/${slug}`);
+    return { status: response.status, html: await response.text() };
+  }
+
+  const ogTitle = (html: string) =>
+    /<meta property="og:title" content="([^"]*)"/.exec(html)?.[1] ?? null;
+  const docTitle = (html: string) => /<title>([\s\S]*?)<\/title>/.exec(html)?.[1] ?? null;
+
+  it('marks a corrected article in og:title and in the document title', async () => {
+    // Derived from the log, so it grows with it and always exercises a real
+    // subject rather than a slug written down once.
+    const slug = correctedOnFeed[0];
+    const { status, html } = await headOf(slug);
+    expect(status).toBe(200);
+
+    // CONTROLS on this document, read this way: the tag exists at all, and the
+    // probe can still say no.
+    expect(ogTitle(html), 'the control failed: no og:title in the served head').not.toBeNull();
+    expect(html.includes('zzzNEVERINAHEAD')).toBe(false);
+
+    expect(ogTitle(html), 'a corrected article is shared with the withdrawn headline').toContain(
+      MARK,
+    );
+    expect(docTitle(html)).toContain(MARK);
+
+    covers('socialMeta');
+  }, 60_000);
+
+  it('leaves an uncorrected article unmarked', async () => {
+    // The negative control, on the same renderer. Without it the assertion
+    // above is satisfied by a prefix pasted onto every article.
+    const { status, html } = await headOf(cleanOnFeed[0]);
+    expect(status).toBe(200);
+    expect(ogTitle(html), 'the control failed: no og:title in the served head').not.toBeNull();
+    expect(ogTitle(html), 'this article has no correction and is marked anyway').not.toContain(MARK);
+  }, 60_000);
+});
+
 describe('the population this file claims to walk', () => {
+  it('exercised every surface that needs no browser', () => {
+    // Asserted unconditionally, and that is the point. This equality used to
+    // sit behind the same `if (!browser) return` as the guards it audits, so
+    // outside CI it was inert for exactly the reason they were — a meta-guard
+    // sharing its subject's failure mode. Found by the programme session
+    // pointing PLAYWRIGHT_BROWSERS_PATH at a directory that did not exist:
+    // 7 of 14 tests passed in 0ms, this one among them, and a planted
+    // ['ZZZ_PLANT'] still passed.
+    expect(
+      [...covered].filter((s) => NO_BROWSER_NEEDED.includes(s)).sort(),
+      'a surface that needs no browser was not exercised',
+    ).toEqual([...NO_BROWSER_NEEDED].sort());
+  });
+
   it('exercised every surface named at the top, and the list is not a wish', () => {
     // THE POINT OF THIS FILE.
     //
     // `#262` shipped a guard named `a published correction reaches a reader`
-    // that walked two of these six, and it was green through weeks in which 18
-    // of 43 front-page articles carried an unmarked correction. A name that
+    // that walked two of these seven, and it was green through weeks in which
+    // 18 of 43 front-page articles carried an unmarked correction. A name that
     // asserts a scope must walk that scope, and a list of surfaces sitting in a
     // comment is a second thing that can disagree with the tests.
     //
@@ -703,6 +790,9 @@ describe('the population this file claims to walk', () => {
     // added to `SURFACES` with no test fails here; a test deleted fails here;
     // and a test that silently stopped running — the `#156` shape — fails here
     // too, which no assertion inside that test could do for itself.
+    //
+    // Browser-gated, because four of the seven genuinely cannot run without
+    // one. The assertion above is what keeps this file honest when they cannot.
     if (!browser) return;
 
     expect([...covered].sort(), 'a surface is named above and nothing exercised it').toEqual(
