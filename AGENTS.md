@@ -911,6 +911,57 @@ longer permits the page to reach Open-Meteo, Eurostat, data.gov.lv, Elering or
 the ECB at all. That turns "all upstream data goes through the proxy" into
 something the browser enforces rather than something a reviewer has to notice.
 
+### A TTL is a sampling rate, so requests are not observations
+
+The rule above governs what may go **in** a cached body. This one governs what
+may be concluded **from sampling** one, and it was broken twice in a day by two
+people measuring the same fix from opposite sides.
+
+A cached endpoint answers most requests from one stored body. Count those
+requests as samples and the denominator is not a number of observations, it is
+a number of *reads of the same observation* — inflated by exactly the cache's
+hit rate, which is to say by however well the cache is working.
+
+```
+api/ai-insights   withCache(..., { ttlMs: 900000 })   Cache-Control: max-age=900
+  => at most 4 distinct readings an hour
+
+measured, one pass, 26 requests over 8.7 minutes:
+  distinct ai-insights readings     1        (deduped on generatedAt)
+  distinct system-status readings   9        (60s TTL, same 26 requests)
+```
+
+Nine against one, from identical sampling, because the TTLs differ by 15×. **The
+faster endpoint is not healthier or noisier; it is simply sampled more often**,
+and any rate computed across both without deduplication is comparing two
+different sample sizes wearing one denominator.
+
+The two failures, both self-reported:
+
+```
+"8 unhealthy of 8"   system-status, 60s TTL   -> 4 distinct readings
+"5 of 53"            ai-insights, 15min TTL   -> 53 distinct would need 13 HOURS
+                                                 both windows were one morning
+```
+
+The second is mine, and it was the denominator of a Fisher test whose
+`p = 0.00055` I used to declare a causal question settled — against a session
+who had declined to claim causality and was right to. A wrong `n` does not make
+a p-value approximately right; it makes it uninterpretable.
+
+**Two rules follow, and the first is mechanical.** Dedupe on the response's own
+timestamp — `generatedAt`, `fetchedAt`, whatever the body already carries for
+this purpose — and report distinct readings, never requests. The field is
+usually there, because a body that survives caching has to carry an instant
+anyway.
+
+**And derive your window from the TTL before you choose it.** At 15 minutes an
+endpoint yields ~96 readings a day, so an afternoon is single digits and a week
+is ~670. If the effect you are testing needs hundreds of observations, no amount
+of polling this morning will produce them, and polling harder produces only a
+larger wrong denominator. `Age` and `X-Cache` tell you which reading you are
+holding; there is no excuse for counting it twice.
+
 ### Why not Cosmos DB
 
 The instinct — stop asking upstream on every page load — is right, and it is
