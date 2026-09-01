@@ -962,6 +962,32 @@ of polling this morning will produce them, and polling harder produces only a
 larger wrong denominator. `Age` and `X-Cache` tell you which reading you are
 holding; there is no excuse for counting it twice.
 
+⚠️ **The distinct count is not fixed, and assuming it is repeats the error one
+level down.** Separate Function instances hold their own cache, so a loop
+collects a few genuinely independent readings rather than exactly one — and the
+number moves between runs of the *same* loop:
+
+```
+18 requests over ~90s, LV/EE/LT, deduped on generatedAt
+  first run    3 distinct     ee|08:12:54 x6  lt|08:12:55 x6  lv|08:12:54 x6
+  35 min later 5 distinct     same loop, same cadence
+```
+
+So the ratio of requests to readings is not knowable in advance and cannot be
+divided out afterwards. **Assuming 18 and assuming 1 are both wrong; only
+deduping tells you**, and it has to be done on every run rather than calibrated
+once.
+
+**Fixing the denominator would not, on its own, have saved the analysis that
+produced this section** — which is the part worth carrying furthest, because a
+reader who corrects only the counting will still get a wrong answer. The same
+argument computed its expected post-fix rate from a failure probability measured
+in the **pre-fix** window. That silently assumed the host had not changed, which
+was the exact proposition in dispute, so the agreement between prediction and
+observation was circular and no `n` would have disturbed it. **Ask what the
+parameters of a prediction were estimated on, and whether that period is the one
+you are trying to make a claim about.**
+
 ### Why not Cosmos DB
 
 The instinct — stop asking upstream on every page load — is right, and it is
