@@ -971,6 +971,37 @@ So the rule below is written to be applied mechanically, on every run, rather
 than recalled when it seems relevant — because the moment it seems least
 relevant is the moment just after you used it.
 
+**And there is a second mechanism underneath that one, which explains why the
+remedy has to be mechanical rather than a reminder.** *Feels discharged* is
+about belief: having stated the fact, you think it is handled. This is about
+attention, and it is the sharper of the two — a session put it in six words at
+the end of the run that produced three instances of it:
+
+> **a rule you have just written is maximally salient and minimally available**
+
+You are looking at the thing you wrote, not at the next command you type. The
+rule is at its most vivid and least *reachable* precisely when the next keystroke
+would need it, because vividness lives in the document and the keystroke lives
+somewhere else.
+
+Measured on one day, three people, all within an hour of folding the relevant
+rule:
+
+```
+folded "confirm which population"  -> misattributed a `deadlineMs` between
+                                      two registry entries
+folded "a summary claims more than
+        its artefact"              -> overstated a defect 3x in a summary
+folded "read it twice by different
+        routes"                    -> read `git grep` on a phrase that wraps,
+                                      and saw "my #363 was reverted"
+```
+
+None of the three was a failure of care, and none was caught by the rule. Each
+was caught by an artefact contradicting itself. **That is the argument for
+structure over vigilance stated as evidence rather than as principle**: if
+salience worked, these are the three cases where it would have.
+
 **Two rules follow, and the first is mechanical.** Dedupe on the response's own
 timestamp — `generatedAt`, `fetchedAt`, whatever the body already carries for
 this purpose — and report distinct readings, never requests. The field is
