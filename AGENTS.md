@@ -3643,6 +3643,32 @@ one line:
 const code = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 ```
 
+**That one-liner is JavaScript's, and its order is load-bearing in a language
+this repo also uses.** PowerShell's block comment opens with `<#`, which
+`^\s*#` matches — so stripping line comments first deletes the `<#` and `#>`
+delimiters and **orphans the block's body**, leaving prose sitting in what you
+now believe is code. Measured on one file, one needle, two orders:
+
+```powershell
+$b = [regex]::Replace($raw, '<#[\s\S]*?#>', '')   # BLOCK first
+$b = [regex]::Replace($b,   '(?m)^\s*#.*$',  '')
+
+scripts/verify-pr.ps1   line-first   'npx tsc --noEmit' -> 1
+                        block-first  'npx tsc --noEmit' -> 0   <- correct
+```
+
+The single occurrence is inside a `.SYNOPSIS` block reading *"`npm run build` is
+used for typechecking, **never** `npx tsc --noEmit`"*; the script itself runs
+`npm run build`, `npm run test` and `npm run lint`. So the line-first reading
+accuses **the programme's own PR-verification script** of containing the
+vacuous typecheck it was written to avoid — the documented-removal trap above,
+aimed at the one file whose entire purpose is catching that class of fault, and
+arriving as a *plausible* reading that defends itself. It was caught only
+because two orders were run and disagreed.
+
+**Strip block comments first, always.** It costs nothing in JavaScript, where
+`/*` and `//` share no prefix, and it decides the answer wherever they do.
+
 ⚠️ **That rule as stated is over-broad, and the discriminator is which way a
 comment pushes the verdict.** A mention either *satisfies* the check or merely
 *triggers* it, and only one of those can hide anything:
