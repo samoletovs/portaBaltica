@@ -2,6 +2,7 @@ import { IndicatorCard } from './IndicatorCard';
 import { useCountry } from '../CountryContext';
 import { BalticCompareChart } from './BalticCompareChart';
 import { FreightModalSplit } from './FreightModalSplit';
+import { TradePartnersPanel } from './TradePartnersPanel';
 import { TileHeader } from './TileHeader';
 
 export function TradeTile() {
@@ -22,6 +23,13 @@ export function TradeTile() {
           <IndicatorCard id="hotel_occupancy" title="Hotel occupancy" unit="%" />
           <IndicatorCard id="tourist_arrivals" title="Tourist arrivals" unit="thousands" />
         </div>
+
+        {/* Partner and commodity detail behind the export and import headlines
+            above. Those come from Eurostat and are totals; this is CSP's CN-8
+            customs data and is the only thing on the tile that can say to whom
+            and of what. Latvia only, and it says so — the source is a national
+            dataset and does not follow the country selector. */}
+        <TradePartnersPanel />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <BalticCompareChart indicator="exports" title="Exports of goods" compact />

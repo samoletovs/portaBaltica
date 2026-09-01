@@ -94,6 +94,7 @@ const LIVE_CHECKS = new Map<string, string>([
       'arithmetic check for a cache collision, which exists nowhere else',
   ],
   ['portData.live.test.ts', 'the Eurostat maritime tables still carry data'],
+  ['tradePartners.live.test.ts', 'the CN-8 customs dataset is still publishing, and still means what the endpoint says'],
   ['reducedMotionLayout.live.test.ts', 'the deployed site does not scroll sideways'],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
   [

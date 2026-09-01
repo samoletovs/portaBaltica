@@ -161,6 +161,11 @@ describe('the suite does not decide correctness on a wall clock', () => {
       'referenceScale.test.tsx',
       'sectionTabs.test.tsx',
       'seriesColourUsage.test.tsx',
+      // `waitFor` on a component that fetches in an effect. The wait is on the
+      // testing-library default, not a hand-rolled `setTimeout`, and the file
+      // carries no dynamic import — so it is on this list and deliberately not
+      // on the sharper one below.
+      'tradePartnersPanel.test.tsx',
       'visitCounts.test.tsx',
       'weeklyWrap.test.tsx',
     ]);

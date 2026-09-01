@@ -3,6 +3,8 @@ const cubeHealth = require('../shared/cubeHealth.js');
 const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
 const cache = require('../shared/cache.js');
+const ckan = require('../shared/ckan.js');
+const trade = require('../shared/tradeStats.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
@@ -267,6 +269,47 @@ async function probe(check) {
     }));
     if (missing.length > 0) throw new Error('Unavailable: ' + missing.join('; '));
     return freshness.extract.ckanResources(packages);
+  }
+
+  if (check.type === 'ckan-trade-sql') {
+    // Two steps, both of them the ones `/api/trade-partners` takes, using the
+    // endpoint's own builder rather than a URL restated in the registry.
+    const pkgBody = await es.httpJson(
+      ckan.buildUrl('package_show', { id: check.dataset }),
+      httpOptions(check),
+    );
+    // The portal answers HTTP 200 with success:false for an unknown action, so
+    // the status code is not the thing to check.
+    if (!pkgBody || pkgBody.success !== true) {
+      throw new Error('CKAN package_show failed for ' + check.dataset);
+    }
+
+    const picked = await trade.selectNewestByData(
+      pkgBody.result,
+      check.direction,
+      httpOptions(check),
+      // The probe's own transport, so it keeps this registry's deadline and
+      // retry policy while sharing the endpoint's selection. Two selections
+      // would be two enumerations, and those drift — which is the whole reason
+      // this check calls a builder instead of restating a URL.
+      async function (statement, options) {
+        const body = await es.httpJson(trade.sqlUrl(statement), options);
+        if (!body || body.success !== true) {
+          throw new Error('CKAN datastore_search_sql unavailable: ' +
+            JSON.stringify((body && (body.error || body)) || 'no body').slice(0, 120));
+        }
+        return (body.result && body.result.records) || [];
+      },
+    );
+
+    // No candidate answered with a readable month. That is a fault — the
+    // header-only-CSV shape — not a staleness question. Staleness is judged
+    // afterwards, against the cadence the check declares.
+    if (!picked) {
+      throw new Error('No ' + check.direction + ' resource in ' + check.dataset +
+        ' carries a readable month');
+    }
+    return { period: trade.periodLabel(picked.key) };
   }
 
   if (check.type === 'eurostat-cube') {

@@ -242,6 +242,8 @@ describe('the API docs page states numbers that are true', () => {
    *   CargoPanel          a national total at `mix.period`
    *   MaritimeTile        composes the port panels; its periods are a dateline
    *   ProvenanceBlock     `fact.period` in an article's provenance table
+   *   TradePartnersPanel  partner and commodity shares of ONE month, both
+   *                       directions; `period` is that month, never an axis
    *
    * An export for any of them would be a file of one row.
    *
@@ -249,7 +251,9 @@ describe('the API docs page states numbers that are true', () => {
    * `CargoPanel`, `MaritimeTile` and `ProvenanceBlock` were surfaces the author
    * had not enumerated, and a filter would have passed in silence. If one of
    * them grows a time axis this stops matching and somebody has to look again,
-   * which is the whole point of the form.
+   * which is the whole point of the form. It made it eight when
+   * `/api/trade-partners` landed, which is the form working rather than the
+   * form being annoying: nobody had to remember.
    */
   const CROSS_SECTIONS = [
     'CargoPanel.tsx',
@@ -259,6 +263,7 @@ describe('the API docs page states numbers that are true', () => {
     'PropertyTile.tsx',
     'ProvenanceBlock.tsx',
     'RankedComparison.tsx',
+    'TradePartnersPanel.tsx',
   ];
 
   it('backs "export on every series" with an export on every series', () => {

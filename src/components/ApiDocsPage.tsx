@@ -11,12 +11,13 @@ const API_ENDPOINTS = [
   { method: 'GET', path: '/api/sea-state', params: '', description: 'Marine and surface weather for Riga, Ventspils and Liepāja from Open-Meteo in one response. A port that could not be fetched is named in `unavailable` rather than omitted.', cache: '15 min' },
   { method: 'GET', path: '/api/property-data', params: '', description: 'Construction permits by municipality, building energy profile', cache: '1 hour' },
   { method: 'GET', path: '/api/port-data', params: 'country=LV|EE|LT', description: 'Baltic port statistics from Eurostat: cargo tonnage, sea passengers, vessel arrivals, quarterly', cache: '6 hours' },
+  { method: 'GET', path: '/api/trade-partners', params: '', description: "Latvia's goods trade for the newest month CSP has published, by partner country and Harmonised System chapter, in both directions. Latvia only — the source is a national customs dataset, and `countryOnly` says so. `dataAsOf` is read from the rows, never from the file's metadata.", cache: '6 hours' },
   { method: 'GET', path: '/api/business-search', params: '?q=TERM', description: 'Search 195K+ beneficial owners (UBO) by company registration number or surname', cache: '5 min' },
   { method: 'GET', path: '/api/address-search', params: '?q=TERM', description: 'Search 608K+ Latvian addresses with GPS coordinates', cache: '5 min' },
   { method: 'GET', path: '/api/eu-funds', params: '', description: 'EU Recovery & Resilience Fund: the 20 most recent projects with status, plus the full project total', cache: '1 hour' },
   { method: 'GET', path: '/api/ai-insights', params: '', description: 'Real-time AI-generated insights from live data analysis', cache: '15 min' },
   { method: 'GET', path: '/api/data-export', params: '?indicator=ID&years=N&format=csv|json', description: 'Any dashboard series as a file, with a provenance preamble naming the source, the dataset and when it was retrieved. An empty cell means the source published nothing there, never a zero.', cache: '1 hour' },
-  { method: 'GET', path: '/api/system-status', params: '', description: 'System health: 12 data source checks (8 required) with latency and what each one powers, plus API inventory', cache: '1 min' },
+  { method: 'GET', path: '/api/system-status', params: '', description: 'System health: 13 data source checks (9 required) with latency and what each one powers, plus API inventory', cache: '1 min' },
 ];
 
 const INDICATORS = [

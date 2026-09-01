@@ -24,6 +24,7 @@
 const es = require('./eurostat.js');
 const ports = require('./ports.js');
 const INDICATORS = require('./indicators.js');
+const trade = require('./tradeStats.js');
 
 function buildNordPoolProbeUrl() {
   const start = new Date();
@@ -260,6 +261,74 @@ const CHECKS = [
     // over a holiday week.
     cadence: 'D',
     maxLag: 8,
+  },
+  {
+    name: 'CSP CN-8 trade',
+    /**
+     * The dataset `/api/trade-partners` reads, probed through the *same*
+     * builder the endpoint uses rather than a URL restated here.
+     *
+     * That is not tidiness. `AGENTS.md` names three occasions where a probe
+     * rebuilt its subject's query and drifted: the maritime probe pinned Riga
+     * alone while the app read four ports, so it was blind to Ventspils,
+     * Liepāja and Skulte and went red whenever Riga was quiet. A probe that
+     * reproduces the query it is probing is a second implementation that can
+     * disagree — and when it does, it reports health while the app fails.
+     *
+     * So the resource is selected exactly as the handler selects it, and the
+     * statement comes from `tradeStats.newestPeriodSql`. There is no string
+     * here that could fall out of step, because there is no string here.
+     *
+     * Two steps, both cheap: `package_show` on a ten-resource package, then one
+     * `MAX()` aggregate, measured together at well under a second. The portal's
+     * liveness is a separate, cheaper question and the `data.gov.lv CKAN` check
+     * above already answers it — this one exists to answer whether the action
+     * and the dataset the app depends on are still there.
+     */
+    dataset: trade.DATASET,
+    // The direction, not a name prefix. The probe resolves the resource through
+    // `tradeStats.selectNewestByData` — the same function the endpoint uses —
+    // rather than restating a prefix that could drift from it.
+    direction: 'exports',
+    type: 'ckan-trade-sql',
+    // Required, and the reason is a measurement rather than a preference. The
+    // two data.gov.lv checks above are already required because the portal is
+    // reliably reachable from this egress address — unlike Open-Meteo, whose
+    // failures are evidence about our network rather than about the source. A
+    // failure here is real evidence, and it powers a panel a reader can see.
+    required: true,
+    powers: 'Latvian trade partners and commodity mix',
+    /**
+     * Monthly, and the freshness question is the entire reason this check
+     * exists rather than being folded into the CKAN liveness probe above.
+     *
+     * `datastore_active` is true for datasets that stopped years ago — on this
+     * same portal, `maksatnespejas-procesi` reports 15,660 rows, 23 fields and
+     * a newest proceeding of 2020-10-28. Nothing about its metadata says so.
+     * The only thing that can tell is reading the newest period out of the
+     * rows, which is what this probe does and what the endpoint does.
+     *
+     * ON THE BOUND, WHICH IS NOT THE ONE THAT WAS FIRST WRITTEN HERE
+     * --------------------------------------------------------------
+     * Detailed trade statistics are compiled from customs declarations and run
+     * about two months behind. Two months of elapsed time is where the estimate
+     * started, and it was wrong about the number this check is judged on:
+     * `freshness.judge` measures a period label in **period indices**, not in
+     * days, so `2026-06` read on 2026-09-01 is age **3**, not 2.1. Measured,
+     * not inferred — the probe reports `ageInCadenceUnits: 3`.
+     *
+     * At the four this originally carried, that is one month of slack on a
+     * source whose age already oscillates between 2 and 3 across its own
+     * publication cycle. `AGENTS.md` records exactly this trap costing an
+     * indicator its freshness verdict: a series sitting *on* the boundary
+     * rather than inside it, where one late publication reads as death.
+     *
+     * Six is double the worst age observed, per this registry's stated sizing
+     * rule, and means CSP would have to miss roughly three consecutive monthly
+     * releases before the source is called stale.
+     */
+    cadence: 'M',
+    maxLag: 6,
   },
   {
     name: 'CSP PxWeb',
