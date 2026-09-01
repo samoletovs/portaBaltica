@@ -3057,6 +3057,32 @@ its evidence: n=2, one probe each, and care was never measured — only unaccoun
 for.** That is an illustration, not a controlled result, and the distinction is
 the difference between *this justifies a mechanical check* and *this settles it*.
 
+**A third pair, and this one raises n while isolating the variable.** Two people
+checked *the same property* — "did this pull request add a markdown heading?" —
+on the same day, with regexes that erred in **opposite directions**:
+
+```
+                     +# h1   +## h2   +#345 in a code block
+theirs  ^\+#         MATCH   MATCH    MATCH     <- over-matches
+mine    ^\+#{2,4}    miss    MATCH    miss      <- under-matches, blind to h1
+        ^\+#{1,6}\s  MATCH   MATCH    miss      <- what markdown actually means
+```
+
+A heading needs `#` **followed by whitespace**, which is the one thing neither
+of us encoded. Theirs counted `#345` and `#344` as headings and reported **5**
+in a docs-only change — absurd, disbelieved, re-derived in minutes. Mine could
+not see an `# h1` at all and reported **0** — which was true on all three of my
+changes and true *by luck*, since nothing I wrote happened to add one.
+
+So the same defect produced a caught error and an uncaught one, and **the
+variable was not care, effort or seniority — it was which side of the correct
+answer the bug fell on.** Mine failed toward *no finding*, which is the
+direction that never announces itself: I asserted `headings added: 0` in three
+merged pull requests on the strength of a probe that would have said `0` anyway.
+
+The recipe, since this check recurs on every docs change here: **`^#{1,6}\s`**,
+and prove it on a known heading and a known non-heading before trusting a zero.
+
 **And the absurdity can live between the readings rather than in any of them.**
 The pair above already shows it without naming it: what made their reading
 absurd was not either section length — it was that the two **matched** across a
