@@ -132,7 +132,26 @@ answer. That habit caught all four.
    else's code is never permanent, and an exemption matching nothing is a dead
    clause that still reads as coverage.
 
-5. **Do not re-open these.** The four `data.gov.lv` endpoints using the raw
+5. **`articleTitleParity` has a thin margin and the cause is not the tests.**
+   `a9056a8` raised its budget to `20_000` after failures at 13.2 s and 16.1 s.
+   Measured three times on `a3ae4c5`, all passing:
+
+   ```
+   run   total     environment   tests
+   1     23.09s    18.55s        122ms
+   2      2.43s     1.27s        126ms
+   3     12.88s     1.24s        177ms
+   ```
+
+   **The test work is 122–177 ms; the jsdom environment is 1.24–18.55 s, a 15×
+   spread**, and 18.55 s sits just under a 20 s budget. So the flake was never
+   about test work, and every `.tsx` file added to the suite puts the next one
+   closer. Raising the budget again treats the symptom — this file's own rule is
+   that *a margin computed from a maximum is a likelihood about the next sample,
+   not a measurement*. If it recurs, look at environment reuse rather than at
+   the number.
+
+6. **Do not re-open these.** The four `data.gov.lv` endpoints using the raw
    socket-idle-timer transport were re-measured against their own stated
    trigger and both conditions are unmet — no stall (79–2426 ms) and no new
    host behind the pattern. `api/ai-insights/index.js` L253-262 already argues
