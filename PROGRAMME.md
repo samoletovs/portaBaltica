@@ -311,6 +311,53 @@ the deployed SHA in `provenance.revision`; a green deploy job means uploaded,
 not serving. That field is how this was settled and it is how you should settle
 the equivalent question.
 
+### RECORDED BEFORE THE RUN, 2026-09-01T08:05Z. The causal gate has never executed
+
+`#331` merged at `5bda2df`, and the deployed `NEWSROOM_REVISION` is **`9d09f54`**
+— read from Azure, not inferred — which contains it (`5bda2df` is an ancestor)
+and has **0 newsroom commits after it**. It adds a *"names no particular"*
+rejection to the existing `_admissible`, via a new `_particulars()`, and a
+`provenance.discovery` field. `hypothesis.py` goes 995 → 1299 lines. None of it
+has run against live drafts.
+
+⚠️ The two sentences above are the corrected ones. I first wrote that
+`NEWSROOM_REVISION` was `5bda2df` and that `#331` *added* `_admissible` — the
+first from a reading twenty minutes stale, the second from not checking. A
+control caught the second: `_admissible` is present at `40fb74b`, before the PR.
+Both were found by executing the claims before committing them, which is the
+only reason this block is worth anything.
+
+Baseline, from the `56554c8` edition that this replaces:
+
+```
+causal_panel  panels 8 · consulted 8 · hypotheses 45 · discarded 1
+              articles_offered_a_cause 5 · articles_stating_a_cause 1
+```
+
+**One discarded in forty-five.** The gate rejected almost nothing before, and
+`#331`'s own regression test targets a real published claim it let through.
+
+```
+                                 predicted                    why
+causal_panel.discarded           >= 8, from 1                 the new rule cuts vague causes
+articles_stating_a_cause         <= 1, not higher             fewer admissible causes, not more
+provenance.discovery             present on published articles the schema now requires it
+errors                           ''                            +304 lines that have never run
+```
+
+The second is the one worth watching, and it is deliberately the **unflattering**
+direction: a gate that discards more can only reduce what is left to state. If
+`articles_stating_a_cause` *rises*, the model behind this table is wrong and the
+reason will be worth more than the prediction — which is what happened to the
+yield prediction above.
+
+⚠️ **`discarded >= 8` is a guess at a threshold, not a measurement.** I have not
+replayed the rule against the stored hypotheses, and the section directly above
+records why a replay would not settle it anyway. Score it as falsified if it
+comes in lower; the number is chosen so that "the rule is doing something" and
+"the rule is inert" give different answers, which is the only property it needs.
+
+
 **The causal panel from `#185` is live and behaving correctly in both
 directions**, which is the harder thing to demonstrate. One article published an
 attributed, hedged, figure-free cause — *"Dr. Ineta Zvirbule suggests this is a
