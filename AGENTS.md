@@ -3207,6 +3207,39 @@ marks shipped, that expression still answers `0` where the truth is `19` — and
 `application/rss+xml` came back as a `String`, which is why the RSS half worked
 and its green covered a document it never touched.
 
+**The family has a third member, and it is attached to the command this file
+prescribes most often.** `git show` — recommended eight times in this file at
+`8dc7dbe`, as *the* way to prove content landed on master — does not return a
+string either. PowerShell splits a native command's stdout into an `Object[]` of
+lines, and a regex coerces that array by joining it **with spaces**, so `(?m)`
+anchors have nothing left to anchor to:
+
+```powershell
+$t = git show origin/master:tests/x.test.ts        # Object[], 947 elements
+$t.Length                                          # 947 -- LINES, not chars
+[regex]::Replace($t, '(?m)(^|[^:])//.*$', '$1')    # no newlines survive, so
+                                                   # .*$ eats from the first //
+                                                   # to the end of the file
+42986 chars in -> 2323 out,  "comments 44%" -> -145%
+```
+
+Two silent wrong answers in one line: `.Length` reports the line count while
+looking like a character count, and the comment strip deletes 95% of the file.
+The **negative** percentage is impossible and was disbelieved instantly. What
+followed was not. With the file reduced to its first 2,323 characters, a count
+of declared surfaces and a count of registered ones both came back `0`, and the
+equality between them reported **`True`** — a vacuous pass, produced by a probe
+checking a guard whose entire purpose is to prevent vacuous passes.
+
+**One broken coercion produced a false `False` and then a false `True`, and only
+the false `False` was detectable.** The first run's `declared 0 / covers 8`
+contradicted a suite known to be green, so it was suspected at once; the second
+run's `0 == 0` was the answer expected and defends itself against nothing. That
+is *absence resolving to success* arriving inside the instrument rather than the
+subject — so ``$t = (git show ...) -join "`n"``, for the same reason as `iwr` and
+`irm`, and print a ratio wherever one is available: an impossible percentage is
+the cheapest proof that the input was never what you thought it was.
+
 So this is the population rule applied to controls themselves: **write down
 which artefact each control ran on, and require that set to equal the set of
 artefacts you are about to make claims about.** Two documents fetched in one
