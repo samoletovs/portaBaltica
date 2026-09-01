@@ -73,7 +73,7 @@ jobs:
           HEADLINE: ${{ inputs.headline }}
           MESSAGE: ${{ inputs.message }}
           SUBJECT: ${{ inputs.subject }}
-          REHEARSAL: ${{ inputs.rehearsal }}
+          REHEARSAL: 'false'
         run: |
           set -euo pipefail
 
