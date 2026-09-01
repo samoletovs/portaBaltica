@@ -10,7 +10,13 @@ const { withCache } = require('../shared/responseCache.js');
  */
 const handler = async function (context, req) {
   try {
-    const articles = newsroom.ourArticles(await newsroom.fetchIndex());
+    // Both reads, or neither. A corrections log that cannot be read is fatal
+    // here on purpose — see `fetchCorrectedSlugs` for why a feed cannot serve
+    // an unmarked item the way the front page can print a caveat.
+    const [articles, corrected] = await Promise.all([
+      newsroom.fetchIndex().then(newsroom.ourArticles),
+      newsroom.fetchCorrectedSlugs(),
+    ]);
     const site = newsroom.SITE_URL;
     const escape = newsroom.escapeXml;
 
@@ -21,10 +27,14 @@ const handler = async function (context, req) {
       // credit the same article to the same author, and "must" is worth as much
       // as the thing that checks it — see tests/jsonFeed.test.ts.
       const author = newsroom.bylineFor(article);
+      // Shared for the same reason, and the reason is sharper: two feeds
+      // disagreeing about which headline has been withdrawn would be a
+      // contradiction with nothing to say which side was right.
+      const title = newsroom.feedTitle(article, corrected);
 
       return [
         '    <item>',
-        '      <title>' + escape(article.headline) + '</title>',
+        '      <title>' + escape(title) + '</title>',
         '      <link>' + escape(url) + '</link>',
         '      <guid isPermaLink="true">' + escape(url) + '</guid>',
         article.dek ? '      <description>' + escape(article.dek) + '</description>' : '',

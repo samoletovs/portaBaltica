@@ -74,12 +74,8 @@ const LIVE_CHECKS = new Map<string, string>([
     'a series months behind says so on the deployed site — 22 of 216 series are late in production and only a jsdom test covered the notice, which cannot see the API dropping the field or a build dropping the component',
   ],
   [
-    'correctionsRender.live.test.ts',
-    'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
-  ],
-  [
-    'correctionsReachTheFeed.live.test.ts',
-    'a corrected article says so on the surfaces that LIST it — the sibling of the check above, which covers only the article page and /corrections. Deleting this restores the state measured on 2026-09-01, where 18 of 93 indexed articles carried a correction, several of them headlines that are themselves the withdrawn claim, and every one of them appeared unmarked on the front page while all three existing correction checks stayed green',
+    'correctionsReachReaders.live.test.ts',
+    'a published correction reaches a reader on EVERY surface they meet the claim on — the article page, /corrections, the front page, /weekly, /rss.xml and /feed.json. It was named correctionsRender.live.test.ts and walked the first two of those, green throughout the weeks in which 18 of the 43 front-page articles carried an unmarked correction and several of those headlines were themselves the withdrawn claim. The name answered the question a person would have asked, so the guard concealed the defect rather than merely missing it. It now declares its six surfaces in one constant and asserts, from what the RUN recorded rather than from the list, that every one was exercised',
   ],
   ['deployRecoveryReal.live.test.ts', 'the deploy-race recovery fires on a real chunk failure, in a real browser'],
   ['functionSecurityHeaders.live.test.ts', 'every deployed route carries the security headers'],
