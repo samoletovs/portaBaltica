@@ -116,7 +116,7 @@ jobs:
           # Suppressing the send instead would be worse and is the tempting fix:
           # a rehearsal exists to prove this path delivers, and a path that has
           # never delivered is not a path. So it sends, first line first.
-          if [ "${REHEARSAL:-false}" = "true" ]; then
+          if false; then
             message="*** REHEARSAL - NOT A REAL ALERT. The reading below came from a fixture. ***
           ${message}"
           fi
