@@ -940,6 +940,52 @@ def render_text(verdict: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def alert_routing(verdict: Mapping[str, Any]) -> dict[str, str]:
+    """Which issue this verdict belongs in, and under what name.
+
+    WHY THIS IS COMPUTED HERE AND NOT IN THE WORKFLOW
+    -------------------------------------------------
+    A rehearsal drives the real notification path — deliberately, because a
+    notification path that has never delivered is not a notification path. What
+    it must not do is write into the **production incident record**, and until
+    now it did: `wire-alert.yml` passed a hardcoded ``label: wire-alert``, so a
+    rehearsal reached for the same issue a real outage uses.
+
+    Measured 2026-09-01: a rehearsal at 08:18:15Z retitled live issue #335 and
+    replaced its body — the real reading, an nginx 403 carrying Cloudflare's
+    ``__CF$cv$params``, was gone from the top of the issue for nine minutes,
+    during an outage that was still happening. The comment history survived, so
+    nothing was destroyed; what was destroyed was the *current view*, which is
+    the part an operator reads.
+
+    There is a second and worse case, which is a reading of `alert-notify.yml`
+    rather than an observed event, because today's wire is genuinely broken so it
+    cannot be produced: on a **healthy** wire a rehearsal opens a real, labelled
+    issue, and the next clean scheduled run finds it — the recovery step keys on
+    nothing but the label — comments "Recovered." and closes it. That writes a
+    fabricated outage *and* a fabricated recovery into the permanent record, and
+    unlike the first case nothing about it is transient.
+
+    So the routing is derived from ``source``, which already records whether a
+    fixture was judged, rather than from the workflow's ``rehearse`` input. That
+    is the difference between asking the application and restating it: a run
+    given ``--fixture`` without setting ``rehearse`` is still a rehearsal, and
+    this reports it as one. One field decides, so the two cannot drift.
+
+    The names are deliberately not substrings of one another's meaning — see
+    ``test_the_two_labels_are_compared_by_equality_not_by_substring`` for why
+    that has to be asserted with ``!=`` rather than with ``in``.
+    """
+    rehearsal = str(verdict.get("source") or "").startswith("fixture:")
+    return {
+        "label": "wire-alert-rehearsal" if rehearsal else "wire-alert",
+        # The title is the whole of what most people read -- it is what arrives
+        # in a notification -- so it says so there, not only in the body.
+        "subject": "Newsroom wire (rehearsal)" if rehearsal else "Newsroom wire",
+        "rehearsal": "true" if rehearsal else "false",
+    }
+
+
 def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> dict[str, Any]:
     """Load the registry, probe the wire and the newsroom's output, and judge both.
 
@@ -1058,6 +1104,10 @@ def main(argv: Sequence[str]) -> int:
     if args.json_path:
         payload = dict(verdict)
         payload["text"] = text
+        # Where this verdict should be delivered. Written beside the text rather
+        # than decided in YAML, so a rehearsal cannot reach the production
+        # incident record -- see alert_routing.
+        payload["routing"] = alert_routing(verdict)
         Path(args.json_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     return EXIT_ALERT if verdict["alert"] else EXIT_CLEAN
