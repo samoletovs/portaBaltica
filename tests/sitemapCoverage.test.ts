@@ -111,18 +111,28 @@ async function generate(): Promise<string[]> {
 
   // The handler reads the article index over the network. Articles are not what
   // this suite is about, so the fetch is stubbed at the module boundary.
+  //
+  // It reads the corrections log too, for `lastmod`: a corrected article was
+  // modified on the day we corrected it, and used to be dated to its original
+  // publication. That is stubbed empty here for the same reason — which URLs the
+  // sitemap lists is this suite's subject, and a correction changes a `<lastmod>`
+  // rather than a `<loc>`. `tests/feedCorrectionDates.test.ts` owns the date.
   const newsroom = require(resolve(ROOT, 'api/shared/newsroom.js')) as {
     fetchIndex: () => Promise<unknown[]>;
+    fetchCorrections: () => Promise<Map<string, string>>;
   };
   const realFetchIndex = newsroom.fetchIndex;
+  const realFetchCorrections = newsroom.fetchCorrections;
   newsroom.fetchIndex = async () => [
     { slug: 'a-published-article', tier: 'A', status: 'published', published_at: '2026-08-27T00:00:00Z' },
   ];
+  newsroom.fetchCorrections = async () => new Map();
 
   try {
     await sitemap(context, { headers: { 'x-forwarded-for': '10.7.0.9' }, query: {}, url: '/api/news-sitemap' });
   } finally {
     newsroom.fetchIndex = realFetchIndex;
+    newsroom.fetchCorrections = realFetchCorrections;
   }
 
   const body = context.res!.body;

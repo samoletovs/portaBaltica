@@ -127,6 +127,7 @@ const SURFACES = {
   weekly: '/weekly — the review and its archive',
   rss: '/rss.xml — syndicated, and unreachable afterwards',
   jsonFeed: '/feed.json — the same items, the same problem',
+  sitemap: '/sitemap.xml — what a crawler is told changed, and when',
   socialMeta: 'og:title — the share card, which travels furthest of all',
 } as const;
 
@@ -147,7 +148,7 @@ type Surface = keyof typeof SURFACES;
  * unconditionally and the full six only when a browser was obtained, which
  * makes it live in both environments rather than only in CI.
  */
-const NO_BROWSER_NEEDED: readonly Surface[] = ['rss', 'jsonFeed', 'socialMeta'];
+const NO_BROWSER_NEEDED: readonly Surface[] = ['rss', 'jsonFeed', 'sitemap', 'socialMeta'];
 
 /** What this run actually exercised, recorded by the tests themselves. */
 const covered = new Set<Surface>();
@@ -171,7 +172,15 @@ let newestVisible: LogEntry;
 let correctedOnFeed: string[] = [];
 let cleanOnFeed: string[] = [];
 /** Every indexed entry, so `/weekly` can select on the declared format. */
-let indexed: { slug: string; headline: string; tier: string; format?: string }[] = [];
+let indexed: {
+  slug: string;
+  headline: string;
+  tier: string;
+  format?: string;
+  // Widened for the sitemap surface, which compares `<lastmod>` against the
+  // article's own publication date. The field was always in the payload.
+  published_at?: string;
+}[] = [];
 
 beforeAll(async () => {
   log = await getJson<LogEntry[]>(`${ARTICLES}/corrections.json`);
@@ -584,6 +593,7 @@ describe('...and in the feeds, which cannot be taken back', () => {
   interface JsonFeedItem {
     url?: string;
     title?: string;
+    date_modified?: string;
     _portabaltica?: { corrected?: boolean };
   }
 
@@ -672,6 +682,52 @@ describe('...and in the feeds, which cannot be taken back', () => {
     covers('jsonFeed');
   }, 60_000);
 
+  it('dates every corrected item in /feed.json, so a reader already holding it can tell', async () => {
+    // WHY A DATE AND NOT JUST THE PREFIX.
+    //
+    // `feedTitle` says of itself that an item already delivered keeps the title
+    // in the reader's own store, and nothing we serve now rewrites it. So the
+    // prefix reaches every FUTURE fetch and cannot reach the subscriber already
+    // holding the withdrawn headline — who is precisely the reader this whole
+    // change is about.
+    //
+    // JSON Feed 1.1's `date_modified` means "this entry changed after you
+    // fetched it", and the readers honouring it re-read the entry. It is the
+    // only field in either format that can close that gap; RSS 2.0 has no
+    // equivalent element, which is why this assertion has no /rss.xml twin.
+    const { body } = await fetchText('/feed.json');
+    const items = (JSON.parse(body).items ?? []) as JsonFeedItem[];
+    const corrected = new Set(log.map((e) => e.slug));
+    const latest = new Map<string, string>();
+    for (const e of log) {
+      const known = latest.get(e.slug);
+      if (known === undefined || e.corrected_at > known) latest.set(e.slug, e.corrected_at);
+    }
+
+    const onFeed = items.filter((i) => corrected.has(slugOf(i)));
+    expect(onFeed.length, 'no corrected article is in the feed, so this judged nothing').toBeGreaterThan(0);
+
+    expect(
+      onFeed.filter((i) => !i.date_modified).map(slugOf),
+      'these carry a published correction and no date_modified, so a reader cannot know they changed',
+    ).toEqual([]);
+
+    // The other direction. A feed dating everything would pass the assertion
+    // above and tell a reader every item had changed on every poll.
+    expect(
+      items.filter((i) => !corrected.has(slugOf(i)) && i.date_modified).map(slugOf),
+      'these claim to have been modified and are not in the log',
+    ).toEqual([]);
+
+    // And the date is the correction's own, not merely present. Three articles
+    // carry more than one entry in an append-only unsorted log, so this is also
+    // what says the LATEST was taken.
+    const wrong = onFeed
+      .filter((i) => new Date(i.date_modified!).getTime() !== new Date(latest.get(slugOf(i))!).getTime())
+      .map(slugOf);
+    expect(wrong, 'these are dated to something other than their latest correction').toEqual([]);
+  }, 60_000);
+
   it('marks the same articles in both feeds', async () => {
     // Two feeds disagreeing about which headline has been withdrawn is a
     // contradiction with nothing to say which side is right, and it would be
@@ -705,6 +761,95 @@ describe('...and in the feeds, which cannot be taken back', () => {
     const logged = new Set(log.map((e) => e.slug));
     expect(correctedOnFeed.filter((slug) => !logged.has(slug))).toEqual([]);
   });
+});
+
+/**
+ * The sitemap — the surface whose reader is a crawler, and which nothing marked.
+ *
+ * `<lastmod>` means "the date of last modification of the file". A corrected
+ * article was modified on the day we corrected it, and every one of them was
+ * dated here to its original publication — telling a crawler nothing had changed
+ * on the day we changed it, and inviting it to keep serving the withdrawn claim
+ * from its own cache.
+ *
+ * `#349` marked the two feeds and could not reach this: a set of slugs answers
+ * "was it corrected", and a date needs to know WHEN. It is in this file rather
+ * than a new one because the list at the top is the population, and a second
+ * live file asserting the same subject would be a second thing that can disagree
+ * with it.
+ *
+ * No browser: a sitemap is read by a crawler, so the document is the artefact.
+ */
+describe('...and in the sitemap, where the reader is a crawler', () => {
+  it('dates every corrected article to its correction, not its publication', async () => {
+    const response = await fetch(`${BASE}/sitemap.xml`);
+    expect(response.status).toBe(200);
+    const xml = await response.text();
+
+    const entries = new Map<string, string>();
+    for (const m of xml.matchAll(
+      /<loc>[^<]*\/article\/([a-z0-9-]+)<\/loc>\s*<lastmod>([^<]*)<\/lastmod>/g,
+    )) {
+      entries.set(m[1], m[2]);
+    }
+
+    // CONTROLS, on this document and read this way: the parse finds articles,
+    // and it can still say no. Without both, "every date is right" is equally
+    // consistent with a regex that matched nothing.
+    expect(entries.size, 'the control failed: no article entries parsed out of the sitemap').toBeGreaterThan(0);
+    expect(entries.has('zzzneverinasitemap'), 'the parse claims to find what is not there').toBe(false);
+
+    const latest = new Map<string, string>();
+    for (const e of log) {
+      const known = latest.get(e.slug);
+      if (known === undefined || e.corrected_at > known) latest.set(e.slug, e.corrected_at);
+    }
+
+    const judged = [...entries.keys()].filter((slug) => latest.has(slug));
+    expect(judged.length, 'no corrected article is in the sitemap, so this judged nothing').toBeGreaterThan(0);
+
+    const stale = judged
+      .filter((slug) => entries.get(slug) !== latest.get(slug)!.slice(0, 10))
+      .map((slug) => `${slug}: lastmod ${entries.get(slug)}, corrected ${latest.get(slug)!.slice(0, 10)}`);
+
+    expect(
+      stale,
+      'these were corrected and the sitemap tells a crawler they have not changed since publication',
+    ).toEqual([]);
+
+    covers('sitemap');
+  }, 60_000);
+
+  it('leaves an uncorrected article dated to its own publication', async () => {
+    // The other direction, and it needs a precise instrument. The first version
+    // of this asserted that no uncorrected article was dated TODAY, on the
+    // theory that a fallback would show up that way. It reported six offenders
+    // against correct behaviour: the handler falls back to today when an entry
+    // carries no `published_at`, and six do. "Dated today" cannot tell a
+    // fallback from an article published this morning, so it was measuring
+    // something else and calling it a defect.
+    //
+    // The invariant that actually holds: an article nobody has corrected is
+    // dated to its own publication, whatever that date happens to be.
+    const xml = await (await fetch(`${BASE}/sitemap.xml`)).text();
+    const corrected = new Set(log.map((e) => e.slug));
+    const publishedAt = new Map(
+      indexed.filter((e) => e.published_at).map((e) => [e.slug, e.published_at!.slice(0, 10)]),
+    );
+
+    const listed = [...xml.matchAll(/<loc>[^<]*\/article\/([a-z0-9-]+)<\/loc>\s*<lastmod>([^<]*)<\/lastmod>/g)]
+      .filter((m) => !corrected.has(m[1]) && publishedAt.has(m[1]));
+
+    expect(
+      listed.length,
+      'no uncorrected article with a publication date is listed, so this judged nothing',
+    ).toBeGreaterThan(0);
+
+    expect(
+      listed.filter((m) => m[2] !== publishedAt.get(m[1])).map((m) => `${m[1]}: ${m[2]}`),
+      'these are uncorrected and no longer dated to their own publication',
+    ).toEqual([]);
+  }, 60_000);
 });
 
 /**

@@ -20,6 +20,16 @@ const { withCache } = require('../shared/responseCache.js');
  *
  * `tests/jsonFeed.test.ts` asserts the two feeds carry the same slugs from the
  * same index, so a divergence is a red test rather than a discovery.
+ *
+ * THE ONE FIELD THAT IS NOT IN /rss.xml
+ * -------------------------------------
+ * `date_modified`. "The same items" is a claim about WHICH articles each feed
+ * carries and what it says about them, not a promise that neither format may
+ * use a field the other lacks. RSS 2.0 simply has no element meaning "this
+ * entry changed after you fetched it"; JSON Feed does, and the readers honouring
+ * it re-read the entry — which is the only mechanism in either format that can
+ * reach a subscriber already holding a headline we have since corrected. See
+ * the item body for why that is worth the asymmetry.
  */
 
 const VERSION = 'https://jsonfeed.org/version/1.1';
@@ -45,10 +55,10 @@ function rfc3339(value) {
 
 const handler = async function (context, req) {
   try {
-    // Both reads, or neither — see `fetchCorrectedSlugs` in the shared module.
+    // Both reads, or neither — see `fetchCorrections` in the shared module.
     const [articles, corrected] = await Promise.all([
       newsroom.fetchIndex().then(newsroom.ourArticles),
-      newsroom.fetchCorrectedSlugs(),
+      newsroom.fetchCorrections(),
     ]);
     const site = newsroom.SITE_URL;
 
@@ -89,6 +99,34 @@ const handler = async function (context, req) {
 
       const published = rfc3339(article.published_at);
       if (published) item.date_published = published;
+
+      // THE ONE THING THIS FEED CAN SAY THAT /rss.xml CANNOT
+      // ----------------------------------------------------
+      // The title prefix marks every item served from now on, and cannot reach
+      // an item a reader already holds — `feedTitle` says so itself. JSON Feed
+      // 1.1 has `date_modified` for exactly that: it means "this entry changed
+      // after you fetched it", and the readers that honour it re-read the entry
+      // rather than trusting their stored copy. RSS 2.0 has no such element, so
+      // this is not an inconsistency between the two feeds but the extra thing
+      // one format offers.
+      //
+      // It is the LATEST correction, from `parseCorrections`. Three of the 25
+      // corrected articles carry more than one entry in an append-only,
+      // unsorted log, so the first would date them to a correction we have
+      // since superseded.
+      //
+      // Absent rather than equal to `date_published` when nothing was
+      // corrected: a reader honouring the field would otherwise be told every
+      // item had changed, every time, which is the same lesson as
+      // `corrected: false` below.
+      //
+      // Dropped rather than emitted as `Invalid Date` if the log ever carries a
+      // timestamp we cannot parse — see `rfc3339`. The mark on the title does
+      // not depend on it, so a bad timestamp costs the date and not the notice.
+      if (isCorrected) {
+        const modified = rfc3339(corrected.get(article.slug));
+        if (modified) item.date_modified = modified;
+      }
 
       const tags = [];
       if (article.section) tags.push(String(article.section));

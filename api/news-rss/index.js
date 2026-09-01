@@ -11,11 +11,11 @@ const { withCache } = require('../shared/responseCache.js');
 const handler = async function (context, req) {
   try {
     // Both reads, or neither. A corrections log that cannot be read is fatal
-    // here on purpose — see `fetchCorrectedSlugs` for why a feed cannot serve
+    // here on purpose — see `fetchCorrections` for why a feed cannot serve
     // an unmarked item the way the front page can print a caveat.
     const [articles, corrected] = await Promise.all([
       newsroom.fetchIndex().then(newsroom.ourArticles),
-      newsroom.fetchCorrectedSlugs(),
+      newsroom.fetchCorrections(),
     ]);
     const site = newsroom.SITE_URL;
     const escape = newsroom.escapeXml;

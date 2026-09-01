@@ -80,7 +80,15 @@ const handler = async function (context, req) {
   try {
     const site = newsroom.SITE_URL;
     const escape = newsroom.escapeXml;
-    const articles = newsroom.ourArticles(await newsroom.fetchIndex());
+    // Both reads, or neither, on the same terms as the two feeds — see
+    // `fetchCorrections` in the shared module. A sitemap that quietly fell back
+    // to publication dates would be the same masquerade one field over: it would
+    // tell a crawler nothing had changed, which is exactly the claim a
+    // correction makes false.
+    const [articles, corrected] = await Promise.all([
+      newsroom.fetchIndex().then(newsroom.ourArticles),
+      newsroom.fetchCorrections(),
+    ]);
     const today = new Date().toISOString().slice(0, 10);
 
     const urls = [];
@@ -129,7 +137,29 @@ const handler = async function (context, req) {
     indicatorIds().forEach(function (id) { add('/indicator/' + id, today, '0.4'); });
 
     articles.forEach(function (article) {
-      const lastmod = article.published_at ? String(article.published_at).slice(0, 10) : today;
+      // `lastmod` is "the date of last modification of the file", and a
+      // corrected article was modified on the day we corrected it. Measured
+      // against production at 2026-09-01T14:24Z: 18 of the 43 syndicated
+      // articles carried a published correction, and every one of them was
+      // dated here to its original publication — telling a crawler nothing had
+      // changed on the day we changed it, and inviting it to keep serving the
+      // withdrawn claim from its own cache.
+      //
+      // `#349` marked the two feeds and did not reach this file, because a set
+      // of slugs answers "was it corrected" and `lastmod` needs to know WHEN.
+      // That is why `parseCorrections` now carries the date.
+      //
+      // The same computation `src/newsroom/structured-data.ts` already makes for
+      // `dateModified` — the latest correction wins, publication is the fallback
+      // — so the sitemap and the JSON-LD on the page now agree about when a
+      // piece last moved. They did not before.
+      //
+      // Sliced to a date because that is what every other entry here emits and
+      // what the sitemap protocol's W3C-datetime profile permits. An empty
+      // string from a log entry with no timestamp falls through to publication
+      // rather than emitting a blank `<lastmod>`.
+      const modified = corrected.get(article.slug) || article.published_at;
+      const lastmod = modified ? String(modified).slice(0, 10) : today;
       add('/article/' + article.slug, lastmod, '0.9');
     });
 
