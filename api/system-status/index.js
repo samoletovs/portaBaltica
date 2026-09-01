@@ -3,6 +3,8 @@ const cubeHealth = require('../shared/cubeHealth.js');
 const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
 const cache = require('../shared/cache.js');
+const ckan = require('../shared/ckan.js');
+const trade = require('../shared/tradeStats.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
@@ -267,6 +269,45 @@ async function probe(check) {
     }));
     if (missing.length > 0) throw new Error('Unavailable: ' + missing.join('; '));
     return freshness.extract.ckanResources(packages);
+  }
+
+  if (check.type === 'ckan-trade-sql') {
+    // Two steps, both of them the ones `/api/trade-partners` takes, using the
+    // endpoint's own builder rather than a URL restated in the registry.
+    const pkgBody = await es.httpJson(
+      ckan.buildUrl('package_show', { id: check.dataset }),
+      httpOptions(check),
+    );
+    // The portal answers HTTP 200 with success:false for an unknown action, so
+    // the status code is not the thing to check.
+    if (!pkgBody || pkgBody.success !== true) {
+      throw new Error('CKAN package_show failed for ' + check.dataset);
+    }
+
+    const picked = ckan.pickLatestActive(pkgBody.result, check.namePrefix, 1);
+    if (picked.length === 0) {
+      throw new Error('No datastore-active resource named ' + check.namePrefix + '* in ' + check.dataset);
+    }
+
+    const body = await es.httpJson(
+      trade.sqlUrl(trade.newestPeriodSql(picked[0].id)),
+      httpOptions(check),
+    );
+    if (!body || body.success !== true) {
+      throw new Error('CKAN datastore_search_sql unavailable: ' +
+        JSON.stringify((body && (body.error || body)) || 'no body').slice(0, 120));
+    }
+
+    const records = (body.result && body.result.records) || [];
+    const key = trade.num(records[0] && records[0].period_key);
+    const period = key === null ? null : trade.periodLabel(key);
+    // A resource that answers with no readable month is a fault, not a
+    // staleness question — the header-only-CSV shape. Staleness is judged
+    // afterwards, against the cadence the check declares.
+    if (period === null) {
+      throw new Error('CN-8 resource answered but carries no readable month');
+    }
+    return { period: period };
   }
 
   if (check.type === 'eurostat-cube') {

@@ -1,4 +1,4 @@
-import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus } from './types';
+import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus, TradePartnersData } from './types';
 
 
 export interface BalticCompareSeriesPoint {
@@ -156,6 +156,24 @@ export async function fetchPortData(country: string = 'LV'): Promise<PortDataRes
   );
 }
 
+/**
+ * Latvia's goods trade by partner country and commodity chapter.
+ *
+ * Takes no country parameter, and that is the honest shape rather than an
+ * omission: the source is CSP's national CN-8 dataset on data.gov.lv, so it
+ * describes Latvia and does not become Estonian when the selector moves. The
+ * payload says so itself in `countryOnly`, and the panel reads that rather than
+ * assuming it.
+ *
+ * The cache key carries no country for the same reason. A key that varied by a
+ * parameter the request does not send would serve one country's response under
+ * three headings, which is the collision `AGENTS.md` records shipping once
+ * already — real figures, correctly parsed, attached to the wrong subject.
+ */
+export async function fetchTradePartners(): Promise<TradePartnersData> {
+  return cachedFetch<TradePartnersData>('trade-partners', '/api/trade-partners');
+}
+
 // ─── Cached fetch helper ───
 
 const CACHE_TTL: Record<string, number> = {
@@ -169,6 +187,12 @@ const CACHE_TTL: Record<string, number> = {
   // and, before the ages were derived at render time, could date it as though
   // it had just arrived.
   'live-grid': 5 * 60 * 1000,
+  // Six hours, matched to the server's own TTL. The upstream is monthly, so a
+  // longer client cache would cost nothing in accuracy — but matching the
+  // server is what keeps the two layers from compounding into an age neither
+  // of them knows about, which is how a quarter-hourly feed came to be held
+  // for an hour under a heading that dated it as fresh.
+  'trade-partners': 6 * 60 * 60 * 1000,
 };
 
 function getTTL(key: string): number {

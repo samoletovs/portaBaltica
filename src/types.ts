@@ -550,3 +550,108 @@ export const SEA_STATE_LABELS: Record<
   'moderate': { label: 'Moderate', token: 'var(--data-warning)', emoji: '🟠' },
   'rough': { label: 'Rough', token: 'var(--data-negative)', emoji: '🔴' },
 };
+
+// ─── Latvian goods trade, by partner and by commodity chapter ───
+
+/**
+ * One partner country's share of a month's trade in one direction.
+ *
+ * `name` is nullable and the null is the point. Six of the codes the cube uses
+ * are Eurostat geonomenclature rather than ISO 3166 — the UK is split across
+ * `XU` and `XI`, and the `Q` codes are the aggregates used when a destination
+ * cannot be attributed — so a lookup that always returned a string would have
+ * to invent one. The panel renders `code` when `name` is null, which shows a
+ * reader a code and lets them see it is a code.
+ */
+export interface TradePartnerRow {
+  /** The cube's own partner code, e.g. `LT`, or `XU` for the UK excluding N. Ireland. */
+  code: string;
+  /** English name, or null when the code is not one we can name. */
+  name: string | null;
+  valueEur: number;
+  /** Fraction of the direction's total, 0–1. Null when the total is unknown. */
+  share: number | null;
+}
+
+/**
+ * One Harmonised System chapter's share of a month's trade.
+ *
+ * The cube codes commodities at CN-8 — roughly ten thousand headings, which is
+ * a spreadsheet rather than a chart. The API aggregates to the 97 HS chapters,
+ * which is a level a reader can hold: "wood", "mineral fuels", "vehicles".
+ */
+export interface TradeChapterRow {
+  /** `HS44`, padded, or null for a chapter number outside 1–99. */
+  code: string | null;
+  /** English chapter name, or null when unrecognised. Same contract as the partner row. */
+  name: string | null;
+  valueEur: number;
+  share: number | null;
+}
+
+/** One direction — exports or imports — for one month. */
+export interface TradeDirection {
+  /** `Exports` or `Imports`. */
+  label: string;
+  /** The month these figures describe, `YYYY-MM`, read from the rows. */
+  period: string;
+  totalEur: number | null;
+  /**
+   * How many CN-8 lines the month contains.
+   *
+   * Named as lines rather than as anything time-shaped, and claiming no unit,
+   * because it is a count of rows. `AGENTS.md` records a detector that counted
+   * readings and stated the result as a claim about periods; this is the same
+   * hazard one layer out, avoided by not attaching a time word to a count.
+   */
+  lines: number | null;
+  partners: TradePartnerRow[];
+  /** What the ranked partners leave out, so a remainder can be stated rather than implied. */
+  otherPartnersEur: number | null;
+  chapters: TradeChapterRow[];
+  otherChaptersEur: number | null;
+  /**
+   * The same month a year earlier, or null.
+   *
+   * Null when the previous year's resource does not exist. There is no
+   * fallback to some other month: the comparison is addressed by period
+   * *label*, exactly as `portStats.ts` resolves `sameQuarterLastYear`, and a
+   * comparison against the wrong period is worse than no comparison.
+   */
+  previous: { period: string; valueEur: number; changePct: number | null } | null;
+}
+
+export interface TradePartnersData {
+  /** Always `LV`. The source is a Latvian national dataset, and the panel
+   *  compares the country selector against THIS rather than against a literal
+   *  of its own — two enumerations of one fact always drift. */
+  country: string;
+  /**
+   * True, always, and said in the payload rather than left to the component.
+   *
+   * The dashboard has a country selector and this source does not follow it. A
+   * consumer must be able to tell that from the response instead of having to
+   * know it, which is the producer/consumer seam this repo keeps paying for.
+   */
+  countryOnly: boolean;
+  exports: TradeDirection;
+  imports: TradeDirection;
+  /** Exports minus imports. Negative is a goods deficit, which Latvia runs. */
+  balanceEur: number | null;
+  /** The unit every euro figure here is in, read by the panel rather than
+   *  restated at each of its call sites. */
+  unit: string;
+  /**
+   * The month the panel is headed with — the **older** of the two directions.
+   *
+   * The two are separate upstream resources and can be published a month
+   * apart, so stating the newer would date half the panel to a month it has
+   * not reached. Same reasoning as `/api/port-data`'s `dataFrom`.
+   */
+  dataAsOf: string | null;
+  /** True when the two directions have not reached the same month. */
+  periodsDiffer: boolean;
+  source: string;
+  fetchedAt: string;
+}
+
