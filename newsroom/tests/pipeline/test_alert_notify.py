@@ -355,3 +355,200 @@ def test_the_banner_is_reached_only_through_the_flag() -> None:
     guard = re.search(r'if \[ "\$\{REHEARSAL:-false\}" = "true" \]; then', script)
     assert guard, "the banner must sit behind an explicit test for the flag"
     assert script.index(banner[0]) > guard.start(), "the banner must be inside the conditional"
+
+
+# ── standing down ───────────────────────────────────────────────────────────
+#
+# Alerting was Telegram AND the issue; recovery was the issue alone. A reader on
+# the loudest channel saw ALERT and never saw it cleared. Nothing in the file
+# argued for that -- the recovery step carried no comment defending silence,
+# because it was never a decision.
+#
+# The gate is the whole design, and the rule was already four lines up in the
+# issue path: say something iff something was open. A clean read is the NORMAL
+# state -- every scheduled run of a healthy monitor is one -- so sending on
+# `alert != true` alone would turn a daily all-clear into a daily notification.
+
+
+def _recovery_script() -> str:
+    """The recovery step, taken from the workflow by id rather than by position."""
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    recovery = [s for s in steps if s.get("id") == "recovery"]
+    assert len(recovery) == 1, f"expected exactly one step with id=recovery, got {len(recovery)}"
+    return recovery[0]["run"]
+
+
+def _run_recovery(open_issue: str | None) -> dict[str, Any]:
+    """Execute the real recovery step against a stubbed ``gh``.
+
+    The step calls out to GitHub, so the only way to run it is to stand a fake
+    ``gh`` in front of it. That is stubbing a dependency rather than
+    reimplementing the step: the shell under test is the workflow's own, taken
+    from the YAML, and what is replaced is the thing it talks to.
+
+    The stub records every call, so the assertions can be about what the step
+    *did* -- whether it commented, whether it closed -- rather than only about
+    what it printed.
+    """
+    assert BASH, "guarded by the skip below"
+    script = _recovery_script()
+    with tempfile.TemporaryDirectory() as tmp:
+        shim = Path(tmp, "bin")
+        shim.mkdir()
+        calls = Path(tmp, "gh-calls.txt")
+        answer = open_issue if open_issue is not None else ""
+        gh = shim / "gh"
+        # `issue list` is the only call whose answer the step reads. Everything
+        # else is recorded and succeeds.
+        gh.write_text(
+            "#!/bin/sh\n"
+            f'printf "%s\\n" "$*" >> "{calls.as_posix()}"\n'
+            'case "$*" in\n'
+            f'  *"issue list"*) printf "%s" "{answer}" ;;\n'
+            "esac\n"
+            "exit 0\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        subprocess.run([BASH, "-c", f"chmod +x '{gh.as_posix()}'"], check=True, timeout=60)
+
+        output_file = Path(tmp, "github_output")
+        summary_file = Path(tmp, "github_step_summary")
+        env = {
+            **os.environ,
+            "PATH": str(shim) + os.pathsep + os.environ["PATH"],
+            "GITHUB_OUTPUT": str(output_file),
+            "GITHUB_STEP_SUMMARY": str(summary_file),
+            "GITHUB_REPOSITORY": "samoletovs/portaBaltica",
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_RUN_ID": "1",
+            "GITHUB_WORKFLOW": "Newsroom wire",
+            "GH_TOKEN": "stub",
+            "MESSAGE": "portaBaltica newsroom wire: OK - all 7 wire sources delivering",
+            "LABEL": "wire-alert",
+        }
+        done = subprocess.run(
+            [BASH, "-c", script], cwd=tmp, env=env, capture_output=True, text=True, timeout=120
+        )
+        assert done.returncode == 0, f"the recovery step failed: {done.stderr}"
+        published = _parse_key_values(output_file.read_text(encoding="utf-8"))
+        recorded = calls.read_text(encoding="utf-8") if calls.exists() else ""
+    return {"stdout": done.stdout, "outputs": published, "gh_calls": recorded}
+
+
+def _parse_key_values(raw: str) -> dict[str, str]:
+    """`key=value` lines, which is the form this step writes."""
+    out: dict[str, str] = {}
+    for line in raw.splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            out[key] = value
+    return out
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+def test_recovery_publishes_the_issue_it_closed() -> None:
+    """The positive case, read from what the step PUBLISHES.
+
+    The notification step cannot look this up for itself: by the time it runs the
+    issue is closed, so a query for an open one with that label correctly returns
+    nothing. The gate therefore has to be handed forward.
+    """
+    result = _run_recovery("335")
+
+    assert result["outputs"]["closed"] == "335"
+    assert "issue comment 335" in result["gh_calls"]
+    assert "issue close 335" in result["gh_calls"]
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+def test_a_clean_read_with_nothing_open_publishes_no_issue() -> None:
+    """The case that matters, and the one that decides whether this is noise.
+
+    A clean read is the normal state: every scheduled run of a healthy monitor is
+    one. If this published a number, the recovery message would fire on all of
+    them, and a daily all-clear is exactly the wallpaper this line of work exists
+    to remove.
+    """
+    result = _run_recovery(None)
+
+    assert result["outputs"]["closed"] == ""
+    assert "Saying nothing" in result["stdout"]
+    assert "issue close" not in result["gh_calls"]
+    assert "issue comment" not in result["gh_calls"]
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+def test_the_absence_is_published_rather_than_left_unset() -> None:
+    """An unset output and an empty one read the same to a GitHub expression, and
+    only one of them is a statement. Asserting the key is present is what stops a
+    future edit dropping the write and relying on the default."""
+    assert "closed" in _run_recovery(None)["outputs"]
+
+
+def test_the_recovery_message_is_gated_on_an_issue_having_been_open() -> None:
+    """The seam between the two behavioural tests above and the step that reads them.
+
+    The `if:` is a GitHub expression and cannot be executed here, so this is a
+    structural assertion and is labelled as one. What it guards is real: keyed on
+    `alert != true` alone, this step would fire on every clean scheduled run.
+    """
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    send = [s for s in steps if s.get("name") == "Send the recovery message"]
+    assert len(send) == 1, f"expected one recovery message step, got {len(send)}"
+
+    condition = send[0]["if"]
+    assert "steps.recovery.outputs.closed != ''" in condition, (
+        "keyed on alert alone, this fires on every clean run"
+    )
+    assert "inputs.alert != 'true'" in condition
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+def test_the_recovery_message_fails_loudly_when_the_channel_is_dead() -> None:
+    """Same reasoning as the alert send. A stand-down that silently did not
+    arrive leaves a reader believing an outage is still running, which is the
+    state this step exists to end.
+
+    EXECUTED, because the obvious assertion cannot fail. Written as
+    ``"exit 1" in step["run"]`` this passed against a planted fault that turned
+    the missing-secret branch into ``echo ...; exit 0`` -- because a *different*
+    ``exit 1``, the one handling a sendMessage failure, is still in the block.
+    A substring cannot tell which branch it came from. Running it can: with no
+    token the step must stop, non-zero, before it ever reaches curl.
+    """
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    send = [s for s in steps if s.get("name") == "Send the recovery message"][0]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {
+            **os.environ,
+            "GITHUB_STEP_SUMMARY": str(Path(tmp, "summary")),
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_REPOSITORY": "samoletovs/portaBaltica",
+            "GITHUB_RUN_ID": "1",
+            "SUBJECT": "Newsroom wire",
+            "MESSAGE": "portaBaltica newsroom wire: OK",
+            "CLOSED": "335",
+            "NAURO_BOT_TOKEN": "",
+            "NAURO_CHAT_ID": "",
+        }
+        done = subprocess.run(
+            [BASH, "-c", send["run"]], cwd=tmp, env=env, capture_output=True, text=True, timeout=120
+        )
+
+    assert done.returncode != 0, "a dead channel must fail the run, not skip"
+    assert "::error::" in done.stdout + done.stderr
+    # It must stop before the send, rather than attempt one with no credentials.
+    assert "Delivered recovery" not in done.stdout
+
+
+def test_the_recovery_message_uses_the_same_channel_as_the_alert() -> None:
+    """Structural, and labelled as such: the send itself cannot be executed here
+    without a real credential and a real chat."""
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    send = [s for s in steps if s.get("name") == "Send the recovery message"][0]
+
+    assert "NAURO_BOT_TOKEN" in send["env"]
+    assert "NAURO_CHAT_ID" in send["env"]
+    assert "sendMessage" in send["run"]
