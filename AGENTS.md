@@ -4516,9 +4516,41 @@ false alarm on an already-merged pull request — and the remedy above is
 destructive there.** The two states produce the identical artefact:
 
 ```
-lagging record   merged: false   the head advances eventually
-merged record    merged: true    the head NEVER advances
+lagging record   open,   merged false   the head advances eventually
+merged record    closed, merged true    the head NEVER advances
+closed unmerged  closed, merged false   the head never advances either
 ```
+
+⚠️ **`merged` is a boolean over three states, so it is the wrong field — and
+this entry recommended it.** Rows one and three both read `merged: false`, and
+only the first has a meaningful comparison. Measured on this repo, on the row
+the first version of this table did not have:
+
+```
+#332  merged=false        <- so "the comparison is meaningful", said the rule
+      PR head   7d6f66f
+      ls-remote (empty)   <- the branch was deleted when it was closed
+      agree     False     <- the #146/#311 signature, in a state that cannot lag
+```
+
+So the corrected rule reproduces the exact fault it was written about, one state
+over: it routes you to *"the record is lagging"* and to an empty commit, on a
+branch that no longer exists. A two-valued field cannot separate three states,
+which is this file's own subject arriving inside the entry recording it.
+
+**Read `state`, which has three values and one call:**
+
+```
+gh pr view <n> --json state,mergedAt
+
+  #348  state=MERGED  mergedAt=2026-09-01T12:16:15Z
+  #366  state=MERGED  mergedAt=2026-09-01T17:49:42Z
+  #332  state=CLOSED  mergedAt=null            <- CONTROL, closed without merging
+```
+
+The SHA comparison is meaningful **iff `state == OPEN`**, which is the property
+that was wanted all along: an open pull request is the only kind whose record is
+still catching up.
 
 Measured on this repo, three merged PRs, using the field's real home — it is in
 the REST payload and **`gh pr view --json merged` does not exist**, which is its
@@ -4545,8 +4577,16 @@ Then the documented remedy made it worse: the empty commit landed on an
 already-merged branch, and it was caught only because `gh pr close` failed with
 *"already merged"*.
 
-So the order matters and this section had it wrong: **`.merged` first, the SHA
-comparison second.** The comparison is only meaningful while `merged` is false.
+So the order matters and this section had it wrong twice: **`state` first, the
+SHA comparison second.** The comparison is only meaningful while the pull
+request is `OPEN` — not, as the first correction said, while `merged` is false,
+which is also true of a closed one.
+
+⚠️ **And `gh pr view --json merged` does not exist**, which is its own small
+trap: asking for it prints `Unknown JSON field` and a probe built on it emits a
+table of blanks that reads as a finding. `gh pr view` offers `state`,
+`mergedAt`, `mergedBy`, `mergeCommit` and `mergeable`; the boolean `merged` is
+in the REST payload only. Preferring `state` avoids the question entirely.
 
 **And the inverse is a trap of its own: a branch head missing from master is
 not evidence that a pull request is unmerged.** With squash merging it is
