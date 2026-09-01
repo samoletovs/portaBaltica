@@ -79,7 +79,7 @@ const LIVE_CHECKS = new Map<string, string>([
   ],
   [
     'correctionsReachTheFeed.live.test.ts',
-    'a corrected article says so on the surfaces that LIST it — the sibling of the check above, which covers only the article page and /corrections. Deleting this restores the state measured on 2026-09-01, where 18 of 93 indexed articles carried a correction, several of them headlines that are themselves the withdrawn claim, and every one of them appeared unmarked on the front page while all three existing correction checks stayed green',
+    'a corrected article says so on every surface that LISTS it — the front page, /weekly, /rss.xml and /feed.json. The sibling of the check above, which covers only the article page and /corrections. Deleting this restores the state measured on 2026-09-01, where 18 of 93 indexed articles carried a correction, several of them headlines that are themselves the withdrawn claim, and every one of them appeared unmarked on all four while every existing correction check stayed green. The two feeds are the half that cannot be taken back: a syndicated headline is in somebody else\u2019s reader',
   ],
   ['deployRecoveryReal.live.test.ts', 'the deploy-race recovery fires on a real chunk failure, in a real browser'],
   ['functionSecurityHeaders.live.test.ts', 'every deployed route carries the security headers'],

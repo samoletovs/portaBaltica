@@ -39,9 +39,20 @@ const realGet = https.get;
 
 const INDEX_URL =
   'https://stportabalticabpmff5so.blob.core.windows.net/articles/index.json';
+const CORRECTIONS_URL =
+  'https://stportabalticabpmff5so.blob.core.windows.net/articles/corrections.json';
 
 /** What the network should answer for the index, or `'error'` / `'missing'`. */
 let indexRoute: { status: number; body: string } | 'error' | 'missing' = 'missing';
+/**
+ * And for the corrections log.
+ *
+ * Defaults to `'missing'`, which is a 404, which the shared module reads as an
+ * empty log — "no article has ever been corrected". That is exactly the state
+ * every test in this file assumed before the feeds read this at all, so the
+ * default keeps their meaning rather than quietly changing what they assert.
+ */
+let correctionsRoute: { status: number; body: string } | 'error' | 'missing' = 'missing';
 
 function stubNetwork() {
   https.get = ((url: string, _options: unknown, callback: (res: unknown) => void) => {
@@ -49,16 +60,17 @@ function stubNetwork() {
     request.destroy = () => {};
 
     process.nextTick(() => {
-      if (url !== INDEX_URL || indexRoute === 'error') {
+      const route = url === INDEX_URL ? indexRoute : url === CORRECTIONS_URL ? correctionsRoute : 'error';
+      if (route === 'error') {
         request.emit('error', new Error('stubbed network failure for ' + url));
         return;
       }
-      const route = indexRoute === 'missing' ? { status: 404, body: '' } : indexRoute;
-      const response = Readable.from([route.body]) as Readable & {
+      const answer = route === 'missing' ? { status: 404, body: '' } : route;
+      const response = Readable.from([answer.body]) as Readable & {
         statusCode: number;
         headers: Record<string, string>;
       };
-      response.statusCode = route.status;
+      response.statusCode = answer.status;
       response.headers = {};
       callback(response);
     });
@@ -161,7 +173,7 @@ interface FeedItem {
   date_published?: unknown;
   authors?: { name?: unknown }[];
   tags?: unknown;
-  _portabaltica?: { tier?: unknown; format?: unknown };
+  _portabaltica?: { tier?: unknown; format?: unknown; corrected?: unknown };
 }
 
 interface Feed {
@@ -185,9 +197,36 @@ function slugsFromRss(body: string): string[] {
   return [...body.matchAll(/<link>[^<]*\/article\/([^<]+)<\/link>/g)].map((m) => m[1]);
 }
 
+/** Titles, in order, from whichever feed document is handed in. */
+function titlesFromJson(body: string): string[] {
+  return ((JSON.parse(body) as Feed).items ?? []).map((item) => String(item.title));
+}
+
+function titlesFromRss(body: string): string[] {
+  return [...body.matchAll(/ {6}<title>([^<]*)<\/title>/g)].map((m) => m[1]);
+}
+
+/** Serve a corrections log naming these slugs. */
+function serveCorrections(slugs: string[]) {
+  correctionsRoute = {
+    status: 200,
+    body: JSON.stringify(
+      slugs.map((slug) => ({
+        slug,
+        headline: 'as published',
+        corrected_at: '2026-08-30T06:43:00Z',
+        description: 'CORRECTED. It said the reading was a record low; it was not.',
+      })),
+    ),
+  };
+}
+
 beforeEach(() => {
   stubNetwork();
   indexRoute = 'missing';
+  // Reset alongside the index, or a test that served a log would leak it into
+  // the next one and mark an article the next test believes is clean.
+  correctionsRoute = 'missing';
   serveIndex([OURS, OFFICIAL, THEIRS]);
 });
 
@@ -313,6 +352,164 @@ describe('the two feeds answer the same question', () => {
       expect(rss, `${String(item.url)} is credited differently in RSS`).toContain(
         `<dc:creator>${escapeXml(author)}</dc:creator>`,
       );
+    }
+  });
+});
+
+describe('a corrected article says so in both feeds', () => {
+  /**
+   * WHY THIS IS THE SURFACE THAT MATTERS MOST
+   * -----------------------------------------
+   * Measured against production on 2026-09-01, with controls that fire:
+   *
+   *     /rss.xml     43 items · 18 corrected · 0 marked
+   *     /feed.json   43 items · 18 corrected · 0 marked
+   *     CONTROL      43 items carry a title · 0 match a token that is not there
+   *
+   * A false headline on our own front page is ours to correct on the next page
+   * load. A false headline here is in somebody else's reader, and
+   * `api/shared/newsroom.js` says so itself: such a reader "will never see the
+   * page that corrects it."
+   */
+
+  it('marks the corrected item, and only that one, in RSS', async () => {
+    serveCorrections([OURS.slug]);
+    const rss = await invoke(RSS_PATH);
+
+    const titles = titlesFromRss(rss.body);
+    // The control: both our items are in the feed, so neither assertion below
+    // is about a missing entry.
+    expect(titles).toHaveLength(2);
+    expect(titles.filter((t) => t.startsWith('Corrected: '))).toEqual([
+      'Corrected: ' + OURS.headline,
+    ]);
+    // ...and the other one is untouched rather than merely unmarked.
+    expect(titles).toContain(OFFICIAL.headline);
+  });
+
+  it('marks the corrected item, and only that one, in the JSON feed', async () => {
+    serveCorrections([OURS.slug]);
+    const json = await invoke(JSONFEED_PATH);
+
+    const titles = titlesFromJson(json.body);
+    expect(titles).toHaveLength(2);
+    expect(titles.filter((t) => t.startsWith('Corrected: '))).toEqual([
+      'Corrected: ' + OURS.headline,
+    ]);
+    expect(titles).toContain(OFFICIAL.headline);
+  });
+
+  it('agrees between the two feeds about WHICH items are marked', async () => {
+    // `jsonFeed.test.ts` already asserts the two feeds carry the same slugs.
+    // Marking has to be the same question rather than a second one: two feeds
+    // disagreeing about which headline has been withdrawn is a contradiction
+    // with nothing to say which side is right, and it would be silent.
+    serveCorrections([OURS.slug]);
+    const [rss, json] = [await invoke(RSS_PATH), await invoke(JSONFEED_PATH)];
+
+    const markedIn = (titles: string[]) => titles.filter((t) => t.startsWith('Corrected: ')).sort();
+    expect(markedIn(titlesFromRss(rss.body))).toEqual(markedIn(titlesFromJson(json.body)));
+    // The control: something was marked, so equality is not two empty lists.
+    expect(markedIn(titlesFromRss(rss.body))).toHaveLength(1);
+  });
+
+  it('carries the marker structurally too, so nobody has to parse a prefix', async () => {
+    serveCorrections([OURS.slug]);
+    const feed = JSON.parse((await invoke(JSONFEED_PATH)).body) as Feed;
+    const items = feed.items ?? [];
+
+    const ours = items.find((i) => String(i.url).endsWith('/' + OURS.slug));
+    const other = items.find((i) => String(i.url).endsWith('/' + OFFICIAL.slug));
+
+    expect(ours?._portabaltica?.corrected).toBe(true);
+    // Absent rather than `false`, the same way `format` is absent on an
+    // ordinary report: a field that says `false` seventy times teaches a reader
+    // to stop reading it.
+    expect(other?._portabaltica).toBeTruthy();
+    expect(other?._portabaltica).not.toHaveProperty('corrected');
+  });
+
+  it('does not change the permalink, so no reader treats it as a new story', async () => {
+    const before = slugsFromJson((await invoke(JSONFEED_PATH)).body);
+    const idsBefore = ((JSON.parse((await invoke(JSONFEED_PATH)).body) as Feed).items ?? []).map(
+      (i) => String(i.id),
+    );
+
+    serveCorrections([OURS.slug]);
+    const after = JSON.parse((await invoke(JSONFEED_PATH)).body) as Feed;
+
+    expect(slugsFromJson(JSON.stringify(after))).toEqual(before);
+    expect((after.items ?? []).map((i) => String(i.id))).toEqual(idsBefore);
+    // The control: the marking did happen, so the equalities above are about a
+    // stable id rather than about nothing having changed at all.
+    expect(titlesFromJson(JSON.stringify(after)).some((t) => t.startsWith('Corrected: '))).toBe(
+      true,
+    );
+  });
+
+  it('marks the fallback body text too, when there is no dek to carry', async () => {
+    // `content_text` falls back to the headline when an article has no
+    // standfirst, and then that field IS the headline — so an unmarked copy of
+    // a withdrawn claim would sit beside a marked one inside the same item.
+    // Latent rather than live: measured on 2026-09-01, 4 of the 43 syndicated
+    // articles have no dek and none of those 4 is corrected. It is one branch
+    // away from the defect the rest of this block is about.
+    const noDek = { ...OURS, dek: undefined };
+    serveIndex([noDek]);
+    serveCorrections([noDek.slug]);
+
+    const feed = JSON.parse((await invoke(JSONFEED_PATH)).body) as Feed;
+    const item = (feed.items ?? [])[0];
+
+    // The control: this fixture really does fall through to the headline, so
+    // the assertion below is about the fallback rather than about a dek.
+    expect(item?.summary).toBeUndefined();
+    expect(item?.content_text).toBe('Corrected: ' + OURS.headline);
+  });
+
+  it('treats a missing log as an empty one, not as a failure', async () => {
+    // `corrections.json` does not exist until the first correction is ever
+    // issued. "Nobody has been corrected" is an answer, and announcing it as a
+    // fault would be the opposite error to the one this block exists for.
+    correctionsRoute = 'missing';
+
+    for (const path of [RSS_PATH, JSONFEED_PATH]) {
+      const res = await invoke(path);
+      expect(res.status).toBe(200);
+      expect(res.body).not.toContain('Corrected: ');
+    }
+  });
+
+  it('500s rather than syndicating an unmarked withdrawn headline', async () => {
+    // A feed has no per-item way to say "we could not find out". The front page
+    // prints a line admitting it; an RSS item is a title and a link, so serving
+    // one unmarked is indistinguishable from asserting the headline stands —
+    // and that assertion is irreversible, because it lands in somebody's reader.
+    //
+    // A feed reader answers a 500 by keeping what it has and retrying, which
+    // loses nothing. `withCache` holds an hour of grace on top, so an outage
+    // shorter than that still serves the last good, correctly marked feed.
+    for (const failure of ['error', 'missing-but-malformed'] as const) {
+      correctionsRoute =
+        failure === 'error' ? 'error' : { status: 200, body: JSON.stringify({ entries: [] }) };
+
+      for (const path of [RSS_PATH, JSONFEED_PATH]) {
+        const res = await invoke(path);
+        expect(res.status, `${path} served a feed with an unreadable corrections log`).toBe(500);
+      }
+    }
+  });
+
+  it('still 500s on a missing index, so the new read did not mask the old rule', async () => {
+    // The index and the log fail for different reasons and must both be fatal.
+    // Running them concurrently is what makes this worth asserting: a
+    // `Promise.all` that resolved the log first could otherwise swallow the
+    // index rejection.
+    indexRoute = 'missing';
+    serveCorrections([OURS.slug]);
+
+    for (const path of [RSS_PATH, JSONFEED_PATH]) {
+      expect((await invoke(path)).status).toBe(500);
     }
   });
 });

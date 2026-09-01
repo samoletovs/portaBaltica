@@ -72,6 +72,71 @@ function fetchIndex() {
 }
 
 /**
+ * Turns a fetched corrections log into a set of slugs, or throws.
+ *
+ * The same three-way distinction `parseIndex` draws, and it lands differently
+ * on each branch:
+ *
+ *   - `null` is a 404, which is an ANSWER. `corrections.json` does not exist
+ *     until the first correction is ever issued, so "nobody has been corrected"
+ *     is a legitimate state and must not be an error.
+ *   - anything that is not an array is a MISCONFIGURATION. A wrong base URL
+ *     that happened to return a JSON object would otherwise read as an empty
+ *     log, which is the same masquerade `parseIndex` exists to prevent — except
+ *     here the masquerade is "no article has been corrected", which is the
+ *     exact claim these feeds must never make falsely.
+ *   - an entry without a string slug is skipped rather than fatal. The log is
+ *     append-only and written by a different process; one malformed row must
+ *     not take down a feed that can still mark the other twenty-seven.
+ */
+function parseCorrections(raw, sourceUrl) {
+  if (raw === null || raw === undefined) return new Set();
+  if (!Array.isArray(raw)) {
+    throw new Error('Corrections log at ' + sourceUrl + ' is malformed');
+  }
+  const slugs = new Set();
+  raw.forEach(function (entry) {
+    if (entry && typeof entry.slug === 'string' && entry.slug) slugs.add(entry.slug);
+  });
+  return slugs;
+}
+
+/**
+ * Which articles carry a published correction, for a feed that lists headlines.
+ *
+ * WHY THE LOG AND NOT THE INDEX
+ * -----------------------------
+ * The index does not know. `apply_correction_note` in
+ * `newsroom/pipeline/revisions.py` writes `<slug>.json` and appends to
+ * `corrections.json`, and never touches `index.json`; `write_index` then merges
+ * pre-existing entries verbatim, so no later run retrofits the field either.
+ * Measured against production on 2026-09-01: 0 of 93 index entries carried
+ * anything about a correction, while 18 of the 43 articles these feeds syndicate
+ * had one. `src/news-api.ts` reads the same file for the same reason, so the
+ * feeds, the front page and `/corrections` cannot disagree about who was
+ * corrected — it is one file.
+ *
+ * WHY A FAILURE HERE IS FATAL TO THE FEED
+ * ---------------------------------------
+ * A feed has no per-item way to say "we could not find out". The front page can
+ * — and does — print a line admitting it, but an RSS item is a title and a link,
+ * so serving one unmarked is indistinguishable from asserting the headline
+ * stands. That assertion is also irreversible in a way the site's is not: it
+ * lands in somebody else's reader, and `ourArticles` below already says such a
+ * reader "will never see the page that corrects it".
+ *
+ * So this throws, the endpoint 500s, and a feed reader answers a 500 by keeping
+ * what it has and retrying — which loses nothing. The cost is smaller than it
+ * looks: `withCache` stores only 200s and holds an hour of grace, so an outage
+ * shorter than that serves the last good, correctly marked feed with
+ * `X-Cache: stale` and nobody notices at all.
+ */
+function fetchCorrectedSlugs() {
+  const url = ARTICLES_BASE_URL + '/corrections.json';
+  return jsonGet(url).then(function (raw) { return parseCorrections(raw, url); });
+}
+
+/**
  * Statuses whose article is a live, reader-facing page.
  *
  * `corrected` belongs here: a corrected article is a valid one that has been
@@ -185,6 +250,42 @@ function bylineFor(article) {
   return 'portaBaltica';
 }
 
+/**
+ * The headline as a feed must carry it: marked when the article was corrected.
+ *
+ * ONE IMPLEMENTATION, BECAUSE TWO FEEDS ASK THIS
+ * ----------------------------------------------
+ * `bylineFor` above exists for exactly this reason, and its comment records
+ * what happened when the answer was written twice: the three copies disagreed.
+ * The same argument applies with more force here, because a divergence would
+ * mean one feed marking a withdrawn claim and the other not, and nothing would
+ * say which was right. `tests/jsonFeed.test.ts` already asserts the two feeds
+ * carry the same slugs; marking has to be the same question, not a second one.
+ *
+ * WHY IT GOES IN THE TITLE
+ * ------------------------
+ * Neither RSS 2.0 nor JSON Feed 1.1 has a correction element, and a namespaced
+ * one would be invisible in every reader ever written. What a reader's list
+ * view shows is the title, so a marker that is not in the title is not a
+ * marker. This is the feed's equivalent of the badge the site puts BEFORE the
+ * headline, and it is a prefix for the same reason: a suffix is the first thing
+ * a narrow column truncates.
+ *
+ * The permalink is deliberately untouched, so `<guid>` and JSON Feed's `id`
+ * still identify the same item and no reader treats this as a new story.
+ *
+ * WHAT IT CANNOT DO
+ * -----------------
+ * An item already delivered keeps the title in the reader's own store. Nothing
+ * we serve now rewrites it. This marks every item served from here on, which is
+ * the whole of what a feed can promise.
+ */
+function feedTitle(article, correctedSlugs) {
+  const headline = String(article && article.headline != null ? article.headline : '');
+  if (!correctedSlugs || !correctedSlugs.has(article && article.slug)) return headline;
+  return 'Corrected: ' + headline;
+}
+
 function escapeXml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -200,6 +301,9 @@ module.exports = {
   jsonGet,
   fetchIndex,
   parseIndex,
+  fetchCorrectedSlugs,
+  parseCorrections,
+  feedTitle,
   ourArticles,
   bylineFor,
   escapeXml,

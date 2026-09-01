@@ -45,23 +45,40 @@ function rfc3339(value) {
 
 const handler = async function (context, req) {
   try {
-    const articles = newsroom.ourArticles(await newsroom.fetchIndex());
+    // Both reads, or neither — see `fetchCorrectedSlugs` in the shared module.
+    const [articles, corrected] = await Promise.all([
+      newsroom.fetchIndex().then(newsroom.ourArticles),
+      newsroom.fetchCorrectedSlugs(),
+    ]);
     const site = newsroom.SITE_URL;
 
     const items = articles.map(function (article, index) {
       const url = site + '/article/' + article.slug;
       const summary = typeof article.dek === 'string' && article.dek ? article.dek : '';
+      const isCorrected = corrected.has(article.slug);
 
       const item = {
         // The permalink, which is what the spec recommends an id be: stable,
-        // globally unique, and never reused for a different piece.
+        // globally unique, and never reused for a different piece. Deliberately
+        // unchanged by a correction, so a reader treats a marked item as the
+        // same story rather than a new one.
         id: url,
         url: url,
-        title: article.headline,
+        // Marked through the shared helper rather than here, so this feed and
+        // /rss.xml cannot disagree about which headline has been withdrawn.
+        title: newsroom.feedTitle(article, corrected),
         // The feed carries the standfirst, not the article. `url` is where the
         // piece is, and the provenance block a reader is entitled to see —
         // sources, model, checks — only exists on the page.
-        content_text: summary || article.headline,
+        //
+        // The fallback goes through `feedTitle` rather than taking the raw
+        // headline, because when there is no dek this field IS the headline
+        // and an unmarked copy of a withdrawn claim would sit beside a marked
+        // one in the same item. Latent rather than live — measured on
+        // 2026-09-01, 4 of the 43 syndicated articles have no dek and none of
+        // those 4 is corrected — but it is one branch away from the defect this
+        // whole change is about, and it costs a function call.
+        content_text: summary || newsroom.feedTitle(article, corrected),
         // Always discloses AI on our own work. A feed reader shows the author
         // and never shows our masthead, so the disclosure has to travel with
         // the item or it does not travel at all.
@@ -89,6 +106,13 @@ const handler = async function (context, req) {
       // it is attached once rather than repeated on all seventy-odd items.
       const extra = { tier: article.tier };
       if (article.format) extra.format = String(article.format);
+      // The marker again, structured, for a consumer that would otherwise have
+      // to parse a prefix off the title. It is `true` or absent rather than
+      // `false`, because absent means "not corrected" the same way a missing
+      // `format` means "an ordinary report" two lines above — and a feed that
+      // says `corrected: false` on seventy items teaches a reader to stop
+      // reading the field.
+      if (isCorrected) extra.corrected = true;
       if (index === 0) extra.about = site + '/follow';
       item._portabaltica = extra;
 

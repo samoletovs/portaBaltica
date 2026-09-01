@@ -348,3 +348,144 @@ describe('a correction reaches the surfaces that list headlines', () => {
     expect(correctedOnFeed.filter((slug) => !logged.has(slug))).toEqual([]);
   });
 });
+
+/**
+ * The syndication feeds, which are the surfaces that leave the building.
+ *
+ * WHY THESE MATTER MORE THAN THE TWO ABOVE
+ * ----------------------------------------
+ * A false headline on our own page is ours to correct on the next page load. A
+ * false headline in `/rss.xml` is in somebody else's reader, and
+ * `api/shared/newsroom.js` says so itself: such a reader "will never see the
+ * page that corrects it." Measured against production on 2026-09-01, both feeds
+ * carried 43 items, 18 of them corrected, and 0 of those marked.
+ *
+ * NO BROWSER, DELIBERATELY
+ * ------------------------
+ * A feed is not rendered by us — a reader's app decides that — so the artefact
+ * that matters IS the document, unlike the pages above where the served body is
+ * 51 bytes and only a browser can answer the question. Fetching and parsing is
+ * the honest instrument here rather than a shortcut.
+ */
+describe('a correction reaches the syndication feeds', () => {
+  /** The marker, as both feeds carry it. */
+  const MARK = 'Corrected: ';
+
+  interface JsonFeedItem {
+    url?: string;
+    title?: string;
+    _portabaltica?: { corrected?: boolean };
+  }
+
+  async function text(path: string): Promise<{ status: number; body: string }> {
+    // `.text()` rather than `.json()` even for the JSON feed, so a malformed
+    // body is visible here as a string rather than as a parse error two frames
+    // away. Note that a shell client will NOT do this for you: measured while
+    // writing it, PowerShell's `Invoke-WebRequest` hands back `Content` as a
+    // BYTE ARRAY for `application/feed+json`, because that is not a recognised
+    // text type — which reported an empty feed, with the controls reporting
+    // empty too, on a feed carrying 43 items.
+    const response = await fetch(`${BASE}${path}`);
+    return { status: response.status, body: await response.text() };
+  }
+
+  function rssItems(xml: string): { slug: string; block: string }[] {
+    return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)]
+      .map((m) => {
+        const slug = /\/article\/([a-z0-9-]+)</.exec(m[1])?.[1];
+        return slug ? { slug, block: m[1] } : null;
+      })
+      .filter((v): v is { slug: string; block: string } => v !== null);
+  }
+
+  it('has corrected articles in the feeds, so none of this passes vacuously', () => {
+    expect(log.length).toBeGreaterThan(0);
+    expect(correctedOnFeed.length).toBeGreaterThan(0);
+    expect(cleanOnFeed.length).toBeGreaterThan(0);
+  });
+
+  it('marks every corrected item in /rss.xml, and no other', async () => {
+    const { status, body } = await text('/rss.xml');
+    expect(status).toBe(200);
+
+    const items = rssItems(body);
+
+    // CONTROLS, on this document and read this way. The first proves the parse
+    // finds items and reads their content; the second proves it can still say
+    // no. Without both, "nothing is marked" is equally consistent with a
+    // regex that stopped matching.
+    expect(items.length, 'the control failed: no items were parsed out of the feed').toBeGreaterThan(
+      0,
+    );
+    expect(items.every((i) => /<title>/.test(i.block))).toBe(true);
+    expect(items.filter((i) => i.block.includes('zzzNEVERINAFEED'))).toEqual([]);
+
+    const corrected = new Set(log.map((e) => e.slug));
+    const unmarked = items
+      .filter((i) => corrected.has(i.slug) && !i.block.includes(MARK))
+      .map((i) => i.slug);
+    const wronglyMarked = items
+      .filter((i) => !corrected.has(i.slug) && i.block.includes(MARK))
+      .map((i) => i.slug);
+
+    expect(
+      items.filter((i) => corrected.has(i.slug)).length,
+      'no corrected article is in the feed, so the sweep judged nothing',
+    ).toBeGreaterThan(0);
+    expect(unmarked, 'these carry a published correction and /rss.xml does not say so').toEqual([]);
+    expect(wronglyMarked, 'these are marked corrected and are not in the log').toEqual([]);
+  }, 60_000);
+
+  it('marks every corrected item in /feed.json, and no other', async () => {
+    const { status, body } = await text('/feed.json');
+    expect(status).toBe(200);
+
+    const items = (JSON.parse(body).items ?? []) as JsonFeedItem[];
+    expect(items.length, 'the control failed: the feed parsed to no items').toBeGreaterThan(0);
+    expect(items.every((i) => typeof i.title === 'string' && i.title.length > 0)).toBe(true);
+    expect(items.filter((i) => String(i.title).includes('zzzNEVERINAFEED'))).toEqual([]);
+
+    const corrected = new Set(log.map((e) => e.slug));
+    const slugOf = (item: JsonFeedItem) => String(item.url ?? '').replace(/^.*\/article\//, '');
+
+    const unmarked = items
+      .filter((i) => corrected.has(slugOf(i)) && !String(i.title).startsWith(MARK))
+      .map(slugOf);
+    const wronglyMarked = items
+      .filter((i) => !corrected.has(slugOf(i)) && String(i.title).startsWith(MARK))
+      .map(slugOf);
+
+    expect(items.filter((i) => corrected.has(slugOf(i))).length).toBeGreaterThan(0);
+    expect(unmarked, 'these carry a published correction and /feed.json does not say so').toEqual(
+      [],
+    );
+    expect(wronglyMarked, 'these are marked corrected and are not in the log').toEqual([]);
+
+    // The structured half, so a machine consumer need not parse a prefix.
+    const structural = items
+      .filter((i) => corrected.has(slugOf(i)) && i._portabaltica?.corrected !== true)
+      .map(slugOf);
+    expect(structural, 'marked in the title but not in the extension object').toEqual([]);
+  }, 60_000);
+
+  it('marks the same articles in both feeds', async () => {
+    // Two feeds disagreeing about which headline has been withdrawn is a
+    // contradiction with nothing to say which side is right, and it would be
+    // silent. `tests/jsonFeed.test.ts` pins the same invariant against a stub;
+    // this pins it against what is actually served.
+    const [rss, json] = await Promise.all([text('/rss.xml'), text('/feed.json')]);
+
+    const markedInRss = rssItems(rss.body)
+      .filter((i) => i.block.includes(MARK))
+      .map((i) => i.slug)
+      .sort();
+    const markedInJson = ((JSON.parse(json.body).items ?? []) as JsonFeedItem[])
+      .filter((i) => String(i.title).startsWith(MARK))
+      .map((i) => String(i.url ?? '').replace(/^.*\/article\//, ''))
+      .sort();
+
+    expect(markedInRss).toEqual(markedInJson);
+    // The control: something was marked, so this is not two empty lists agreeing.
+    expect(markedInRss.length).toBeGreaterThan(0);
+  }, 60_000);
+});
