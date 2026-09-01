@@ -2297,6 +2297,31 @@ this to go red, and whether that is a property of the code.** If the answer
 mentions a date, a live feed, or anything else you do not control, the check is
 sampling rather than asserting.
 
+⚠️ **And "across the range" means every point, not a dense-looking sample of
+them — which I got wrong in the first application of this rule, hours after
+writing it.** I verified `af3c394` on a grid of the 1st, 15th and 28th of every
+month across three years: 108 dates, a control that fired 36 times on the old
+fixture, and a clean zero on the new one. Measured per day instead:
+
+```
+grid  108 dates, 3 per month     old fixture bad  36
+day   730 dates, every day       old fixture bad 246
+months my grid called CLEAN that contain a bad day:  2   (2025-05, 2026-05)
+```
+
+Both are May, and the mechanism is one no grid on the 1st/15th/28th can see:
+`setUTCMonth(month - 8)` on **May 31** asks for 31 September, JavaScript rolls
+it to 1 October, and the fixture lands a quarter *later* — so it fails by being
+too **recent**, the opposite direction from the four bad months the grid did
+find. A second mechanism, in a month the grid had cleared.
+
+So a sample can be large, evenly spaced, control-backed and still blind, and
+the blindness is worst where the domain has **irregular boundaries** — month
+ends, leap days, DST, week 53. The cost of enumerating every day here was one
+loop. **When the range is small enough to walk, walk it**; when it is not, the
+sample needs a reason to believe it covers the boundaries, and "3 per month for
+36 months" is not one.
+
 Verifying that table produced one more instance of it. The build-identity row
 originally cited `/__which`, and a probe found it returning **HTTP 200** in
 production — which reads as *the endpoint exists*:
