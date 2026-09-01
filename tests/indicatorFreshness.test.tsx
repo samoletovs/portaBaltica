@@ -16,7 +16,7 @@ import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
 import { IndicatorCard, IndicatorChart } from '../src/components/IndicatorCard';
 import { IndicatorTable } from '../src/components/IndicatorTable';
-import { WARN_AFTER_MONTHS, STALE_AFTER_MONTHS } from '../src/dataFreshness';
+import { WARN_AFTER_MONTHS, STALE_AFTER_MONTHS, freshnessOf } from '../src/dataFreshness';
 
 /**
  * A frozen series must not render as news.
@@ -337,12 +337,80 @@ describe('later than usual, but still publishing', () => {
     return view.container;
   }
 
-  /** Eight months behind: late for a quarterly series, nowhere near stale. */
-  const LATE_QUARTER = (() => {
-    const d = new Date();
-    d.setUTCMonth(d.getUTCMonth() - 8);
-    return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`;
-  })();
+  /**
+   * The newest quarter whose **last covered month** is at least `months` back.
+   *
+   * Not `now - months` quantised to a quarter, which is what this used to do
+   * and which loses up to two months: a quarter's last covered month can be up
+   * to two months newer than any date inside it, and `freshnessOf` measures
+   * from that last month.
+   *
+   * Measured, on the two consecutive days it mattered:
+   *
+   *     run on 2026-08-31, `- 8 months` -> 2025-Q4, monthsBehind 9, late
+   *     run on 2026-09-01, `- 8 months` -> 2026-Q1, monthsBehind 6, NOT late
+   *
+   * `WARN_AFTER_MONTHS.Q` is 6 and the check is `monthsBehind > 6`, so the
+   * fixture landed exactly on the boundary and stopped being late. The suite
+   * went red on a **calendar rollover** rather than on any change to the code —
+   * and it failed at the render assertion, which says nothing about why.
+   */
+  function quarterAtLeastMonthsBehind(months: number): string {
+    const now = new Date();
+    const nowIdx = now.getUTCFullYear() * 12 + now.getUTCMonth();
+    let year = now.getUTCFullYear();
+    let quarter = Math.floor(now.getUTCMonth() / 3) + 1;
+
+    for (let step = 0; step <= 40; step += 1) {
+      // A quarter's last month, 0-indexed: Q1 -> 2 (March), Q4 -> 11.
+      const lastMonthIdx = year * 12 + (quarter * 3 - 1);
+      if (nowIdx - lastMonthIdx >= months) return `${year}-Q${quarter}`;
+      quarter -= 1;
+      if (quarter === 0) {
+        quarter = 4;
+        year -= 1;
+      }
+    }
+    throw new Error(`no quarter is ${months} months behind, which cannot happen`);
+  }
+
+  /**
+   * Late for a quarterly series, nowhere near stale.
+   *
+   * Derived from the threshold rather than hardcoded, so it follows
+   * `WARN_AFTER_MONTHS.Q` if that ever moves instead of silently falling under
+   * it. The `+ 2` is the width of a quarter: it keeps the fixture off the
+   * boundary on every day of the year, giving 8 to 10 months behind against a
+   * warn threshold of 6 and a stale threshold of 12.
+   */
+  const LATE_QUARTER = quarterAtLeastMonthsBehind(WARN_AFTER_MONTHS.Q + 2);
+
+  it('the fixture is in the band this suite is about', () => {
+    // Asserted rather than assumed. Every test below rests on this label being
+    // late-but-not-stale, and when it silently stopped being so the failure
+    // surfaced as an opaque text mismatch three assertions away. This one names
+    // the actual number, so the next calendar or threshold change reports what
+    // it did rather than what it broke.
+    const verdict = freshnessOf(LATE_QUARTER);
+
+    // `freshnessOf` returns null for a label it cannot read, which would make
+    // every assertion below vacuous. Named first so a malformed fixture reports
+    // itself rather than surfacing as four confusing null dereferences.
+    expect(verdict, `${LATE_QUARTER} is not a period label freshnessOf can read`).not.toBeNull();
+    if (!verdict) return;
+
+    expect(
+      verdict.late,
+      `${LATE_QUARTER} is ${verdict.monthsBehind} months behind, which is not ` +
+        `late for a quarterly series (warn after ${WARN_AFTER_MONTHS.Q})`,
+    ).toBe(true);
+
+    expect(
+      verdict.stale,
+      `${LATE_QUARTER} is ${verdict.monthsBehind} months behind, which is stale ` +
+        `(after ${STALE_AFTER_MONTHS.Q}) — a different state, tested elsewhere`,
+    ).toBe(false);
+  });
 
   it('says so, in the shared vocabulary', async () => {
     const container = await card(LATE_QUARTER);
