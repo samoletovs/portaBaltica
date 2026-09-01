@@ -3235,6 +3235,46 @@ instrument is wrong however plausible each row looks — and you know that
 row cannot: readings individually unremarkable and jointly impossible. Both of
 the above would have been believed one at a time.
 
+### A control drawn from the corpus you are searching is not independent of it
+
+Everything above tells you to pair a reading with a control. It does not tell
+you where the control's *value* may come from, and that is a real gap: the
+obvious source is the vocabulary you have been reading all day, which is
+precisely the vocabulary the corpus contains.
+
+Three instances in one day, all the same author, all caught only because the
+control fired **positive** — which is the control working, and is why the rule is
+cheap rather than alarming:
+
+```
+searching  correctionsReachReaders.live.test.ts  for zzzNEVER   -> FOUND
+  L591 const NEVER = 'zzzNEVERINAFEED';  L800 zzzneverinasitemap
+  the guard's OWN negative controls
+
+searching  AGENTS.md  for zzzNEVER                              -> FOUND
+  L2979 CONTROL rss "zzzNEVER"  0     this file documenting a control
+
+searching  AGENTS.md  for quaternion                            -> FOUND
+  the word chosen precisely because nothing would ever write it,
+  in the file that had already written it as an example
+```
+
+The mechanism is not carelessness and it is not coincidence. **Careful code and
+careful prose reach for the same "obviously absent" tokens**, so the more
+rigorous the subject, the likelier your control collides with its own.
+
+Two consequences. A collision is **not** a finding — it invalidates every reading
+taken from that object in the same pass, and the temptation is to read it as
+evidence about the subject. And the remedy is one line: **choose a token from
+outside the corpus's subject matter, and assert it is absent before trusting it
+as a control.** `perihelion` and `qqqAbsentControl` both return 0 against this
+file; `zzzNEVER` and `quaternion` do not.
+
+That last clause is the one that generalises past strings. A control is an
+assertion that the instrument can say *no*, so a control you have not checked is
+an assumption wearing evidence's clothes — the same shape as a plant nobody
+verified applied.
+
 ### The better you document a removal, the more present it looks
 
 A content check for a deleted symbol reads the prose explaining the deletion and
