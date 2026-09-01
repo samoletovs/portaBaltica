@@ -1954,10 +1954,10 @@ because the reading is correct about the population it used.
 
 ## A shape is defined by what it refuses to say
 
-The newsroom's correction machinery has four note shapes, and reading them
+The newsroom's correction machinery has six note shapes, and reading them
 back, **each is distinguished less by what it says than by one sentence it
 will not say.** Executed against the builders on 2026-08-31, rather than read
-off the source:
+off the source, and extended on 2026-09-01:
 
 | Shape | Refuses | Because |
 |---|---|---|
@@ -1966,6 +1966,7 @@ off the source:
 | record, rank claim | *"describing it as a record"* | it claimed a **placing**, not a record |
 | origin only | *"only in the … we had retrieved"* | the record is **genuine** over all history |
 | span misattribution | *"the figures are unchanged"* | the sign **inverts** |
+| unit on a distance | *"the figures are unchanged"* **and** *"the opposite direction"* | 5.5 is right and *"5.5%"* is not, and it **rose** |
 
 **Every one of those refused sentences is true of at least one of the other
 shapes.** *"The figures are unchanged and correct"* is the reassurance the
@@ -1973,7 +1974,20 @@ first four owe a reader and the fifth must not offer. *"The record itself
 stands"* is the whole point of the origin shape and would be a lie in the
 first three.
 
-So they are not four templates with different wording. They are **four
+The sixth is the one that refuses **two** sentences, one from each side, and
+that is what makes it a shape rather than a parameter on an existing one. It
+cannot say *"the figures are unchanged"*, because the article published
+*"a cumulative change of 5.5% year on year"* where the distance between 5.4%
+and 10.9% is 5.5 **percentage points** — the number is right and the published
+figure is not, so the reassurance trades on which of the two a reader has in
+mind. And it cannot say what `span_correction_note` hardcodes, *"the opposite
+direction to the … reported"*, because all three subjects rose: the direction
+is one of the things that survives. What it says instead is available to no
+other shape — **both readings stand, the distance between them stands, the
+direction stands, and the size does not** — because in every other shape the
+size was never in question.
+
+So they are not six templates with different wording. They are **six
 different things that survive**, and the closing sentence is where that
 difference lives.
 
@@ -2044,7 +2058,7 @@ of 7.88%"*. Nobody asks how a linking clause was derived.
 
 ### It has a shape, and the shape is the type
 
-**Key**, stated once and used for every column: each parameter the four
+**Key**, stated once and used for every column: each parameter the five
 correction builders declare, classified by its annotated type and by whether
 its value reaches an f-string — that is, whether a reader ever sees it.
 
@@ -2054,26 +2068,40 @@ record_correction_note              8            3             2
 origin_correction_note              6            0             1
 span_correction_note                8            0             1
 comparison_correction_note          6            2             2
+unit_correction_note                4            3             1
                                    --           --            --
-                                   28            5             6   = 39 declared
+                                   32            8             7   = 47 declared
 
-of the 33 a reader sees, free text                          28   (85%)
-distinct printed string params that have carried a figure   17 of 17
+of the 40 a reader sees, free text                          32   (80%)
+distinct printed string params that have carried a figure   19 of 19
 never printed: claims_low, which selects wording; corrected_at, metadata
 ```
 
-The `17 of 17` is measured across the eight fixtures in
-`test_scope_correction.py`, each of which reproduces a notice that was actually
-published. **Every string parameter a reader can see has at some point been
-handed a number.** A `str` cannot say whether it was measured.
+The `19 of 19` is measured across the nine fixtures in
+`test_scope_correction.py` and `test_unit_correction.py`, each of which
+reproduces a notice that was actually published. **Every string parameter a
+reader can see has at some point been handed a number.** A `str` cannot say
+whether it was measured.
 
-Now compare where the invariants live. **Seven value checks, four string
+That claim is also why `unit_correction_note` takes no `unit` argument, which
+is the one place it has cost something. Measured across the registry, **0 of
+the 14 rate-like units in `collect/opendata.py` contains a digit** — 0 of all
+38 do — so such a parameter could never honestly carry a figure. Printed, it
+falsifies the line above; unprinted, it is a second never-shown string and
+dissolves the coincidence the next section rests on. The rate test it would
+have performed sits on the three filed notices instead, in
+`test_unit_correction.py`, where it checks real subjects rather than a
+hypothetical caller.
+
+Now compare where the invariants live. **Ten value checks, five presence
 checks**, and the split is total: every value check is on a numeric parameter —
 `beaten_in_window > beaten_in_series` is refused because the window is a subset
 of the series; `rank > 1 and beaten_in_window != rank - 1` is refused because
 fourth-highest means exactly three are higher; `beaten >= observations` is
-refused because a reading cannot be beaten by its own population. Every string
-check is presence-only: `if not str(value).strip()`.
+refused because a reading cannot be beaten by its own population;
+`abs(latest_value - start_value - change) > 1e-9` is refused because a notice
+cannot rest on three figures two of which disagree. Every string check is
+presence-only: `if not str(value).strip()`.
 
 So the guard rails are exactly where the type is a number, and **the wrong
 figure entered through a string** — past all of them, in a builder that
@@ -2106,9 +2134,9 @@ shipped                 measured             where it sat
 
 The first used **two different keys in one table** — *interpolated into the
 prose* for the string column, *every `int` and `bool`* for the numeric one — so
-it summed to 35 where the four signatures declare 39, and could be reconciled
-against nothing. The second was low by a factor of two. The cells were right
-both times; the sentences on either side of them were not.
+it summed to 35 where the four signatures then declared 39, and could be
+reconciled against nothing. The second was low by a factor of two. The cells
+were right both times; the sentences on either side of them were not.
 
 **Then the reconciliation itself went wrong, and that is the part worth
 keeping.** A reader who could not reproduce `28` derived a rule that does —
@@ -2116,17 +2144,17 @@ keeping.** A reader who could not reproduce `28` derived a rule that does —
 a different population from the one the prose describes:
 
 ```
-                              record  origin   span  comparison
-str-like AND interpolated          8       6      8           6
-str-like MINUS claim               8       6      8           6
-same SET?                      False   False  False       False
+                              record  origin   span  comparison   unit
+str-like AND interpolated          8       6      8           6      4
+str-like MINUS claim               8       6      8           6      4
+same SET?                      False   False  False       False  False
 
-  only in "interpolated" : claim          printed in all 4
+  only in "interpolated" : claim          printed in all 5
   only in "minus claim"  : corrected_at   printed in none
 ```
 
 Every builder declares exactly one `claim` and exactly one `corrected_at`, both
-string-typed, so swapping which is excluded leaves all four counts untouched.
+string-typed, so swapping which is excluded leaves all five counts untouched.
 The recovered rule drops the parameter a reader *does* see and keeps the one
 they never do — the exact opposite selection — and arrives at the same number
 four times running.

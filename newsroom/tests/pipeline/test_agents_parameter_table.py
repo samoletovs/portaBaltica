@@ -62,16 +62,26 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parents[3]
 AGENTS = REPO / "AGENTS.md"
 SOURCE = REPO / "newsroom" / "pipeline" / "revisions.py"
-FIXTURES = REPO / "newsroom" / "tests" / "pipeline" / "test_scope_correction.py"
+FIXTURES = (
+    REPO / "newsroom" / "tests" / "pipeline" / "test_scope_correction.py",
+    REPO / "newsroom" / "tests" / "pipeline" / "test_unit_correction.py",
+)
 
 BUILDERS = (
     "record_correction_note",
     "origin_correction_note",
     "span_correction_note",
     "comparison_correction_note",
+    "unit_correction_note",
 )
 STR_LIKE = frozenset({"str", "str | None"})
-NUM_LIKE = frozenset({"int", "bool"})
+#: ``float`` belongs here for the reason the column is called "printed
+#: numeric" rather than "printed int": a figure a reader sees is numeric
+#: whatever its width. It was absent until ``unit_correction_note`` declared
+#: the first float, at which point ``s + n + u == declared`` failed by three --
+#: the sum assertion catching a gap in its own classifier, which is what that
+#: assertion is for.
+NUM_LIKE = frozenset({"int", "bool", "float"})
 
 
 def _functions() -> dict[str, ast.FunctionDef]:
@@ -179,6 +189,7 @@ class TestTheTableMatchesTheCode:
             ("span_correction_note", "corrected_at"),
             ("comparison_correction_note", "claims_low"),
             ("comparison_correction_note", "corrected_at"),
+            ("unit_correction_note", "corrected_at"),
         }
         actual = set()
         for name, fn in _functions().items():
@@ -204,21 +215,30 @@ class TestTheTableMatchesTheCode:
 
 
 def _fixture_arguments() -> dict[str, dict[str, str]]:
-    tree = ast.parse(FIXTURES.read_text(encoding="utf-8"))
+    """Every published-notice fixture, across every file that holds one.
+
+    A TUPLE, NOT A PATH. It was one file until ``unit_correction_note`` brought
+    its own fixtures with it, at which point the guard would have walked a
+    smaller population than the builders it guards -- and would have failed
+    towards "this parameter never carried a figure", which is the direction
+    nobody re-checks.
+    """
     out = {}
-    for node in tree.body:
-        if not isinstance(node, ast.Assign):
-            continue
-        target, value = node.targets[0], node.value
-        if (
-            isinstance(target, ast.Name)
-            and target.id.isupper()
-            and isinstance(value, ast.Call)
-            and getattr(value.func, "id", "") == "dict"
-        ):
-            out[target.id] = {
-                kw.arg: ast.unparse(kw.value) for kw in value.keywords if kw.arg
-            }
+    for path in FIXTURES:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            target, value = node.targets[0], node.value
+            if (
+                isinstance(target, ast.Name)
+                and target.id.isupper()
+                and isinstance(value, ast.Call)
+                and getattr(value.func, "id", "") == "dict"
+            ):
+                out[f"{path.stem}.{target.id}"] = {
+                    kw.arg: ast.unparse(kw.value) for kw in value.keywords if kw.arg
+                }
     return out
 
 
@@ -249,8 +269,8 @@ class TestEveryVisibleStringHasCarriedAFigure:
         }
 
     def test_the_fixture_population_is_the_one_documented(self):
-        """Eight notices. A smaller set would weaken the claim silently."""
-        assert len(_fixture_arguments()) == 8
+        """Nine notices. A smaller set would weaken the claim silently."""
+        assert len(_fixture_arguments()) == 9
 
     def test_every_string_a_reader_sees_has_carried_a_figure(self):
         printed, carried = self._printed_strings(), self._carried_a_digit()
@@ -273,7 +293,13 @@ class TestEveryVisibleStringHasCarriedAFigure:
         )
 
     def test_the_parameter_that_never_carried_one_is_the_unprinted_one(self):
-        """A control. Without it the claim above passes on an empty population."""
+        """A control. Without it the claim above passes on an empty population.
+
+        This is also why ``unit_correction_note`` takes no ``unit`` argument:
+        0 of the 14 rate-like units in ``collect/opendata.py`` contains a
+        digit, so such a parameter could never honestly join the set above and
+        would have made this control name two things for two different reasons.
+        """
         declared: set[str] = set()
         for name, fn in _functions().items():
             declared |= {p for p, t in _parameters(fn) if t in STR_LIKE}
@@ -285,7 +311,7 @@ class TestEveryVisibleStringHasCarriedAFigure:
 
 
 class TestTheCheckSplit:
-    """Seven value checks, four presence checks, and the split is by type.
+    """Ten value checks, five presence checks, and the split is by type.
 
     Classified structurally: a test containing a ``Compare`` node relates two
     values, and anything else is a truthiness test. Reading the parameter names
@@ -304,15 +330,29 @@ class TestTheCheckSplit:
                     out.append(node.test)
         return out
 
-    def test_seven_value_checks_and_four_presence_checks(self):
+    def test_ten_value_checks_and_five_presence_checks(self):
         conditions = self._raising_conditions()
         value = [c for c in conditions if any(
             isinstance(n, ast.Compare) for n in ast.walk(c))]
         presence = [c for c in conditions if c not in value]
-        assert (len(value), len(presence)) == (7, 4), (
-            f"AGENTS.md says seven value checks and four presence checks; got "
+        assert (len(value), len(presence)) == (10, 5), (
+            f"AGENTS.md says ten value checks and five presence checks; got "
             f"{len(value)} and {len(presence)}: "
             f"{[ast.unparse(c) for c in conditions]}"
+        )
+
+    def test_the_split_is_worded_the_same_way_in_the_document(self):
+        """The counts live in two places, so pin them to each other.
+
+        Without this the test above and the sentence it quotes can disagree
+        silently -- which is the whole subject of the section it guards.
+        """
+        body = AGENTS.read_text(encoding="utf-8").split(
+            "### It has a shape, and the shape is the type", 1
+        )[1]
+        assert "**Ten value checks, five presence\nchecks**" in body, (
+            "the value/presence split sentence in AGENTS.md no longer matches "
+            "the counts asserted above"
         )
 
     def test_every_value_check_is_on_numeric_parameters_only(self):
@@ -387,12 +427,19 @@ class TestACountIsNotAKey:
             "### A count is not a key", 1
         )[1]
         for label in ("str-like AND interpolated", "str-like MINUS claim"):
+            # One capture per builder, derived rather than written out: a
+            # hardcoded arity is the same drift the row is guarding against,
+            # and a sixth builder would have made the row simply "missing".
+            columns = r"\s+(\d+)" * len(BUILDERS)
             match = re.search(
-                rf"^{re.escape(label)}\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$",
+                rf"^{re.escape(label)}{columns}\s*$",
                 body,
                 re.MULTILINE,
             )
-            assert match, f"the '{label}' row is missing from the AGENTS.md table"
+            assert match, (
+                f"the '{label}' row in AGENTS.md does not have one column per "
+                f"builder ({len(BUILDERS)} expected)"
+            )
             documented = [int(g) for g in match.groups()]
             measured = [
                 len(self._by_rule(b)[0 if "interpolated" in label else 1])
