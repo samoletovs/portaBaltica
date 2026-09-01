@@ -286,7 +286,10 @@ const CHECKS = [
      * and the dataset the app depends on are still there.
      */
     dataset: trade.DATASET,
-    namePrefix: trade.DIRECTIONS.exports.namePrefix,
+    // The direction, not a name prefix. The probe resolves the resource through
+    // `tradeStats.selectNewestByData` — the same function the endpoint uses —
+    // rather than restating a prefix that could drift from it.
+    direction: 'exports',
     type: 'ckan-trade-sql',
     // Required, and the reason is a measurement rather than a preference. The
     // two data.gov.lv checks above are already required because the portal is

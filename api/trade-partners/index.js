@@ -48,24 +48,6 @@ const trade = require('../shared/tradeStats.js');
 /** Deadline for every upstream call. Measured: aggregates answer in 250-450ms. */
 const DEADLINE_MS = 20000;
 
-/**
- * The newest resource for one direction, chosen by name prefix.
- *
- * `pickLatestActive` is `ckan.js`'s, and the `namePrefix` argument exists for
- * exactly this: `ats_kn8_men` holds ten active resources — one per direction
- * per year, plus a units glossary — so "the newest active resource" without a
- * prefix would hand back whichever of imports or exports was uploaded second.
- */
-function selectResources(pkg) {
-  const out = {};
-  for (const direction of Object.keys(trade.DIRECTIONS)) {
-    const prefix = trade.DIRECTIONS[direction].namePrefix;
-    const picked = ckan.pickLatestActive(pkg, prefix, 1);
-    out[direction] = picked.length > 0 ? picked[0] : null;
-  }
-  return out;
-}
-
 /** The same-name resource for the previous year, or null if it was never published. */
 function priorYearResource(pkg, direction, year) {
   const wanted = trade.resourceNameFor(direction, year - 1);
@@ -116,13 +98,12 @@ function rankChapters(records, totalEur) {
   return { rows: rows, rankedEur: ranked };
 }
 
-/** Everything one direction needs, for one month. */
-async function readDirection(pkg, direction, resource) {
+/** Everything one direction needs, for the month the selection already found. */
+async function readDirection(pkg, direction, selection) {
   const options = { deadlineMs: DEADLINE_MS };
-
-  const periodRows = await trade.runSql(trade.newestPeriodSql(resource.id), options);
-  const key = trade.num(periodRows[0] && periodRows[0].period_key);
-  const period = key === null ? null : trade.periodLabel(key);
+  const resource = selection.resource;
+  const key = selection.key;
+  const period = trade.periodLabel(key);
   if (period === null) {
     throw new Error('No period in ' + resource.name + ': the resource carries no readable month');
   }
@@ -180,16 +161,25 @@ async function readDirection(pkg, direction, resource) {
 const handler = async function (context, req) {
   try {
     const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, { deadlineMs: DEADLINE_MS });
-    const resources = selectResources(pkg);
 
-    const missing = Object.keys(resources).filter(function (d) { return !resources[d]; });
+    // Both directions resolved by reading each candidate's newest month, not
+    // by trusting a metadata timestamp. The selection lives in
+    // `tradeStats.selectNewestByData` so `/api/system-status` can call the
+    // same one rather than keeping a second copy that could disagree.
+    const selections = await Promise.all([
+      trade.selectNewestByData(pkg, 'exports', { deadlineMs: DEADLINE_MS }),
+      trade.selectNewestByData(pkg, 'imports', { deadlineMs: DEADLINE_MS }),
+    ]);
+    const chosen = { exports: selections[0], imports: selections[1] };
+
+    const missing = Object.keys(chosen).filter(function (d) { return !chosen[d]; });
     if (missing.length > 0) {
-      throw new Error('No datastore-active resource for: ' + missing.join(', '));
+      throw new Error('No resource with a readable month for: ' + missing.join(', '));
     }
 
     const sides = await Promise.all([
-      readDirection(pkg, 'exports', resources.exports),
-      readDirection(pkg, 'imports', resources.imports),
+      readDirection(pkg, 'exports', chosen.exports),
+      readDirection(pkg, 'imports', chosen.imports),
     ]);
     const exportsSide = sides[0];
     const importsSide = sides[1];
@@ -258,7 +248,6 @@ module.exports = withSecurity(withCache(handler, {
 // Exported for tests, which drive the ranking and the year-on-year selection
 // without a network.
 module.exports.__internals = {
-  selectResources: selectResources,
   priorYearResource: priorYearResource,
   rankPartners: rankPartners,
   rankChapters: rankChapters,

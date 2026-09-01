@@ -207,6 +207,88 @@ async function runSql(statement, options) {
 }
 
 /**
+ * How many resources of one direction to interrogate for their newest month.
+ *
+ * Metadata may narrow the candidate set; only the data may decide the winner.
+ * That division is what makes the selection below both cheap and correct.
+ *
+ * `pickLatestActive` orders by `created`, which for `ats_kn8_men` puts the
+ * per-year files first and the 2005–2020 archive last (created 2022-11-08,
+ * after the 2024 file). Three therefore covers this year, last year and the
+ * year before, and excludes an archive whose `MAX()` measured **1547ms**
+ * across 3.7M rows against ~350ms for each of the others — while being
+ * incapable of holding the newest month, since it ends at 2020-12.
+ *
+ * Three is also comfortably enough for the failure this defends against: on
+ * `maksatnespejas-procesi` a live resource and its abandoned twin were created
+ * thirty-one seconds apart, so any candidate set larger than one holds both and
+ * the data separates them.
+ */
+const MAX_CANDIDATES = 3;
+
+/**
+ * The resource holding the newest month, chosen by ASKING THE DATA.
+ *
+ * WHY NOT `created`, AND WHY NOT `last_modified`
+ * ----------------------------------------------
+ * Because neither is right, and both counter-examples are live on this portal:
+ *
+ *   ATS_eksports_KN8_2026   created 2026-03-12   modified 2026-08-11   2026-06
+ *   ATS_eksports_KN8_2025   created 2025-03-12   modified 2026-08-11   2025-12
+ *
+ * `last_modified` is IDENTICAL for both — CSP revised the two files in one
+ * pass — so sorting by it is a coin flip between this year and last, and
+ * `created` is the field that works.
+ *
+ *   maksatnespejas-procesi/8065ad80  created 11:47:43  modified 2026-08-31  live
+ *   maksatnespejas-procesi/0f6587a0  created 11:48:14  modified (none)      dead
+ *
+ * Two resources sharing one name, and the ABANDONED one was created
+ * thirty-one seconds later. `created` descending picks the corpse; only
+ * `last_modified` separates them. That package was reported dead during the
+ * survey for this endpoint on exactly that mistake, when its live resource had
+ * been updated the previous evening.
+ *
+ * So "which resource is current?" has no metadata answer that holds in both
+ * directions, and choosing either field means being wrong about some package.
+ * The data has no such problem: `MAX("Gads" * 100 + "Menesis")` over each
+ * candidate orders them 202606 / 202512 / 202412, and the answer cannot
+ * disagree with the period the caller then reports, because it IS that period.
+ *
+ * `runner` exists so the status probe can supply its own transport — with its
+ * own deadline and retry policy — while sharing this one implementation. Two
+ * selections would be two enumerations, and this file exists because those
+ * drift.
+ */
+async function selectNewestByData(pkg, direction, options, runner) {
+  const spec = DIRECTIONS[direction];
+  if (!spec) throw new Error('Unknown trade direction: ' + direction);
+  const run = runner || runSql;
+
+  const candidates = ckan.pickLatestActive(pkg, spec.namePrefix, MAX_CANDIDATES);
+  if (candidates.length === 0) return null;
+
+  const probed = await Promise.all(candidates.map(async function (resource) {
+    try {
+      const rows = await run(newestPeriodSql(resource.id), options);
+      return { resource: resource, key: num(rows[0] && rows[0].period_key) };
+    } catch (err) {
+      // One unreadable resource must not take the direction down with it — an
+      // abandoned twin that no longer answers is the case this exists for.
+      return { resource: resource, key: null };
+    }
+  }));
+
+  const usable = probed.filter(function (p) {
+    return p.key !== null && periodLabel(p.key) !== null;
+  });
+  if (usable.length === 0) return null;
+
+  usable.sort(function (a, b) { return b.key - a.key; });
+  return usable[0];
+}
+
+/**
  * Partner codes that are not countries.
  *
  * 160 codes appear in a single month and six of them are Eurostat
@@ -366,6 +448,8 @@ module.exports = {
   totalSql: totalSql,
   sqlUrl: sqlUrl,
   runSql: runSql,
+  selectNewestByData: selectNewestByData,
+  MAX_CANDIDATES: MAX_CANDIDATES,
   partnerName: partnerName,
   chapterName: chapterName,
   chapterCode: chapterCode,

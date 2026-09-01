@@ -30,7 +30,26 @@ const require = createRequire(import.meta.url);
 const trade = require('../api/shared/tradeStats.js');
 const endpoint = require('../api/trade-partners/index.js');
 
-const { selectResources, priorYearResource, rankPartners, rankChapters } = endpoint.__internals;
+const { priorYearResource, rankPartners, rankChapters } = endpoint.__internals;
+const { selectNewestByData } = trade;
+
+/**
+ * A runner that answers with a period per resource id.
+ *
+ * Passed in through `selectNewestByData`'s `runner` parameter — the same seam
+ * `/api/system-status` uses to supply its own transport. Monkey-patching
+ * `trade.runSql` would not work and should not: the function calls its
+ * module-local binding, so an export swap cannot reach it. That is the correct
+ * shape, and it means a test drives the injection rather than defeating it.
+ */
+function periodRunner(periods: Record<string, number | null>) {
+  return async (statement: string) => {
+    const id = /FROM "([0-9a-fA-F-]{36})"/.exec(statement)?.[1] ?? '';
+    if (!(id in periods)) throw new Error(`unreadable resource ${id}`);
+    const key = periods[id];
+    return key === null ? [] : [{ period_key: String(key) }];
+  };
+}
 
 /** A resource id shaped like the UUIDs CKAN issues. */
 const EXPORTS_2026 = '5c5e712f-fb55-47f1-b9fe-786f93487e40';
@@ -162,42 +181,100 @@ describe('a partner code is named or shown, never invented', () => {
   });
 });
 
-describe('resource selection picks a direction, not whichever was uploaded last', () => {
-  it('separates imports from exports by name prefix', () => {
-    const picked = selectResources(REAL_PACKAGE);
-    expect(picked.exports.name).toBe('ATS_eksports_KN8_2026');
-    expect(picked.imports.name).toBe('ATS_imports_KN8_2026');
+describe('resource selection asks the data, because no metadata field is right', () => {
+  /**
+   * Both counter-examples are live on data.gov.lv, and they disagree about
+   * which field to trust — which is the whole reason the selection reads the
+   * data instead of either one.
+   *
+   *   ATS_eksports_KN8_2026  created 2026-03-12  modified 2026-08-11  2026-06
+   *   ATS_eksports_KN8_2025  created 2025-03-12  modified 2026-08-11  2025-12
+   *     last_modified is IDENTICAL — CSP revised both files in one pass — so
+   *     sorting by it is a coin flip between this year and last.
+   *
+   *   maksatnespejas-procesi  two resources, THE SAME NAME
+   *     8065ad80  created 11:47:43  modified 2026-08-31  live, 17,983 rows
+   *     0f6587a0  created 11:48:14  modified (none)      dead since 2020-10-28
+   *     The ABANDONED one was created thirty-one seconds later, so `created`
+   *     descending picks the corpse.
+   *
+   * A reviewer of the first draft of this endpoint caught exactly that: it
+   * sorted by `created`, and a sweep built the same way reported the package
+   * dead when its live resource had been updated the previous evening.
+   */
+  it('takes the resource holding the newest month, not the newest file', async () => {
+    const picked = await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({
+      [EXPORTS_2026]: 202606,
+      [EXPORTS_2025]: 202512,
+    }));
+    expect(picked.resource.name).toBe('ATS_eksports_KN8_2026');
+    expect(picked.key).toBe(202606);
   });
 
-  it('takes the newest year of each direction', () => {
-    // Both 2025 resources are present and must lose to 2026.
-    const picked = selectResources(REAL_PACKAGE);
-    expect(picked.exports.id).toBe(EXPORTS_2026);
-    expect(picked.exports.name).not.toContain('2025');
+  it('prefers the newer DATA even when the older file was modified last', async () => {
+    // The `maksatnespejas-procesi` shape, generalised: whichever resource the
+    // metadata would favour, the one carrying the newer month wins.
+    const picked = await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({
+      [EXPORTS_2026]: 202401,
+      [EXPORTS_2025]: 202512,
+    }));
+    expect(picked.resource.name, 'the newest month must win regardless of file dates')
+      .toBe('ATS_eksports_KN8_2025');
   });
 
-  it('does not mistake the units glossary for a data resource', () => {
-    const picked = selectResources(REAL_PACKAGE);
-    for (const side of ['exports', 'imports'] as const) {
-      expect(picked[side].name).not.toContain('Papildmērvienību');
-    }
+  it('separates imports from exports by name prefix', async () => {
+    const runner = periodRunner({ [EXPORTS_2026]: 202606, [EXPORTS_2025]: 202512, [IMPORTS_2026]: 202606 });
+    const ex = await selectNewestByData(REAL_PACKAGE, 'exports', {}, runner);
+    const im = await selectNewestByData(REAL_PACKAGE, 'imports', {}, runner);
+    expect(ex.resource.name).toContain('eksports');
+    expect(im.resource.name).toContain('imports');
   });
 
-  it('reports a direction with no active resource as absent, not as the other one', () => {
-    const onlyImports = pkg([
-      { id: IMPORTS_2026, name: 'ATS_imports_KN8_2026', created: '2026-03-12T00:00:00' },
-    ]);
-    const picked = selectResources(onlyImports);
-    expect(picked.imports).not.toBeNull();
-    expect(picked.exports, 'a missing direction must be null, never the other direction').toBeNull();
+  it('does not mistake the units glossary for a data resource', async () => {
+    // Sorting the whole package by `last_modified` picks `Papildmērvienību
+    // skaidrojumi` — measured live. The prefix is what excludes it.
+    const picked = await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({
+      [EXPORTS_2026]: 202606, [EXPORTS_2025]: 202512,
+    }));
+    expect(picked.resource.name).not.toContain('Papildmērvienību');
   });
 
-  it('ignores a resource the datastore will not serve', () => {
+  it('survives one unreadable candidate rather than losing the direction', async () => {
+    // An abandoned twin that no longer answers is exactly the case this
+    // function exists for, so it must not take its live sibling down.
+    const picked = await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({
+      [EXPORTS_2025]: 202512,
+    }));
+    expect(picked.resource.name).toBe('ATS_eksports_KN8_2025');
+  });
+
+  it('reports a direction with no readable month as absent, not as the other one', async () => {
+    expect(await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({}))).toBeNull();
+  });
+
+  it('ignores a resource the datastore will not serve', async () => {
     const inactive = pkg([
       { id: EXPORTS_2026, name: 'ATS_eksports_KN8_2026', created: '2026-03-12T00:00:00', datastore_active: false },
       { id: EXPORTS_2025, name: 'ATS_eksports_KN8_2025', created: '2025-03-12T00:00:00' },
     ]);
-    expect(selectResources(inactive).exports.name).toBe('ATS_eksports_KN8_2025');
+    const picked = await selectNewestByData(inactive, 'exports', {}, periodRunner({
+      [EXPORTS_2026]: 202606, [EXPORTS_2025]: 202512,
+    }));
+    expect(picked.resource.name).toBe('ATS_eksports_KN8_2025');
+  });
+
+  it('refuses a direction it does not know', async () => {
+    await expect(selectNewestByData(REAL_PACKAGE, 'sideways', {}, periodRunner({})))
+      .rejects.toThrow(/Unknown trade direction/);
+  });
+
+  it('bounds how many candidates one request will interrogate', () => {
+    // An unbounded package would turn one reader's request into dozens of
+    // upstream calls. Three excludes the 2005–2020 archive, whose MAX()
+    // measured 1547ms across 3.7M rows against ~350ms for each per-year
+    // file — and which cannot hold the newest month anyway.
+    expect(trade.MAX_CANDIDATES).toBeLessThanOrEqual(4);
+    expect(trade.MAX_CANDIDATES).toBeGreaterThan(1);
   });
 });
 
@@ -241,7 +318,12 @@ describe('ranking a month, including the rows that are not there', () => {
     expect(rankedEur).toBe(900);
     // The remainder the panel states comes from the difference, so a top-N
     // ranking never implies it is everything.
-    expect(rows.map((r) => r.share)).toEqual([0.6, 0.3]);
+    //
+    // `rows` arrives from a `require`d CommonJS module and is therefore `any`,
+    // so the callback parameter needs an annotation under `noImplicitAny`.
+    // `npx vitest run` cannot see that — esbuild strips types without checking
+    // them — which is why the gate here has to be `npm test`.
+    expect(rows.map((r: { share: number | null }) => r.share)).toEqual([0.6, 0.3]);
   });
 
   it('reads the portal\'s stringified sums as numbers', () => {

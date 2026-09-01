@@ -232,12 +232,46 @@ describe('the status probe reads what the endpoint reads', () => {
     expect(check, 'the CN-8 check is missing from the registry').toBeTruthy();
 
     const pkg = await ckan.ckan('package_show', { id: check.dataset }, OPTIONS);
-    const probeResource = ckan.pickLatestActive(pkg, check.namePrefix, 1)[0];
-    const handlerResource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
 
-    // The probe and the handler must land on the same row of the same table.
-    // `AGENTS.md` records three probes that drifted from their subject, and
-    // every one of them restated a query instead of calling the builder.
-    expect(probeResource.id).toBe(handlerResource.id);
+    // Both sides go through the SAME selection — `tradeStats.selectNewestByData`
+    // — rather than each resolving a resource its own way. `AGENTS.md` records
+    // three probes that restated their subject's query and drifted, and this
+    // endpoint's own survey hit the sibling failure: a package was reported
+    // dead because one of its two identically-named resources was measured and
+    // the other, updated the previous evening, was not.
+    const probeSide = await trade.selectNewestByData(pkg, check.direction, OPTIONS);
+    const handlerSide = await trade.selectNewestByData(pkg, 'exports', OPTIONS);
+
+    expect(probeSide, 'the probe resolved nothing').toBeTruthy();
+    expect(probeSide.resource.id).toBe(handlerSide.resource.id);
+    expect(probeSide.key).toBe(handlerSide.key);
+  });
+
+  it('picks the resource with the newest month, not the newest file', async () => {
+    // The correction this endpoint was rebuilt around. Neither metadata field
+    // answers "which resource is current" on this portal:
+    //
+    //   ATS_eksports_KN8_2026 / _2025 share a `last_modified` to the second,
+    //   so sorting by it is a coin flip between this year and last.
+    //
+    //   maksatnespejas-procesi holds two resources with the SAME NAME, and the
+    //   abandoned one was created 31 seconds after the live one.
+    //
+    // So this asserts the property against the live cube: the chosen resource
+    // must hold a period at least as new as every other candidate's.
+    const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, OPTIONS);
+    const chosen = await trade.selectNewestByData(pkg, 'exports', OPTIONS);
+
+    const candidates = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, trade.MAX_CANDIDATES);
+    expect(candidates.length, 'only one candidate — the comparison proves nothing')
+      .toBeGreaterThan(1);
+
+    for (const candidate of candidates) {
+      const rows = await trade.runSql(trade.newestPeriodSql(candidate.id), OPTIONS);
+      const key = trade.num(rows[0] && rows[0].period_key);
+      if (key === null) continue;
+      expect(chosen.key, `${candidate.name} holds a newer month than the chosen resource`)
+        .toBeGreaterThanOrEqual(key);
+    }
   });
 });

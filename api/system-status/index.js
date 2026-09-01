@@ -284,30 +284,32 @@ async function probe(check) {
       throw new Error('CKAN package_show failed for ' + check.dataset);
     }
 
-    const picked = ckan.pickLatestActive(pkgBody.result, check.namePrefix, 1);
-    if (picked.length === 0) {
-      throw new Error('No datastore-active resource named ' + check.namePrefix + '* in ' + check.dataset);
-    }
-
-    const body = await es.httpJson(
-      trade.sqlUrl(trade.newestPeriodSql(picked[0].id)),
+    const picked = await trade.selectNewestByData(
+      pkgBody.result,
+      check.direction,
       httpOptions(check),
+      // The probe's own transport, so it keeps this registry's deadline and
+      // retry policy while sharing the endpoint's selection. Two selections
+      // would be two enumerations, and those drift — which is the whole reason
+      // this check calls a builder instead of restating a URL.
+      async function (statement, options) {
+        const body = await es.httpJson(trade.sqlUrl(statement), options);
+        if (!body || body.success !== true) {
+          throw new Error('CKAN datastore_search_sql unavailable: ' +
+            JSON.stringify((body && (body.error || body)) || 'no body').slice(0, 120));
+        }
+        return (body.result && body.result.records) || [];
+      },
     );
-    if (!body || body.success !== true) {
-      throw new Error('CKAN datastore_search_sql unavailable: ' +
-        JSON.stringify((body && (body.error || body)) || 'no body').slice(0, 120));
-    }
 
-    const records = (body.result && body.result.records) || [];
-    const key = trade.num(records[0] && records[0].period_key);
-    const period = key === null ? null : trade.periodLabel(key);
-    // A resource that answers with no readable month is a fault, not a
-    // staleness question — the header-only-CSV shape. Staleness is judged
+    // No candidate answered with a readable month. That is a fault — the
+    // header-only-CSV shape — not a staleness question. Staleness is judged
     // afterwards, against the cadence the check declares.
-    if (period === null) {
-      throw new Error('CN-8 resource answered but carries no readable month');
+    if (!picked) {
+      throw new Error('No ' + check.direction + ' resource in ' + check.dataset +
+        ' carries a readable month');
     }
-    return { period: period };
+    return { period: trade.periodLabel(picked.key) };
   }
 
   if (check.type === 'eurostat-cube') {
