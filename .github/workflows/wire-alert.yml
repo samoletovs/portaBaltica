@@ -75,6 +75,8 @@ jobs:
       alert: ${{ steps.judge.outputs.alert }}
       headline: ${{ steps.judge.outputs.headline }}
       message: ${{ steps.judge.outputs.message }}
+      label: ${{ steps.judge.outputs.label }}
+      subject: ${{ steps.judge.outputs.subject }}
 
     steps:
       - uses: actions/checkout@v5
@@ -272,6 +274,23 @@ jobs:
               r.get("headline") or "the wire could not be summarised")
           open("message.txt", "w", encoding="utf-8").write(
               r.get("text") or "portaBaltica newsroom wire: ALERT - the report carried no text.")
+
+          # Where to deliver it. A rehearsal must not write into the production
+          # incident record, so the probe says which issue this belongs in --
+          # derived from what it actually judged, not from the `rehearse` input.
+          #
+          # ABSENCE RESOLVES TO THE LIVE ISSUE, and that direction is chosen
+          # rather than inherited. This branch also runs for the synthesised
+          # report written when the probe died without producing one, which
+          # carries no routing at all. A dead monitor during a real outage must
+          # reach the real issue; the cost of being wrong the other way is a
+          # rehearsal touching the live issue, which is exactly today's
+          # behaviour and so not a regression.
+          routing = r.get("routing") or {}
+          open("label.txt", "w", encoding="utf-8").write(
+              routing.get("label") or "wire-alert")
+          open("subject.txt", "w", encoding="utf-8").write(
+              routing.get("subject") or "Newsroom wire")
           PY
 
           # The delimiter form is required: the report is multi-line, and a bare
@@ -287,6 +306,11 @@ jobs:
             echo "__EOF__"
           } >> "$GITHUB_OUTPUT"
 
+          # Single-line, so the plain form is correct and the delimiter form
+          # would only add a way to get it wrong.
+          echo "label=$(cat label.txt)" >> "$GITHUB_OUTPUT"
+          echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
+
   # Same reasoning as source-alert.yml: `if: always()` plus the
   # `result != 'success'` test means a check job that dies outright still
   # notifies, instead of skipping this job and leaving a red, silent run.
@@ -299,6 +323,11 @@ jobs:
       alert: ${{ (needs.check.result != 'success' || needs.check.outputs.alert == 'true') && 'true' || 'false' }}
       headline: ${{ needs.check.outputs.headline }}
       message: ${{ needs.check.outputs.message }}
-      label: wire-alert
-      subject: Newsroom wire
+      # The probe decides which issue this belongs in, so a rehearsal cannot
+      # retitle a live outage or manufacture one on a healthy wire. The `||`
+      # covers the check job dying outright, where there is no output at all:
+      # absence resolves to the LIVE issue, because a dead monitor during a real
+      # outage must reach the real one.
+      label: ${{ needs.check.outputs.label || 'wire-alert' }}
+      subject: ${{ needs.check.outputs.subject || 'Newsroom wire' }}
     secrets: inherit

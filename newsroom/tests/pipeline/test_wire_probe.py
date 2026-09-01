@@ -933,3 +933,163 @@ def test_the_egress_lookup_is_not_made_on_a_healthy_run(monkeypatch: pytest.Monk
     monkeypatch.setattr(wire_check, "fetch_run_report", lambda **_: {"body": None, "error": "skip"})
     wire_check.run(timeout=1)
     assert calls == []
+
+# ── where the alert is delivered ────────────────────────────────────────────
+#
+# A rehearsal drives the real notification path on purpose. What it must not do
+# is write into the production incident record, and it did: `wire-alert.yml`
+# passed a hardcoded `label: wire-alert`, so a rehearsal at 2026-09-01T08:18:15Z
+# retitled live issue #335 and replaced its body while that outage was still
+# happening. The nginx/Cloudflare payload was gone from the top of the issue for
+# nine minutes.
+
+
+def _live() -> dict[str, Any]:
+    return wire_check.evaluate([_ok_result()], [], now=_NOW)
+
+
+def _fixture() -> dict[str, Any]:
+    verdict = wire_check.evaluate([_ok_result()], [], now=_NOW)
+    verdict["source"] = "fixture:rehearsal.json"
+    return verdict
+
+
+def test_a_rehearsal_is_routed_away_from_the_live_issue() -> None:
+    assert wire_check.alert_routing(_live())["label"] == "wire-alert"
+    assert wire_check.alert_routing(_fixture())["label"] == "wire-alert-rehearsal"
+
+
+def test_the_two_labels_are_compared_by_equality_not_by_substring() -> None:
+    """The trap this suite has already been bitten by once, in this same family.
+
+    `"wire-alert" in "wire-alert-rehearsal"` is True, so any assertion written
+    with `in` passes whichever label is returned and certifies nothing. It is the
+    same shape as `"GitHub Actions" in "a host that does not identify itself as
+    GitHub Actions"`, which a planted fault caught in the vantage work.
+
+    So the property is asserted as inequality, which no substring relation can
+    satisfy -- and the substring relation is asserted to exist, so that a rename
+    making `in` accidentally safe cannot quietly delete the reason for this test.
+    """
+    live = wire_check.alert_routing(_live())["label"]
+    rehearsal = wire_check.alert_routing(_fixture())["label"]
+
+    assert live != rehearsal
+    assert live in rehearsal, "the substring relation that makes `in` useless here"
+
+
+def test_the_rehearsal_says_so_in_the_title_not_only_in_the_body() -> None:
+    """The title is what arrives in a notification, and is the whole of what most
+    people read. The body already said `source fixture:...`, honestly, and that
+    does not help somebody looking at a list of issues."""
+    assert "rehearsal" in wire_check.alert_routing(_fixture())["subject"]
+    assert "rehearsal" not in wire_check.alert_routing(_live())["subject"]
+
+
+def test_the_routing_is_derived_from_what_was_judged() -> None:
+    """Asked of the application rather than restated from the workflow input.
+
+    A run given --fixture without setting `rehearse` is still a rehearsal, and
+    routing on `source` reports it as one. Routing on the input would not.
+    """
+    for source, expected in (
+        ("newsroom/sources.yaml", "wire-alert"),
+        ("fixture:rehearsal.json", "wire-alert-rehearsal"),
+        ("fixture:/tmp/anything.json", "wire-alert-rehearsal"),
+    ):
+        assert wire_check.alert_routing({"source": source})["label"] == expected, source
+
+
+@pytest.mark.parametrize("verdict", [{}, {"source": None}, {"source": ""}])
+def test_a_verdict_that_cannot_say_is_routed_to_the_live_issue(verdict: dict[str, Any]) -> None:
+    """Which way does absence resolve, chosen rather than inherited.
+
+    This is the one place in this file where absence does NOT resolve to the
+    loudest reading, and the choice is deliberate: a dead monitor during a real
+    outage must reach the real issue. Being wrong the other way costs a
+    rehearsal touching the live issue, which is what already happens today.
+    """
+    assert wire_check.alert_routing(verdict)["label"] == "wire-alert"
+    assert wire_check.alert_routing(verdict)["subject"] == "Newsroom wire"
+
+
+def test_the_routing_reaches_the_json_the_workflow_reads() -> None:
+    """The seam. The workflow reads report.json, so routing has to be in it.
+
+    A field computed correctly and never written is the producer-side half of
+    the seam failure this repository sweeps for.
+    """
+    import json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "report.json"
+        fixture = Path(tmp) / "rehearsal.json"
+        fixture.write_text(json.dumps({"results": []}), encoding="utf-8")
+
+        wire_check.main(["--fixture", str(fixture), "--json", str(path)])
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["routing"]["label"] == "wire-alert-rehearsal"
+    assert payload["routing"]["subject"] == "Newsroom wire (rehearsal)"
+
+
+def test_a_live_run_writes_the_live_routing_into_that_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The companion, so the test above cannot pass by always saying rehearsal."""
+    import json
+    import tempfile
+
+    monkeypatch.setattr(wire_check, "wire_sources", lambda _reg: ())
+    monkeypatch.setattr(wire_check, "uncovered_sources", lambda _reg: ())
+    monkeypatch.setattr(wire_check, "fetch_run_report", lambda **_: {"body": None, "error": "skip"})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "report.json"
+        wire_check.main(["--json", str(path), "--timeout", "1"])
+        payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["routing"]["label"] == "wire-alert"
+    assert payload["routing"]["subject"] == "Newsroom wire"
+
+
+# ── the workflow reads what the probe writes ────────────────────────────────
+
+
+def _wire_alert_yaml() -> dict[str, Any]:
+    import yaml
+
+    return yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8"))
+
+
+def test_the_workflow_no_longer_hardcodes_the_live_label() -> None:
+    """The consumer half of the seam, asserted against the workflow itself.
+
+    `label: wire-alert` as a literal is the defect: it is what sent a rehearsal
+    into the production incident record, and no amount of correctness in
+    alert_routing fixes it while the caller ignores the answer.
+    """
+    notify = _wire_alert_yaml()["jobs"]["notify"]["with"]
+
+    assert notify["label"] != "wire-alert", "a literal here ignores the probe's answer"
+    assert "needs.check.outputs.label" in notify["label"]
+    assert "needs.check.outputs.subject" in notify["subject"]
+
+
+def test_the_workflow_falls_back_to_the_live_issue_when_the_job_dies() -> None:
+    """A check job that dies emits no outputs at all, and an empty label would
+    make `gh issue list --label ''` match nothing -- losing the alert at the
+    moment it matters most."""
+    notify = _wire_alert_yaml()["jobs"]["notify"]["with"]
+
+    assert "'wire-alert'" in notify["label"]
+    assert "'Newsroom wire'" in notify["subject"]
+
+
+def test_the_check_job_publishes_the_routing_it_computes() -> None:
+    """Producer and consumer named together: the notify job reads
+    `needs.check.outputs.label`, so the check job has to declare it."""
+    outputs = _wire_alert_yaml()["jobs"]["check"]["outputs"]
+
+    assert "label" in outputs and "subject" in outputs
+    assert "steps.judge.outputs.label" in outputs["label"]
+    assert "steps.judge.outputs.subject" in outputs["subject"]
