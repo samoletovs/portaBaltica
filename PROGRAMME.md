@@ -526,6 +526,34 @@ articles, 40 new declared figures, and **still exactly the same 9 mislabelled
 percentage-point figures — zero new**. `#344` holds at the source. `#342`'s gate
 rejected nothing, and the published superlatives are genuine.
 
+⚠️ **That "9" is a count of provenance metadata, and I reported it as a count
+of falsehoods. Only 3 ever reached a reader.** Measured afterwards by asking
+what the *prose* says rather than what the figure declares:
+
+```
+cumulative_change  3 of 3   "...a cumulative change of 5.5% year on year"      WRONG
+deviation          6 of 6   "...16.35 percentage points below the seasonal norm" CORRECT
+```
+
+The six seasonal ones carry a rate unit in `provenance` and say **percentage
+points** in the body, because `detect_seasonal_deviation` is the one detector
+that already routed its basis through `units` — which this repo's own notes
+say, and which I had read. All three reader-visible ones are now corrected, so
+the published corpus is clean.
+
+**The error is the population, again.** My sweep walked *declared figures* and
+my sentence claimed *published statements*, and those are not the same set —
+a difference of 3×, in a brief I dispatched, a journal entry and two closing
+summaries. It is the same fault as the section two pages down about a summary
+claiming more than its artefact, committed by its author within the hour.
+
+Two things generalise. **The natural probe measures the machine-readable
+field, because it is the one that is easy to enumerate** — and the reader never
+sees it, so the interesting population is always the harder one. And a
+correction session that stopped at 3 of 9 was **right**, which read at the time
+like unfinished work; had it obeyed the brief it would have annotated six
+correct articles with notices saying they were wrong.
+
 
 **The causal panel from `#185` is live and behaving correctly in both
 directions**, which is the harder thing to demonstrate. One article published an
