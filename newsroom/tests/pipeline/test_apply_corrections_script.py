@@ -28,8 +28,6 @@ import importlib.util
 import pathlib
 import sys
 
-import pytest
-
 from newsroom.pipeline.corrections import EditorialCorrection
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
@@ -247,18 +245,105 @@ class TestItDoesNotImplementASecondWritePath:
 
 
 class TestTheRehearsalIsTheDefault:
+    """The one property that matters on a script holding a write credential.
+
+    THE FIRST VERSION OF THIS CLASS PROTECTED NOTHING, AND WAS PROVED SO
+    ---------------------------------------------------------------------
+    It had two tests. Both passed with the default inverted:
+
+        parser.add_argument("--apply", action="store_true",  ->  ..., default=True,
+        pytest <this file>                                   ->  14 passed
+        the script's own parser, argv=[]                     ->  apply = True
+
+    `test_apply_is_opt_in` asserted `'"--apply", action="store_true"' in
+    source`. A `default=True` APPENDS to that declaration, so the substring
+    survives -- a lexical proxy for a structural property, defeated by an
+    addition rather than a change. `AGENTS.md`: *a word list encodes your
+    examples; a structure encodes your rule.*
+
+    `test_the_parser_accepts_both_forms` built its own `ArgumentParser` and
+    asserted against that. It tested `argparse`, and would have passed had this
+    script carried no `--apply` flag at all -- the guard that reproduces the
+    logic it guards, which is a second implementation free to disagree.
+
+    So the first line below parses with the SCRIPT'S OWN parser and asserts the
+    resulting value. The second is source-level and structural rather than
+    lexical, which is what makes it a second line rather than a longer word
+    list.
+    """
+
+    def test_no_arguments_means_rehearse(self):
+        """FIRST LINE. The script's own parser, and the value it produces.
+
+        MUTATION THIS CATCHES, and the only one that matters here: appending
+        `default=True` to the declaration. This script holds
+        `DefaultAzureCredential` against the articles container, so an inverted
+        default turns `python scripts/apply_corrections.py` from a promise to
+        rehearse into a production write.
+        """
+        assert mod.build_parser().parse_args([]).apply is False
+
+    def test_the_flag_turns_writing_on(self):
+        """The other half. Without it, the assertion above is satisfied by a
+        flag that can never be true -- an option that does nothing."""
+        assert mod.build_parser().parse_args(["--apply"]).apply is True
+
+    def test_the_parser_is_the_one_main_uses(self):
+        """Otherwise the two tests above interrogate a parser nothing runs.
+
+        `build_parser` was extracted from `main` precisely so it could be
+        tested; a `main` that went on building its own would leave that
+        extraction decorative and these assertions vacuous.
+        """
+        code = _code_only(SCRIPT)
+        assert "args = build_parser().parse_args(argv)" in code
+        assert code.count("argparse.ArgumentParser(") == 1, (
+            "only build_parser may construct a parser"
+        )
+
     def test_apply_is_opt_in(self):
-        source = SCRIPT.read_text(encoding="utf-8")
-        assert '"--apply", action="store_true"' in source
+        """SECOND LINE, structural. Read the declaration, not the line.
 
-    @pytest.mark.parametrize("argv", [[], ["--apply"]])
-    def test_the_parser_accepts_both_forms(self, argv):
-        import argparse
+        Kept because a source-level assertion is worth having beside a
+        behavioural one -- it names the mechanism rather than the outcome, so a
+        failure says which knob moved. Upgraded from a substring test, which
+        could not see the keyword that beat it: `default` is invisible to
+        `'action="store_true"' in source` and plainly visible to the AST.
+        """
+        declaration = _apply_declaration()
+        assert declaration is not None, "no add_argument('--apply') call found"
+        keywords = {kw.arg: kw.value for kw in declaration.keywords}
+        assert isinstance(keywords.get("action"), ast.Constant)
+        assert keywords["action"].value == "store_true"
+        assert "default" not in keywords, (
+            "an explicit default on a store_true flag overrides the False that "
+            "makes this script rehearse unless told otherwise"
+        )
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--apply", action="store_true")
-        parser.add_argument("--account-url", default=mod.DEFAULT_ACCOUNT)
-        parser.add_argument("--container", default=mod.DEFAULT_CONTAINER)
-        parser.add_argument("--snapshot", default=".correction-snapshot")
-        args = parser.parse_args(argv)
-        assert args.apply is ("--apply" in argv)
+    def test_the_ast_reader_can_see_a_default(self):
+        """CONTROL on the second line, because its predecessor could not.
+
+        A structural check that silently failed to find the keyword would be
+        the substring test again with more ceremony, so this proves the reader
+        does see `default` when it is there.
+        """
+        tree = ast.parse(
+            'p.add_argument("--apply", action="store_true", default=True)'
+        )
+        call = next(n for n in ast.walk(tree) if isinstance(n, ast.Call))
+        keywords = {kw.arg for kw in call.keywords}
+        assert "default" in keywords and "action" in keywords
+
+
+def _apply_declaration() -> ast.Call | None:
+    """The `add_argument("--apply", ...)` call in the script, as a node."""
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if getattr(node.func, "attr", None) != "add_argument":
+            continue
+        if node.args and isinstance(node.args[0], ast.Constant) \
+                and node.args[0].value == "--apply":
+            return node
+    return None

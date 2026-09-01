@@ -164,15 +164,49 @@ def _snapshot(client, names: list[str], into: pathlib.Path) -> dict[str, bytes]:
     return out
 
 
-async def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The script's argument parser, as a value a test can interrogate.
+
+    EXTRACTED SO THE DRY-RUN DEFAULT CAN BE ASSERTED AS BEHAVIOUR.
+    It lived inline in :func:`main`, which left the two tests protecting the
+    default with nothing better than the source text to look at. Both passed
+    with the default inverted:
+
+        parser.add_argument("--apply", action="store_true",  ->  ..., default=True,
+        pytest test_apply_corrections_script.py              ->  14 passed
+        the script's own parser, argv=[]                     ->  apply = True
+
+    A `default=True` APPENDS to the declaration rather than changing it, so
+    `'"--apply", action="store_true"' in source` is still true -- a lexical
+    proxy for a structural property, defeated by an addition. And the other
+    test built its own `ArgumentParser` and asserted against that, which tests
+    `argparse` rather than this file: the guard reproducing the logic it
+    guards, which `AGENTS.md` records as a second implementation free to
+    disagree.
+
+    The consequence was not cosmetic. This script holds
+    `DefaultAzureCredential` against the articles container, so an inverted
+    default means `python scripts/apply_corrections.py` writes to production
+    where it had promised to rehearse.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--apply", action="store_true",
-                        help="write. Without it this only rehearses.")
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="write. Without it this only rehearses.",
+    )
     parser.add_argument("--account-url", default=DEFAULT_ACCOUNT)
     parser.add_argument("--container", default=DEFAULT_CONTAINER)
-    parser.add_argument("--snapshot", default=".correction-snapshot",
-                        help="where to put the byte-exact copies")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--snapshot",
+        default=".correction-snapshot",
+        help="where to put the byte-exact copies",
+    )
+    return parser
+
+
+async def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
 
