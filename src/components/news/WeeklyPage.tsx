@@ -2,14 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
 import {
+  correctedSlugs,
   fetchArticleIndex,
+  fetchCorrections,
   fetchWeeklyReport,
   weeklyWraps,
   explainNoReview,
+  type CorrectionState,
   type WeeklyAbsence,
 } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
-import { ArticleCard } from './NewsCard';
+import { ArticleCard, CorrectionBadge, CorrectionsUnavailable } from './NewsCard';
 
 /** The same long form the archive list uses, so one page speaks one way. */
 function longDate(iso: string): string {
@@ -155,6 +158,7 @@ function CouldNotLoad() {
 export default function WeeklyPage() {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [absence, setAbsence] = useState<WeeklyAbsence>({ reason: 'unknown' });
+  const [corrections, setCorrections] = useState<CorrectionState>({ state: 'loading' });
 
   usePageMeta({
     title: 'The weekly review | portaBaltica',
@@ -183,11 +187,28 @@ export default function WeeklyPage() {
         // the honest answer when we could not find out.
       });
 
+    // Fetched separately for the same reason, and NOT silent on failure. The
+    // difference is what each absence would say: an unread run report leaves a
+    // sentence vaguer, while an unread corrections log leaves a withdrawn claim
+    // looking clean. `CorrectionsUnavailable` is what keeps those two states
+    // apart on the page.
+    fetchCorrections(controller.signal)
+      .then((entries) => {
+        if (!controller.signal.aborted) {
+          setCorrections({ state: 'ok', slugs: correctedSlugs(entries) });
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCorrections({ state: 'failed' });
+      });
+
     return () => controller.abort();
   }, []);
 
   const wraps = load.state === 'ok' ? load.wraps : [];
   const [latest, ...earlier] = wraps;
+  const isCorrected = (wrap: ArticleSummary) =>
+    corrections.state === 'ok' && corrections.slugs.has(wrap.slug);
 
   return (
     <div className="mx-auto max-w-measure">
@@ -209,6 +230,18 @@ export default function WeeklyPage() {
 
       {load.state === 'ok' && !latest && <NoReview absence={absence} />}
 
+      {/*
+        Once, above every listing on the page, rather than inside one of them.
+        It qualifies both the lead review and the archive below it, and it is
+        only shown when there is a headline on screen for it to qualify — a page
+        with no reviews has no unmarked claim to warn anybody about.
+      */}
+      {latest && corrections.state === 'failed' && (
+        <div className="mt-8">
+          <CorrectionsUnavailable />
+        </div>
+      )}
+
       {latest && (
         <section aria-label="The latest weekly review" className="mt-8">
           {/*
@@ -222,7 +255,7 @@ export default function WeeklyPage() {
             The latest
           </p>
           <div className="mt-3">
-            <ArticleCard summary={latest} variant="lead" />
+            <ArticleCard summary={latest} variant="lead" corrected={isCorrected(latest)} />
           </div>
         </section>
       )}
@@ -238,18 +271,31 @@ export default function WeeklyPage() {
           <ol className="mt-4 space-y-4">
             {earlier.map((wrap) => (
               <li key={wrap.id ?? wrap.slug} className="news-border border-b pb-4">
-                {wrap.published_at && (
-                  <time
-                    dateTime={wrap.published_at}
-                    className="news-subtle text-caption font-semibold uppercase tracking-widest"
-                  >
-                    {new Date(wrap.published_at).toLocaleDateString('en-GB', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </time>
-                )}
+                {/*
+                  This list is NOT an `ArticleCard`, and that is why it needs its
+                  own badge rather than inheriting one. It renders a bare heading
+                  and a link, so marking the card component alone would have left
+                  every archived review here showing a corrected claim unmarked —
+                  a second surface, found by enumerating every `.headline` render
+                  in `src/` rather than by assuming the card covered the page.
+
+                  Before the heading, for the reason `CorrectionBadge` gives.
+                */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {isCorrected(wrap) && <CorrectionBadge />}
+                  {wrap.published_at && (
+                    <time
+                      dateTime={wrap.published_at}
+                      className="news-subtle text-caption font-semibold uppercase tracking-widest"
+                    >
+                      {new Date(wrap.published_at).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </time>
+                  )}
+                </div>
                 <h3 className="balance-text news-fg mt-1 text-callout font-semibold">
                   <Link to={`/article/${wrap.slug}`} className="news-hover">
                     {wrap.headline}

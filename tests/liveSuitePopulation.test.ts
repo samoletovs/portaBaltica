@@ -77,6 +77,10 @@ const LIVE_CHECKS = new Map<string, string>([
     'correctionsRender.live.test.ts',
     'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
   ],
+  [
+    'correctionsReachTheFeed.live.test.ts',
+    'a corrected article says so on the surfaces that LIST it — the sibling of the check above, which covers only the article page and /corrections. Deleting this restores the state measured on 2026-09-01, where 18 of 93 indexed articles carried a correction, several of them headlines that are themselves the withdrawn claim, and every one of them appeared unmarked on the front page while all three existing correction checks stayed green',
+  ],
   ['deployRecoveryReal.live.test.ts', 'the deploy-race recovery fires on a real chunk failure, in a real browser'],
   ['functionSecurityHeaders.live.test.ts', 'every deployed route carries the security headers'],
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
