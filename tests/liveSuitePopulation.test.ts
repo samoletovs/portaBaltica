@@ -70,6 +70,10 @@ const LIVE_CHECKS = new Map<string, string>([
     'no deployed route throws at the reader — eight live checks drive a browser and none of them watched for it, so an uncaught exception or a failed lazy chunk removed a panel and passed every one',
   ],
   [
+    'freshnessDisclosure.live.test.ts',
+    'a series months behind says so on the deployed site — 22 of 216 series are late in production and only a jsdom test covered the notice, which cannot see the API dropping the field or a build dropping the component',
+  ],
+  [
     'correctionsRender.live.test.ts',
     'a published correction reaches a reader — present in the accessibility tree, not merely in the JSON',
   ],
