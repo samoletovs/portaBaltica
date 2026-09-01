@@ -54,25 +54,40 @@ function bodyFor(url: string): string {
   return JSON.stringify({ current: { temperature_2m: 17, wind_speed_10m: 12, weather_code: 1 } });
 }
 
-/**
- * Answer every upstream except the ones matching `refuse`, which error.
- *
- * The cache is cleared first. Without it a second call is answered from the
- * fifteen-minute memo and the assertion holds whatever the handler does — a
- * test that has stopped measuring rather than one that has broken.
- */
+/** Answer every upstream except the ones matching `refuse`, which error. */
 function stubHttps(refuse: RegExp | null): void {
+  stubHttpsCounting(refuse, null);
+}
+
+/** Attempts per URL, so a retry is observable rather than inferred. */
+const attempts: string[] = [];
+
+/**
+ * As `stubHttps`, but `failOnce` URLs reject on their **first** attempt only.
+ *
+ * That is what distinguishes a retry from a longer timeout: a client that
+ * retries sees the second attempt succeed, and one that does not never asks
+ * again.
+ */
+function stubHttpsCounting(refuse: RegExp | null, failOnce: RegExp | null): void {
   cache.clear();
+  attempts.length = 0;
   vi.spyOn(https, 'get').mockImplementation(((
     url: string,
     _o: unknown,
     cb: (r: unknown) => void,
   ) => {
+    const seenBefore = attempts.filter((u) => u === url).length;
+    attempts.push(url);
+
     const req = new EventEmitter();
     const typedReq = req as unknown as { destroy: () => void };
     typedReq.destroy = () => {};
 
-    if (refuse && refuse.test(url)) {
+    const rejectNow =
+      (refuse && refuse.test(url)) || (failOnce && failOnce.test(url) && seenBefore === 0);
+
+    if (rejectNow) {
       setTimeout(() => req.emit('error', new Error('simulated upstream failure')), 0);
       return req;
     }
@@ -149,5 +164,52 @@ describe('ai-insights says what was unavailable', () => {
     expect(context.res!.status).toBe(200);
     const body = JSON.parse(context.res!.body) as Envelope;
     expect(body.insights.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Open-Meteo is retried; Elering is not.
+ *
+ * `{ timeout: 15000 }` on `https.get` is a **socket inactivity** timer, not a
+ * total deadline, and it never retries — the wrong shape for a host that
+ * accepts a connection and then goes quiet. Measured in production on
+ * 2026-08-31 with the `unavailable` field: **8 of 18 samples degraded, every
+ * one of them Open-Meteo** (`weather` 8, `air quality` 6), while Elering and
+ * the ECB failed zero times.
+ *
+ * `sea-state` already called the same host through `es.httpJson` with a hard
+ * deadline and one retry, under a comment saying a fresh connection usually
+ * succeeds where waiting does not. The answer was in a neighbouring file.
+ *
+ * The pair below is what makes this a measurement rather than a hope: a
+ * first-attempt failure that *recovers* proves a retry happened, and the same
+ * failure on a host that must **not** be retried proves the distinction is
+ * deliberate rather than a blanket change.
+ */
+describe('the Open-Meteo transport retries and Elering does not', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('recovers an insight when Open-Meteo fails its first attempt', async () => {
+    stubHttpsCounting(null, /open-meteo/i);
+    const context: { res?: { status: number; body: string } } = {};
+    await handler(context, { query: { country: 'lv' } });
+    const body = JSON.parse(context.res!.body) as Envelope;
+
+    // The whole point: a transient failure no longer costs the insight.
+    expect(body.unavailable).toEqual([]);
+
+    const weatherAttempts = attempts.filter((u) => /open-meteo/i.test(u) && !/air-quality/.test(u));
+    expect(weatherAttempts.length, 'no second attempt was made').toBeGreaterThan(1);
+  });
+
+  it('does not retry Elering, so the change is scoped rather than blanket', async () => {
+    stubHttpsCounting(null, /elering/i);
+    const context: { res?: { status: number; body: string } } = {};
+    await handler(context, { query: { country: 'lv' } });
+    const body = JSON.parse(context.res!.body) as Envelope;
+
+    expect(attempts.filter((u) => /elering/i.test(u))).toHaveLength(1);
+    // And it is honest about the consequence rather than silently short.
+    expect(body.unavailable).toContain('electricity prices');
   });
 });

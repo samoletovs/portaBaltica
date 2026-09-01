@@ -2,6 +2,7 @@ const https = require('https');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const airQuality = require('../shared/airQuality.js');
+const es = require('../shared/eurostat.js');
 const countries = require('../shared/country.js');
 
 /**
@@ -84,6 +85,25 @@ function splitByDay(rows, todayKey) {
   return { today: today, priorPeaks: priorPeaks };
 }
 
+/**
+ * A JSON GET with a socket timeout and no retry.
+ *
+ * Kept for Elering, which is reliable on this egress: measured across 18
+ * production samples on 2026-08-31 it never failed, and neither did the ECB.
+ *
+ * NOT used for Open-Meteo. `{ timeout: 15000 }` is a **socket inactivity**
+ * timer, not a total deadline, and there is no retry — which is the wrong shape
+ * for a host that accepts the connection and then goes quiet. `sea-state` calls
+ * the same host through `es.httpJson` with a hard deadline and one retry, under
+ * a comment that already says why:
+ *
+ *     Open-Meteo has been measured hanging for the full deadline on this egress
+ *     address, so the budget is short and one retry is allowed: a fresh
+ *     connection usually succeeds where waiting does not.
+ *
+ * The answer was written down in a neighbouring file and this one did not use
+ * it — the correct sibling that conceals the broken one.
+ */
 function jsonGet(url) {
   return new Promise(function (resolve, reject) {
     var req = https.get(url, { timeout: 15000 }, function (res) {
@@ -99,6 +119,21 @@ function jsonGet(url) {
     });
     req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);
+  });
+}
+
+// The same budget and retry `sea-state` uses against the same host, and for the
+// reason it records. Measured before this change, with the `unavailable` field
+// #329 added: 8 of 18 production samples were degraded, and **every one of them
+// was Open-Meteo** — `weather` 8, `air quality` 6, Elering and the ECB zero.
+const OPEN_METEO_DEADLINE_MS = 6000;
+const OPEN_METEO_RETRIES = 1;
+
+/** Open-Meteo, through the client that knows this host hangs rather than fails. */
+function openMeteoGet(url) {
+  return es.httpJson(url, {
+    deadlineMs: OPEN_METEO_DEADLINE_MS,
+    retries: OPEN_METEO_RETRIES,
   });
 }
 
@@ -180,11 +215,11 @@ const handler = async function (context, req) {
       ELERING_URL + '?start=' + windowStart.toISOString() + '&end=' + dayEnd.toISOString()
     );
     var ecbPromise = httpGetText(ECB_URL);
-    var airPromise = jsonGet(
+    var airPromise = openMeteoGet(
       OPEN_METEO_AQ + '?latitude=' + capital.lat + '&longitude=' + capital.lon +
       '&current=pm2_5,nitrogen_dioxide,european_aqi&timezone=' + capital.tz
     );
-    var weatherPromise = jsonGet(
+    var weatherPromise = openMeteoGet(
       OPEN_METEO_WX + '?latitude=' + capital.lat + '&longitude=' + capital.lon +
       '&current=temperature_2m,wind_speed_10m,weather_code&timezone=' + capital.tz
     );
