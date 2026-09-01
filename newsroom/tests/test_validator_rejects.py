@@ -845,6 +845,80 @@ def test_should_accept_an_explanation_of_the_figures_the_paragraph_carries(
     assert verdict.passed, [c.name for c in verdict.failures()]
 
 
+# ── record_claim_holds ──────────────────────────────────────────────────
+
+
+def test_should_reject_a_superlative_the_series_contradicts(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """Verbatim from ``estonia-s-core-inflation-drops-to-1-4-in-july-eb6a02``.
+
+    Published 2026-08-31T14:04Z under revision ``56554c8`` with 71 of those 296
+    readings lower. Every numeric gate passed it and was right to: 296 really
+    is the length of the series. The falsehood is the word "lowest", and a
+    superlative carries no digits, so nothing numeric could see it.
+    """
+    tier_a_article["provenance"]["context"] = {
+        "method": "collected_series",
+        "series_considered": 1,
+        "facts": [],
+        "observations": [],
+        "placement": {
+            "readings_in_series": 296,
+            "higher": 224,
+            "lower": 71,
+            "first_period": "2001-12",
+            "latest_period": "2026-07",
+        },
+    }
+    tier_a_article["body"][1]["text"] = (
+        "This reading is the lowest in the 296 observations since the series began."
+    )
+    tier_a_article["body"][1]["figures"] = [
+        {"value": 296, "signal_field": "readings_in_series"}
+    ]
+    signal["payload"]["readings_in_series"] = 296
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert_rejected_by(verdict, "record_claim_holds")
+
+
+def test_should_accept_the_same_superlative_when_the_series_agrees(
+    tier_a_article: dict[str, Any], signal: dict[str, Any], validate
+) -> None:
+    """The control, and the reason the rejection above means anything.
+
+    The true and false cases of this sentence are word for word identical —
+    which is why no prose rule could ever settle it, and why a rejection test
+    without this pair is consistent with a check that simply bans superlatives.
+    """
+    tier_a_article["provenance"]["context"] = {
+        "method": "collected_series",
+        "series_considered": 1,
+        "facts": [],
+        "observations": [],
+        "placement": {
+            "readings_in_series": 296,
+            "higher": 295,
+            "lower": 0,
+            "first_period": "2001-12",
+            "latest_period": "2026-07",
+        },
+    }
+    tier_a_article["body"][1]["text"] = (
+        "This reading is the lowest in the 296 observations since the series began."
+    )
+    tier_a_article["body"][1]["figures"] = [
+        {"value": 296, "signal_field": "readings_in_series"}
+    ]
+    signal["payload"]["readings_in_series"] = 296
+
+    verdict = validate(tier_a_article, signal=signal)
+
+    assert verdict.passed, verdict.failure_summary()
+
+
 # ── the meta test ───────────────────────────────────────────────────────
 
 

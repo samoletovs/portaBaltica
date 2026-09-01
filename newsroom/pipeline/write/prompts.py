@@ -364,6 +364,33 @@ keeps it legal — put that exact phrase in that paragraph:
        GOOD: "seven consecutive annual increases in a series that runs to
              twenty readings"
 
+     AND NAMING THE POPULATION IS NOT THE SAME AS LEADING IT. Bounding a
+     superlative correctly does not make it true. This published, correctly
+     bounded, with every number in it right:
+       BAD:  "the lowest in the 296 observations since the series began"
+             — 296 IS the length of the series and the series DOES begin then.
+             71 of those 296 readings are lower. The count was right, the
+             origin was right, and the word "lowest" was false.
+     YOU ARE TOLD WHERE THE READING SITS. The DETERMINISTIC OBSERVATIONS say
+     one of four things, and they are the ONLY licence for a superlative over
+     the series:
+       "This is the highest reading anywhere in the series."      → you may
+             call it the highest.
+       "This is the lowest reading anywhere in the series."       → the lowest.
+       "Only a handful of readings in the series have ever been higher;
+             this is the third-highest on record."                → the
+             third-highest, and NOT the highest.
+       "This is neither the highest nor the lowest reading in the series."
+             → say that. It is the interesting, honest answer for an ordinary
+             reading, and it is what most readings are.
+     If none of those appears, you were told nothing about placement and there
+     is nothing you may say about it. Write the paragraph about something else.
+       GOOD: "This is neither the highest nor the lowest reading in the series,
+             which runs to 296 observations from December 2001."
+       GOOD: "The reading is 6.48 percentage points below the four-year average
+             for the same point in the year."
+       BAD:  any superlative over the series that no observation licenses.
+
      AND A RUN'S SIZE BELONGS TO THE RUN. The same fault with the magnitude
      rather than the count, and this one inverted a sign in print.
      `cumulative_change` is the distance travelled ACROSS THE RUN, measured
