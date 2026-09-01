@@ -60,6 +60,19 @@ books         AGENTS.md 3744 lines · PROGRAMME.md 2002 lines
 throughput    30 PRs merged today over 10.3h = 2.9 PR/h
               previous run's baseline was 5.1 PR/h; the whole programme is
               351 PRs over 12 days, peaking at 88 on 2026-08-27
+
+              ⚠️ Read that rate with its denominator. A session finishing this
+              run at 2.6 PR/h pushed back, correctly: **a PR that repairs a
+              definition is not the same unit as a PR that adds a field**, and
+              dividing both by hours pretends they are. Two of its PRs were
+              source-level fixes to defects that had already reached readers,
+              each needing a corpus measurement before a line was written —
+              slower per PR by construction, and right to be. So PR/h measures
+              shipping *cadence*, not value, and it is only a valid alarm
+              against itself over time within one kind of work. Use it to catch
+              the drift from shipping into documenting, which is what it is
+              good for; do not use it to compare a definition fix against a
+              field addition.
 ```
 
 **The single most useful thing this run learned, and it is a correction to the
