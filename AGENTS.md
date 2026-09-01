@@ -2253,6 +2253,50 @@ The same rule one layer out: `git diff --stat` is empty for an untracked file,
 after `git checkout --`, and when an edit lands on an already-dirty line.
 **Verify a plant and its restore by content, never by the diff.**
 
+### A green that is a fact about the environment, not about the code
+
+A check that *cannot* fail is inert, and its greens say nothing. The worse case
+is a check that **can** fail and has not, because the environment has been
+kind — because those greens are read as evidence about the code while being
+facts about when you ran it. It accrues a passing record it has not earned.
+
+Two instances, found the same day by two people, neither noticing the other was
+the same shape:
+
+```
+LATE_QUARTER fixture      derives a period from the clock
+  green iff the month is kind        red in Mar Jun Sep Dec — 4 of 12
+  undetected since written, because those months had not come round
+
+sanity band, pre-#252     reads the newest live observation
+  green iff the newest reading is benign
+  simulated over 296 months of EE `admin_prices` against the old [-30, 60]:
+  RED on correct data in 7 of them — 2021-12 and 2022-04..09, the energy crisis
+  CONTROL: same simulation against the corrected [-30, 150] is 0 red
+```
+
+The mechanisms are unrelated — one manufactures a fixture, one reads a live
+feed — and the failure is identical: **the verdict depends on the date of the
+run, and the run happened on a good date.** Neither check was wrong about
+anything it examined. Both were silent about the thing they existed to catch.
+
+It is also why neither was found by review. There is no artefact: for eight
+months a year the fixture's own comment was already false while the assertion
+passed, and the band was already wrong while the tip was ordinary. **A wrong
+check with no failing run leaves nothing to read.**
+
+The remedy in both cases was the same, and it is the actionable form: **assert
+the property across the range, not at a point.** `af3c394` runs the fixture
+through `freshnessOf` for twenty-four months; `#252` reads every observation in
+the window instead of the newest. Neither needed a new instrument — only a
+larger population, which is this file's own rule arriving at the *inputs* of a
+check rather than at its enumeration.
+
+The tell, when writing one: **ask what would have to be true of the world for
+this to go red, and whether that is a property of the code.** If the answer
+mentions a date, a live feed, or anything else you do not control, the check is
+sampling rather than asserting.
+
 Verifying that table produced one more instance of it. The build-identity row
 originally cited `/__which`, and a probe found it returning **HTTP 200** in
 production — which reads as *the endpoint exists*:
