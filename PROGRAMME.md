@@ -457,6 +457,75 @@ records why a replay would not settle it anyway. Score it as falsified if it
 comes in lower; the number is chosen so that "the rule is doing something" and
 "the rule is inert" give different answers, which is the only property it needs.
 
+#### SCORED, 2026-09-01T14:30Z — AND THE EDITION FAILED FIRST
+
+**The 14:00Z timer fired and the host killed the run.**
+
+```
+14:00:00  Executing 'Functions.newsroom_edition' (Timer fired at 14:00:00.0077895+00:00)
+14:10:00  Timeout value of 00:10:00 exceeded
+14:10:00  Executed (Failed, Duration=600011ms)
+```
+
+Nothing published, and `runs/latest.json` was not written — so from outside,
+**a timeout is indistinguishable from a timer that never fired**. The blob is
+written when a run finishes. This was diagnosed from `Executing`/`Executed`
+with a matching Id, which are emitted at both ends and say which end they are.
+
+The margin had always been thin, and it is derivable from the artefact rather
+than from telemetry (whose retention here is under a day):
+
+```
+2026-08-31  finished_at 14:08:22Z   502 s of 600 s   margin 98 s (16%)
+2026-09-01  killed      14:10:00Z   600 s of 600 s   margin  0
+```
+
+`d82233b` raised `functionTimeout` to `00:30:00` with a pin. **The re-run took
+625.8 s**, so the fix was not merely sufficient but *necessary* — at 600 s it
+would have failed a second time. 6 new originals, all stamped `rev=d82233b9`,
+which is how we know the new code ran rather than inferring it.
+
+**The scores.**
+
+| Prediction | Observed | |
+|---|---|---|
+| `causal_panel.discarded >= 8` | **37** | HIT, and near-unfalsifiable — pre-recorded as such at `1c694a8` |
+| `articles_stating_a_cause <= 1` | **3** | **MISS** |
+| `errors == []` | `[]` | HIT |
+| `provenance.discovery` present | absent on all 8 | MISS |
+
+**The miss is the valuable one, and this file called that in advance** — six
+paragraphs up: *"If `articles_stating_a_cause` rises, the model behind this
+table is wrong and the reason will be worth more than the prediction."* It rose,
+1 → 3.
+
+And the pre-recorded correction at `daf65a2` is properly discharged rather than
+used as an excuse: `#342`'s `record_claim_holds` rejected **0** drafts, so it is
+*not* a second sufficient cause here. The prediction simply failed. The model
+was "a gate that discards more can only reduce what is left to state", and the
+opposite happened — `hypotheses` fell 45 → 8 while `discarded` rose 1 → 37, so
+the panel is now proposing far fewer and better candidates rather than pruning a
+long list.
+
+**My own pre-run expectation was wrong in both directions, and I am recording it
+because it was written down beforehand.** I predicted attempts would rise and
+`publishable` might fall, since two gates landed that morning. Measured:
+
+```
+attempts_total   23 -> 18      (2.88 -> 2.25 per article, cap 3)
+publishable       5 ->  6
+rejected_checks  no_repeated_findings disappeared entirely
+```
+
+Both moved the *other* way. Adding gates made the run cheaper and more
+productive, which no model I had predicted.
+
+**Both defects fixed that morning are proven on live output**, which is the
+result that matters more than any score. Re-swept after the edition: 6 new
+articles, 40 new declared figures, and **still exactly the same 9 mislabelled
+percentage-point figures — zero new**. `#344` holds at the source. `#342`'s gate
+rejected nothing, and the published superlatives are genuine.
+
 
 **The causal panel from `#185` is live and behaving correctly in both
 directions**, which is the harder thing to demonstrate. One article published an
