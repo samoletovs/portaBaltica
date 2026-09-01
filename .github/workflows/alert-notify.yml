@@ -48,6 +48,13 @@ on:
         description: "What is being monitored, for the issue title."
         required: true
         type: string
+      rehearsal:
+        description: >-
+          'true' when this verdict came from a fixture rather than a live
+          reading. The message says so, and the message still sends.
+        required: false
+        type: string
+        default: 'false'
 
 permissions:
   contents: read
@@ -66,6 +73,7 @@ jobs:
           HEADLINE: ${{ inputs.headline }}
           MESSAGE: ${{ inputs.message }}
           SUBJECT: ${{ inputs.subject }}
+          REHEARSAL: ${{ inputs.rehearsal }}
         run: |
           set -euo pipefail
 
@@ -85,6 +93,32 @@ jobs:
           sources were NOT checked. See the workflow run."
           else
             message="$MESSAGE"
+          fi
+
+          # A REHEARSAL MUST STILL RING, AND MUST SAY THAT IT IS ONE.
+          #
+          # #340 and #343 routed a rehearsal away from the production issue and
+          # stopped there, because the issue is where a rehearsal leaves a
+          # lasting mark. It is not where a rehearsal is loudest. This step
+          # takes MESSAGE and nothing else, so a rehearsal reached the real chat
+          # with a first line no reader could tell from a real outage --
+          # measured, message 1173 at 2026-09-01T08:18Z:
+          #
+          #   portaBaltica newsroom wire: ALERT - 1 wire source refused or
+          #   checked 2026-09-01T08:17:59Z
+          #   source  fixture:rehearsal.json      <- line 3, below the preview
+          #
+          # The body was honest and the notification was not, and a phone shows
+          # the first line. That is the same argument #340 made for putting
+          # "(rehearsal)" in the issue title rather than only in the body, left
+          # unapplied to the louder channel.
+          #
+          # Suppressing the send instead would be worse and is the tempting fix:
+          # a rehearsal exists to prove this path delivers, and a path that has
+          # never delivered is not a path. So it sends, first line first.
+          if [ "${REHEARSAL:-false}" = "true" ]; then
+            message="*** REHEARSAL - NOT A REAL ALERT. The reading below came from a fixture. ***
+          ${message}"
           fi
 
           {

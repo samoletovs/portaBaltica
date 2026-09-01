@@ -93,6 +93,7 @@ jobs:
       message: ${{ steps.judge.outputs.message }}
       label: ${{ steps.judge.outputs.label }}
       subject: ${{ steps.judge.outputs.subject }}
+      rehearsal: ${{ steps.judge.outputs.rehearsal }}
 
     steps:
       - uses: actions/checkout@v5
@@ -241,6 +242,11 @@ jobs:
             const routing = r.routing || {};
             fs.writeFileSync("label.txt", routing.label || "source-alert");
             fs.writeFileSync("subject.txt", routing.subject || "Data sources");
+            // Whether this reading came from a fixture. The notifier says so in
+            // the message's FIRST line, because that is what a phone preview
+            // shows and a rehearsal must still ring. Absence resolves to "not a
+            // rehearsal", the direction that never suppresses a real alarm.
+            fs.writeFileSync("rehearsal.txt", routing.rehearsal || "false");
           '
 
           # Hand the report to the notification job. The delimiter form is
@@ -261,6 +267,7 @@ jobs:
           # would only add a way to get it wrong.
           echo "label=$(cat label.txt)" >> "$GITHUB_OUTPUT"
           echo "subject=$(cat subject.txt)" >> "$GITHUB_OUTPUT"
+          echo "rehearsal=$(cat rehearsal.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Attach the shape received
         run: |
@@ -309,4 +316,8 @@ jobs:
       # `gh issue list --label ''` match nothing.
       label: ${{ needs.check.outputs.label || 'source-alert' }}
       subject: ${{ needs.check.outputs.subject || 'Data sources' }}
+      # Absence resolves to 'false' — a real alarm that lost its flag must not be
+      # dressed as a rehearsal, which is the one direction that could get a live
+      # outage ignored.
+      rehearsal: ${{ needs.check.outputs.rehearsal || 'false' }}
     secrets: inherit

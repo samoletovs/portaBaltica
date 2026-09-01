@@ -607,3 +607,46 @@ describe('the workflow reads what the probe writes', () => {
     expect(workflow).toContain('subject: ${{ steps.judge.outputs.subject }}');
   });
 });
+describe('the rehearsal flag reaches the loud channel', () => {
+  const sourceAlert = readFileSync(resolve('.github/workflows/source-alert.yml'), 'utf-8');
+
+  /*
+   * A seam orphan that rang the real alarm. Both probes have written
+   * `routing.rehearsal` since #340 and #343, and NOTHING read it — measured on
+   * master at 752a335: 2 producers, 0 consumers.
+   *
+   * #340 and #343 routed a rehearsal away from the production issue and stopped
+   * there, because the issue is where a rehearsal leaves a lasting mark. It is
+   * not where a rehearsal is loudest. Measured, Telegram message 1173 at
+   * 2026-09-01T08:18Z, a rehearsal delivered to the real chat:
+   *
+   *     portaBaltica newsroom wire: ALERT - 1 wire source refused or ...
+   *     checked 2026-09-01T08:17:59Z
+   *     source  fixture:rehearsal.json      <- line 3, below the preview
+   *
+   * The body was honest and the notification was not.
+   *
+   * WHAT IS NOT ASSERTED HERE, AND WHERE IT LIVES INSTEAD.
+   * `alert-notify.yml` is shared by both monitors and owned by neither, so its
+   * assertions live once, in `newsroom/tests/pipeline/test_alert_notify.py` —
+   * which has a YAML parser and a subprocess, and therefore EXECUTES the
+   * notifier's shell rather than reading it. That distinction is not academic:
+   * the first version of this suite asserted the banner's presence as text, and
+   * `if [ ... ]; then` -> `if false; then` left every one of those assertions
+   * green while the behaviour was gone.
+   */
+
+  it('passes the flag the probe already wrote', () => {
+    expect(sourceAlert).toContain('rehearsal.txt');
+    expect(sourceAlert).toContain('rehearsal: ${{ steps.judge.outputs.rehearsal }}');
+    expect(sourceAlert).toContain("needs.check.outputs.rehearsal || 'false'");
+  });
+
+  it('resolves a lost flag to a real alarm, at every step of the chain', () => {
+    // Dressing a real alarm as a rehearsal is the one direction that could get
+    // a live outage ignored, so absence must never resolve to 'true' — not when
+    // the report carries no routing, and not when the check job dies outright.
+    expect(sourceAlert).toContain('routing.rehearsal || "false"');
+    expect(sourceAlert).toContain("needs.check.outputs.rehearsal || 'false'");
+  });
+});
