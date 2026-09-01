@@ -16,7 +16,7 @@ import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
 import { IndicatorCard, IndicatorChart } from '../src/components/IndicatorCard';
 import { IndicatorTable } from '../src/components/IndicatorTable';
-import { WARN_AFTER_MONTHS, STALE_AFTER_MONTHS } from '../src/dataFreshness';
+import { WARN_AFTER_MONTHS, STALE_AFTER_MONTHS, freshnessOf } from '../src/dataFreshness';
 
 /**
  * A frozen series must not render as news.
@@ -327,8 +327,9 @@ describe('later than usual, but still publishing', () => {
    * So the entire apparatus was dormant, while 20 series across 8 indicators sat
    * between 4 and 20 months behind and rendered as though current.
    *
-   * A quarterly series at 8 months is past `WARN_AFTER_MONTHS.Q` (6) and well
-   * inside `STALE_AFTER_MONTHS.Q` (14), which is the band these tests exercise.
+   * A quarterly series three quarters behind is past `WARN_AFTER_MONTHS.Q`
+   * (6) and well inside `STALE_AFTER_MONTHS.Q` (14), which is the band these
+   * tests exercise.
    */
   async function card(last: string) {
     fetchBalticCompare.mockResolvedValue(payload(last));
@@ -337,12 +338,64 @@ describe('later than usual, but still publishing', () => {
     return view.container;
   }
 
-  /** Eight months behind: late for a quarterly series, nowhere near stale. */
-  const LATE_QUARTER = (() => {
-    const d = new Date();
-    d.setUTCMonth(d.getUTCMonth() - 8);
-    return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth() / 3) + 1}`;
-  })();
+  /**
+   * A quarterly series far enough behind to be *late*, nowhere near *stale*.
+   *
+   * Derived in whole **quarters**, not months, and that is the whole point. A
+   * quarter label is anchored to its *last* month — `periodToMonthIndex` maps
+   * `Q1` to month 3 — so subtracting eight months and then rounding to a
+   * quarter throws away up to two of them. "Eight months behind" was really
+   * six, seven or eight depending on where in the quarter today happened to
+   * fall, and at six it is not `> WARN_AFTER_MONTHS.Q`, so the notice
+   * correctly stays silent and the assertion below fails.
+   *
+   * That is not hypothetical. Computed across a year it fails in **March,
+   * June, September and December** — a third of the calendar — and it fired
+   * for real: CI run 33451604598 on commit `b2abeab` concluded `success` at
+   * 2026-08-31T23:39:30Z and, re-run on the identical tree, `failure` at
+   * 2026-09-01T06:13Z. Nothing about the code changed; only the clock moved.
+   *
+   * Three quarters back is 7, 8 or 9 months in every month of the year, which
+   * clears `WARN_AFTER_MONTHS.Q` (6) and stays well inside
+   * `STALE_AFTER_MONTHS.Q` (14). The test below asserts that across two full
+   * years rather than trusting this paragraph.
+   */
+  function lateQuarterAt(now: Date): string {
+    const qi = now.getUTCFullYear() * 4 + Math.floor(now.getUTCMonth() / 3) - 3;
+    return `${Math.floor(qi / 4)}-Q${(qi % 4) + 1}`;
+  }
+
+  const LATE_QUARTER = lateQuarterAt(new Date());
+
+  it('the fixture is in the band it claims, in every month of the year', () => {
+    // The fixture asserts a standard — "late, but not stale" — and a standard
+    // stated only in a comment is the one that drifts. So it is run through
+    // the judgement the component itself uses, rather than against a
+    // reimplementation of the arithmetic here.
+    //
+    // And it is checked across two full years rather than against today,
+    // because *today* is precisely what the previous version got wrong: an
+    // assertion that holds on the day it is written and fails in four months
+    // of the twelve is indistinguishable, on the day it is written, from one
+    // that holds always.
+    for (let m = 0; m < 24; m++) {
+      const now = new Date(Date.UTC(2026, m, 15));
+      const label = lateQuarterAt(now);
+      const stamp = now.toISOString().slice(0, 7);
+
+      const late = freshnessOf(label, undefined, now.getTime());
+      expect(late, `${stamp}: ${label} has no verdict`).not.toBeNull();
+      expect(late!.late, `${stamp}: ${label} is not late, so the notice never fires`).toBe(true);
+      expect(late!.stale, `${stamp}: ${label} is stale, which is a different sentence`).toBe(false);
+
+      // The negative half, on the same object: the control period must not be
+      // late, or the control below passes on a component that is simply silent.
+      const nowLabel = `${now.getUTCFullYear()}-Q${Math.floor(now.getUTCMonth() / 3) + 1}`;
+      const current = freshnessOf(nowLabel, undefined, now.getTime());
+      expect(current!.late, `${stamp}: ${nowLabel} is already late, so the control is empty`)
+        .toBe(false);
+    }
+  });
 
   it('says so, in the shared vocabulary', async () => {
     const container = await card(LATE_QUARTER);
