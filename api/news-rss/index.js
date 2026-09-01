@@ -83,4 +83,25 @@ module.exports = withSecurity(withCache(handler, {
   ttlMs: 900000,
   graceMs: 3600000,
   staleWhileRevalidate: true,
+  // Sixty seconds past the TTL, not the full hour of `graceMs`.
+  //
+  // `graceMs` is protection against an upstream outage and an hour of it is
+  // right: a blob that stops answering must not take syndication down. Reusing
+  // that number as the revalidate horizon meant something else entirely — that
+  // a body built BEFORE a correction was applied could still go out for an hour
+  // after we had publicly withdrawn the claim in it. Measured on 2026-09-01,
+  // three corrections applied at 14:49 left both feeds unmarked while the
+  // article page, /corrections, the front page, /weekly and the share card all
+  // showed them.
+  //
+  // The exposure is worst on a QUIET feed, which is the opposite of the
+  // intuition: revalidation is request-triggered, so the reader arriving after
+  // a long silence is the one served the withdrawn headline.
+  //
+  // Sixty seconds keeps what stale-while-revalidate is for — nobody pays the
+  // upstream round trip at the moment a TTL lapses — while bounding the window
+  // to 16 minutes rather than 60. It is four times the worst case for the two
+  // blob reads behind this endpoint, which share one 15s timeout under
+  // `Promise.all`, so a refresh has ample room to land before the horizon.
+  staleWhileRevalidateMs: 960000,
 }));

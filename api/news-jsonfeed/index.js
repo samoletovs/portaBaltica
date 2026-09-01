@@ -191,4 +191,8 @@ module.exports = withSecurity(withCache(handler, {
   ttlMs: 900000,
   graceMs: 3600000,
   staleWhileRevalidate: true,
+  // The same horizon as /rss.xml, and for the same reason — see the comment
+  // there. The two feeds must not disagree about how long a withdrawn headline
+  // may keep going out any more than they may disagree about who was corrected.
+  staleWhileRevalidateMs: 960000,
 }));

@@ -208,7 +208,8 @@ function evictLeastRecentlyUsed() {
  * @param {number}   ttlMs    how long an answer is served without asking again
  * @param {number}   graceMs  how long a stale answer stands once fetches fail
  * @param {Function} fetcher  produces a fresh value; may reject
- * @param {number|object} [opts] legacy `now`, or `{ now, staleWhileRevalidate }`
+ * @param {number|object} [opts] legacy `now`, or
+ *   `{ now, staleWhileRevalidate, staleWhileRevalidateMs }`
  */
 async function memo(key, ttlMs, graceMs, fetcher, opts) {
   // `now` was the fifth positional argument and several tests and callers pass
@@ -218,6 +219,55 @@ async function memo(key, ttlMs, graceMs, fetcher, opts) {
   const pinnedNow = typeof options.now === 'number' ? options.now : null;
   const at = pinnedNow === null ? Date.now() : pinnedNow;
   const hit = store.get(key);
+
+  /**
+   * How old a body may be and still be served WHILE A REFRESH RUNS BEHIND IT.
+   *
+   * TWO QUESTIONS THAT SHARED ONE NUMBER
+   * ------------------------------------
+   * This used to be `graceMs`, whose documented meaning two lines above is "how
+   * long a stale answer stands once fetches FAIL". The revalidate branch below
+   * used the same number to answer a different question — how far past the TTL
+   * a WORKING fetch may be anticipated — and nothing said so.
+   *
+   * They are not the same question and they do not want the same answer. A long
+   * failure grace is protective: an upstream outage should not take an endpoint
+   * down. A long revalidate horizon is the opposite, because it is exactly how
+   * long a body known to be out of date may still go out.
+   *
+   * Measured across the twenty callers before this split, the horizon nobody had
+   * chosen ran from 15 minutes to 24 hours — `port-data` and `trade-partners`
+   * sat at 86400000. For a quarterly Eurostat cube that is harmless and the
+   * comment below says why. For `/rss.xml` it meant a headline we had publicly
+   * retracted could keep going out for an hour past its TTL, and the exposure
+   * is worst on a QUIET feed: revalidation is request-triggered, so the reader
+   * who arrives after a long silence is the one served the withdrawn claim.
+   *
+   * Defaults to `graceMs`, which is what it silently was, so no existing caller
+   * changes behaviour by this split. It is a capability the callers that need it
+   * opt into, not a new policy everyone inherits.
+   *
+   * CLAMPED, SO IT CAN ONLY EVER NARROW
+   * -----------------------------------
+   * `Math.min` because `graceMs` is documented two lines above as how long a
+   * stale answer stands, and that sentence has to keep being true. This branch
+   * is tested BEFORE the failure branch and swallows its own background
+   * rejection, so a horizon larger than `graceMs` would go on serving stale
+   * bodies past the grace with nothing to stop it — `graceMs` would quietly stop
+   * being the ceiling it claims to be, which is the same defect this split
+   * exists to remove, arriving from the other direction.
+   *
+   * Found by a test asserting the grace still ends, not by reasoning: it went
+   * green when it should have gone red, and the reason was that the revalidate
+   * branch had already answered.
+   *
+   * So the rule is one sentence: the horizon may tighten the window and can
+   * never widen it.
+   */
+  const declaredRevalidateMs = typeof options.staleWhileRevalidateMs === 'number'
+    ? options.staleWhileRevalidateMs
+    : graceMs;
+  const revalidateMs = Math.min(declaredRevalidateMs, graceMs);
 
   // Strictly less than, so `ttlMs: 0` means what it looks like — never reuse —
   // rather than "reuse for the remainder of this millisecond". An entry exactly
@@ -237,7 +287,10 @@ async function memo(key, ttlMs, graceMs, fetcher, opts) {
   // at the moment a TTL lapses pays the full upstream latency — 1.3 to 2.2
   // seconds, measured on `/api/economy-data` — on behalf of everyone who
   // arrives after them.
-  if (hit && options.staleWhileRevalidate && at - hit.at < graceMs) {
+  //
+  // Bounded by `revalidateMs` rather than `graceMs`; see above for why those
+  // are different questions.
+  if (hit && options.staleWhileRevalidate && at - hit.at < revalidateMs) {
     hit.readAt = at;
     const revalidation = fetchShared(key, fetcher).then(
       function (value) {
@@ -245,7 +298,10 @@ async function memo(key, ttlMs, graceMs, fetcher, opts) {
         return value;
       },
       function () {
-        // The stale entry stands and `graceMs` already governs how long it may.
+        // The stale entry stands and `graceMs` still governs how long it may
+        // once fetches are failing — that is the failure question and this
+        // split did not touch it. `revalidateMs` bounded only how far past the
+        // TTL we were willing to anticipate a WORKING fetch.
         // Swallowed here so a background refresh cannot become an unhandled
         // rejection and take the worker down; the next foreground miss will
         // surface the failure to a caller that can act on it.
