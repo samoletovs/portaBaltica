@@ -126,6 +126,8 @@ function ogTitleFor(title: string): string {
 }
 
 let tierA: Summary[] = [];
+/** Every slug carrying a published correction, so the expected title is exact. */
+let correctedSlugs = new Set<string>();
 
 beforeAll(async () => {
   const index = (await get(`${ARTICLES}/index.json`)).body;
@@ -134,7 +136,34 @@ beforeAll(async () => {
     (a) => a.tier === 'A' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(a.slug)
   );
   expect(tierA.length).toBeGreaterThan(0);
+
+  const log = JSON.parse((await get(`${ARTICLES}/corrections.json`)).body) as {
+    slug: string;
+  }[];
+  correctedSlugs = new Set(log.map((entry) => entry.slug));
 });
+
+/**
+ * The exact `og:title` an article must carry.
+ *
+ * `#354` gave a corrected article the same treatment retraction already had,
+ * and this file knew about only one of the two: the retracted case below
+ * asserted `Retracted: ${headline}` and was right, while the published case
+ * asserted a bare headline and went red the moment a corrected article
+ * happened to be among the newest three. The correct sibling sat forty lines
+ * below the broken one, which is why nobody looked.
+ *
+ * Deliberately EXACT in both branches rather than stripping a known prefix
+ * before comparing. A strip would also pass when the prefix is applied to an
+ * article that has no correction — the marker would then be decorative, and
+ * decoration on a correction notice is the failure this whole apparatus
+ * exists to prevent.
+ */
+function expectedOgTitle(article: Summary): string {
+  return correctedSlugs.has(article.slug)
+    ? `Corrected: ${article.headline}`
+    : article.headline;
+}
 
 describe('the HTML a crawler receives for a published article', () => {
   it('carries that article\'s own headline, not the site name', async () => {
@@ -150,7 +179,7 @@ describe('the HTML a crawler receives for a published article', () => {
 
       const ogTitle = metaContent(page.body, 'property', 'og:title');
       expect(ogTitle, `og:title missing for ${article.slug}`).not.toBeNull();
-      expect(decode(ogTitle as string)).toBe(article.headline);
+      expect(decode(ogTitle as string), article.slug).toBe(expectedOgTitle(article));
 
       // The headline must be in the bytes, which is the whole point.
       expect(page.body).toContain('og:title');
