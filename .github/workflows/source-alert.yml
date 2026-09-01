@@ -171,9 +171,16 @@ jobs:
               # close one. The issue accumulated for ever while carrying the body
               # text "closes itself when a later run reads clean".
               #
-              # It is worse since #362 added the recovery notification: that step
-              # has never delivered, and a notification path that has never
-              # delivered is not a notification path.
+              # It is worse since #362 added the recovery notification -- but not
+              # for the reason first written here, which was false when it was
+              # committed. That comment said the step "has never delivered"; it
+              # had delivered at 16:11:38Z, 98 minutes earlier, against real
+              # production issue #350. See wire-alert.yml for the measurement.
+              #
+              # What is true, and is still the whole argument for this arm: the
+              # stand-down had never been REHEARSED, and could not be, because no
+              # arm produced a clean reading. A path you can only exercise by
+              # waiting for a real outage is not one you can test on demand.
               #
               # Run it after any of the options above and the pair rehearses the
               # whole lifecycle: open, notify, stand down, close.

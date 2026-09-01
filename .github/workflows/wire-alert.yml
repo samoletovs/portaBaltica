@@ -274,10 +274,25 @@ jobs:
               # issue therefore accumulated for ever, while carrying the body
               # text "closes itself when a later run reads clean".
               #
-              # It is worse since #362 added the recovery notification: that step
-              # has never delivered, and a notification path that has never
-              # delivered is not a notification path -- the argument this file
-              # already makes about the alerting side.
+              # It is worse since #362 added the recovery notification -- but not
+              # for the reason first written here, which was false when it was
+              # committed. That comment said the step "has never delivered".
+              # Measured across all 25 wire-alert runs, it had delivered once,
+              # 98 minutes earlier:
+              #
+              #   33530328585  16:11:38Z  push, sha 6833105  -> closed PRODUCTION
+              #                                                 issue #350, open 4.2h
+              #   33542322515  18:12:59Z  the first REHEARSAL of it
+              #
+              # #362 merged at 16:11:34Z and the push it triggered delivered four
+              # seconds later, against a real outage. So the claim was falsified
+              # by the merge of the very change it was describing, and the person
+              # who wrote it is the person who merged that change.
+              #
+              # What is true, and is still the whole argument for this arm: the
+              # stand-down had never been REHEARSED, and could not be, because no
+              # arm produced a clean reading. A path you can only exercise by
+              # waiting for a real outage is not one you can test on demand.
               #
               # Run it after any of the alerting options above, and the pair
               # rehearses the whole lifecycle: open, notify, stand down, close.
