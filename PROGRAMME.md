@@ -1252,6 +1252,41 @@ print the resolved path beside the file count, name the endpoint beside the
 field. A remembered fact about your instrument is exactly as unreliable as a
 remembered fact about the code.
 
+**And when sessions do that, expect their premises to have expired anyway.** On
+2026-09-01 five implementation sessions sent me six reports whose premise was
+already false on arrival:
+
+```
+#345  MERGED 10:50:33Z   reported OPEN, from base 511f239
+#344  MERGED 10:51:57Z   a second commit reported unshipped -- it was in the squash
+#343  MERGED 10:46:55Z   reported "green, head 4ae6e2c" -- that head IS what merged
+#349  MERGED 12:13:03Z   a duplicate announced as forthcoming; it had landed
+#348  MERGED 12:16:15Z   a gap reported as open, closed four hours earlier BY THE SENDER
+plus  a base three minutes older than the AGENTS.md section it reported missing
+```
+
+Not carelessness. **The expiry is a property of writing a thorough report**: each
+of those took long enough to compose that master moved underneath it, and master
+moved 26 commits and `AGENTS.md` alone took 7 while one of them was being
+written. A careful message is slower than a careless one and therefore *more*
+likely to arrive stale — which is exactly backwards from how it reads.
+
+So the manager's rule is not "ask sessions to be current", which is not
+available. It is: **treat every incoming premise as expired and re-measure
+before acting on it.** Six for six today, each settled in one command, each
+against work that turned out to be sound.
+
+And the reason one command sufficed is the rule above: **every one of them
+stated its SHA.** That is what separates "this session is confused" from "this
+session measured a different tree", and without it the only remaining move is
+to re-derive their whole finding. The practice works; it just does not prevent
+the expiry, and it was never going to.
+
+The cost of getting this wrong is not a wasted probe. Twice today a session was
+about to rebuild work already on master, and once one was about to write a
+second copy of a rule — and this file's own position is that two copies of a
+fact drift immediately, in the direction nobody is watching.
+
 **And a phrase that wraps is invisible to a line-based search — twice over.**
 Three instances, one family, and the last is the sharpest because the newline is
 not the culprit:
