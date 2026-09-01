@@ -242,10 +242,21 @@ jobs:
             const routing = r.routing || {};
             fs.writeFileSync("label.txt", routing.label || "source-alert");
             fs.writeFileSync("subject.txt", routing.subject || "Data sources");
-            // Whether this reading came from a fixture. The notifier says so in
-            // the message's FIRST line, because that is what a phone preview
-            // shows and a rehearsal must still ring. Absence resolves to "not a
-            // rehearsal", the direction that never suppresses a real alarm.
+            // Whether this reading came from a fixture. The notifier says so
+            // in the FIRST line of the message, because that is what a phone
+            // preview shows and a rehearsal must still ring. Absence resolves
+            // to "not a rehearsal", the direction that never suppresses a real
+            // alarm.
+            //
+            // No apostrophe may appear anywhere in this block. It is the body
+            // of `node -e '...'`, and bash ends a single-quoted string at the
+            // first one it meets — there is no escape for one inside. A prose
+            // apostrophe here ends the script early and hands the remaining
+            // JavaScript to bash. That is what happened in #348: a comment
+            // used the possessive form of "message", the monitor died with a
+            // bash syntax error, and the notifier reported that it had
+            // produced no report to the real Telegram channel while all
+            // twelve sources were healthy.
             fs.writeFileSync("rehearsal.txt", routing.rehearsal || "false");
           '
 
