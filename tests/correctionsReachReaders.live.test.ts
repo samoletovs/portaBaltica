@@ -231,7 +231,14 @@ const BADGE = 'Corrected';
 /** A badge every one of our own cards carries, whatever else is true of it. */
 const CONTROL_BADGE = 'Our analysis';
 
-describe('a published correction reaches a reader', () => {
+// The two surfaces `#262` walked, named for the two surfaces `#262` walked.
+//
+// The old wording is kept nowhere: `a published correction reaches a reader`
+// is the string that answered the question nobody then asked twice, and
+// leaving it on a block covering two of six would hand the successor the
+// same failure. The three blocks now read as one sentence, and each says
+// what it walks.
+describe('a published correction reaches a reader on the article and in the log', () => {
   it('has a correction to check, so none of this can pass vacuously', () => {
     // Without this, an empty log would make every assertion below true of
     // nothing at all — the shape this repo has caught five times.
