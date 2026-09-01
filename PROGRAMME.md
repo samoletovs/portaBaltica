@@ -81,7 +81,18 @@ throughput    30 PRs merged today over 10.3h = 2.9 PR/h
               each needing a corpus measurement before a line was written —
               slower per PR by construction, and right to be. So PR/h measures
               shipping *cadence*, not value, and it is only a valid alarm
-              against itself over time within one kind of work. Use it to catch
+              against itself over time **within one kind of defect** — not one
+              kind of *work*, which is the looser reading and the wrong one.
+
+              ⚠️ **The consequence is that this metric alarms when the work
+              gets deeper.** A programme that shifts from adding features to
+              repairing definitions will show a *falling* PR/h **because it is
+              succeeding**, and the arrow points the wrong way at exactly the
+              moment you most want it not to. Same asymmetry as everything
+              else in this file: it fails in the reassuring direction when work
+              is shallow, and alarms when it is deep.
+
+              Use it to catch
               the drift from shipping into documenting, which is what it is
               good for; do not use it to compare a definition fix against a
               field addition.
