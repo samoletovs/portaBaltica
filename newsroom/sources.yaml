@@ -360,6 +360,27 @@ sources:
       machine that err_en answered 200 to. Both produce an identical
       "FAIL … HTTP 403" line, and only one of them is a dead publisher.
 
+      2026-09-01, later the same day. The refusal is INTERMITTENT from the one
+      vantage, which is the fact that settles it, and it is visible only across
+      runs rather than in any single reading. From GitHub Actions: 403 at 06:53Z,
+      07:39Z and 08:19Z, then HTTP 200 with 35 466 bytes and 50 items at 08:45Z,
+      then 403 again at 11:59Z and 12:16Z — the same runner fleet, the same user
+      agent, twenty-six minutes apart. No dead publisher recovers for one run and
+      then stops again; a bot-protection challenge sampling traffic does exactly
+      that, and the refused body carries Cloudflare's own window.__CF$cv$params.
+
+      Re-measured that afternoon from an ordinary connection in Riga, with the
+      pipeline's user agent: HTTP 200, 35 966 bytes, 50 items. baltictimes was
+      probed in the same pass from the same machine and answered HTTP 403 with
+      0 items, so the reading is not "this network reaches everything".
+
+      This is why scripts/wire_check.py has a third severity rather than two.
+      Measured across every run GitHub still retains, all five genuine failures
+      were this source and this reading, and none was anything else — so the
+      alarm was wrong every time it fired. verified: is still not edited: an
+      intermittent refusal of one vantage is not a fact about the publisher, and
+      this note is where it belongs.
+
   - id: baltictimes
     name: "The Baltic Times"
     publisher: "The Baltic Times"

@@ -107,8 +107,93 @@ The remedy is the one ``AGENTS.md`` prescribes for two states with one artefact:
 a new field rather than new logic. ``vantage_specific`` marks a reading that
 names *this caller* — a refusal status, or a transport failure that answered
 nothing — and the "fix the note" advice fires only where the reading does not.
-Nothing is made quieter: a refusal still alerts, because a block reaching this
-runner today may reach Azure tomorrow. What changes is what the alert claims.
+
+WHY THE FIELD WAS NOT ENOUGH, AND WHAT ``severity`` ADDS
+--------------------------------------------------------
+The paragraph above used to end "nothing is made quieter: a refusal still
+alerts". That was a deliberate choice and the measurement went against it.
+
+This file reasoned about the ambiguity in its prose and then acted as though it
+were certain: ``alert`` was ``bool(problems)``, so a reading it had explicitly
+declared inconclusive about the publisher exited 1 and rang the same Telegram
+alarm, in the same channel, as a confirmed outage. Measured across every run
+GitHub still retains, keyed on each run's own ``source`` field:
+
+    19 runs retained, 10 failures
+     3  rehearsals — a fixture, deliberately broken, correct to ring
+     2  no report at all — the check job killed on purpose, correct to ring
+     5  live probe runs — every one of them ``err_en`` alone, 6/7 delivering
+
+So **5 of 5 genuine failures were this one inconclusive reading**, and none was
+anything else. An alarm that is wrong every time it fires is wallpaper, and the
+next real wire outage arrives in a channel everybody has learned to ignore.
+
+The reading is not merely inconclusive in principle. It is inconclusive in fact,
+and intermittently so, which no dead publisher is:
+
+    err_en, from GitHub Actions, 2026-09-01
+      06:53Z  HTTP 403   1 070 B    0 items
+      07:39Z  HTTP 403   1 070 B    0 items
+      08:19Z  HTTP 403   1 070 B    0 items
+      08:45Z  HTTP 200  35 466 B   50 items   <- same vantage, 26 minutes later
+      11:59Z  HTTP 403   1 070 B    0 items
+      12:16Z  HTTP 403   1 070 B    0 items
+
+    err_en, from an ordinary connection in Riga, the same afternoon
+              HTTP 200  35 966 B   50 items
+    baltictimes, from that same machine, in the same pass — the CONTROL
+              HTTP 403   5 486 B    0 items   registry: "2026-08-28 — HTTP 403. Dead."
+
+The control is the load-bearing row. Without it, "err_en answers 200 here" is
+equally consistent with this network reaching everything, and would settle
+nothing.
+
+So there are three states, not two, and the third one is reported rather than
+rung: ``ok``, ``unresolved``, ``alert``. ``unresolved`` exits 0.
+
+WHAT ``unresolved`` REFUSES TO SAY, WHICH IS WHAT DEFINES IT
+------------------------------------------------------------
+It will not say the wire is healthy — ``render_text`` marks it ``UNRESOLVED``
+and never ``OK``, the failing row is still printed with its body excerpt, and
+the caveat still names both vantages. And it will not say a publisher is in
+trouble, which is the sentence that sends somebody to disable a working feed.
+
+It is reachable **only** when every one of these holds, and each is one of the
+ways this could otherwise go quiet on a real outage:
+
+    every problem is a feed problem      a drought or an empty wire rings
+    every feed problem is a refusal      one dead feed among them rings
+    ...that the server ANSWERED          a transport failure rings — see below
+    ...and that carries vantage_specific absence resolves to ringing
+    at least one source delivered        zero delivered means blind, so it rings
+
+**A transport failure rings, and that is the safety property this rests on.**
+``judge_source`` marks one ``vantage_specific`` and is right to: nothing was
+answered, so there is no statement by the publisher to repeat. But a WAF answers
+and a dead host does not, so "the source is gone" — DNS withdrawn, connection
+refused, TLS failed, timed out — arrives as a transport failure and still exits
+1. So does 404, 410 and every 5xx, and so does a challenge page served with
+HTTP 200, which lands in ``no_items``. What is downgraded is the narrow case of
+a server that is up, answering, and declining this caller by name.
+
+The residual, stated rather than left to be discovered: a source that dies
+*and* is replaced by something answering 403 sits at ``unresolved``. Nothing
+here can tell that from today's reading, because the two really are the same
+artefact from one vantage — which is the whole subject of this section. What
+stops it disappearing is that ``unresolved`` is still printed on every run, in
+the job summary of every run, and as a workflow annotation.
+
+WHAT WAS TRIED FIRST AND DOES NOT WORK
+---------------------------------------
+The obvious discriminator is a second vantage, and the collector is one: it
+fetches these same feeds from Azure. That evidence does not exist. Measured
+against the live artefacts on 2026-09-01, ``runs/latest.json`` carries only
+aggregate counts — ``syndicated: 66``, ``errors: []`` — with no per-source fetch
+result anywhere in it, and ``index.json``'s entries carry no source id at all.
+Its ``finished_at`` was ``2026-08-31T14:08:22Z``, so even had the field existed
+it would have been up to 24 hours old, judged by a probe that runs at 06:42Z
+about a fetch that happens at 14:00Z. And "err_en contributed no cards" is what
+a quiet day looks like, so it could not discriminate even when fresh.
 
 Two supporting changes fall out of the same morning. The probe now says **where
 it stood**, because "7 enabled source(s) outside this probe" was already the
@@ -248,6 +333,31 @@ _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 EXIT_CLEAN = 0
 EXIT_ALERT = 1
 EXIT_USAGE = 2
+
+#: The three things a reading can be. See the module docstring for why there are
+#: three rather than two, and for the measurement that forced the third.
+#:
+#: ``unresolved`` is the one that does not ring. It is *not* a silence: the
+#: reading is printed, the row is printed, the caveat is printed, and the verdict
+#: carries the severity so a workflow can annotate the run. What it stops is the
+#: exit code and the Telegram message, because those two claim a certainty this
+#: probe does not have.
+SEVERITY_OK = "ok"
+SEVERITY_UNRESOLVED = "unresolved"
+SEVERITY_ALERT = "alert"
+
+#: How a verdict built by hand — the registry failure in ``run``, the fixture
+#: failure in ``main`` — is read when nobody set a severity on it.
+#:
+#: Absence resolves to ringing, in both directions: no severity and ``alert``
+#: true reads as ``alert``, and ``unresolved`` is never reachable by omission.
+#: It has to be computed and set deliberately, which is the only way a state
+#: that suppresses an exit code should ever be arrived at.
+def severity_of(verdict: Mapping[str, Any]) -> str:
+    recorded = verdict.get("severity")
+    if recorded in (SEVERITY_OK, SEVERITY_UNRESOLVED, SEVERITY_ALERT):
+        return str(recorded)
+    return SEVERITY_ALERT if verdict.get("alert") else SEVERITY_OK
 
 
 # ── which sources ───────────────────────────────────────────────────────────
@@ -729,7 +839,13 @@ def evaluate(
         refusal or an unreachable path names this caller instead, and a note
         recording a 200 from somewhere else does not contradict it; saying it
         did is how a false claim about a third party gets written into the
-        registry. Those readings get ``vantage_caveat`` and still alert.
+        registry. Those readings get ``vantage_caveat``.
+
+    Reporting, without ringing — severity ``unresolved``:
+      * a run whose *only* problems are servers that answered and declined this
+        caller, with at least one source still delivering. Printed in full,
+        marked ``UNRESOLVED`` rather than ``OK``, and exits 0. See the module
+        docstring for the measurement, and for every clause that has to hold.
 
     Noting, never alerting:
       * a merely old ``verified:`` date on a feed that works;
@@ -739,6 +855,7 @@ def evaluate(
     notes: list[str] = []
     feed_problems = 0
     vantage_problems = 0
+    answered_refusals = 0
 
     if not results:
         problems.append(
@@ -756,6 +873,18 @@ def evaluate(
             # branch, which is the louder of the two and never a silence.
             if result.get("vantage_specific"):
                 vantage_problems += 1
+                # Narrower than `vantage_specific`, deliberately, and the two
+                # names are not synonyms: this one is the subset that may stop
+                # the run failing, so it demands a server that ANSWERED and
+                # declined us by name. A transport failure is vantage_specific
+                # and is not counted here, because a WAF answers and a dead host
+                # does not -- see the module docstring.
+                #
+                # Both conditions are required. A hand-written fixture carrying
+                # a 403 and no `vantage_specific` key must stay loud: absence
+                # resolves to ringing, so the status alone may not downgrade it.
+                if result.get("http_status") in CALLER_DECLINED_STATUSES:
+                    answered_refusals += 1
                 line += " " + vantage_caveat(result, verified_age=age, vantage=vantage)
             elif age is not None and age <= STALE_VERIFICATION_DAYS:
                 # The registry is actively vouching for a feed that is down.
@@ -807,8 +936,41 @@ def evaluate(
 
     healthy = sum(1 for r in results if r["state"] == "ok")
     total_items = sum(r["items"] for r in results)
-    alert = bool(problems)
     drought_problem = drought is not None and drought["state"] in DROUGHT_PROBLEM_STATES
+
+    # WHICH READING MAY STOP THE RUN FAILING, WRITTEN AS A CONJUNCTION.
+    #
+    # Every clause is one of the ways this could otherwise go quiet during a real
+    # outage, so each is asserted separately in the suite rather than folded into
+    # a single "is it bad" boolean. `feed_problems == len(problems)` is doing two
+    # jobs at once and doing them exactly: `problems` gains a line for an empty
+    # wire and a line for a drought, and neither is counted in `feed_problems`,
+    # so an inequality here is precisely "something other than a feed is wrong".
+    #
+    # `healthy > 0` is the coverage floor, and it is a boundary rather than a
+    # threshold somebody chose. It is the difference between holding evidence
+    # that the wire works and holding none at all: if nothing delivered, this
+    # probe has learned nothing about the wire and "I am blind" is an alert.
+    # Picking a fraction instead would be the invented number `AGENTS.md` warns
+    # about -- a wrong one here is worse than none.
+    unresolved = bool(
+        problems
+        and feed_problems == len(problems)
+        and answered_refusals == feed_problems
+        and healthy > 0
+    )
+
+    if not problems:
+        severity = SEVERITY_OK
+    elif unresolved:
+        severity = SEVERITY_UNRESOLVED
+    else:
+        severity = SEVERITY_ALERT
+
+    # `alert` keeps its meaning -- "ring somebody" -- and is what the exit code
+    # and the notifier read. It is not renamed to `severity != ok`, because an
+    # unresolved reading is a problem that is deliberately not rung.
+    alert = severity == SEVERITY_ALERT
 
     # The headline names what is actually wrong. Counting `problems` and calling
     # the total "wire sources in trouble" would report a drought with seven
@@ -826,11 +988,22 @@ def evaluate(
         )
     elif drought_problem:
         headline = "the wire is fine and no original journalism is being published"
+    elif unresolved:
+        # The headline a reader sees for a reading that decides nothing. It says
+        # both facts -- what refused, and that the rest of the wire is fine --
+        # because omitting the second is what made this look like an outage.
+        headline = (
+            f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} refused this "
+            f"vantage; {healthy} still delivering"
+        )
     elif feed_problems and vantage_problems == feed_problems:
         # Every problem names this caller, so the headline must not assert the
         # publishers are in trouble. The issue title is the whole of what most
         # people read -- it arrives in a notification at breakfast -- and "1 wire
         # source in trouble" is what sends somebody to disable a working feed.
+        #
+        # Reached, now, only where `unresolved` was refused above: a transport
+        # failure, or a refusal with nothing left delivering. Both ring.
         headline = (
             f"{feed_problems} wire source{'' if feed_problems == 1 else 's'} "
             "refused or unreachable from this vantage"
@@ -842,6 +1015,7 @@ def evaluate(
 
     return {
         "alert": alert,
+        "severity": severity,
         "headline": headline,
         "problems": problems,
         "notes": notes,
@@ -852,6 +1026,10 @@ def evaluate(
             "items": total_items,
             "uncovered": len(uncovered),
             "vantage_specific": vantage_problems,
+            # The subset of the above that may stop the run failing. Reported
+            # separately because they are different populations and a reader
+            # comparing them is entitled to see both.
+            "answered_refusals": answered_refusals,
         },
         "results": results,
         "drought": dict(drought) if drought is not None else None,
@@ -868,7 +1046,11 @@ def render_text(verdict: dict[str, Any]) -> str:
     trusted markup, and an unescaped entity in a publisher's name must never be
     able to fail a delivery.
     """
-    mark = "ALERT" if verdict["alert"] else "OK"
+    mark = {
+        SEVERITY_OK: "OK",
+        SEVERITY_UNRESOLVED: "UNRESOLVED",
+        SEVERITY_ALERT: "ALERT",
+    }[severity_of(verdict)]
     lines = [
         f"portaBaltica newsroom wire: {mark} — {verdict['headline']}",
         f"checked {verdict['checkedAt']}",
@@ -927,7 +1109,18 @@ def render_text(verdict: dict[str, Any]) -> str:
 
     if verdict["problems"]:
         lines.append("")
-        lines.append("Problems:")
+        if severity_of(verdict) == SEVERITY_UNRESOLVED:
+            # The heading is the shape's refusal, in one line. "Problems:" over a
+            # reading this file has just declared inconclusive would reassert the
+            # certainty the severity exists to withdraw -- and this text is the
+            # whole of what reaches the job summary, where the run is green and a
+            # reader needs telling why.
+            lines.append(
+                "Unresolved — reported, not alerting. This run did not fail: nothing below "
+                "says a publisher is in trouble, only that this vantage was declined."
+            )
+        else:
+            lines.append("Problems:")
         for p in verdict["problems"]:
             lines.append(f"  - {p}")
 
@@ -975,14 +1168,43 @@ def alert_routing(verdict: Mapping[str, Any]) -> dict[str, str]:
     The names are deliberately not substrings of one another's meaning — see
     ``test_the_two_labels_are_compared_by_equality_not_by_substring`` for why
     that has to be asserted with ``!=`` rather than with ``in``.
+
+    WHY AN UNRESOLVED READING GETS ITS OWN LABEL
+    --------------------------------------------
+    Not tidiness — it is the only thing standing between this change and a lie
+    in the incident record. ``alert-notify.yml`` has exactly two modes, and
+    ``alert: 'false'`` is not "say nothing": it looks for an open issue carrying
+    the label it was given, comments **"Recovered."** and closes it.
+
+    So routing an unresolved reading to ``wire-alert`` would take the live
+    outage issue — #335, open right now about this very feed — and close it as
+    recovered, on the strength of a reading that has just finished saying it
+    cannot tell whether anything recovered. The word would be false in the one
+    place a reader goes to find out what happened.
+
+    Pointing it at ``wire-vantage`` instead makes the recovery step look for an
+    issue that is not there, print "Clean read, nothing open" and stop. The live
+    issue is left alone, and it still closes itself the ordinary way: an
+    intermittent refusal reads clean sooner or later — ``err_en`` did at 08:45Z
+    on the morning this was written — and that run is severity ``ok``, routes to
+    ``wire-alert``, and closes it truthfully.
     """
     rehearsal = str(verdict.get("source") or "").startswith("fixture:")
+    unresolved = severity_of(verdict) == SEVERITY_UNRESOLVED
+
+    label = "wire-vantage" if unresolved else "wire-alert"
+    # The title is the whole of what most people read -- it is what arrives in a
+    # notification -- so both facts are said there, not only in the body.
+    qualifiers = [q for q in ("vantage" if unresolved else "", "rehearsal" if rehearsal else "") if q]
+
     return {
-        "label": "wire-alert-rehearsal" if rehearsal else "wire-alert",
-        # The title is the whole of what most people read -- it is what arrives
-        # in a notification -- so it says so there, not only in the body.
-        "subject": "Newsroom wire (rehearsal)" if rehearsal else "Newsroom wire",
+        "label": f"{label}-rehearsal" if rehearsal else label,
+        "subject": f"Newsroom wire ({', '.join(qualifiers)})" if qualifiers else "Newsroom wire",
         "rehearsal": "true" if rehearsal else "false",
+        # What the workflow keys its annotation and its `alert` input on. Written
+        # here rather than recomputed in YAML: one field decides, so the two
+        # cannot drift -- the same reason the label is computed here at all.
+        "severity": severity_of(verdict),
     }
 
 
@@ -1003,6 +1225,10 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
     except Exception as exc:  # noqa: BLE001 - a registry we cannot read is a wire we cannot clear
         return {
             "alert": True,
+            # Stated rather than inferred. `severity_of` would reach the same
+            # answer, and a monitor reporting its own failure should not depend
+            # on a fallback to be heard.
+            "severity": SEVERITY_ALERT,
             "headline": "the source registry could not be read",
             "problems": [f"Could not load newsroom/sources.yaml: {exc}."],
             "notes": [],
@@ -1013,6 +1239,7 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
                 "items": 0,
                 "uncovered": 0,
                 "vantage_specific": 0,
+                "answered_refusals": 0,
             },
             "results": [],
             "drought": None,
@@ -1045,7 +1272,7 @@ def run(*, timeout: float, opener: Any = None, now: datetime | None = None) -> d
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Probe every feed the newsroom's collector fetches.",
-        epilog="exit: 0 clean, 1 alert, 2 bad usage",
+        epilog="exit: 0 clean or unresolved, 1 alert, 2 bad usage",
     )
     parser.add_argument("--timeout", type=float, default=20.0, help="per-feed deadline in seconds")
     parser.add_argument("--json", dest="json_path", help="also write the verdict as JSON")
@@ -1078,6 +1305,7 @@ def main(argv: Sequence[str]) -> int:
         except Exception as exc:  # noqa: BLE001
             verdict = {
                 "alert": True,
+                "severity": SEVERITY_ALERT,
                 "headline": "the fixture could not be read",
                 "problems": [f"Could not read {args.fixture}: {exc}."],
                 "notes": [],
@@ -1088,6 +1316,7 @@ def main(argv: Sequence[str]) -> int:
                     "items": 0,
                     "uncovered": 0,
                     "vantage_specific": 0,
+                    "answered_refusals": 0,
                 },
                 "results": [],
                 "drought": None,
@@ -1110,7 +1339,7 @@ def main(argv: Sequence[str]) -> int:
         payload["routing"] = alert_routing(verdict)
         Path(args.json_path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
-    return EXIT_ALERT if verdict["alert"] else EXIT_CLEAN
+    return EXIT_ALERT if severity_of(verdict) == SEVERITY_ALERT else EXIT_CLEAN
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI wiring, exercised by the workflow

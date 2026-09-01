@@ -693,13 +693,24 @@ def test_the_fix_the_note_advice_still_fires_where_it_was_written_for() -> None:
     assert "fix the note as well as the feed" in text
 
 
-def test_a_refusal_is_still_an_alert() -> None:
-    """Nothing here is softened. A block reaching this runner may reach Azure next.
+def test_a_lone_refusal_on_a_one_source_wire_still_alerts() -> None:
+    """Renamed from ``test_a_refusal_is_still_an_alert``, because that is no
+    longer the property and the test was passing for a reason its own docstring
+    did not give.
 
-    "We cannot yet say which" is a reason to look, not a reason to wait, so the
-    reading still fails the run and still opens the issue.
+    It said "nothing here is softened; a refusal still alerts". Since #349 a
+    refusal may be severity ``unresolved`` and exit 0 — and this case still
+    alerts anyway, for a different reason the old name concealed: ``_refused()``
+    builds a wire of exactly one source, so nothing delivered, so the coverage
+    floor refuses to downgrade it. The assertion never exercised the rule it
+    claimed to.
+
+    ``test_the_production_reading_is_reported_and_does_not_ring`` is the case the
+    old name implied, and it is the one that changed.
     """
     verdict = wire_check.evaluate([_refused()], [], now=_NOW)
+    assert verdict["summary"]["healthy"] == 0, "the reason this alerts, stated"
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
     assert verdict["alert"] is True
     assert len(verdict["problems"]) == 1
 
@@ -1131,3 +1142,429 @@ def test_a_lost_rehearsal_flag_resolves_to_a_real_alarm() -> None:
 
     assert 'routing.get("rehearsal") or "false"' in flow_text
     assert "needs.check.outputs.rehearsal || 'false'" in flow_text
+
+# ── the third state ─────────────────────────────────────────────────────────
+#
+# The defect, stated once. This probe reasoned about vantage ambiguity in its
+# prose and then acted as though it were certain: `alert` was `bool(problems)`,
+# so a reading it had explicitly declared inconclusive about the publisher
+# exited 1 and rang the same Telegram alarm, in the same channel, as a confirmed
+# outage. Measured across every run GitHub still retains, keyed on each run's
+# own `source` field: 10 failures, of which 3 were fixtures, 2 were the check
+# job killed on purpose, and all 5 remaining were `err_en` alone with 6 of 7
+# sources delivering. An alarm wrong every time it fires is wallpaper.
+#
+# Every test below is one clause of the conjunction in `evaluate`, because each
+# is a separate way this could go quiet during a real outage, and a single "is
+# it bad" assertion would not tell you which one had stopped working.
+
+
+def _wire(*, delivering: int = 6) -> list[dict[str, Any]]:
+    """The shape of the live wire: several sources delivering, and room for one more."""
+    return [_ok_result(f"s{n}") for n in range(delivering)]
+
+
+def test_the_production_reading_is_reported_and_does_not_ring() -> None:
+    """2026-09-01, five times: six sources delivering and err_en answering 403.
+
+    This is the reading the whole change exists for, and it is the one case the
+    old suite never built -- every refusal test used a one-source wire, where
+    the coverage floor alerts for an unrelated reason.
+    """
+    verdict = wire_check.evaluate(_wire() + [_refused()], [], now=_NOW)
+
+    assert verdict["severity"] == wire_check.SEVERITY_UNRESOLVED
+    assert verdict["alert"] is False
+    assert verdict["summary"]["answered_refusals"] == 1
+    assert verdict["headline"] == "1 wire source refused this vantage; 6 still delivering"
+
+
+def test_an_unresolved_reading_is_never_rendered_as_ok() -> None:
+    """The shape's refusal, and the reason `render_text` needed a third mark.
+
+    `mark = "ALERT" if verdict["alert"] else "OK"` would print OK over a source
+    that failed to deliver -- swapping a false alarm for a false all-clear,
+    which is the worse of the two and the obvious way to get this wrong.
+    """
+    text = wire_check.render_text(wire_check.evaluate(_wire() + [_refused()], [], now=_NOW))
+
+    assert text.startswith("portaBaltica newsroom wire: UNRESOLVED")
+    assert "OK" not in text.splitlines()[0]
+    # The reading is still there in full: the failing row, the body the server
+    # sent, and the caveat naming both vantages.
+    assert "FAIL err_en" in text
+    assert "Access denied" in text
+    assert "does NOT contradict it" in text
+    assert "reported, not alerting" in text
+    assert "Problems:" not in text, "a heading that reasserts the certainty just withdrawn"
+
+
+def test_the_exit_code_a_workflow_reads_is_clean_for_an_unresolved_reading() -> None:
+    """The seam. `evaluate` deciding severity changes nothing unless `main` agrees."""
+    import json
+    import tempfile
+
+    fixture = {"results": [_ok_result("good"), _refused()]}
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "f.json"
+        path.write_text(json.dumps(fixture, default=str), encoding="utf-8")
+        report = Path(tmp) / "r.json"
+        code = wire_check.main(["--fixture", str(path), "--json", str(report)])
+        payload = json.loads(report.read_text(encoding="utf-8"))
+
+    assert code == wire_check.EXIT_CLEAN
+    assert payload["routing"]["severity"] == wire_check.SEVERITY_UNRESOLVED
+
+
+def test_the_exit_code_a_workflow_reads_rings_for_a_real_outage() -> None:
+    """The companion, so the assertion above cannot be satisfied by always
+    returning zero -- which is the single most dangerous line this change could
+    have introduced, and the one a test of the quiet path alone would miss."""
+    import json
+    import tempfile
+
+    fixture = {"results": [_ok_result("good"), _broken_result("dead", verified=None)]}
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "f.json"
+        path.write_text(json.dumps(fixture, default=str), encoding="utf-8")
+        report = Path(tmp) / "r.json"
+        code = wire_check.main(["--fixture", str(path), "--json", str(report)])
+        payload = json.loads(report.read_text(encoding="utf-8"))
+
+    assert code == wire_check.EXIT_ALERT
+    assert payload["routing"]["severity"] == wire_check.SEVERITY_ALERT
+
+
+# ── every way it must still ring ────────────────────────────────────────────
+#
+# The half that matters. Making an alarm quieter is easy to get wrong in the one
+# direction nobody notices, so each clause is asserted against the SAME base
+# reading that goes quiet above -- six delivering plus a refusal -- with exactly
+# one thing added. Anything that still rings, rings because of that one thing.
+
+
+def test_a_refusal_beside_a_genuinely_dead_feed_rings() -> None:
+    """The mixed reading. One inconclusive source may not vouch for another."""
+    verdict = wire_check.evaluate(
+        _wire() + [_refused(), _broken_result("ep_news", verified=None)], [], now=_NOW
+    )
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+    assert verdict["alert"] is True
+
+
+def test_a_refusal_beside_a_transport_failure_rings() -> None:
+    """The safety property the whole downgrade rests on, asserted directly.
+
+    A WAF answers and a dead host does not, so a source that is *gone* -- DNS
+    withdrawn, connection refused, TLS failed, timed out -- arrives as a
+    transport failure. `judge_source` marks it `vantage_specific` and is right
+    to; it is deliberately NOT counted as an answered refusal, so it rings.
+    """
+    unreachable = wire_check.judge_source(
+        _FakeSource(id="gone", name="gone"),
+        {"http_status": None, "body": b"", "latency_ms": 9, "transport_error": "Name or service not known"},
+        today=_TODAY,
+    )
+    assert unreachable["vantage_specific"] is True, "the field it shares with a refusal"
+
+    verdict = wire_check.evaluate(_wire() + [_refused(), unreachable], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+    assert verdict["summary"]["vantage_specific"] == 2
+    assert verdict["summary"]["answered_refusals"] == 1, "the two populations differ, and that is the point"
+
+
+def test_a_wire_where_nothing_delivered_rings() -> None:
+    """The coverage floor. Zero delivering means this probe learned nothing.
+
+    Not a threshold somebody chose -- it is the boundary between holding
+    evidence that the wire works and holding none, so it needs no invented
+    number to defend.
+    """
+    verdict = wire_check.evaluate([_refused("a"), _refused("b")], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+    assert verdict["summary"]["healthy"] == 0
+
+
+def test_one_delivering_source_is_the_boundary() -> None:
+    """The companion, so the floor above is a boundary rather than a blanket."""
+    assert wire_check.evaluate(
+        _wire(delivering=1) + [_refused()], [], now=_NOW
+    )["severity"] == wire_check.SEVERITY_UNRESOLVED
+
+
+def test_a_refusal_during_a_drought_rings() -> None:
+    """A quiet wire cannot excuse a silent newsroom. The drought is a different
+    question and fails in a way no feed check can see."""
+    drought = {
+        "state": "drought", "detail": "no original article has been published for 96.0 hours",
+        "last_original_at": "2026-08-24T12:00:00Z", "hours": 96.0, "runs_without_originals": 0,
+    }
+    verdict = wire_check.evaluate(_wire() + [_refused()], [], now=_NOW, drought=drought)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+
+
+def test_an_unreadable_run_report_beside_a_refusal_rings() -> None:
+    """Absence resolves to alerting, and a refusal must not absorb it."""
+    unknown = wire_check.judge_drought({"body": None, "error": "HTTPError: 500"}, now=_NOW)
+    verdict = wire_check.evaluate(_wire() + [_refused()], [], now=_NOW, drought=unknown)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+
+
+@pytest.mark.parametrize("status", [404, 410, 500, 503])
+def test_a_status_about_the_resource_or_the_server_is_never_downgraded(status: int) -> None:
+    """404 and 410 describe the resource; 5xx is the server describing itself.
+
+    None of those is the server saying *not you*, so a single vantage may
+    reasonably repeat them and there is nothing ambiguous to withdraw.
+    """
+    verdict = wire_check.evaluate(_wire() + [_refused(status=status)], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+
+
+@pytest.mark.parametrize("status", [401, 403, 407, 429, 451])
+def test_every_declining_status_is_downgraded(status: int) -> None:
+    """The companion. A rule that downgraded nothing would pass every test above."""
+    verdict = wire_check.evaluate(_wire() + [_refused(status=status)], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_UNRESOLVED
+
+
+def test_a_challenge_page_served_with_http_200_still_rings() -> None:
+    """The block a status code cannot show, and the reason `no_items` exists.
+
+    Cloudflare's interstitial arrives as 200 with a body that yields no feed
+    items. Nothing about it names this caller in the status line, so it is not a
+    refusal, and it must not ride out on one.
+    """
+    challenge = wire_check.judge_source(
+        _FakeSource(id="cf", name="cf"),
+        {"http_status": 200, "body": b"<html>Just a moment...</html>", "latency_ms": 20, "transport_error": None},
+        today=_TODAY,
+    )
+    assert challenge["state"] == "no_items"
+    assert wire_check.evaluate(_wire() + [challenge], [], now=_NOW)["severity"] == wire_check.SEVERITY_ALERT
+
+
+def test_an_empty_wire_is_not_reachable_through_the_quiet_path() -> None:
+    """Zero sources means zero refusals, so every count agrees the wire is
+    perfect. That arithmetic is what the empty-wire guard exists against, and a
+    new severity is a new way to arrive at it."""
+    verdict = wire_check.evaluate([], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+    assert verdict["alert"] is True
+
+
+def test_a_fixture_that_omits_the_field_cannot_be_downgraded_by_its_status() -> None:
+    """Absence resolves to ringing, and the downgrade is a conjunction because
+    of it.
+
+    A hand-written rehearsal fixture carrying a 403 and no `vantage_specific`
+    key predates this change. Keying the downgrade on the status alone would
+    silently reclassify every one of them -- so the status is necessary and not
+    sufficient, and the field has to be present and true.
+    """
+    legacy = {
+        "id": "x", "name": "X", "tier": "C", "endpoint": "https://x.test/rss",
+        "http_status": 403, "bytes": 10, "items": 0, "latency_ms": 5,
+        "verified": "2026-08-24 - HTTP 200", "verified_age_days": 4,
+        "state": "http_error", "detail": "answered HTTP 403",
+    }
+    verdict = wire_check.evaluate(_wire() + [legacy], [], now=_NOW)
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+
+
+@pytest.mark.parametrize("verdict", [{}, {"severity": None}, {"severity": "nonsense"}, {"alert": True}])
+def test_a_verdict_that_cannot_say_its_severity_rings(verdict: dict[str, Any]) -> None:
+    """`severity_of` is the fallback for the two verdicts built by hand -- the
+    unreadable registry, and the unreadable fixture -- and for a report written
+    by an older revision of this script. None of them may reach the one state
+    that suppresses an exit code."""
+    assert wire_check.severity_of(verdict) != wire_check.SEVERITY_UNRESOLVED
+
+
+def test_severity_of_can_still_say_ok() -> None:
+    """The companion, so the assertion above is not satisfied by a constant."""
+    assert wire_check.severity_of({"alert": False}) == wire_check.SEVERITY_OK
+    assert wire_check.severity_of({"severity": "unresolved"}) == wire_check.SEVERITY_UNRESOLVED
+
+
+def test_the_hand_built_verdicts_name_their_severity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stated rather than inferred. A monitor reporting its own failure should
+    not depend on a fallback to be heard."""
+    def _boom(*_a: Any, **_k: Any) -> Any:
+        raise RuntimeError("sources.yaml is not readable")
+
+    monkeypatch.setattr(wire_check, "registry", _boom)
+    verdict = wire_check.run(timeout=1)
+
+    assert verdict["severity"] == wire_check.SEVERITY_ALERT
+    assert verdict["alert"] is True
+
+
+# ── where an unresolved reading is delivered ────────────────────────────────
+
+
+def _unresolved() -> dict[str, Any]:
+    return wire_check.evaluate(_wire() + [_refused()], [], now=_NOW)
+
+
+def test_an_unresolved_reading_cannot_close_the_live_outage_issue() -> None:
+    """The trap this routing exists to avoid, and it is not tidiness.
+
+    `alert-notify.yml` has two modes, and `alert: 'false'` is not "say nothing":
+    it finds the open issue carrying the label it was given, comments
+    **"Recovered."** and closes it. Routing an unresolved reading to
+    `wire-alert` would therefore close the live outage issue as recovered, on
+    the strength of a reading that has just said it cannot tell whether anything
+    recovered -- a false word in the one place a reader goes to find out.
+    """
+    live = wire_check.alert_routing(wire_check.evaluate(_wire(), [], now=_NOW))
+    unresolved = wire_check.alert_routing(_unresolved())
+
+    assert live["label"] == "wire-alert"
+    assert unresolved["label"] == "wire-vantage"
+    assert unresolved["label"] != live["label"]
+    # Neither name contains the other, so no assertion written with `in` can
+    # pass whichever label is returned -- the trap this suite was bitten by once.
+    assert live["label"] not in unresolved["label"]
+    assert unresolved["label"] not in live["label"]
+
+
+def test_an_unresolved_rehearsal_is_routed_away_from_both_live_issues() -> None:
+    """Two dimensions, four labels, and a rehearsal must not touch either record."""
+    verdict = _unresolved()
+    verdict["source"] = "fixture:rehearsal.json"
+    routing = wire_check.alert_routing(verdict)
+
+    assert routing["label"] == "wire-vantage-rehearsal"
+    assert routing["rehearsal"] == "true"
+    assert "vantage" in routing["subject"] and "rehearsal" in routing["subject"]
+
+
+def test_the_severity_reaches_the_json_the_workflow_reads() -> None:
+    """The seam, producer side. The workflow keys its annotation on this field,
+    so a severity computed correctly and never written is the half of a seam
+    failure this repository sweeps for."""
+    assert wire_check.alert_routing(_unresolved())["severity"] == wire_check.SEVERITY_UNRESOLVED
+    assert wire_check.alert_routing(wire_check.evaluate(_wire(), [], now=_NOW))["severity"] == wire_check.SEVERITY_OK
+
+
+# ── the workflow reads it, and absence resolves to ringing ──────────────────
+
+
+def test_the_check_job_publishes_the_severity_it_computes() -> None:
+    """Producer and consumer named together."""
+    outputs = _wire_alert_yaml()["jobs"]["check"]["outputs"]
+    assert "severity" in outputs
+    assert "steps.judge.outputs.severity" in outputs["severity"]
+
+
+def test_a_report_with_no_severity_still_rings() -> None:
+    """The one state that suppresses a notification must be reachable only by
+    being named -- in the probe, and again in the YAML that reads it."""
+    flow_text = (REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8")
+    assert 'routing.get("severity") or "alert"' in flow_text
+
+
+def test_the_workflow_rings_when_either_signal_says_so() -> None:
+    """Two independent sources failing in opposite directions: the exit code
+    catches a crash that never reached a verdict, the severity catches a verdict
+    that never reached the exit code. Silence needs both to agree."""
+    flow_text = (REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8")
+    assert '[ "$code" -eq 0 ] && [ "$severity" != "alert" ]' in flow_text
+
+
+def test_an_unresolved_reading_is_visible_on_a_green_run() -> None:
+    """Reported, recorded and visible is the whole justification for not
+    ringing. A green run with nothing on it would be a silence."""
+    flow_text = (REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8")
+    assert "::warning::" in flow_text
+    assert "GITHUB_STEP_SUMMARY" in flow_text
+
+
+# ── the rehearsals, judged rather than described ────────────────────────────
+
+
+def _rehearsal_fixtures() -> dict[str, str]:
+    """Every `--fixture` body in the workflow, extracted from the workflow.
+
+    Asked of the file rather than retyped here: a copy of these fixtures in the
+    test would be a second implementation that agrees with itself on the day it
+    is written and then disagrees silently.
+    """
+    import re
+
+    import yaml
+
+    doc = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8"))
+    run = next(s for s in doc["jobs"]["check"]["steps"] if s.get("id") == "rehearsal")["run"]
+
+    fixtures: dict[str, str] = {}
+    for arm in re.findall(r"^  ([a-z-]+)\)$", run, re.M):
+        # Bounded by this arm's own `;;`. Without that bound the search runs on
+        # into the NEXT arm's heredoc, and `empty-wire` -- whose body is a
+        # printf rather than a heredoc -- silently picks up the drought fixture
+        # and is judged as a drought. Measured while writing this: it read as a
+        # real result, because a drought is a plausible thing for a rehearsal to
+        # produce.
+        segment = run.split(f"\n  {arm})\n", 1)[1].split("\n    ;;", 1)[0]
+        heredoc = re.search(r"<<'JSON'\n(.*?)\n\s*JSON\n", segment, re.S)
+        if heredoc:
+            fixtures[arm] = "\n".join(
+                line[2:] if line.startswith("  ") else line for line in heredoc.group(1).split("\n")
+            )
+            continue
+        printf = re.search(r"printf '(.*?)\\n' > rehearsal\.json", segment)
+        if printf:
+            fixtures[arm] = printf.group(1)
+    return fixtures
+
+
+def test_every_rehearsal_the_dropdown_offers_has_a_fixture() -> None:
+    """The enumeration rule: the set the guard walks must equal the set the
+    behaviour walks. A dropdown option with no `case` arm produces a run that
+    probes the live wire while the operator believes they are rehearsing."""
+    import yaml
+
+    doc = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "wire-alert.yml").read_text(encoding="utf-8"))
+    offered = set(doc[True]["workflow_dispatch"]["inputs"]["rehearse"]["options"]) - {"no"}
+    fixtures = _rehearsal_fixtures()
+
+    assert fixtures, "extracted nothing -- a broken instrument, not an empty workflow"
+    assert set(fixtures) == offered
+    assert len(set(fixtures.values())) == len(fixtures), "two arms sharing one body"
+
+
+def test_exactly_one_rehearsal_is_quiet_and_the_rest_ring() -> None:
+    """Judged by running each fixture through the probe, not by reading the YAML.
+
+    `blocked-vantage` now rehearses the quiet path, which is worth rehearsing --
+    it is how you find out the state is reachable and legible once reached. The
+    assertion that matters is the other four: a change making rehearsals quiet
+    in general would pass a test that only checked the one.
+    """
+    import json
+
+    quiet, loud = [], []
+    for arm, body in sorted(_rehearsal_fixtures().items()):
+        verdict = wire_check.evaluate(
+            json.loads(body)["results"], [], now=_NOW, drought=json.loads(body).get("drought")
+        )
+        (quiet if verdict["severity"] != wire_check.SEVERITY_ALERT else loud).append(arm)
+
+    assert quiet == ["blocked-vantage"]
+    assert loud == ["dead-feed", "drought", "empty-wire", "total-refusal"]
+
+
+def test_the_loud_escalation_has_a_rehearsal_of_its_own() -> None:
+    """`blocked-vantage` stopped ringing, so the case that proves a refusal can
+    still ring needed one. `total-refusal` is the same 403 with nothing left
+    delivering -- the two fixtures differ only in whether anything got through."""
+    import json
+
+    fixtures = _rehearsal_fixtures()
+    quiet = json.loads(fixtures["blocked-vantage"])["results"]
+    loud = json.loads(fixtures["total-refusal"])["results"]
+
+    assert {r["http_status"] for r in loud} == {403}
+    assert any(r["state"] == "ok" for r in quiet), "one gets through"
+    assert not any(r["state"] == "ok" for r in loud), "none does"
