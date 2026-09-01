@@ -392,6 +392,59 @@ pinned `55b57fb`, pytest 2559 / npm 2333 / lint 0 / build 0, and three planted
 faults each caught by a named test — including one proving that removing the
 `origin is None` silence brings the original defect back (6 named failures).
 
+#### THE FIRST PREDICTION IS BADLY CALIBRATED, AND I AM SAYING SO BEFORE THE RESULT, 2026-09-01T10:20Z
+
+`causal_panel.discarded >= 8` was set from a baseline of 1 in 45, by
+reasoning that a new rule "cuts vague causes" and picking a number that felt
+like a real change. I have now run the rule itself against real hypotheses,
+which I could have done before writing the prediction and did not.
+
+`provenance.hypotheses` is published on articles, so 73 real claims are
+recoverable from the corpus. Running `_particulars` over them:
+
+```
+discarded, EMPTY vocabulary       24 of 73   33%
+discarded, REALISTIC vocabulary   64 of 73   88%
+CONTROL  the vocabulary must raise the rate : True
+CONTROL  something must still survive       : True
+
+scaled to a 45-hypothesis edition           ~39
+predicted here                              >= 8
+```
+
+So the prediction will almost certainly be scored a hit, and **that will mean
+very little**: I predicted a floor of 8 for a mechanism whose own arithmetic
+implies about 39. A prediction that cannot fail is the thing this file spends
+several thousand words warning about, and I wrote one into my own scored
+block.
+
+**And the way I got there is worth more than the number.** My first run used
+an empty vocabulary and reported 33% discarded, with the survivors kept on
+particulars like `['lithuania']` — a country name that every claim about that
+country contains by construction. I read that as *the gate is close to
+vacuous*, and was composing a brief to that effect. It is the opposite of
+true. The function ends:
+
+```python
+return frozenset(found) - vocabulary
+```
+
+The vocabulary is **subtracted**, so a larger one yields fewer particulars and
+*more* discards. My empty-vocabulary run was the **minimum** discard case, not
+the maximum, and the docstring says so in its first line — *"the nameable
+particulars a claim contains, **beyond the finding's own words**"* — and then
+spends a paragraph on the exact false negative I thought I had discovered.
+
+With the finding's own words removed, the survivors are `brell`, `lng`,
+`russian`, `kazāks`/`mārtiņš`. Those are real particulars. The rule works.
+
+Two things to carry forward. **Test the mechanism before predicting its
+magnitude** where the mechanism is runnable — it was, from published
+provenance, in about ten minutes. And **an empty argument is not a neutral
+one**: passing `frozenset()` felt like "no configuration", and it was in fact
+the single most permissive input the function accepts, which inverted the
+result and pointed me at a defect that is not there.
+
 The second is the one worth watching, and it is deliberately the **unflattering**
 direction: a gate that discards more can only reduce what is left to state. If
 `articles_stating_a_cause` *rises*, the model behind this table is wrong and the
