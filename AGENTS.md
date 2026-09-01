@@ -1738,7 +1738,12 @@ deeper    252      = 70% of served fields, never examined
 sweep cannot see it. The rule this file states three instances of — **write
 down the set the guard walks and the set the behaviour walks, and require them
 to match** (`#149`, `#178`, `389d1f9`) — has a fourth instance, in the method
-that found the first three.
+that found the first three, and a fifth in the **hunt for instances of a
+class**: searching `tests/` for clock-derived arithmetic found 1 of 19, when
+the class was anything environment-derived. `#324` already records a search
+adding confidence to a *positive* claim, which invites challenge. **A false
+empty does not** — there is no claim to attack, only an absence, so it closes
+the enquiry instead of opening it.
 
 **Two corrections to the instrument, both found by reading its output.**
 
