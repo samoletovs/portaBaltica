@@ -2984,6 +2984,23 @@ and nothing about the reading protests. Use `.Count` on the array for lines; use
 it was the *reconciliation*, not care, that caught it: `1145` is too large to be
 noise, and adding it back landed on the other figure to the unit.
 
+⚠️ **And `%aI` spells UTC as `Z`, where `%ai` spells it `+0000`.** Same instant,
+same commit, two spellings — so a probe filtering on one silently excludes every
+commit carrying the other:
+
+```
+%aI   2026-08-31T23:41:40Z          <- regex '\+00:00$' matches NOTHING
+%ai   2026-08-31 23:41:40 +0000
+commits matching '\+00:00$'    0    <- the reported figure
+commits matching '(Z|\+00:00)$'   53    <- the true figure
+```
+
+It fails toward **zero**, so a repo with 53 UTC commits reports none, and the
+reading is *"that number does not reproduce"* rather than *"my filter is wrong"*.
+Caught only because the zero was absurd against a figure I had just been handed —
+the taxonomy's third row, which is the one that defends itself.
+
+
 **What makes this worth a paragraph is that it cancelled another error.** Asked
 when a claim was introduced, I ran `git log -S` with no direction filter — `-S`
 is symmetric, so the newest match was the commit that *removed* the string,
