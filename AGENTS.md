@@ -2268,6 +2268,36 @@ closes the question: the reader reports the count sound and stops. It is the
 same shape as *the correct sibling that conceals the broken one*, arriving in
 arithmetic rather than in code.
 
+⚠️ **And the sibling failure is explaining a discrepancy rather than auditing
+it.** When two counts of the same thing disagree, the tempting move is to name a
+likely cause — a different key, a different tree — and stop there. Measured on
+my own reconciliation, four hours after I had reread the rule above:
+
+```
+their count                                        8
+mine, case-sensitive   'zzzNEVER'                  7
+mine, case-INSENSITIVE                             9
+my published explanation, "almost certainly case"  fits NEITHER
+```
+
+Printing the population settles what the counts cannot — five bare `zzzNEVER`,
+two lowercase `…initemap` variants, two uppercase ones — which is 7 sensitive, 9
+insensitive, and **8 under neither.** The explanation was plausible, arrived
+instantly, and was never run. It is still unexplained, and saying so is the
+honest output.
+
+**A hypothesis that would explain a difference is not thereby its cause**, and
+it closes the enquiry exactly as a reproduced number does. So when two counts
+disagree: run the hypothesis, and if it reproduces neither figure, record the
+discrepancy as *unexplained* rather than as *probably X*.
+
+A session supplied the bound from the corrector's seat, about a count of mine
+they had corrected: **an insider can falsify one row and cannot validate the
+rest.** They recognised one entry because it was theirs; the other three they
+never checked. So a correction proves its own row and says nothing about the
+population — the same limit, arriving from the direction that feels most
+authoritative.
+
 The remedy is not to write more carefully — the author had written the rule
 minutes earlier and was standing inside the example. It is the one this repo
 reaches for everywhere else: `test_agents_parameter_table.py` derives all three
