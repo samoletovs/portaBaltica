@@ -5827,6 +5827,25 @@ SHA comparison second.** The comparison is only meaningful while the pull
 request is `OPEN` — not, as the first correction said, while `merged` is false,
 which is also true of a closed one.
 
+⚠️ **And the status can be wrong in the other direction too: `gh pr merge` can
+exit 1 on a merge that succeeded.** Run from a detached worktree it merges, then
+fails looking up the current branch to clean up:
+
+```
+gh pr merge <n> --squash --delete-branch
+  -> could not determine current branch: failed to run git: not on any branch
+  -> exit 1
+re-run:
+  -> ! Pull request ...#376 was already merged
+```
+
+So a blind retry is what surfaces it, and a blind *redo of the work* would not.
+Everything above says a merge's status cannot prove the content landed; this is
+the same field lying the opposite way, and it has the same remedy — **read
+master, not the exit code.** Note also that `--delete-branch` does not run when
+the cleanup step is what failed, so the branch survives and must be deleted by
+hand.
+
 ⚠️ **And `gh pr view --json merged` does not exist**, which is its own small
 trap: asking for it prints `Unknown JSON field` and a probe built on it emits a
 table of blanks that reads as a finding. `gh pr view` offers `state`,
