@@ -2792,6 +2792,24 @@ exact bytes matter — a length, a hash, a diff — parse the JSON and never tak
 jq shortcut. And read `.GetType().Name` before trusting `.Length`, because on the
 `Object[]` it is a **line count**.
 
+⚠️ **And the obvious remedy for that has its own hole: `Measure-Object -Line`
+silently skips blank lines.** A session read this file at `4720` against my
+`5785` and was about to report an 18% inflation. Measured on the current file,
+with the reconciliation that settles it:
+
+```
+array .Count            6211
+Measure-Object -Line    5066
+blank lines             1145
+5066 + 1145           = 6211    exactly
+```
+
+It fails toward the **smaller** number, so a file always looks shorter than it is
+and nothing about the reading protests. Use `.Count` on the array for lines; use
+`Measure-Object -Line` only when you specifically want non-blank ones — and note
+it was the *reconciliation*, not care, that caught it: `1145` is too large to be
+noise, and adding it back landed on the other figure to the unit.
+
 **What makes this worth a paragraph is that it cancelled another error.** Asked
 when a claim was introduced, I ran `git log -S` with no direction filter — `-S`
 is symmetric, so the newest match was the commit that *removed* the string,
@@ -4134,6 +4152,24 @@ twice, in the paragraph above.
 ⚠️ It is also the only form that scales. *"Run it first"* costs a fresh token
 per use and the corpus keeps every one it is shown; if nobody names them, the
 supply is unbounded.
+
+⚠️ **Measured against this file a day later, and the rule holds exactly.** Every
+token this book has ever named is now burned in it, and the one that was
+deliberately never written is not:
+
+```
+NAMED    zzzNEVER 10 · quaternion 4 · perihelion 3 · qqqAbsentControl 2
+UNNAMED  0
+```
+
+A session's negative control came back at **11** for one of the named ones and
+they nearly filed the readings it certified. Theirs survived only because their
+real controls were longer and more unusual — *by luck of phrasing, not by
+design*. So the corollary is worth stating as an instruction: **generate a
+control string, do not reuse one**, and if you must reuse, re-assert its absence
+in the corpus you are about to search rather than trusting the absence it
+certified last time. **A book about controls is the one document in which control
+strings have a half-life.**
 
 ⚠️ **And "burned" is a *relation*, not a property of the token — demonstrated by
 a 45-minute natural experiment.** The same token can be spent for one corpus and
