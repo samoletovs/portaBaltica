@@ -4387,7 +4387,7 @@ searching  correctionsReachReaders.live.test.ts  for zzzNEVER   -> FOUND
   the guard's OWN negative controls
 
 searching  AGENTS.md  for zzzNEVER                              -> FOUND
-  L2979 CONTROL rss "zzzNEVER"  0     this file documenting a control
+  "a control certifies the artefact it ran on" — this file documenting a control
 
 searching  AGENTS.md  for quaternion                            -> FOUND
   the word chosen precisely because nothing would ever write it,
