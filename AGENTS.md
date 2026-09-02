@@ -2592,6 +2592,39 @@ case an equality gets wrong.
 looking for whenever an artefact is ambiguous: not a better single instrument,
 but a second one that fails in the *opposite* direction.
 
+**But a second instrument is only a bracket if it discriminates on the axis in
+question**, and *opposite polarity* is not the same as *a different command*.
+Measured on this repo's alert labels, on exactly the pair a second instrument was
+proposed to separate:
+
+```
+                          gh label list   issues, all states   named in code
+source-alert-rehearsal        absent              0                  3
+wire-vantage                  absent              0                  2
+zzq-no-such-label             absent              0                  0   <- CONTROL
+```
+
+The first two are real labels whose path has never fired; the third is a typo.
+**Both API instruments read identically across all three**, so pairing them
+brackets nothing. What separates them is neither: **grep the source.** A label
+that has never fired exists only as an intention in code and not as a fact in the
+API, because `alert-notify.yml` creates it lazily at first use — so both parties
+were reaching for API instruments to answer a question the API cannot answer.
+
+⚠️ **And lazy creation does not make *exists-but-never-used* unreachable**, which
+was the argument offered for dropping the second instrument. Measured on the same
+repo: **38 of 51 labels** carry zero all-time issues — the majority state, and not
+only GitHub's defaults (`unbuildable-memo`, `review-degraded`, `needs-human`,
+`iteration-1`). Within the alert family the window is narrow but real:
+`gh label create` sits at `alert-notify.yml:167` and `gh issue create` at `:193`,
+same step, `set -euo pipefail`, with `|| true` on the create alone — so a failed
+issue-create leaves a label with no issue, on the failure path.
+
+So the correction was right and its reason was wrong. **A retraction is a claim
+and needs the evidence of one**: dropping an instrument because a state is
+*unreachable* is an assertion about a state space, and a state space is something
+you count.
+
 And the proposed fix — *"use the branch name"* — is **mostly** circular, with
 one exception worth stating because it is the case that caught me out. 211 of
 219 branches here are `samoletovs-<topic>`, since the prefix is the repo owner,
