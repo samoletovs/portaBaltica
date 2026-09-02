@@ -2716,6 +2716,26 @@ what saved it. Nothing in this repo prescribes the bare form: `PROGRAMME.md`
 measures throughput with `gh pr list --json mergedAt` and an exact date prefix,
 which has no `--since` in it.
 
+⚠️ **And the property that makes it worse than a wrong window: it is not
+idempotent.** Two runs of one command, on one repo, are two different queries.
+Run under a control by two people, on different heads and different dates:
+
+```
+                            n     oldest admitted
+t0   bare 2026-09-01        99    2026-09-01T12:53:47+03:00
+t1   bare 2026-09-01        98    2026-09-01T13:27:04+03:00   90 s later
+t0/t1  ISO 00:00:00+03:00  118    unchanged, both readings
+head unchanged throughout : true
+```
+
+A wrong-but-*fixed* window at least reproduces: two readings can be compared and
+the difference reasoned about. This one **cannot be compared even with itself**,
+which defeats the habit this book leans on hardest. *Measure twice* catches a
+plausible wrong number; it cannot catch a query that is a **different query** the
+second time, because both readings are honest answers to questions that differ
+only in when they were asked. The ISO row is what separates them, and it costs
+one line.
+
 ⚠️ **And `[int]` rounds in PowerShell rather than truncating**, so a duration
 composed from `[int]$d.TotalHours` plus `$d.Minutes` plus `$d.Seconds` is wrong
 whenever the fraction is ≥ 0.5. **Two sessions hit it independently within an
