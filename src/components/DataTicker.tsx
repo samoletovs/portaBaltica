@@ -66,6 +66,28 @@ function tickerItems<T>(source: T[], build: (entry: T) => TickerItem | null): Ti
 
 export function DataTicker() {
   const [items, setItems] = useState<TickerItem[]>([]);
+  /**
+   * Whether the fetch has finished, either way.
+   *
+   * `items.length === 0` used to mean two different things — *not asked yet*
+   * and *nothing to show* — and the component collapsed for both. So on every
+   * route the ticker was absent for the first ~800ms and 35px tall afterwards,
+   * and the whole page below it moved down by 35px when the data landed.
+   *
+   * Measured against production at 2026-09-02T10:2xZ, the worst shift on
+   * `/data/property` and `/data/energy` was `div.mx-auto.max-w-7xl` going
+   * `100,800 -> 135,765` — the entire page container, 35px, at 850-919ms:
+   *
+   *     /data/property   CLS 0.3523  POOR
+   *     /data/energy     CLS 0.1168
+   *     every other route carried the same 0.0243 floor
+   *
+   * Separating the two states lets the strip hold its place while we do not
+   * know, and still disappear once we do. Collapsing on a genuinely dead feed
+   * is deliberate: a ticker with nothing in it is 35px of chrome asserting
+   * that there is data.
+   */
+  const [settled, setSettled] = useState(false);
   const { country } = useCountry();
 
   useEffect(() => {
@@ -126,10 +148,31 @@ export function DataTicker() {
         // years. They are still on the Economy tile, in context and beside
         // their source, which is where a number without a delta belongs.
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSettled(true));
   }, [country]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    // Nothing to show, and we know it: collapse rather than hold 35px of
+    // chrome open around an empty strip.
+    if (settled) return null;
+
+    // Not known yet. Hold the place with the same box — same viewport, same
+    // track, same `py-2`, same `text-caption font-mono` line — so the height
+    // is whatever the real strip's height is, rather than a number copied out
+    // of a measurement that will rot the first time the type scale moves.
+    return (
+      <div
+        className="ticker-viewport edge-fade-x"
+        style={{ borderBottom: '1px solid var(--border-card)' }}
+        aria-hidden="true"
+      >
+        <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
+          <span className="text-caption font-mono">&nbsp;</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     /* The ticker duplicates its item list so the marquee can loop seamlessly,

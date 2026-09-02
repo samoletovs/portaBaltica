@@ -161,6 +161,16 @@ describe('the suite does not decide correctness on a wall clock', () => {
       'referenceScale.test.tsx',
       'sectionTabs.test.tsx',
       'seriesColourUsage.test.tsx',
+      // Added by the ticker's reserved-space fix, and on the same evidence as
+      // `followReachability.test.tsx` above rather than because a test went
+      // red. Its four wall-clock tests run 13-32ms against the 371ms slowest
+      // on this list, and it imports its components statically, so it does not
+      // carry the dynamic-import amplifier that made the file below flake.
+      //
+      // The wait is unavoidable in kind: the component's three states are
+      // decided by a fetch resolving, so a test of "before it settles" and
+      // "after it settles" is a test about that transition.
+      'tickerReservesSpace.test.tsx',
       // `waitFor` on a component that fetches in an effect. The wait is on the
       // testing-library default, not a hand-rolled `setTimeout`, and the file
       // carries no dynamic import — so it is on this list and deliberately not
