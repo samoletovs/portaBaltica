@@ -67,18 +67,26 @@ newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
               than the word "unverified":
 
                 the timer fires on schedule      PROVEN, 2026-09-01 14:00:00.008Z
-                a 625.8 s edition finishes <30m  PROVEN, the 14:29:57Z run on d82233b
+                a 625.8 s edition finishes <30m  PROVEN on the HTTP path only
                 both on ONE scheduled run        OPEN, 2026-09-02T14:00Z
 
-              `functionTimeout` is declared **host-wide in `newsroom/host.json`
-              with no per-trigger scope**, so the mechanism cannot distinguish a
-              timer execution from a manual one. That does not close leg three;
-              it makes the residual *"does anything else about the timer path
-              differ"* rather than *"does the timeout apply"*.
+              ⚠️ **That second leg is weaker than it looks, and a session caught
+              it.** `newsroom_run_now` is `@app.route(POST)`, not
+              `@app.timer_trigger` — `newsroom/function_app.py` L191–195 against
+              L72–73. Its docstring says *"Same code path as the timer"*, which
+              is **true of the pipeline and false of the trigger**: both call
+              `_run_and_report`, one with `"manual"` and one with `"timer"`. So
+              the 625.8 s completion proves the *pipeline* finishes inside 30
+              minutes; it does not exercise the timer path.
 
-              **The one mechanism anyone could name that would break leg three
-              is a stuck singleton lock left by the kill. Measured, and it is
-              not there** — read from the platform rather than inferred:
+              `functionTimeout` is declared **host-wide in `newsroom/host.json`
+              with no per-trigger scope**, so the *timeout* does not distinguish
+              them. The **singleton does** — it belongs to the timer alone, and
+              a manual run's success is therefore no evidence at all about the
+              lock. That has to be read, not argued.
+
+              **So I read it. There is no held lease** — measured ~7 h before
+              the next fire, from the platform rather than inferred:
 
                 locks/…/newsroom_edition.Listener  available · unlocked
                 locks/…/newsroom_weekly.Listener   available · unlocked
