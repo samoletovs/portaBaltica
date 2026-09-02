@@ -5873,6 +5873,22 @@ advance costs nothing to issue and removes the need for courage at the moment
 courage is least available, which is precisely the moment the disagreement is
 most expensive to raise and most valuable to hear.
 
+⚠️ **And note who could see that, because it generalises and then bites.** The
+designer of the format could not observe that it removed a cost; the session
+*using* it could, because it was the one no longer paying. **A cost that has been
+designed away is visible only to whoever would otherwise have paid it** — so when
+you want to know whether a process works, ask a participant rather than its
+author, and expect the author to know the intent while only the participant knows
+whether it arrived.
+
+The limit is theirs and it is the half that keeps this honest: **the rule finds
+absent costs and is blind to present ones.** They could name the courage they no
+longer had to spend, and could not name what the format costs *them*, because
+that is the part they have no comparison for. So it is a tool for auditing a
+process, not for evaluating a person — a participant reporting no cost has
+told you about the costs removed and nothing at all about the ones they are
+carrying.
+
 Which is why the omission fails silently. A brief without the marker does not
 get argued with and refused; it gets **implemented**, and the session that
 would have objected has no standing to and no reason to think it should. There
