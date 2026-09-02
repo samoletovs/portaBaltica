@@ -82,6 +82,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
   ['historicalData.live.test.ts', 'every Latvian indicator the API advertises still returns data'],
   [
+    'newsRailPlacement.live.test.ts',
+    'the elsewhere rail is a sidebar at every width with room for one — it is the second grid child, so in a single column it lands after the WHOLE feed, and with the corpus at 49 articles that put it 12.3 screens down at 768px while 1024px had it 0.4 screens down. Position is read in a browser rather than inferred from a class name, and the phone width is asserted in the opposite direction so a short or unrendered feed fails instead of passing',
+  ],
+  [
     'labelTruncation.live.test.ts',
     'every indicator name in the key table is fully readable at 320px — the cut this ' +
       'catches is absorbed by overflow-hidden, so the document never scrolls and the ' +
