@@ -3774,6 +3774,32 @@ navigation. Counting document *responses* then reported **84** reloads, because
 the SPA fallback answers `index.html` for the app's own `/api/*` calls.
 `Sec-Fetch-Dest: document` was the question actually being asked.
 
+⚠️ **And on this site the served HTML is not the page.** Two of my own probes hit
+that in one day, failing in **opposite** directions, which is why it is worth
+naming rather than filing as carelessness:
+
+```
+FALSE NEGATIVE  grep 'Skip to content' in the served /data   -> absent
+                the skip link is there; /data is an SPA shell
+                nearly filed as "the skip link is missing"
+
+FALSE POSITIVE  read <link rel=canonical> from served bytes  -> correct
+                usePageMeta.setCanonical rewrites that same link AFTER
+                hydration, so a server-only fix reads correct and is
+                overwritten in the browser, which is what a crawler sees
+```
+
+The second is the dangerous one because it *passes*. `src/newsroom/usePageMeta.ts`
+queries `link[rel="canonical"]` in `document.head` and sets it on every route, so
+**any meta assertion made against served bytes is a claim about the wrong
+document.** The remedy that works is a parity assertion holding the client
+mirror to the server — and proving it fires by planting each side alone, which
+gives different failures: a server-only plant fails the "served head disagrees
+with the client" assertion, a client-only plant fails the tier check.
+
+So: for content, the served HTML under-reports; for `<head>`, it over-reports.
+Neither is the document a reader or a crawler gets.
+
 Their rule, and it is a good one:
 
 > When a measurement disagrees with a mechanism you have just reasoned through,
