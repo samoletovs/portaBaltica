@@ -2495,6 +2495,53 @@ hand-typed `Z` is an assertion about a conversion that never happened** — and
 the file's own rule applies to the fix as much as to the fault: an example in
 guidance is a claim about behaviour, so run it before recommending it.
 
+⚠️ **And in PowerShell the obvious way to parse the offset does not parse it.**
+`[datetime]'2026-09-01T16:11:38Z'` looks exactly like the remedy above and is
+its opposite: it converts the instant into the machine's local zone and returns
+`Kind=Local`, so a `+03:00` box reads `16:11:38Z` as `19:11:38`. Subtract that
+from something you *did* convert and the two Kinds mix silently.
+
+```powershell
+[datetime]'2026-09-01T16:11:38Z'                    19:11:38  Kind=Local
+
+$inv = [Globalization.CultureInfo]::InvariantCulture
+$utc = [Globalization.DateTimeStyles]::AdjustToUniversal -bor
+       [Globalization.DateTimeStyles]::AssumeUniversal
+[datetime]::Parse('2026-09-01T16:11:38Z', $inv, $utc)
+                                                    16:11:38  Kind=Utc
+```
+
+⚠️ **The bare `[DateTimeStyles]` does not resolve** — PowerShell needs the
+namespace, and the first draft of this very snippet threw *"Unable to find type"*.
+Caught by executing it, which the sentence three lines above tells you to do.
+
+**What makes this worth a paragraph is that it cancelled another error.** Asked
+when a claim was introduced, I ran `git log -S` with no direction filter — `-S`
+is symmetric, so the newest match was the commit that *removed* the string,
+putting me three hours late — and then mixed the Kinds above, putting me three
+hours early:
+
+```
+                                                  reported   believable?
+TRUTH     correct commit + correct parse            98 min    --
+ERROR 1   wrong commit   + correct parse           276 min    no, 2.8x out
+ERROR 2   correct commit + bad parse               -82 min    no, NEGATIVE
+BOTH      wrong commit   + bad parse                96 min    yes, and I did
+```
+
+**Each error alone is absurd and self-defending; composed, they land two
+minutes from the truth** and read as a rounding quibble with the author rather
+than as two broken steps. The taxonomy above says an absurd reading defends
+itself and a plausible one does not — this is the mechanism by which a probe
+manufactures the second out of two of the first, and no amount of staring at
+`96` reveals it. What revealed it was that someone else's number disagreed by
+an amount too small to argue about, and I checked anyway.
+
+`-S` being symmetric is **already in this file** — `--diff-filter=D` appears
+above, in the correct form of the exact command I got wrong. I did not look,
+because I was not in doubt. That is the concealing-sibling shape arriving in
+the tooling: the book had the answer and my confidence is what kept me from it.
+
 **State the population.** Two sessions measured this an hour apart and got
 `110` PRs and `370`; neither is wrong, and they never disagreed. One counted a
 recent window, the other all of master. A cohort table without its window is
