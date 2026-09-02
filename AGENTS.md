@@ -2640,18 +2640,41 @@ Measured on this repo's alert labels, on exactly the pair a second instrument wa
 proposed to separate:
 
 ```
-                          gh label list   issues, all states   named in code
-source-alert-rehearsal        absent              0                  3
-wire-vantage                  absent              0                  2
-zzq-no-such-label             absent              0                  0   <- CONTROL
+                          gh label list   issues, all states   named in code   reachable
+source-alert-rehearsal        absent              0                  3            yes
+wire-vantage                  absent              0                  2            NO
+zzq-no-such-label             absent              0                  0             —   <- CONTROL
 ```
 
-The first two are real labels whose path has never fired; the third is a typo.
 **Both API instruments read identically across all three**, so pairing them
-brackets nothing. What separates them is neither: **grep the source.** A label
-that has never fired exists only as an intention in code and not as a fact in the
-API, because `alert-notify.yml` creates it lazily at first use — so both parties
-were reaching for API instruments to answer a question the API cannot answer.
+brackets nothing. What separates the typo from the other two is neither: **grep
+the source.** A label that has never fired exists only as an intention in code and
+not as a fact in the API, because `alert-notify.yml` creates it lazily at first
+use — so both parties were reaching for API instruments to answer a question the
+API cannot answer.
+
+⚠️ **And the code-grep does not finish the job either, because the last column is
+a third state I had folded into the second.** `source-alert-rehearsal` is
+reachable and unexercised: `source-alert.yml:251` sets `alert: true` on the
+rehearsal path, so the first source rehearsal creates it. `wire-vantage` cannot be
+created at all —
+
+```
+wire_check.py:1342   return EXIT_ALERT if severity_of(verdict) == SEVERITY_ALERT else EXIT_CLEAN
+wire-alert.yml:484   alert = (check failed) OR (check said alert)
+                     -> an `unresolved` verdict satisfies NEITHER -> alert=false
+                     -> recovery branch -> no issue -> `gh label create` never runs
+```
+
+It is a **sentinel**: `#356` routes an unresolved reading to a label the recovery
+step will *not* find, so that it cannot close a live `wire-alert` issue. Its
+absence is the design working, and `wire-alert.yml:268` says so in the routing
+table — `blocked-vantage  alert=false`. So *"the path has never opened one"*
+implies one could, and it cannot.
+
+Three states, and I published them as two **in the entry about an instrument that
+publishes two as one.** Each instrument separated one more pair, and I stopped at
+the last pair I had thought of rather than at the last pair that exists.
 
 ⚠️ **And lazy creation does not make *exists-but-never-used* unreachable**, which
 was the argument offered for dropping the second instrument. Measured on the same
