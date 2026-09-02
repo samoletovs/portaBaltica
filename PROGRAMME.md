@@ -60,8 +60,40 @@ newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
               **manual** re-run I fired at 14:29:57Z — `runs/latest.json` says
               `trigger: manual`, which is how a session caught this. So the fix
               is proven *necessary* (the re-run took 625.8 s, past the old
-              600 s ceiling) and the scheduled path under it is **unverified**.
-              Your first newsroom task is to watch the 14:00Z run and read
+              600 s ceiling).
+
+              **It decomposes into three legs, and only the conjunction is
+              open** — a session's decomposition, which is a better handover
+              than the word "unverified":
+
+                the timer fires on schedule      PROVEN, 2026-09-01 14:00:00.008Z
+                a 625.8 s edition finishes <30m  PROVEN, the 14:29:57Z run on d82233b
+                both on ONE scheduled run        OPEN, 2026-09-02T14:00Z
+
+              `functionTimeout` is declared **host-wide in `newsroom/host.json`
+              with no per-trigger scope**, so the mechanism cannot distinguish a
+              timer execution from a manual one. That does not close leg three;
+              it makes the residual *"does anything else about the timer path
+              differ"* rather than *"does the timeout apply"*.
+
+              **The one mechanism anyone could name that would break leg three
+              is a stuck singleton lock left by the kill. Measured, and it is
+              not there** — read from the platform rather than inferred:
+
+                locks/…/newsroom_edition.Listener  available · unlocked
+                locks/…/newsroom_weekly.Listener   available · unlocked
+                locks/…/host                       available · unlocked
+                timers/…/newsroom_edition/status
+                  Last 2026-09-01T14:00:00.0038753Z · Next 2026-09-02T14:00:00Z
+                CONTROL, the weekly timer, never killed
+                  Last 2026-08-30T15:00:00Z · Next 2026-09-06T15:00:00Z
+
+              So the schedule survived the kill intact and the timer is armed.
+              Read those blobs in `azure-webjobs-hosts` (`--auth-mode login`;
+              there is no key) if a fire is ever in doubt — the `status` record
+              answers *"is it scheduled"*, which no run report can.
+
+              Your first newsroom task is still to watch the 14:00Z run and read
               `trigger` on the artefact, not just its freshness — a manual and
               a scheduled edition are indistinguishable from the article
               timestamps alone, which is the whole reason `trigger` exists.
