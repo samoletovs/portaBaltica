@@ -2654,11 +2654,32 @@ string `$needle`, finds none of it, and exits **0**. Two states, one artefact:
 somebody else's correct finding, where it read as **"their result does not
 reproduce"** — the confident false regression this file exists to prevent.
 
-Quote the whole argument. And note that a positive control does **not** save you
-here, which is what makes it worth writing down: `-S'literalstring'` works, so a
-control written with a literal passes while the variable form beside it silently
-fails. What separated them was `GIT_TRACE`, which shows the argv git actually
-received rather than the one you believe you sent.
+Quote the whole argument — or separate it, which also works and which I did not
+test when I wrote this:
+
+```
+git log -S'literal'      1        git log -S$needle       0   <- only this fails
+git log "-S$needle"      1        git log -S $needle      1
+```
+
+**And the cause is the leading dash, not the interpolation**, which a control
+settles in one command. Any external program that echoes its bad argument is a
+free argv probe — `node` names what it actually received:
+
+```
+node -S$needle        -> bad option: -S$needle              the LITERAL
+node "-S$needle"      -> bad option: -Sdatastore_search_sql interpolated
+node -e ... S$needle  -> ["Sdatastore_search_sql"]          CONTROL: no dash, works
+```
+
+That third row is the load-bearing one: without it the reading is consistent with
+*"`$` does not interpolate in arguments"*, which is false and would have produced
+a much wider and wrong rule. `GIT_TRACE` answers the same question for git only;
+the echo trick works for anything.
+
+Note also that a positive control does **not** save you here, which is what makes
+it worth writing down: `-S'literalstring'` works, so a control written with a
+literal passes while the variable form beside it silently fails.
 
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
@@ -4032,6 +4053,18 @@ taken from that object in the same pass, and the temptation is to read it as
 evidence about the subject. And the remedy is one line: **choose a token from
 outside the corpus's subject matter, and assert it is absent before trusting it
 as a control.**
+
+⚠️ **And there is a second corpus you did not think of: your own.** A session's
+negative control returned **1**, because the "impossible" string was one they had
+been using as a control all week and it had accumulated in their scratch files.
+The rule above guards the corpus under test; this is the corpus you are standing
+in. **A negative control drawn from your own habitual vocabulary is not
+negative** — and the more disciplined you are about using controls, the more your
+workspace fills with the tokens you reach for.
+
+Which is why the assert-before-trusting half is the load-bearing one. Choosing
+well is a judgement about a corpus you may not have enumerated; running it first
+is a measurement.
 
 ⚠️ **And this entry burned its own example in the act of writing it.** The
 sentence above originally read *"`perihelion` and `qqqAbsentControl` both return
