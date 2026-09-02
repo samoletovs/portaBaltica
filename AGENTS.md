@@ -5076,6 +5076,18 @@ Not "is my information fresh", which invites a yes, but "does the claim still
 hold *now*". The two premises most likely to be dead are the ones you were most
 confident about, because confidence is what stopped you re-reading.
 
+**And a count is a premise — which is the form that evades this rule.** Three
+instances in one day, each a tally correct when written and false when read:
+*eight* merged pull requests that were nine, *13* occurrences that were 14,
+*zero* markdown hits that were one. Two died to a single commit of mine and the
+third to a pull request I merged, and none of the three authors was careless.
+
+A claim like *"#335 is open"* announces its own contingency. **A number reads as
+arithmetic, and arithmetic does not feel like an observation with a timestamp on
+it** — so the re-read above never gets applied to it. Extend it to the figures,
+and where a count is going into something someone will act on, take it in the
+same breath as sending rather than from the top of the message.
+
 **And the same death has a second population, invisible to the obvious sweep.**
 Everything above is addressed to the *author* of a claim. This is for whoever
 **fixes** one. When a claim is corrected, the natural sweep is a grep for the
