@@ -822,6 +822,13 @@ points at the egress path rather than at either host — and Riga, recorded abov
 at 6202 ms on eight consecutive requests, answers in **276 ms** today, so that
 figure was a moment rather than a property. Do not read it as characteristic.
 
+**Measured rate, 18 samples at 10-second intervals: 1 degraded, 17 healthy** —
+about 6%, always `CSP PxWeb`, and always at **exactly 6203 ms**. That constant is
+the useful part: variable network latency does not repeat to the millisecond
+across separate requests, so this is a fixed stall — a connection or resolution
+timeout in the egress path — rather than a slow host. `/api/system-status` sets
+`graceMs: 0`, so each of those readings is a fresh probe and not a cached one.
+
 And `OPTIONAL_RESPONSE_BUDGET_MS` is **750 ms applied only in the optional path**,
 while `overallStatus` degrades on any unhealthy *required* check — so a required
 source cannot be budgeted away, and a stall on one publishes `degraded` for a
