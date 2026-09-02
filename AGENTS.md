@@ -5094,6 +5094,20 @@ correct ones, because a correct brief only produces the work already imagined,
 while a wrong one produces a measurement of something nobody had reason to
 measure.
 
+**And the reason the format works is not that it is a good template.** A
+session that overturned two of these put it better than the paragraph above
+did: the marker **pre-authorises the disagreement**, so overturning a brief
+becomes compliance rather than defiance. None of the four overturned briefs
+required anyone to be brave — that was the design. A permission granted in
+advance costs nothing to issue and removes the need for courage at the moment
+courage is least available, which is precisely the moment the disagreement is
+most expensive to raise and most valuable to hear.
+
+Which is why the omission fails silently. A brief without the marker does not
+get argued with and refused; it gets **implemented**, and the session that
+would have objected has no standing to and no reason to think it should. There
+is no artefact recording the objection that was never raised.
+
 ### Why the handoff works, and why more care would not
 
 **The measurement defines the shape of the fix.** Having proved a defect, you
