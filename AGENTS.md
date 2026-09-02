@@ -5726,6 +5726,42 @@ a judgement rather than a formatting step"*, committed inside the entry that
 documents the family — the same shape as endorsing an unrun command in a
 paragraph about overconfidence.
 
+⚠️ **A stated key does more than make a count checkable — it makes a disagreement
+*diagnosable*.** Two readers with two keys spent two messages unable to tell *you
+measured wrong* from *we measured different things*, which are opposite findings
+needing opposite responses. Stating both turns the argument into a decomposition,
+one choice at a time:
+
+```
+the key as committed  // or * · api|src · js|ts|tsx        155   paths 55
+  + allow a /* opener                                      160   paths 55    +5
+  + widen the extensions to py|json|yml|md                  237   paths 79   +82
+  + require the cited name to be a real repo file           152   paths 55    -3
+the other reader's key, all three at once                   232   paths 78
+```
+
+**The whole gap is one choice.** The larger figure counts comments citing
+`AGENTS.md` and `detectors.py`, so it answers a *different question* rather than
+answering this one loosely — and neither reader could have seen that from the
+totals. The tail anchor, meanwhile, is **inert**: measured at `96cb839` and at
+master, with and without it, the counts are identical. A stated key also shows
+which of its own clauses are doing no work.
+
+The `-3` row is a finding. Three comments name a `.js`/`.ts`/`.tsx` file that does
+not exist; two are correct by construction — a deliberate `index-OLDHASH.js`
+placeholder and a `node_modules` path into recharts — and the third was a stale
+citation of `api-contracts.test.ts`, which is really `api-contracts.live.test.ts`.
+At master it is **2 of 2 correct**, `980fa08` having fixed the stale one. That 2:1
+ratio matches `polarityAdmission`'s repo-wide result, and is why that guard is
+scoped rather than global.
+
+⚠️ **Verifying this I reconstructed the key from memory instead of reading it four
+lines below the number, and got `427 / 153 / 137` — 2.75× — from three silent
+differences: the whole tree rather than `^(api|src)/`, no own-name exclusion, and
+the wrong commit.** Without the key committed beside it I would have reported that
+`155` does not reproduce. The rule paid for itself against the person who wrote
+it, in the act of checking it.
+
 **The conclusion is invariant under the choice that moves the number**, which is
 the only reason this is a repair and not a retraction: every stated key gives a
 substantial population, one member demonstrably stale and the rest unmeasured.
