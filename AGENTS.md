@@ -3410,6 +3410,40 @@ bad reading, three different responses:
 | **plausible** — a value you'd believe | right probe, wrong subject | confirm which tree you measured, **and which population** |
 | **absurd** — obviously impossible | broken instrument | suspect the probe, not the code |
 
+**That table sorts readings; this sorts *causes*, and the two are orthogonal.**
+A probe has four parts that can be wrong, and a control checks exactly one:
+
+```
+POPULATION   the set you walked is not the set you meant
+IDENTITY     the object you read is not the object you meant
+QUERY        the string you sent is not the string you meant
+INSTRUMENT   the tool itself is broken     <- the ONLY one a control detects
+```
+
+**A positive control passes in the first three**, because the instrument is
+fine. So *"my control fired"* answers a question nobody asked whenever the fault
+is upstream of the tool — and it is upstream in three cases out of four. A
+session sorted nine instances from one day into the first three rows; not one
+was caught by a control.
+
+⚠️ **Two more arrived in the act of verifying that claim, in a single command
+of mine.** `session''s` inside a double-quoted PowerShell string becomes a
+literal double apostrophe and returned 0; and searching for *a validated probe
+is consistent with several questions* returned 0 **at `ba09354`**, because this
+file wraps `validated probe` in emphasis, putting asterisks inside the span.
+**Both phrases are present, and the control was clean for both** — which is the
+claim, demonstrating itself against the person writing it down.
+
+⚠️ **And quoting that phrase here, without its emphasis, has since made the same
+search return 1.** The reading is pinned to `ba09354` for that reason. Sixth
+self-falsifying figure in a day — an entry about queries, falsified by being
+written, through the exact mechanism it describes.
+
+So the question to ask of a surprising reading is not *does my probe work*. That
+is the fourth row and the one everybody checks. It is **what set did I walk,
+what object did I read, what string did I send** — three questions that cost
+nothing and that no control will ever answer for you.
+
 **"Which population" is the half that hides**, because a wrong population is
 *structurally* always plausible: a subset produces a well-formed reading of
 itself, so it can never come out absent or absurd and neither of the other two
