@@ -2738,7 +2738,7 @@ one line.
 
 ⚠️ **And `[int]` rounds in PowerShell rather than truncating**, so a duration
 composed from `[int]$d.TotalHours` plus `$d.Minutes` plus `$d.Seconds` is wrong
-whenever the fraction is ≥ 0.5. **Two sessions hit it independently within an
+whenever the fraction exceeds 0.5. **Two sessions hit it independently within an
 hour**, on different intervals, each while verifying the other's timestamp work:
 
 ```
@@ -2757,6 +2757,33 @@ more than half the time. And when it does fire, it composes a **rounded** hour
 with an **exact** minute, so the output disagrees with itself: `3h47m` beside a
 ratio computed from `TotalMinutes`, `3h42m` beside `Minutes = 42`. Both of us
 caught it that way — by the pair, not by knowing the rounding rule.
+
+⚠️ **And it is not a threshold: `[int]` is banker's rounding**, so at *exactly*
+0.5 the answer depends on the **parity** of the integer part. This paragraph
+read *"≥ 0.5"* for a day and was wrong for half of all exact halves:
+
+```
+value   [int]   half-up
+  2.5      2       3     <- differ; even, rounds DOWN
+  3.5      4       4         odd,  rounds up
+  4.5      4       5     <- differ; even
+  5.5      6       6         odd
+ -2.5     -2      -3     <- differ; toward even, not away from zero
+```
+
+The consequence matters more than the arithmetic, because it decides **which
+fixture exposes the bug**:
+
+```
+02:30:00   prints 2h30m0s   correct -- BY ACCIDENT, even hour rounds down
+03:30:00   prints 4h30m0s   wrong
+```
+
+`2h30m` is exactly the duration a person reaches for when checking a duration
+formatter, and it **passes**. So this entry's own point applies one level down:
+the minutes and seconds being right is what made the wrong hour plausible — and
+at the half hour, on an even hour, the *hour* is right too, which makes the bug
+look fixed in the most likely test anyone will write.
 
 `-S` being symmetric is **already in this file** — and the form it gives is
 *also* wrong, which I found only by running it a few hours later.
