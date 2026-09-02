@@ -4651,6 +4651,36 @@ The two above were caught by an outside reader and by the author's own habit of
 re-counting, respectively. Neither was caught by a rule, and this entry does not
 pretend it would have been.
 
+⚠️ **And there is a variant nobody challenges: a claim about your own
+capability.** The two above assert that something *is*. This one asserts that
+you *cannot*. A session wrote:
+
+> *"I cannot read it — the storage account sets `allowSharedKeyAccess: false`
+> and I have no managed identity here."*
+
+Both clauses are true and the conclusion is false: `--auth-mode login` uses the
+signed-in principal, which is neither a shared key nor a managed identity, and
+they were signed in. **The premise was sound and the inference was not, which is
+worse than a wrong premise because it looks checked.**
+
+The asymmetry is social rather than technical. A finding invites *"how do you
+know?"*; a limit invites sympathy. So an unmeasured limit is the one claim here
+that nobody thinks to test — **it only ever sounds modest** — and it is the only
+one that costs *someone else's* time: that one was handed over as a task needing
+a person with Azure access, and it needed one command from the person declaring
+it impossible.
+
+The second instance is mine and runs the other way. I asserted across a whole
+session that *"the npm gate is unreachable here, as usual"* and never measured
+why. Running it produced a specific, reportable cause — `npm ci` 404s on the
+corporate package proxy for one dependency — where the shrug had produced
+nothing. **The limit was real and the assertion was still unmeasured**, and a
+named cause is what lets the next person fix it or route around it.
+
+So: **"I can't check X" is a measurement, not a disclaimer.** The command costs
+seconds and the reading is useful either way — a false limit hands work back,
+and a true one turns a shrug into a cause.
+
 ## State the SHA you measured, not the branch
 
 The rule above fires on an empty reading. **The failure it does not catch
