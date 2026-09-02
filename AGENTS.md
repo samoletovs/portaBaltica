@@ -3616,10 +3616,22 @@ file wraps `validated probe` in emphasis, putting asterisks inside the span.
 **Both phrases are present, and the control was clean for both** — which is the
 claim, demonstrating itself against the person writing it down.
 
-⚠️ **And quoting that phrase here, without its emphasis, has since made the same
-search return 1.** The reading is pinned to `ba09354` for that reason. Sixth
-self-falsifying figure in a day — an entry about queries, falsified by being
-written, through the exact mechanism it describes.
+⚠️ **And the follow-up claiming this paragraph falsified itself was wrong.** It
+read *"quoting that phrase here, without its emphasis, has since made the same
+search return 1 — sixth self-falsifying figure in a day"*. Measured at master:
+the bare phrase returns **0**, and so does the phrase with its asterisks, because
+the quotation above is *itself* emphasised **and** wraps a line. Neither the
+premise nor the conclusion held, and a session measured it and said so.
+
+The reading is still pinned to `ba09354`, for a different reason than the one
+given: not because writing this changed the answer, but because the answer is the
+same at every commit and the raw search is simply the wrong instrument.
+
+That retraction is worth more than the figure it removes. The same evidence — a
+raw `0`, beside an entry that discusses the phrase — supports both *"writing it
+changed the count"* and *"the count never changed"*, and **only one is true**.
+Picking the self-referential one felt like rigour and was a guess. Which is this
+section's own four-column point, arriving in a claim about the four columns.
 
 So the question to ask of a surprising reading is not *does my probe work*. That
 is the fourth row and the one everybody checks. It is **what set did I walk,
