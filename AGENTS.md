@@ -2537,6 +2537,30 @@ them. **Both read as findings rather than as broken instruments**, and in a
 comparison of identities the case-fold is not a formatting detail: it is the
 judgement, made for you, by a default.
 
+⚠️ **And the same fold reaches variable *names*, where it can destroy a control.**
+`$a` and `$A` are one variable in PowerShell, so a loop over one collection
+silently overwrites another whose name differs only in case:
+
+```
+$A = @('collection','of','three')
+foreach ($a in @('x','y')) { }
+$A                                   ->  y     <- not a collection any more
+```
+
+Measured while verifying a live fix: a probe held tier B articles in `$B` and
+tier A in `$A`, looped `foreach ($a in $B)`, and by the time the second loop ran
+`$A` was **the last tier B article**. The positive control — *tier A must still
+be self-canonical* — therefore ran against a tier B page and reported `False`,
+which is the correct answer to a question nobody asked.
+
+That is worse than the dedup case above, and specifically so: **a control is the
+one thing that must not be silently reassigned**, because a control failing is
+read as a finding about the *subject*. Here it read as "the fix broke tier A",
+against a fix that was entirely correct. It defended itself only because the
+reading was absurd — a tier A article carrying a tier B slug — which is the row
+of the taxonomy that does not generalise. Give a control's collection a name no
+loop variable could collide with.
+
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
 interleave within the hour — `#302` at 10:25Z and `#310` at 12:45Z sit either
