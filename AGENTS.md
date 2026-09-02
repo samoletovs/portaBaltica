@@ -5050,6 +5050,35 @@ case — `ckan.js` was right there, and it was its *docstring* that had moved.
 Saying so costs nothing, where implying zero would be the confident silence this
 book is otherwise about.
 
+**And not every surface is a file, which makes the sweep above too narrow — read
+the four instances in the entry it extends.** A handover task, a PR body, a
+workflow comment, a bug report: **three of those four never touched git**, and
+the remedy on offer is a grep. Measured, with a control confirming the fourth
+genuinely is in `.github/`:
+
+```
+a handover task    a cross-session message   OUTSIDE git
+a PR body          github.com                OUTSIDE git
+a workflow comment .github/workflows/*.yml   in git
+a bug report       a session message         OUTSIDE git
+```
+
+Demonstrated the same day: after a false claim was corrected, a sweep of
+`AGENTS.md`, `PROGRAMME.md` and every commit message came back clean **with a
+working control**. The claim was in `#356`'s own body, where it had been written.
+That is the **origin surface**, and it is the one a propagation sweep is least
+likely to include — because the sweep looks *outward* for copies, and the place
+you read the claim does not feel like propagation. A merged pull request body is
+the worst instance of it: permanent, public, first hit on the search that brought
+you here, and invisible to every tool in the repository.
+
+So the surface list is the repository **plus** merged pull request bodies, issue
+and review comments, and any handover message still being acted on. And correct a
+public artefact by **annotation** — strike the sentence, date the correction
+beneath it, state what is now known — never by rewriting, for the same reason the
+newsroom's own corrections do: a silently amended record is indistinguishable
+from one that was always right.
+
 ## A permission is not a capability — resolve one real example through it
 
 A flag that grants something reads as evidence the thing happens. It is not:
