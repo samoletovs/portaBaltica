@@ -3591,6 +3591,34 @@ thereby in this file. It has to be a **property**: pick a token with no
 connection to the subject matter, and **run it first** — an absent control is
 cheap to establish and worthless to assume.
 
+**And there is a step past "run it first", which two sessions took independently
+on the same day: do not write the token down at all.** Running it first tells
+*you* your control is clean; not naming it keeps it clean for everyone after.
+Measured across the **whole tracked tree at `d08e280`** — the key matters, since
+`AGENTS.md` alone gives 7 for the third one, and committing this paragraph adds
+one to each:
+
+```
+NAMED here      perihelion 2 · quaternion 3 · zzzNEVER 9 · qqqAbsentControl 1
+                -> 4 of 4 burned
+
+NEVER named     two tokens, used dozens of times the same day -- in plants that
+                were restored byte-identical, and in shell output that was read
+                and discarded -> 0 in the tree, 0 in commit messages
+                -> 2 of 2 still usable
+```
+
+The unnamed pair are deliberately not written here, and that omission **is** the
+rule: a commit message saying *"control token verified absent before use"*
+records the discipline without spending the token. This is the first version of
+this rule that survives being stated, because it is the first one containing no
+token to burn — every earlier form recommended a word and thereby destroyed it,
+twice, in the paragraph above.
+
+⚠️ It is also the only form that scales. *"Run it first"* costs a fresh token
+per use and the corpus keeps every one it is shown; if nobody names them, the
+supply is unbounded.
+
 **And the hazard is one-directional, which bounds what needs fixing.** Every
 collision above was an *ad-hoc grep over prose*, where a control token that
 turns up returns a positive and reads as a finding. A **committed test asserting
