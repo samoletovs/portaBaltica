@@ -152,17 +152,47 @@ export function InsightsBanner() {
             into empty space, and — because it is only on screen while the
             fetch is in flight — it appeared in the live sweep's unfaded list
             on one run and not the next. A flaky offender is worse than a
-            steady one: it makes the assertion that catches it untrustworthy. */}
+            steady one: it makes the assertion that catches it untrustworthy.
+
+            THE PLACEHOLDER MIRRORS THE REAL CARD'S STRUCTURE, and that is what
+            makes it the right height rather than a number that happens to fit
+            today. It used to be four arbitrary bars and measured 110px against
+            a real card's 144px, so this section grew 60px at ~850ms and pushed
+            the entire dashboard down with it. Measured on `/data`:
+
+              loading  section 165  row 118  cards [110,110,110]
+              loaded   section 225  row 152  cards [144,144,144,144]
+
+            The missing 60 was 34px of card — a badge row, a headline and a
+            three-line description, against four bars that resembled none of
+            them — and 26px of the attribution line below, which the loading
+            state did not render at all.
+
+            Same classes, so the browser computes the same line boxes. The row
+            is `flex`, so every card is as tall as the tallest, and the only
+            residual is an insight whose description runs past three lines. */}
         <div className="flex gap-3 overflow-hidden pb-2 scrollbar-hide" role="status" aria-label="Loading insights">
           {[1, 2, 3].map((placeholder) => (
             <div key={placeholder} className="dash-card border dash-edge rounded-xl p-4 min-w-[280px] max-w-[340px] flex-shrink-0 animate-pulse">
-              <div className="h-3 w-20 rounded dash-skeleton mb-3" />
-              <div className="h-4 w-3/4 rounded dash-skeleton mb-2" />
-              <div className="h-3 w-full rounded dash-skeleton mb-1" />
-              <div className="h-3 w-5/6 rounded dash-skeleton" />
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full dash-skeleton" />
+                <span className="text-caption dash-skeleton rounded w-20">&nbsp;</span>
+              </div>
+              <p className="text-ui font-semibold mb-1 dash-skeleton rounded">&nbsp;</p>
+              <p className="text-caption leading-relaxed dash-skeleton rounded">
+                &nbsp;
+                <br />
+                &nbsp;
+                <br />
+                &nbsp;
+              </p>
             </div>
           ))}
         </div>
+        {/* The attribution line the loaded state renders. Reserved for the same
+            reason as the cards: absent while loading and 26px afterwards is
+            26px the whole page below has to absorb. */}
+        <p className="text-caption mt-2 dash-skeleton rounded w-64">&nbsp;</p>
       </section>
     );
   }

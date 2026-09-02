@@ -152,6 +152,17 @@ describe('the suite does not decide correctness on a wall clock', () => {
       'followPage.test.tsx',
       'followReachability.test.tsx',
       'freightModalSplit.test.tsx',
+      // Added by the insights banner's reserved-shape fix, on the same
+      // evidence as the two entries above rather than because a test went
+      // red: 9-93ms against the 371ms slowest on this list, and no dynamic
+      // import, so it does not carry the amplifier that made the file below
+      // flake.
+      //
+      // The wait is unavoidable in kind for the same reason as the ticker's:
+      // the component's loading and loaded states are separated by a fetch
+      // resolving, so a test comparing the two is a test about that
+      // transition.
+      'insightsReservesShape.test.tsx',
       'legendWrap.test.tsx',
       'liveGrid.test.tsx',
       'newsFeed.test.tsx',
