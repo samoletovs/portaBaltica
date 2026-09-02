@@ -5004,6 +5004,31 @@ Not "is my information fresh", which invites a yes, but "does the claim still
 hold *now*". The two premises most likely to be dead are the ones you were most
 confident about, because confidence is what stopped you re-reading.
 
+**And the same death has a second population, invisible to the obvious sweep.**
+Everything above is addressed to the *author* of a claim. This is for whoever
+**fixes** one. When a claim is corrected, the natural sweep is a grep for the
+claim's own wording — and that finds every file **carrying** it and none of the
+files **citing** it, because a citation is phrased differently by construction:
+
+```
+carrying   ckan.js, businessRegistry.js   asserted "the action is disabled"
+citing     tradeStats.js                  said "`ckan.js`'s docstring states that"
+```
+
+The correction fixed the two carriers, and a grep for the claim's wording could
+not have reached the third: it does not contain the claim. Nor was it stale when
+written, and it did not drift — it was **falsified by the fix**, so it is only
+findable by a sweep run *afterwards*, on references rather than on assertions.
+So the population of a correction is not "files repeating this claim". It is
+**"files whose truth depends on it"**, and those two sets barely overlap.
+
+Measured across `api/` and `src/` at `96cb839`: **155 comments in 44 files assert
+another file's behaviour by name.** That is the exposure a wording-grep cannot
+see, and it is the reason this is worth a sweep rather than an intention. One of
+the 155 was demonstrably stale; how many of the other 154 are is **unmeasured**,
+and saying so costs nothing where implying zero would be the confident silence
+this book is otherwise about.
+
 ## A permission is not a capability — resolve one real example through it
 
 A flag that grants something reads as evidence the thing happens. It is not:
