@@ -4681,6 +4681,30 @@ So: **"I can't check X" is a measurement, not a disclaimer.** The command costs
 seconds and the reading is useful either way — a false limit hands work back,
 and a true one turns a shrug into a cause.
 
+**And that is a special case of one move.** The session that made it hit the
+same move three times in a day and named both the pattern and its tell:
+
+> *Every time I went to close a question with an argument instead of a
+> measurement, I was wrong.*
+
+```
+the causal claim      an argument that would RETIRE a question   reassuring, wrong
+the singleton lock    an argument that would RETIRE a question   reassuring, wrong
+"I cannot read it"    an assertion about CAPABILITY              limiting,   wrong
+```
+
+Mine the same day, both above: *"the npm gate is unreachable here, as usual"*,
+and *"almost certainly case-sensitivity"* offered as a reconciliation that fits
+neither number. Five instances between two people in a day, and **every one
+took a single command to reverse.**
+
+**The tell is what makes it usable: it feels like *finishing*.** A measurement
+feels like more work, so the argument is most tempting exactly when you are
+trying to stop — which is also the moment fewest people are left to check it.
+The checkpoint is therefore not *"am I being careful"*, which is always yes. It
+is **"am I trying to close this?"** If so, the next thing out of your hands
+should be a command rather than a sentence.
+
 ## State the SHA you measured, not the branch
 
 The rule above fires on an empty reading. **The failure it does not catch
