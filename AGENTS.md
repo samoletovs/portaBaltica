@@ -1857,7 +1857,7 @@ confident wrong statement, or nothing at all.
 | The producer | The consumer | What shipped |
 |---|---|---|
 | `api/historical-data/index.js:522` ships `freshness` from `es.isSeriesStale` | `IndicatorCard` read the series and never named the field | a series last observed `2022-Q1`, server saying `stale: true, age: 54`, rendered as `2.2%` under **Latest** with a green `▲ +0.3% … favourable` |
-| `write/generator.py:482` stamps `provenance.rejection = {gate, checks, detail}` | `runreport.py:191`, at `8d1727a~1`, took `.slug` off those objects | six rejected slugs, no reason, `errors: 0` — a run that destroyed six of eight articles, byte-identical to one that caught six bad drafts |
+| `write/generator.py`'s `_rejection_record` stamps `provenance.rejection = {gate, checks, detail}` | `runreport.py:191`, at `8d1727a~1`, took `.slug` off those objects | six rejected slugs, no reason, `errors: 0` — a run that destroyed six of eight articles, byte-identical to one that caught six bad drafts |
 | `GridStatePanel` plots three `dataKey`s: `generated`, `metered`, `planned` | its hand-written label recited generation, demand, net flow and **renewable share** | a screen-reader user heard the three stat boxes a second time, and never heard the one thing the chart carries — where measurement stops and forecast begins |
 
 **The shape, and it is greppable in both directions: take the field names one
@@ -2080,7 +2080,7 @@ numeric check — there is no wrong number anywhere in any of them.
 ### Two functions called `is_servable`, and the stricter one is not the safer one
 
 ```python
-# newsroom/validator.py:1519            the PUBLISH-time gate
+# newsroom/validator.py, `is_servable`      the PUBLISH-time gate
     if set(CHECK_NAMES) - names: return False      # every current check must be present
 
 # newsroom/pipeline/publish.py:66       the SERVE-time gate
