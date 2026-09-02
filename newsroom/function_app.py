@@ -179,7 +179,13 @@ async def newsroom_weekly(timer: func.TimerRequest) -> None:
     route="newsroom/weekly", auth_level=func.AuthLevel.FUNCTION, methods=["POST"]
 )
 async def newsroom_weekly_now(req: func.HttpRequest) -> func.HttpResponse:
-    """Manual trigger for operators. Same code path as the weekly timer."""
+    """Manual trigger for operators. Runs the same weekly pipeline the timer runs.
+
+    ⚠️ Not the same *trigger*: this is `@app.route(POST)`, so a success here is no
+    evidence about the timer path. The singleton lock belongs to the timer alone.
+    The sibling docstring on `newsroom_run_now` says the same thing about the daily
+    edition, in different words — an exact grep for one will not find the other.
+    """
     outcome = await _wrap_and_report("manual")
     return func.HttpResponse(
         json.dumps(outcome.to_json(), ensure_ascii=False),
@@ -191,7 +197,17 @@ async def newsroom_weekly_now(req: func.HttpRequest) -> func.HttpResponse:
 @app.function_name(name="newsroom_run_now")
 @app.route(route="newsroom/run", auth_level=func.AuthLevel.FUNCTION, methods=["POST"])
 async def newsroom_run_now(req: func.HttpRequest) -> func.HttpResponse:
-    """Manual trigger for operators. Same code path as the timer."""
+    """Manual trigger for operators. Runs the same pipeline the timer runs.
+
+    ⚠️ Not the same *trigger*: this is `@app.route(POST)`, not
+    `@app.timer_trigger`. Both reach `_run_and_report`, one with "manual" and one
+    with "timer", so a 625.8 s completion here proves the *pipeline* finishes
+    inside `functionTimeout` and proves nothing about the timer path.
+    `functionTimeout` is host-wide in `host.json` and does not distinguish them;
+    the singleton lock does, and it belongs to the timer alone. The sibling
+    docstring on `newsroom_weekly_now` says the same thing about the weekly
+    edition, in different words — an exact grep for one will not find the other.
+    """
     report = await _run_and_report("manual")
     return func.HttpResponse(
         json.dumps(
