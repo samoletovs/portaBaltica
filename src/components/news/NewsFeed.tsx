@@ -173,7 +173,31 @@ export default function NewsFeed() {
         <SectionFilter sections={sections} filter={filter} onChange={setFilter} />
       )}
 
-      <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      {/*
+        The rail becomes a sidebar at `md`, not at `lg`.
+
+        It is the second grid child, so in a single column it lands after the
+        *whole* feed — and the feed is now 49 articles rather than the 10 it
+        had when this was written. Measured against production at
+        2026-09-02T07:3xZ, with the rail located by its heading text:
+
+              w=  768   page=12080   railTop=11042   12.3 screens down
+              w= 1023   page=10768   railTop= 9750   10.8 screens down
+              w= 1024   page=11859   railTop=  334    0.4 screens down
+
+        A tablet reader never reaches it. The cliff is `lg:` = 1024px, and the
+        band below it is not short of room: the newsroom container is
+        `max-w-5xl`, so 1023px carries 975px of content against 976px at 1024px
+        — one pixel of viewport either side of a completely different layout.
+
+        The rail narrows to 16rem in the new band so the main column keeps a
+        tablet's width rather than a phone's: at 768px that is 416px of
+        article against the 352px a 20rem rail would have left. Both the
+        untouched bands are untouched by construction — below `md` there is no
+        column definition at all, and at `lg` and above the 20rem rule still
+        wins.
+      */}
+      <div className="grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div>
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-12 text-center">
