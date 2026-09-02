@@ -4923,11 +4923,26 @@ result.** Measured against this file:
 
 ```
 phrase                                                 per-line  normalised
+                                                       (count)   (count)
 'A fourth kind has no reading to distrust'                 0          1     WRAPS
 'A what needs a population. A why needs to be correct'     0          1     WRAPS
-'Two mechanisms, one symptom'                              2          1     present
+'Two mechanisms, one symptom'                              2          2     present
 a control phrase, deliberately not written here            0          0     absent
 ```
+
+⚠️ **That third row read `2 / 1` for two hours, and the units are why.** The
+`per-line` column was a count and the `normalised` column a *boolean* — so `1`
+meant "present", not "once", and the control row appeared to show the two methods
+**disagreeing on a phrase that does not wrap**, which is the exact opposite of
+what a control must demonstrate. Both columns are counts now and it reads `2 / 2`.
+
+A session caught it and proposed the right digit for the wrong reason — that the
+normaliser was skipping a fenced occurrence. It is not; it has no fence handling
+at all. **Right about the catch, wrong about the cause**, which is the third time
+in a day that pairing has appeared and the reason a ledger separating the two is
+worth keeping. And it is *a unit mismatch takes two silent denominators* occurring
+inside the table of the entry that states it — the rule not protecting its own
+sentence, again.
 
 Measured at `75408b5`, before this paragraph existed — and the omission in the
 last row **is** the point: naming the control would put it in the file and the
