@@ -5794,6 +5794,28 @@ And when a candidate fails these tests, **write it where it will be found**: in
 the file it concerns, next to a test that pins it. Knowledge inside the code it
 governs outlives a paragraph someone reads once.
 
+⚠️ **And the second test applies to a `what`, not to a `why`.** Three entries
+were added in one day on **one** instance each, and all three were right to be:
+the mechanism behind a phenomenon this file had already observed twice; a
+reduction that dissolved a distinction into a parameter an existing rule already
+carried; and a *replacement* of an existing reason with a truer one. Read
+literally, the bar above forbids every one of them.
+
+> **A `what` needs a population. A `why` needs to be correct.**
+
+A new claim about the world can be an anecdote, so it needs instances. An
+explanation of something already in the file cannot be — it is either the right
+account of the text above it or the wrong one, and **it does not become more true
+on a second occurrence.** Holding a better explanation to an evidentiary standard
+designed for a new claim is how a book comes to preserve the first explanation
+anyone happened to write.
+
+Two guards, so this does not become the loophole that swallows the bar. The `why`
+must attach to something **already** earning its place — it is not a route for
+admitting a new subject through the back door. And *"a reason without a distinct
+action belongs inside an existing section"* still holds unchanged: this changes
+the **evidence** a reason needs, not its **placement**.
+
 ### Prefer a rule that names a shape
 
 Two kinds of entry live here, and only one of them can be *pointed at code
