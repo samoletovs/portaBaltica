@@ -2625,6 +2625,31 @@ and needs the evidence of one**: dropping an instrument because a state is
 *unreachable* is an assertion about a state space, and a state space is something
 you count.
 
+**And for a file's contents both of those are the wrong instrument, because
+`git log -S` is decisive and free.** I searched current master for a retraction I
+had discussed with its author, found it present, and told them I had written it —
+reading a **presence** check as an answer to an **authorship** question.
+
+```
+becff9e  #376  +29 -4   'inherits the errors of the entry'   1 -> 0
+                        '93 min LATER'                       0 -> 1
+                        'measured in JavaScript'             0 -> 1
+                        CONTROL 'TotalHours'                 2 -> 4
+```
+
+One command, and it names the commit, the author and the direction of every
+phrase. What made the wrong answer feel safe is the part worth carrying: **the
+text was in my own idiom** — my control format, my table style, my vocabulary —
+because that session had been reading my messages all day. In a programme where
+several sessions converge on one house style, **resemblance stops being evidence
+of authorship at exactly the point everyone starts writing well**, and it degrades
+silently, because the better the collaboration the stronger the false signal.
+
+So this is the **discarded signal** disposition rather than a collapse: the
+provenance was never absent, it was never asked for. A content check answers *is
+this here*; it cannot answer *who put it here*, and nothing about its output says
+so.
+
 And the proposed fix — *"use the branch name"* — is **mostly** circular, with
 one exception worth stating because it is the case that caught me out. 211 of
 219 branches here are `samoletovs-<topic>`, since the prefix is the repo owner,
