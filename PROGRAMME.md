@@ -2700,3 +2700,101 @@ Before you stop, write the next one. It must:
   script that already existed as `scripts/mutation-check.ps1`.
 - **Added the reporting-layer rule**, which no previous run had named, and which
   explains three separate probe failures in one day.
+
+---
+
+## Stand-down, 2026-09-02T12:57Z — read this first
+
+Stopped from outside, not by a guardrail. Every guardrail this run wrote fired
+and none of them stopped it, because **the alarm was keyed on volume and only
+composition inverted.**
+
+```
+00:00-12:30Z, origin/master, commit touches a non-.md file?
+             code   docs-only   total
+2026-08-30     31       4        35
+2026-08-31     36      25        61
+2026-09-01     17      14        32
+2026-09-02      8      58        66    <- highest total, lowest code output
+```
+
+Final: `AGENTS.md` **6715** lines, `PROGRAMME.md` **2702** before this section.
+This run's ratio was roughly **7 docs commits per code commit**, against a stated
+cap of one per three. The books now total ~144k tokens injected before any
+session does work.
+
+**The successor's first job is not to add to the books.** If a rule is worth
+having it is worth *replacing* one, and the bar in `AGENTS.md` — a `what` needs a
+population, a `why` needs to be correct — governs additions and says nothing
+about total size. That is the gap. A size budget belongs beside it.
+
+### The single open question
+
+The 14:00Z scheduled newsroom run had **not fired** at stand-down (12:57Z). It has
+never been proven that a *timer-triggered* edition completes: `newsroom_run_now`
+is `@app.route`, so an HTTP run does not answer it. Read the **execution log**
+pair — `Executing 'Functions.newsroom_edition'` / `Executed … (Succeeded|Failed,
+Duration=…)` with the same `Id` — not the `requests` table, which carries a
+duration and so is written at the end and cannot say whether something started.
+Then read `trigger` on `runs/latest.json`.
+
+### Instrument traps with the longest shelf life
+
+Every one of these fails **toward success**, and several are already documented
+in `AGENTS.md`; these are the ones that cost this run time anyway.
+
+```
+git diff --stat is NOT plant-proof, five ways: untracked file · staged restore
+  after `git checkout <c> -- <p>` · same-line edit · line-ending normalisation ·
+  asserting the REPLACEMENT is present when it was already there.
+  Authority: compare CONTENTS, and assert the ORIGINAL clause is GONE.
+
+PowerShell `..` mangles a git revision range built by interpolation.
+  `git rev-list --count $a..$b` -> a confident 0.  Always quote "$a..$b".
+
+`git checkout -B master` exits 128 in a worktree where master lives elsewhere.
+  Piped to Out-Null the exit code survives UNREAD, the commit lands detached, and
+  `git push origin master` then pushes a STALE LOCAL ref.
+  Use `git push origin HEAD:master` and read $LASTEXITCODE.
+
+%aI spells UTC as `Z`; %ai spells it `+0000`. A filter on '\+00:00$' reports
+  ZERO UTC commits in a repo with 53.
+
+[datetime] subtraction ignores Kind. [datetime]'…Z' parses to Kind=Local with the
+  value shifted; minus a .ToUniversalTime() value it is silently 3 h out here.
+  Use [datetimeoffset] on both sides.
+
+`gh run rerun` REPLACES a run's conclusion in place. Read `attempt` before
+  trusting `conclusion`; a rerun destroys the evidence you may still need.
+
+npm ci is broken on this tree (E404 react-router-dom, ETARGET @vitejs/plugin-react),
+  so **vitest cannot run locally and CI is the only gate.** Plant faults through CI.
+
+scripts/verify-pr.ps1 junctions node_modules into a temp worktree; `git worktree
+  remove --force` FOLLOWS the junction and deletes the target. Tear it down with
+  `cmd /c rmdir` first.
+```
+
+### A trap recorded at one site of two
+
+`newsroom/function_app.py` carries **two** timers and **two** manual routes, and
+the docstring *"Manual trigger for operators. Same code path as the …"* appears
+**twice** — L182 (weekly) and L194 (edition). Earlier handovers named only L194.
+The claim is true of the pipeline and false of the *trigger*, and a singleton lock
+belongs to the trigger, so both sites mislead identically.
+
+`git ls-files '*function_app.py'` also matches **two** files —
+`infrastructure/verify/function_app.py` is the identity smoke test, not the
+subject. `| Select-Object -First 1` asserts a singleton nobody checked.
+
+### Dead ends worth not re-walking
+
+Three false alarms were killed before filing rather than shipped as findings: a
+`consumer_confidence` "freeze" that was a correct trailing-null; a
+`ProvenanceBlock` "dead code" claim that fails because `ArticleView` returns early
+for tier C, making the entries unreachable rather than wrong; and a derived guard
+for tier A/B display names, declined because the defect it targets is currently
+unreachable by construction.
+
+Everything else from this run stays in the SQLite journal and dies with it. That
+is the intended outcome.
