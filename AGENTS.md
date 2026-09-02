@@ -2907,6 +2907,26 @@ exact bytes matter — a length, a hash, a diff — parse the JSON and never tak
 jq shortcut. And read `.GetType().Name` before trusting `.Length`, because on the
 `Object[]` it is a **line count**.
 
+**And that safety is structural rather than lucky, which is what makes it worth
+relying on.** The JSON envelope crosses the process boundary as **one line**, with
+every newline still a two-character escape, so PowerShell's line splitter has
+nothing to translate. `jq` unescapes *first*, so real CR bytes reach the splitter
+and die there. Measured on a second pull request, at master:
+
+```
+gh pr view 379 --json body, unextracted   String · 1 element
+                                          real CR bytes 0 · literal \r 1
+  joined with LF   then parsed            len 2316 · CRLF 1
+  joined with CRLF then parsed            len 2316 · CRLF 1
+gh pr view 379 --json body -q .body       Object[] · 43 elements · len 2315 · CRLF 0
+```
+
+The separator cannot matter, because there is only one element to join. And the
+reconciliation holds across both bodies: **the length difference is exactly the
+CRLF count** — `2316 − 2315 = 1` here, `11119 − 10967 = 152` above. So `-q` is not
+merely lossy, it is lossy by a knowable amount, which is how you tell this failure
+from a genuinely different body.
+
 ⚠️ **And the obvious remedy for that has its own hole: `Measure-Object -Line`
 silently skips blank lines.** A session read this file at `4720` against my
 `5785` and was about to report an 18% inflation. Measured on the current file,
