@@ -2667,7 +2667,7 @@ Measured on this repo's alert labels, on exactly the pair a second instrument wa
 proposed to separate:
 
 ```
-                          gh label list   issues, all states   named in code   reachable
+                          gh label list   issues, all states   in prod code   reachable
 source-alert-rehearsal        absent              0                  3            yes
 wire-vantage                  absent              0                  2            NO
 zzq-no-such-label             absent              0                  0             —   <- CONTROL
@@ -2702,6 +2702,29 @@ implies one could, and it cannot.
 Three states, and I published them as two **in the entry about an instrument that
 publishes two as one.** Each instrument separated one more pair, and I stopped at
 the last pair I had thought of rather than at the last pair that exists.
+
+⚠️ **And that column needs its scope stated, because it holds two different
+guarantees.** It counts files under `scripts/` and `.github/workflows/` — not
+tests — and the distinction has a live case:
+
+```
+label                     prod files   test files   literal in prod?
+source-alert-rehearsal         3            1       yes
+wire-vantage                   2            2       yes
+wire-vantage-rehearsal         0            2       NO -- f"{label}-rehearsal"
+zzq-no-such-label              0            0       --   <- CONTROL
+```
+
+*The source names it* and *a test asserts the source constructs it* are not the
+same guarantee. The third row scores zero in production and four in tests, so
+under a tests-included scope it would look exactly like the first two, and under
+this one it looks exactly like the control. **Neither reading is wrong and they
+disagree**, which is why the header has to say which it is.
+
+The second guarantee is also the fragile one: delete the assertion and the label
+becomes indistinguishable from a typo while the routing goes on working. A test
+can go for reasons that have nothing to do with the thing it happened to pin.
+
 
 ⚠️ **And lazy creation does not make *exists-but-never-used* unreachable**, which
 was the argument offered for dropping the second instrument. Measured on the same
