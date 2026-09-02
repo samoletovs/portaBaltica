@@ -5320,9 +5320,28 @@ findable by a sweep run *afterwards*, on references rather than on assertions.
 So the population of a correction is not "files repeating this claim". It is
 **"files whose truth depends on it"**, and those two sets barely overlap.
 
-Measured across `api/` and `src/` at `96cb839`: **155 comments in 44 files assert
+Measured across `api/` and `src/` at `96cb839`: **155 comments in 55 files assert
 another file's behaviour by name.** That is the exposure a wording-grep cannot
 see, and it is the reason this is worth a sweep rather than an intention.
+
+⚠️ **That figure shipped without its key, and the file count shipped wrong.** The
+key is: files matching `^(api|src)/.*\.(js|ts|tsx)$`, a comment line opening `//`
+or `*`, naming a `.js`/`.ts`/`.tsx` token other than the file's own, within 120
+characters and anchored to the line end. Another reader stated a different key —
+any comment naming a **real repo file** — and got a larger population on the
+identical tree. Neither is wrong; only mine was unreproducible.
+
+And the file count said **44** because I deduplicated citing files on their
+**basename**, which collapses twelve separate `api/*/index.js` into one. The
+paths are 55. That is this book's own *"when a dedup decides identity, the key is
+a judgement rather than a formatting step"*, committed inside the entry that
+documents the family — the same shape as endorsing an unrun command in a
+paragraph about overconfidence.
+
+**The conclusion is invariant under the choice that moves the number**, which is
+the only reason this is a repair and not a retraction: every stated key gives a
+substantial population, one member demonstrably stale and the rest unmeasured.
+Read the zero, not the totals.
 
 Half that sweep is mechanical — **does the cited file still exist?** Run on all
 155:
