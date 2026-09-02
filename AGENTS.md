@@ -551,6 +551,39 @@ guard call the same builder, as `statusChecks.js` now does with `buildUrl` and
 `ports.seriesUrls`. A shared enumeration cannot drift; two enumerations always
 will, and the drift is silent in the direction that reports success.
 
+**And a declaration is an enumeration you can never finish.** Both rules above
+assume each side *has* a set you can write down and compare. Where one side is a
+**declaration** — a selector list, a token table — its population is whatever
+somebody thought of, so there is no set to compare: the guard is complete by its
+own lights at every moment, including the moment it is missing your element.
+
+Two subsystems, one mechanism, and `design-system.test.ts` is both of them:
+
+```
+asserts a 44px floor declared in index.css
+  its selectors   button, [role=button], summary, nav a, label, select, input
+  the skip link   a standalone <a>, in no nav      -> 139x40, no rule reached it
+
+computes contrast from the declared custom properties
+  an undeclared class                              -> invisible to it
+```
+
+The first shipped, and it shipped in the worst available place: the 40px control
+is the **first** one a keyboard or switch user ever reaches, while 886 of 886
+other interactive controls on the same 17 routes clear 44×44. The file is not at
+fault. No selector list can name the element nobody added to it, which is exactly
+why the count of *other* passing controls is not reassurance — they are the ones
+somebody thought of.
+
+So the remedy is not a longer list, because you cannot review a list for the
+absence of a thing you have not imagined. **Assert against the rendered artefact,
+where the population is discovered rather than declared** —
+`tests/touchTargets.live.test.ts` walks every interactive element on every route
+and needs no selector list at all. Give it the companion the vacuity rule already
+asks for: it asserts `skipLink.length === ROUTES.length` *before* asserting the
+floor, so a selector that matches nothing fails loudly instead of passing on an
+empty set.
+
 **And a search space is an enumeration.** Reconstructing an unstated counting
 rule, I searched three binary choices, found exactly one combination matching
 all four subjects, and reported that *"one of eight, therefore not
