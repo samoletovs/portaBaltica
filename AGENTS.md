@@ -6158,6 +6158,28 @@ A wrong answer eventually collides with something. **A right answer reached by
 a broken instrument collides with nothing, ever.** The one-liner had the same
 property: it worked, on the case that had been measured.
 
+⚠️ **And one level further back: the subject you are staring at supplies the
+frame you sample within.** Two instances the same afternoon, on a single sentence
+about rounding, each produced by the person correcting the other:
+
+```
+they sampled -2.5 and -3.5    BOTH HALVES, because halves were the thread's
+                              subject -> claimed a property of every NEGATIVE
+I changed `>=` to `>`         a THRESHOLD, because thresholds were mine
+                              -> the phenomenon is parity, so no threshold works
+```
+
+Measured, `[math]::Floor` and `[int]` disagree on **45.0% of values regardless of
+sign** — 900 differ / 1100 same on *each* side, over `x = n/10` for
+`n ∈ [-2000, 2000] \ {0}`. They agree when the fractional magnitude is below 0.5
+for a positive and above it for a negative: exact mirror images, and nothing to
+do with sign at all.
+
+So the tell is cheap, and it is about two populations rather than about care:
+**write down the property your sample was selected for, and the property your
+claim is about.** If they differ, the frame is wrong — and a frame is invisible
+from inside, because it is whatever you have been looking at for the last hour.
+
 So this is not "the measurer should be more careful". Care is aimed at
 correctness, and correctness is not the failing property — being right is what
 removes the only signal that would have made you check the *shape*. That is why
