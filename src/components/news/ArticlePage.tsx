@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { ArticleLoad } from '../../news-api';
 import { loadArticle } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
+import { syndicatedOriginalUrl } from '../../newsroom/canonical';
 import { ArticleView } from './ArticleView';
 
 export default function ArticlePage() {
@@ -38,6 +39,21 @@ export default function ArticlePage() {
    */
   const corrected = Boolean(article?.corrections?.length);
 
+  /**
+   * A syndicated piece points its canonical at the source it reproduces.
+   *
+   * Mirrors `canonicalFor` in `api/shared/articleMeta.js`, held to it by
+   * `tests/articleMetaParity.test.ts`. Without this the served head would name
+   * the source and hydration would immediately overwrite it with our own URL —
+   * the client runs last, so a server-only fix would have been undone in the
+   * browser, and only in the browser, which is where Google looks.
+   *
+   * Read from `withdrawn` as well as `article`: a retracted syndicated piece is
+   * `noindex` either way, but there is no reason to make a false claim about it
+   * on the way out.
+   */
+  const foreignCanonical = syndicatedOriginalUrl(article ?? withdrawn);
+
   usePageMeta({
     title: article
       ? `${corrected ? 'Corrected: ' : ''}${article.headline} | portaBaltica`
@@ -45,7 +61,8 @@ export default function ArticlePage() {
         ? `Retracted: ${withdrawn.headline} | portaBaltica`
         : 'portaBaltica',
     description: article?.dek,
-    canonicalPath: slug ? `/article/${slug}` : undefined,
+    canonicalPath: foreignCanonical || !slug ? undefined : `/article/${slug}`,
+    canonicalUrl: foreignCanonical ?? undefined,
     // Never indexed. The page stays up for a reader following the corrections
     // log, not for a search engine to keep circulating a story we withdrew.
     index: Boolean(article),

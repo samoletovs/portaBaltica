@@ -77,6 +77,7 @@ interface Summary {
   tier: string;
   headline: string;
   dek?: string;
+  syndicated?: { original_url?: string; attribution?: string };
 }
 
 interface Fetched {
@@ -126,6 +127,14 @@ function ogTitleFor(title: string): string {
 }
 
 let tierA: Summary[] = [];
+/**
+ * Every article that reproduces somebody else's work, with a usable slug.
+ *
+ * Kept separate from `tierA` because the two make opposite claims about whose
+ * page they are, and the interesting assertion is the one the source cannot
+ * make: whether the bytes a crawler is handed actually carry it.
+ */
+let syndicated: Summary[] = [];
 /** Every slug carrying a published correction, so the expected title is exact. */
 let correctedSlugs = new Set<string>();
 
@@ -136,6 +145,14 @@ beforeAll(async () => {
     (a) => a.tier === 'A' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(a.slug)
   );
   expect(tierA.length).toBeGreaterThan(0);
+
+  syndicated = parsed.articles.filter(
+    (a) =>
+      typeof a.syndicated?.original_url === 'string' &&
+      /^https?:\/\//i.test(a.syndicated.original_url) &&
+      /^[a-z0-9]+(-[a-z0-9]+)*$/.test(a.slug)
+  );
+  expect(syndicated.length, 'no syndicated article in the live index').toBeGreaterThan(0);
 
   const log = JSON.parse((await get(`${ARTICLES}/corrections.json`)).body) as {
     slug: string;
@@ -266,8 +283,70 @@ describe('the HTML a crawler receives for a published article', () => {
   });
 });
 
-describe('the HTML a crawler receives for a retracted article', () => {
-  it('marks the headline rather than repeating it bare, and is never indexable', async () => {
+describe('the HTML a crawler receives for a syndicated article', () => {
+  /**
+   * The one assertion the source cannot make.
+   *
+   * `tests/syndicatedCanonical.test.ts` proves both implementations agree, and
+   * proves each catches the other drifting. Neither can prove the deployed
+   * Function is running that code, or that the SWA is not serving a cached
+   * shell from before it — which is exactly the state this repo has shipped
+   * before, and exactly the class of claim a source test is blind to.
+   */
+  it('names the source as the canonical version, not us', async () => {
+    // Every one of them rather than a sample. The population is 54 today — 4
+    // tier B and 50 tier C — and it is derived from the index rather than
+    // written down, so it tracks whatever the newsroom syndicates next. The
+    // cost is one static fetch each and the whole file runs in about two
+    // seconds; a sample would leave the rest unmeasured for no saving.
+    for (const article of syndicated) {
+      const page = await get(`${BASE}/article/${article.slug}`);
+      expect(page.status, `${article.slug} did not serve`).toBe(200);
+
+      const canonical = /<link rel="canonical" href="([^"]*)"/i.exec(page.body);
+      expect(canonical, `${article.slug} carries no canonical at all`).not.toBeNull();
+      expect(
+        decode(canonical![1]),
+        `${article.slug} claims OUR url as the canonical copy of somebody else's article`,
+      ).toBe(article.syndicated!.original_url);
+    }
+  });
+
+  it('still points og:url and robots at our own page', async () => {
+    // og:url is what a social platform dedupes shares against, not an indexing
+    // claim, so a share of our page must stay a share of our page. And the
+    // page should remain reachable: only the canonical claim was ever false.
+    const article = syndicated[0];
+    const page = await get(`${BASE}/article/${article.slug}`);
+
+    expect(metaContent(page.body, 'property', 'og:url')).toBe(`${BASE}/article/${article.slug}`);
+    expect(metaContent(page.body, 'name', 'robots')).toBe('index, follow');
+  });
+
+  it('is absent from the sitemap, which would otherwise contradict it', async () => {
+    // `<loc>` says "index this URL"; the page it names says "no, index theirs".
+    const sitemap = (await get(`${BASE}/sitemap.xml`)).body;
+
+    // CONTROL FIRST. Without this a sitemap that failed to build, or a fetch
+    // that returned an error page, would pass the absence check below for the
+    // wrong reason — the failure mode this repo calls a negative-only control.
+    expect(
+      sitemap.includes(`${BASE}/article/${tierA[0].slug}`),
+      'the sitemap does not list even our own articles, so the absence below proves nothing',
+    ).toBe(true);
+
+    const listed = syndicated
+      .map((a) => a.slug)
+      .filter((slug) => sitemap.includes(`${BASE}/article/${slug}`));
+
+    expect(
+      listed,
+      'the sitemap asks a crawler to index a page whose own canonical points elsewhere',
+    ).toEqual([]);
+  });
+});
+
+describe('the HTML a crawler receives for a retracted article', () => {  it('marks the headline rather than repeating it bare, and is never indexable', async () => {
     // The corrections policy keeps this page up and #113 makes it say why. So
     // the card carries the marking with the headline — a share card has no
     // page around it to supply the context — but claims nothing else.

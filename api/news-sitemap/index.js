@@ -75,6 +75,19 @@ const NOT_IN_SITEMAP = {
  *
  * Our own pages only. Tier C items live on other people's domains and belong
  * in other people's sitemaps.
+ *
+ * ⚠️ That sentence was true of tier C and quietly false of tier B. `#374`
+ * pointed every syndicated page's `rel=canonical` at the source it reproduces,
+ * which is correct — and a sitemap entry whose page names a *foreign*
+ * canonical is a contradiction we would be publishing: `<loc>` here says
+ * "index this URL", and the page it names says "no, index theirs". This file
+ * already carries that argument twice, for `/indicator/:id` and for
+ * `/correspondents/:id`. So the filter below is forced by the canonical
+ * change, not chosen alongside it.
+ *
+ * Four tier B pages were listed before this. RSS and the JSON feed still carry
+ * them, deliberately: those credit the source in `dc:creator` ("Source:
+ * European Commission") and make no claim about which copy is the original.
  */
 const handler = async function (context, req) {
   try {
@@ -86,7 +99,14 @@ const handler = async function (context, req) {
     // tell a crawler nothing had changed, which is exactly the claim a
     // correction makes false.
     const [articles, corrected] = await Promise.all([
-      newsroom.fetchIndex().then(newsroom.ourArticles),
+      newsroom
+        .fetchIndex()
+        .then(newsroom.ourArticles)
+        .then(function (list) {
+          return list.filter(function (article) {
+            return newsroom.syndicatedOriginal(article) === null;
+          });
+        }),
       newsroom.fetchCorrections(),
     ]);
     const today = new Date().toISOString().slice(0, 10);

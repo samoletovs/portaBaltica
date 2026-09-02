@@ -188,6 +188,40 @@ function fetchCorrections() {
 const SYNDICATABLE_STATUSES = ['published', 'corrected'];
 
 /**
+ * The foreign original this piece reproduces, or `null` when the piece is ours.
+ *
+ * WHY THIS IS THE PROPERTY AND NOT THE TIER
+ * -----------------------------------------
+ * Tier A never carries a `syndicated` block and tiers B and C always do —
+ * measured against the live index on 2026-09-02: A 0/45, B 4/4, C 50/50. So
+ * keying on the block gives exactly the tier answer today, and stays right for
+ * a tier that does not exist yet. `tests/syndicatedCanonical.test.ts` asserts
+ * the tier mapping as an equality anyway, so a new tier is still noticed.
+ *
+ * WHY ANYTHING READS THIS
+ * -----------------------
+ * `articleMeta.js` already refuses to emit `NewsArticle` JSON-LD for anything
+ * that is not tier A — `newsArticleJsonLd` returns null — because a syndicated
+ * item is not our journalism and must not be described as though it were.
+ * Three hundred lines below that, `buildHead` built the canonical URL with no
+ * tier gate at all, so every one of those pages declared **itself** the
+ * canonical version of somebody else's article. Measured live before the fix:
+ * a European Commission press release and an LSM report, both `index, follow`,
+ * both `rel=canonical` pointing at us.
+ *
+ * The scheme test is not decoration. A `<link rel="canonical">` is resolved
+ * against the document, so a relative or `javascript:` value in stored data
+ * would silently become a claim about one of our own URLs, or worse.
+ */
+function syndicatedOriginal(article) {
+  const syndicated = article && article.syndicated;
+  const url = syndicated && syndicated.original_url;
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+}
+
+/**
  * Our own pages only, and only ones still standing.
  *
  * Tier C is a link out to somebody else's journalism; syndicating their
@@ -350,6 +384,7 @@ module.exports = {
   parseCorrections,
   feedTitle,
   ourArticles,
+  syndicatedOriginal,
   bylineFor,
   escapeXml,
 };

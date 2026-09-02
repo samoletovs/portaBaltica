@@ -42,6 +42,17 @@
 
 'use strict';
 
+/**
+ * The one place the "is this piece ours" question is answered on the API side.
+ *
+ * This module was deliberately dependency-free, and this is the one import it
+ * has earned: `news-sitemap` must ask the identical question, and two copies of
+ * a predicate that decides whose page a crawler is told this is would be the
+ * second implementation `AGENTS.md` warns about — free to disagree, with
+ * nothing to say which side was right.
+ */
+const newsroom = require('./newsroom.js');
+
 const SITE_URL = 'https://portabaltica.naurolabs.com';
 const SITE_NAME = 'portaBaltica';
 
@@ -407,11 +418,52 @@ function metaTag(attribute, name, content) {
  * `usePageMeta({ index: Boolean(article) })` already does once JavaScript runs.
  * This only moves that decision into the bytes.
  */
+/**
+ * The canonical URL for a piece: theirs when we reproduce it, ours otherwise.
+ *
+ * Exported so `tests/articleMetaParity.test.ts` can hold it against the
+ * client's `canonicalForArticle`, which decides the same thing after
+ * hydration. If the two disagree, a crawler and a reader are told different
+ * things about whose page this is — and the client wins, because it runs last.
+ */
+function canonicalFor(article, slug) {
+  return newsroom.syndicatedOriginal(article) || (slug ? articleUrl(slug) : SITE_URL);
+}
+
 function buildHead(article, slug, kind) {
   const state = kind || (article ? 'ok' : 'none');
   const servable = state === 'ok';
   const withdrawn = state === 'retracted';
-  const canonical = slug ? articleUrl(slug) : SITE_URL;
+  const ownUrl = slug ? articleUrl(slug) : SITE_URL;
+
+  /**
+   * The canonical version of this piece — theirs when we reproduce it.
+   *
+   * `newsArticleJsonLd` above already refuses to describe anything but tier A
+   * as a `NewsArticle`, because a syndicated item is not our journalism. This
+   * line had no such gate, so every syndicated page declared **itself** the
+   * canonical version of somebody else's article. Measured live on 2026-09-02:
+   *
+   *   tier B  a European Commission press release  canonical=ours  in sitemap
+   *   tier C  an LSM report                        canonical=ours  not in sitemap
+   *
+   * `LinkOutCard`'s docstring names the stake — EU DSM Art. 15 and Google's
+   * scaled-content-abuse policy — and tier C was designed around it. Tier B
+   * reproduces under a licence that permits it, which settles the copyright
+   * question and says nothing about which copy a search engine should treat as
+   * the original. That answer is: not ours.
+   *
+   * `og:url` deliberately still points here, and the difference is not an
+   * oversight. `rel=canonical` is an indexing claim about whose page this is;
+   * `og:url` is the identity a social platform dedupes shares against, so
+   * pointing it at the source would turn a share of our page into a share of
+   * theirs. Only the first of those was wrong.
+   *
+   * `robots` is likewise untouched: it keys on `servable`, which is right. The
+   * page should stay reachable and readable — only the canonical claim was
+   * false.
+   */
+  const canonical = canonicalFor(article, slug);
 
   /**
    * Whether this piece carries a published correction.
@@ -481,7 +533,7 @@ function buildHead(article, slug, kind) {
     metaTag('property', 'og:title', ogTitle),
     metaTag('property', 'og:description', description),
     metaTag('property', 'og:type', servable ? 'article' : 'website'),
-    metaTag('property', 'og:url', canonical),
+    metaTag('property', 'og:url', ownUrl),
     metaTag('property', 'og:image:alt', ogTitle),
     metaTag('name', 'twitter:title', ogTitle),
     metaTag('name', 'twitter:description', description),
@@ -580,6 +632,7 @@ module.exports = {
   escapeHtml,
   escapeJsonForScript,
   articleUrl,
+  canonicalFor,
   renderByline,
   publisherName,
   disclosureFor,
