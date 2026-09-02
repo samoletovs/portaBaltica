@@ -3711,6 +3711,15 @@ that day. So state the property the query depends on — *spans a line break*,
 has it. A single-line control validates only single-line queries, and it will
 pass forever while telling you nothing.
 
+**The cheap general form is to derive the control from the object at probe
+time**, rather than remembering one. For a wrapped-phrase search that is four
+words from the end of one line plus four from the start of the next: it is
+present by construction, it spans a wrap by construction, and it cannot be stale
+or burned because it did not exist a second ago. Measured here, it gives
+`per-line 0 / normalised True` — which is exactly the signature a wrapped query
+produces, so a probe that reports that pair is working and one that reports
+`0 / False` on it is not.
+
 **And a control certifies the artefact it ran on, not the one beside it.** That
 is the same clause stated as a limit rather than as an instruction, and it is
 the form that catches the case where controls are present, correct, and cover
