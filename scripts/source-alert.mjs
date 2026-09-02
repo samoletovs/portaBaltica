@@ -67,7 +67,7 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  * as an alert costs one false alarm on the day someone adds a state, and buys
  * the guarantee that a vocabulary change cannot pass silently.
  */
-const CHECK_STATUS = new Set(['healthy', 'stale', 'unhealthy']);
+const CHECK_STATUS = new Set(['healthy', 'stale', 'pending', 'unhealthy']);
 const CHECK_FRESHNESS = new Set(['fresh', 'stale', 'unknown']);
 const OVERALL_STATUS = new Set(['healthy', 'stale', 'degraded', 'unhealthy']);
 
