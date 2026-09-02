@@ -1656,6 +1656,37 @@ still hold with one more label in play?"* Only the second finds this. In the
 author's words: **the tests enumerated the functions I edited, not the
 invariants I disturbed.**
 
+⚠️ **And that sweep has a blind spot: a consumer written *later* can be born
+incomplete, and no sweep at extension time can reach it.** On 2026-09-02 the
+alert notifier fired a real Telegram alarm about a healthy site —
+
+```
+Unreadable status payload: check "Riga Open Data" reports status "pending",
+which is not one of healthy, stale, unhealthy
+```
+
+— and the obvious reading is a vocabulary extended past a stale consumer. It is
+not. Measured:
+
+```
+'pending' introduced         ac46bc8  2026-08-27  api/system-status
+scripts/source-alert.mjs     d6b22c3  2026-08-28  a day LATER
+its CHECK_STATUS at creation 'healthy', 'stale', 'unhealthy'
+grep for the sibling word at ac46bc8 -> 12 files, the consumer among none
+```
+
+The consumer **postdates the member** and was written already missing it: it
+retyped the producer's vocabulary rather than deriving it, which is this file's
+*two enumerations always drift* arriving in a set of strings rather than a URL.
+
+So the remedy cannot be a sweep at extension time — nothing existed to sweep. It
+has to be a **standing guard** that fails whenever the two sets disagree, and
+there is none: no test in this repo mentions `CHECK_STATUS` and the endpoint
+together. ⚠️ Note the guard must be **static**, comparing the consumer's set with
+the statuses the producer's source can emit. A *live* test would exercise
+`pending` only when the response budget actually fires — measured at about 6%,
+which by the sampling arithmetic above passes 94% of runs while testing nothing.
+
 ## A count is safe or unsafe according to what the sentence does with it
 
 The section above treats `detect_record_extreme` as *the* right version of a
