@@ -2603,6 +2603,28 @@ what saved it. Nothing in this repo prescribes the bare form: `PROGRAMME.md`
 measures throughput with `gh pr list --json mergedAt` and an exact date prefix,
 which has no `--since` in it.
 
+⚠️ **And `[int]` rounds in PowerShell rather than truncating**, so a duration
+composed from `[int]$d.TotalHours` plus `$d.Minutes` plus `$d.Seconds` is wrong
+whenever the fraction is ≥ 0.5. **Two sessions hit it independently within an
+hour**, on different intervals, each while verifying the other's timestamp work:
+
+```
+        TotalHours   [int]   Floor   components    printed
+mine    2.7956         3       2     2h47m44s      3h47m44s
+theirs  2.7058         3       2     2h42m21s      3h42m21s
+```
+
+`$d.Hours` and `$d.ToString()` both give the right answer and sit in the same
+object. Use either.
+
+**What makes it worth a paragraph is that it is intermittent and
+self-inconsistent.** Had the fraction been 0.4 it would have floored to the same
+number, printed correctly, and taught nobody anything — so the bug is invisible
+more than half the time. And when it does fire, it composes a **rounded** hour
+with an **exact** minute, so the output disagrees with itself: `3h47m` beside a
+ratio computed from `TotalMinutes`, `3h42m` beside `Minutes = 42`. Both of us
+caught it that way — by the pair, not by knowing the rounding rule.
+
 `-S` being symmetric is **already in this file** — and the form it gives is
 *also* wrong, which I found only by running it a few hours later.
 `--diff-filter=D` returns **0** for a name removed from a surviving file,
