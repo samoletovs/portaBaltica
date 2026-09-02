@@ -233,6 +233,21 @@ const rows: Row[] = [
     mentions: ['degraded'],
   },
   {
+    // `pending` is emitted by `runOptionalCheck` when OPTIONAL_RESPONSE_BUDGET_MS
+    // cuts a slow optional probe. It reached this vocabulary only in production:
+    // on 2026-09-02T11:19Z the notifier fired a real alert reading "Unreadable
+    // status payload: check \"Riga Open Data\" reports status \"pending\"", while
+    // the site was healthy at required 9/9.
+    //
+    // Accepting it cannot mask a required failure: `runRegistryCheck` dispatches
+    // `if (!check.required) return runOptionalCheck(...)`, so `pending` is
+    // unreachable for a required check by construction. It is therefore valid but
+    // NOT bad, and deliberately absent from BAD_STATUS.
+    what: 'an optional check reports "pending", which the response budget emits',
+    payload: withCheck('Riga Open Data', { status: 'pending', freshness: 'unknown' }),
+    alert: false,
+  },
+  {
     what: 'a check reports a freshness word the vocabulary does not contain',
     payload: withCheck('Eurostat', { freshness: 'probably fine' }),
     alert: true,
