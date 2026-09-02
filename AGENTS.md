@@ -6180,6 +6180,25 @@ So the tell is cheap, and it is about two populations rather than about care:
 claim is about.** If they differ, the frame is wrong — and a frame is invisible
 from inside, because it is whatever you have been looking at for the last hour.
 
+**And the two failed differently, which is what tells you where to look.** Both
+were the frame everyone was reasoning within — a bar, an operator — but only one
+of them announced itself:
+
+```
+the bar       forbade correct work        VISIBLE: violated three times in a day
+the operator  wrong one row at a time     INVISIBLE: each fix WAS a fix, for that row
+```
+
+The bar was reported by being **broken**, repeatedly, by someone doing the right
+thing against it. The operator reported nothing: `≥ → >` looked like a correction
+*and was*, for the row under examination, and only the next row disagreed. **A
+wrong rule you keep breaking is self-reporting; a wrong rule you can satisfy is
+not** — and the second is where an afternoon goes.
+
+So attention should not be spread evenly. Look hardest at the rules you are
+**satisfying**, because a rule you keep violating has already told you.
+
+
 So this is not "the measurer should be more careful". Care is aimed at
 correctness, and correctness is not the failing property — being right is what
 removes the only signal that would have made you check the *shape*. That is why
