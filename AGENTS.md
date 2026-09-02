@@ -2682,9 +2682,16 @@ API cannot answer.
 
 ⚠️ **And the code-grep does not finish the job either, because the last column is
 a third state I had folded into the second.** `source-alert-rehearsal` is
-reachable and unexercised: `source-alert.yml:251` sets `alert: true` on the
-rehearsal path, so the first source rehearsal creates it. `wire-vantage` cannot be
-created at all —
+reachable and unexercised: `source-alert.yml:264-267` sets `alert=true` whenever
+the probe exits non-zero, and the `stale-required` fixture makes it exit 1 —
+executed, not read — so the first source rehearsal creates it. **Not `:251`**,
+which is the broken-monitor fallback behind `[ ! -f report.json ]` and is
+unreachable on this path because the fixture run *writes* a report; it stood
+because the conclusion it was attached to is correct, and a correct conclusion
+collides with nothing. A line number is the one thing in this file a reader
+*follows*, so it is worth executing rather than quoting: `:251` does contain
+`alert: true`, and reading it settles nothing. `wire-vantage`
+cannot be created at all —
 
 ```
 wire_check.py:1342   return EXIT_ALERT if severity_of(verdict) == SEVERITY_ALERT else EXIT_CLEAN
