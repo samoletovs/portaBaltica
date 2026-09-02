@@ -2569,6 +2569,40 @@ manufactures the second out of two of the first, and no amount of staring at
 `96` reveals it. What revealed it was that someone else's number disagreed by
 an amount too small to argue about, and I checked anyway.
 
+⚠️ **And `--since` with a bare date is not a calendar boundary.**
+`--since=2026-09-02` does not mean *that day from midnight*; it means **that
+date at the current time of day** — a relative offset wearing a date's clothes.
+Measured at **2026-09-02T10:53 local (+03:00)**, on a repo with 14 commits that
+day — the instant matters, and the next paragraph is why:
+
+```
+--since=2026-09-02              0   oldest admitted (none)
+--since=2026-09-01             94   oldest 2026-09-01T10:58:52
+--since=2026-08-31            176   oldest 2026-08-31T10:55:54
+--since=yesterday              94   oldest 2026-09-01T10:58:52   <- IDENTICAL
+--since='2026-09-02 00:00'     14   oldest 2026-09-02T09:28:12
+--since=2026-09-02T00:00:00Z   14   oldest 2026-09-02T09:28:12
+```
+
+⚠️ **Re-run four minutes later while verifying this entry, the third row read
+`175`, oldest `2026-08-31T11:00:13`.** The window had slid forward with the wall
+clock and dropped a commit. That is the mechanism confirming itself inside its
+own worked example — and it is why the two fixed-time rows are the only ones
+that would still read `14` tomorrow.
+
+**`yesterday` and the bare date returning the same count *and the same oldest
+commit* is the proof**: both are *now minus n days*, not a date. So a bare date
+gives **zero for today** whenever nothing has landed since this hour, and **the
+last 24 hours for any earlier day** — which reads as that day's total and is
+not. Both are silent, and the zero is worse: it is a perfectly good answer to
+*"did anything else touch this today?"*
+
+**Always include a time.** A session hit the zero on a day with 79 commits and
+controlled it rather than concluding — and **the control failed too**, which is
+what saved it. Nothing in this repo prescribes the bare form: `PROGRAMME.md`
+measures throughput with `gh pr list --json mergedAt` and an exact date prefix,
+which has no `--since` in it.
+
 `-S` being symmetric is **already in this file** — and the form it gives is
 *also* wrong, which I found only by running it a few hours later.
 `--diff-filter=D` returns **0** for a name removed from a surviving file,
