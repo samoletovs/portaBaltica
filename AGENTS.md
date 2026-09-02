@@ -5779,6 +5779,29 @@ it**, and report the rate rather than the instance. Five is enough to tell 80%
 from 20%, which is the distinction that usually matters. State the denominator:
 "4 of 5" is a measurement, "it works" is an anecdote.
 
+⚠️ **That "five" is calibrated for comparing two loud rates, and it endorses a
+false all-clear on a quiet one.** I reported *"0 of 10, resolved"* about an
+intermittent fault and it recurred four minutes later. Computed afterwards, the
+miss probability `(1-p)^n`:
+
+```
+rate    n=5    n=10   n=18   n=50
+  6%    73%    54%    33%     5%
+ 20%    33%    11%     2%     0%
+```
+
+At the measured 6%, **ten clean samples miss a live fault more often than they
+find it** — my "resolved" was a coin flip wearing a measurement's clothes. The
+same afternoon another session declined to *fix* a 1-in-5 layout signal for the
+mirror-image reason: proving a fix against it needs many runs either side, and a
+short clean run says nothing.
+
+So before reporting a rate-based verdict, compute the window rather than
+choosing it. For 95% confidence of seeing at least one occurrence,
+`n = ln(0.05) / ln(1-p)` — **49 samples at 6%, 14 at 20%.** A zero shorter than
+that is not evidence of absence, and the cheap honest output is the miss
+probability beside the zero.
+
 The corollary is about what to do with a minority failure. Ask whether it is
 *wrong* or merely *weak*. A draw that states something true but less
 informative costs one paragraph; a gate that rejects it costs the whole article
