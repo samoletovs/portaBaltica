@@ -992,9 +992,11 @@ folded "confirm which population"  -> misattributed a `deadlineMs` between
                                       two registry entries
 folded "a summary claims more than
         its artefact"              -> overstated a defect 3x in a summary
-folded "read it twice by different
-        routes"                    -> read `git grep` on a phrase that wraps,
-                                      and saw "my #363 was reverted"
+folded "prove it on a known heading
+        and a known non-heading
+        before trusting a zero"    -> trusted a zero from `git grep` on a
+                                      wrapping phrase, and read it as
+                                      "my #363 was reverted"
 ```
 
 None of the three was a failure of care, and none was caught by the rule. Each
