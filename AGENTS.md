@@ -2646,6 +2646,20 @@ $utc = [Globalization.DateTimeStyles]::AdjustToUniversal -bor
 namespace, and the first draft of this very snippet threw *"Unable to find type"*.
 Caught by executing it, which the sentence three lines above tells you to do.
 
+⚠️ **And `ConvertFrom-Json` gets there first.** It types a date-like string to
+`[datetime]` on the way in, so the value you reach for is *already parsed* and
+`[datetime]::Parse($x)` throws on its own `ToString()`. `gh --json` and
+`Invoke-RestMethod` both do this. Test the type, do not assume the string:
+
+```
+$p.mergedAt.GetType().Name       DateTime, Kind=Utc
+[datetime]::Parse($p.mergedAt)   throws: '08/31/2026 23:41:41' not recognized
+```
+
+The local-format text in that error is the tell — it is the object rendering
+itself, not the wire format you think you are parsing. Hit twice in one hour
+*after* writing it down in a journal, which is the argument for it being here.
+
 **What makes this worth a paragraph is that it cancelled another error.** Asked
 when a claim was introduced, I ran `git log -S` with no direction filter — `-S`
 is symmetric, so the newest match was the commit that *removed* the string,
@@ -5087,6 +5101,33 @@ arithmetic, and arithmetic does not feel like an observation with a timestamp on
 it** — so the re-read above never gets applied to it. Extend it to the figures,
 and where a count is going into something someone will act on, take it in the
 same breath as sending rather than from the top of the message.
+
+**And the count that decays worst is a filed finding's severity, because nothing
+re-triages a backlog.** Two instances in one day, wrong in opposite directions:
+
+```
+GROWTH   the front-page rail    filed when the feed was small. Measured from
+                                published_at:  08-24  4 articles
+                                               08-31 43
+                                               09-02 49      12x in nine days
+                                rail 11,042px down at 768px (their browser
+                                run, recorded in NewsFeed.tsx; not re-run here)
+
+SCOPE    the syndicated canonical    framed as "a tier B problem", 4 articles.
+                                The gate keys on `syndicatedOriginal`, so the
+                                real population was 54.
+```
+
+The first grew **because the product succeeded** — more articles, longer single
+column, worse defect — with the cause completely unchanged. The second was wrong
+at filing: the description named a *tier* where the code names a *property*.
+
+Both leave a `P2` sitting under a `P1`, and neither is visible from the item
+itself, because **a priority reads as a judgement rather than as a measurement
+with a date on it** — the same disguise a count wears, one level up. So
+re-measure a finding's blast radius when you **pick it up**, not when you file
+it. And expect the understatement to be worst in the parts of the system that
+are working, because those are the ones whose population is growing.
 
 **And the same death has a second population, invisible to the obvious sweep.**
 Everything above is addressed to the *author* of a claim. This is for whoever
