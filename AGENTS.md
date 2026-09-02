@@ -3874,6 +3874,32 @@ twice, in the paragraph above.
 per use and the corpus keeps every one it is shown; if nobody names them, the
 supply is unbounded.
 
+⚠️ **And "burned" is a *relation*, not a property of the token — demonstrated by
+a 45-minute natural experiment.** The same token can be spent for one corpus and
+perfectly good for another at the same instant:
+
+```
+18:04:31Z   the token first appears in a cross-session MESSAGE
+18:49:14Z   657ea8a writes it into AGENTS.md
+              657ea8a^  0 occurrences        657ea8a  1 occurrence
+
+for 44m42s  burned  for a search of the message store
+            VALID   for a search of the repo
+```
+
+So any claim that some *act* burns a token — messaging it, quoting it, saying it
+in a meeting — is underspecified rather than wrong. The only question is **which
+corpus does this act populate**, and that decides nothing until you name the
+corpus you are about to search. It is also why a session's proposed rule that
+*communication* invalidates a control cannot be a second mechanism: the window
+above **refutes** it directly, since the message channel held the token for three
+quarters of an hour and burned nothing in the repo.
+
+The consequence that bites: **a token verified absent from `AGENTS.md` is not
+thereby a control for the whole tree**, nor the reverse. Assert absence against
+the object you are about to search, on the pass you search it — which is why
+*"the key matters"* is already in the paragraph above.
+
 **And the hazard is one-directional, which bounds what needs fixing.** Every
 collision above was an *ad-hoc grep over prose*, where a control token that
 turns up returns a positive and reads as a finding. A **committed test asserting
