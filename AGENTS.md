@@ -5284,9 +5284,9 @@ haystack that holds `A T T B`, because a self-referential link normalises to its
 text twice:
 
 ```
-L166  nothing follows the link            A T   FOUND     no A T B case   SAFE
-L339  nothing follows the link            A T   FOUND     no A T B case   SAFE
-L392  " is the design book and ..."       A T B NOT FOUND                 BITES
+foundrylab-shared-account   nothing follows the link   A T   FOUND    no A T B case  SAFE
+swa-free-tier-constraints   nothing follows the link   A T   FOUND    no A T B case  SAFE
+DESIGN.md   " is the design book and ..."              A T B NOT FOUND                BITES
 ```
 
 **A quote breaks iff it starts before the link and extends past it.** So the two
@@ -5305,6 +5305,34 @@ dest, but `../` and the backticks are punctuation and vanish, so both sides redu
 to the same words and the haystack carries them twice. **Line-initial position
 does not help**, which is the trap — it only makes the preceding words live on the
 previous line, where a careless probe will not look for them.
+
+⚠️ **And the derived control I prescribed for this does not cover it, which was
+demonstrated on this very passage.** Deriving a control from *arbitrary* adjacent
+lines gives you one that shares the property *spans a wrap* and says nothing about
+*spans a link*, so it goes green while the probe is blind. Measured on master, one
+run, same normaliser:
+
+```
+A T B across the DESIGN.md link                     NOT FOUND
+T B starting at the link                            FOUND
+derived control, from the two plain lines below it  FOUND   <- passes anyway
+haystack: "...typography and design design md design md is the design book..."
+```
+
+So the recipe still retires the staleness problem it was written for, and it is
+**not a general control**. The correction is one word: derive it from the query's
+**own neighbourhood**, so it inherits whatever constructs are local to the thing
+you are actually searching — not from whichever two lines happen to be plain.
+
+That is the shape-match rule applied one level down, to the control rather than to
+the query, and it was found by a session running the recipe on the paragraph that
+contains it. Three probe failures preceded the reading, and the third returned
+`FOUND` for the span this section says bites — because a blank line above made `A`
+empty, silently collapsing `A T B` to `T B`. **A confident, reproducible, false
+refutation of a documented claim**, and the kind one is most motivated to report.
+It survived only because the mechanism is written down here, so the haystack could
+be predicted and the reading disagreed with it.
+
 
 So the general rule is narrower and more useful than "links break it": **only a
 construct that interrupts a sentence conceals anything.** A block-level HTML
