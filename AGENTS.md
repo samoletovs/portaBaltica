@@ -5709,6 +5709,28 @@ content is on master rather than trusting the merge — `git show
 origin/master:path | Select-String <the thing>` takes seconds and answers the
 question the pull request's own status cannot.
 
+⚠️ **And two gates in this repo are routinely run without being run.** Both cost
+a red master and a skipped deploy on the same afternoon, and both look like the
+thing they are not:
+
+```
+npm test   ==  npm run typecheck && vitest run     (read from package.json)
+```
+
+So **`npx vitest run` is not the gate** — it is the second half of it, and
+skipping `tsc -p tsconfig.test.json` is silent, because the tests still pass. The
+only correct invocation is `npm test`.
+
+And `mergeable` and `mergeStateStatus` answer different questions.
+`mergeable: MERGEABLE` means *no conflict*; **`mergeStateStatus: UNSTABLE` means a
+required check is failing**, and a pull request is routinely both at once.
+Reading the first and merging past the second is how a failing check reaches
+master. Read `mergeStateStatus`, and treat `UNSTABLE` as a stop.
+
+Neither is an inductive claim needing a second instance: the first is verifiable
+by reading `package.json`, the second by reading the two fields side by side on
+any pull request. One confirmation is the whole evidence there is.
+
 **⚠️ Read `.merged` before you act on that mismatch, because this check fires a
 false alarm on an already-merged pull request — and the remedy above is
 destructive there.** The two states produce the identical artefact:
