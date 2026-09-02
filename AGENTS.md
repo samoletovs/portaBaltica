@@ -2459,10 +2459,26 @@ the population is vivid to you and invisible in your output.
 
 ⚠️ And verifying this entry produced a sixth. Their reading was *"2 of 3 in the
 `--grep` population"*; I reproduced the range population exactly — 8 commits,
-theirs at position 7 — and **could not reproduce the grep one at all**, because
-the *pattern* was never stated and my guess matched 8 rather than 3. The
-denominator was named one layer up and left unstated one layer down, inside the
-check of the claim that denominators go unstated.
+theirs at position 7 — could not reproduce the grep one, and recorded that the
+pattern had **never been stated**. It had: two messages earlier, in a fenced
+block, as the first thing in that message. It was stated once and then dropped
+from the *summary* that carried the number — so this is not an unstated
+denominator, it is **a summary travels alone**, which is already in this file and
+needs no new instruction. The right response to it is to trim this entry, not
+extend it.
+
+⚠️ **And my own comparison figure was worse than range-scoped — it was vacuous.**
+
+```
+git log dd2a3cd~1..d73408d --grep 'correct' -i     8
+git rev-list --count dd2a3cd~1..d73408d            8   <- the filter excluded 0
+git log origin/master      --grep 'correct' -i   323   <- the repo-wide figure
+```
+
+My `8` was the size of the range wearing a grep's clothes, so it could not have
+disagreed with anything I pointed it at. **A filter that matches its whole
+population is indistinguishable from no filter**, and it reads as a measurement
+either way.
 
 ⚠️ **And the sibling failure is explaining a discrepancy rather than auditing
 it.** When two counts of the same thing disagree, the tempting move is to name a
