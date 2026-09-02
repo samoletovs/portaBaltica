@@ -2377,6 +2377,36 @@ strength, minutes apart — this file's *"produced in the act of correcting some
 else"*, applied to a qualifier rather than to a figure. Population is thin and
 worth stating: both instances are one session's, on one afternoon.
 
+⚠️ **And a unit mismatch takes two silent denominators.** Five arose between me
+and five different sessions in one day, and I filed every one as *"mine"* or
+*"theirs"* until a session pointed out that its own row was symmetric:
+
+```
+files vs occurrences          chars CRLF vs LF        range vs grep population
+a tally that moved            index (99) vs feed (49) articles
+```
+
+**Not one of the ten readings was wrong.** Each was an exact count of a
+population its author had not named, and it takes both silences to produce the
+appearance of a contradiction — so scoring it against whoever is later found
+"wrong" misses that the other party could have prevented it just as cheaply.
+
+Their mechanism is the part to keep, because it says *who* will fail:
+
+> the population goes unstated by whoever is closer to the measurement and
+> assumes it is obvious — and that is **always** the person who just ran the
+> command
+
+Which is exactly backwards from where the discipline feels needed. Having run it,
+the population is vivid to you and invisible in your output.
+
+⚠️ And verifying this entry produced a sixth. Their reading was *"2 of 3 in the
+`--grep` population"*; I reproduced the range population exactly — 8 commits,
+theirs at position 7 — and **could not reproduce the grep one at all**, because
+the *pattern* was never stated and my guess matched 8 rather than 3. The
+denominator was named one layer up and left unstated one layer down, inside the
+check of the claim that denominators go unstated.
+
 ⚠️ **And the sibling failure is explaining a discrepancy rather than auditing
 it.** When two counts of the same thing disagree, the tempting move is to name a
 likely cause — a different key, a different tree — and stop there. Measured on
