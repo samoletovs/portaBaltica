@@ -2537,10 +2537,15 @@ manufactures the second out of two of the first, and no amount of staring at
 `96` reveals it. What revealed it was that someone else's number disagreed by
 an amount too small to argue about, and I checked anyway.
 
-`-S` being symmetric is **already in this file** — `--diff-filter=D` appears
-above, in the correct form of the exact command I got wrong. I did not look,
-because I was not in doubt. That is the concealing-sibling shape arriving in
-the tooling: the book had the answer and my confidence is what kept me from it.
+`-S` being symmetric is **already in this file** — and the form it gives is
+*also* wrong, which I found only by running it a few hours later.
+`--diff-filter=D` returns **0** for a name removed from a surviving file,
+because the filter selects on the file's status rather than the string's. So
+the concealing sibling was concealing a second defect: **had I looked, I would
+have got a different wrong answer, and a quieter one.** I did not look because
+I was not in doubt, and then wrote this paragraph endorsing the thing I had not
+run — which is the same fault one level up, and it survived a day. Corrected
+where it is stated, further down.
 
 **State the population.** Two sessions measured this an hour apart and got
 `110` PRs and `370`; neither is wrong, and they never disagreed. One counted a
@@ -3520,9 +3525,26 @@ the *name*. And the rescue, again, was a control: the `False` sat beside
 paired reading caught what a single one could not.
 
 The check that settles it costs one command, and it distinguishes the two
-mechanisms rather than assuming either: `git log -S '<the name>' --diff-filter=D`
-names the commit that removed it. If that commit is *after* your merge, the
-merge was fine and your vocabulary is stale.
+mechanisms rather than assuming either: `git log -S '<the name>' -- <path>`
+lists every commit where the count of that string changed. The newest is the
+removal; `--reverse` puts the introduction first. If the removal is *after*
+your merge, the merge was fine and your vocabulary is stale.
+
+⚠️ **Not `--diff-filter=D`, which this file recommended for a day and which
+returns nothing.** `--diff-filter` selects on the *file's* status, not the
+string's, so `D` matches only when the whole file was deleted — precisely not
+the case when a name is removed from a file that survives. Measured against
+`a843ad7`, which removed a claim from `api/shared/ckan.js`:
+
+```
+plain -S             2   cd36567 added it, a843ad7 removed it
+-S --diff-filter=D   0   <- the recommendation. A confident zero.
+-S --diff-filter=M   1   the removal, because the file was Modified
+CONTROL -S on an impossible string   0
+```
+
+It fails in the direction that reads as *"never removed"*, which is the same
+direction as every other defect in this section.
 
 ### A control drawn from the corpus you are searching is not independent of it
 
