@@ -100,6 +100,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['portData.live.test.ts', 'the Eurostat maritime tables still carry data'],
   ['tradePartners.live.test.ts', 'the CN-8 customs dataset is still publishing, and still means what the endpoint says'],
   ['reducedMotionLayout.live.test.ts', 'the deployed site does not scroll sideways'],
+  [
+    'touchTargets.live.test.ts',
+    'every rendered control on every route clears 44x44 — design-system.test.ts asserts the CSS RULE exists, which can only confirm a floor for the selectors somebody thought of, and the site skip link is a standalone <a> outside any nav so no rule reached it and it rendered 139x40 focused. 886 of 886 other controls already clear the floor, so this is a property the site meets rather than an aspiration',
+  ],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
   [
     'forcedColours.live.test.ts',
