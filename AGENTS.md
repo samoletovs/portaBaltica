@@ -2752,11 +2752,38 @@ object. Use either.
 
 **What makes it worth a paragraph is that it is intermittent and
 self-inconsistent.** Had the fraction been 0.4 it would have floored to the same
-number, printed correctly, and taught nobody anything — so the bug is invisible
-more than half the time. And when it does fire, it composes a **rounded** hour
-with an **exact** minute, so the output disagrees with itself: `3h47m` beside a
-ratio computed from `TotalMinutes`, `3h42m` beside `Minutes = 42`. Both of us
-caught it that way — by the pair, not by knowing the rounding rule.
+number, printed correctly, and taught nobody anything. And when it does fire, it
+composes a **rounded** hour with an **exact** minute, so the output disagrees
+with itself: `3h47m` beside a ratio computed from `TotalMinutes`, `3h42m` beside
+`Minutes = 42`. Both of us caught it that way — by the pair, not by knowing the
+rounding rule.
+
+⚠️ **And "intermittent" undersells it: the bug is a function of the minute field
+you are already printing.** Swept over all 1440 minutes of a day:
+
+```
+Minutes  < 30                    correct always      720 minutes
+Minutes  > 30                    WRONG always        696 minutes
+Minutes == 30, hour even         correct              12 minutes
+Minutes == 30, hour odd          WRONG                12 minutes
+                                 ------------------------------
+                                 732 correct / 708 wrong, 49.17% wrong
+```
+
+So it is not merely intermittent — it is intermittent **in a way the output tells
+you about**. Anything printed as `Xh31m` or later from that construction is wrong
+by exactly one hour, every time. That also explains why two of us hit it in one
+afternoon rather than making it luck: the intervals were `2h47m` and `2h42m`,
+both past the boundary.
+
+⚠️ Two sessions corrected this paragraph and **the second correction was itself
+wrong**, in the direction the first had already ruled out. It reported the split
+as exactly `720 / 720`, which is what round-**half-up** gives; under banker's
+rounding the twenty-four exact-half minutes divide 12/12 by parity, so the true
+split is `732 / 708`. Its sharper rule — *"`Minutes >= 30` is always wrong"* —
+fails at `02:30` and `04:30`. **A correction inherits the errors of the entry it
+has not read to the end**, which is the staleness this file documents, arriving
+between two people fixing the same sentence two hours apart.
 
 ⚠️ **And it is not a threshold: `[int]` is banker's rounding**, so at *exactly*
 0.5 the answer depends on the **parity** of the integer part. This paragraph
