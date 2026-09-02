@@ -6017,6 +6017,43 @@ choosing it. For 95% confidence of seeing at least one occurrence,
 that is not evidence of absence, and the cheap honest output is the miss
 probability beside the zero.
 
+⚠️ **That arithmetic answers variance and says nothing about bias**, which is the
+half that bites hardest, because more sampling is the obvious remedy and it does
+not work. `n = ln(0.05)/ln(1-p)` counts **independent** trials. Samples sharing a
+state that outlives the sampling window are one observation wearing `n` coats,
+and `n` can be raised without limit without moving the error.
+
+Measured the same afternoon, on a change the arithmetic above had just made
+provable: ten consecutive production readings of `/data` gave a median CLS of
+`0.3583` against `0.0215` before — a regression on any reading, and the session
+was ready to revert its own correct change on the strength of ten in a row.
+
+```
+production, 3-13 min post-deploy   10 of 10 above 0.3    median 0.3583
+production, 45 min post-deploy     10 of 10                     0.0031
+local A/B, both commits, same env  BEFORE 0.0243   AFTER 0.0031
+```
+
+The confound was a cold Free-tier Function App: slow `/api/*` leaves each panel
+in a 256px empty state that collapses when the data lands. What separated the
+two was not an eleventh run but a **different axis** — building both commits and
+serving them side by side. `deploy.yml:175` already warns of exactly this
+mechanism, *"could fail a correct change because a Free-tier Function was
+cold"*, and the session had read that file the same day.
+
+So the two cautions are mirror images, and neither implies the other:
+
+| | says |
+|---|---|
+| the arithmetic above | a short **clean** run is not evidence of **absence** |
+| this | a long **dirty** run is not evidence of **presence** |
+
+Before spending `n` on a rate, ask what the samples **share**. A cold host, a
+deploy in flight, one warmed cache, one clock — any state outliving the window
+makes `n` equal to 1 however many readings you take. The remedy is never more of
+the same reading; it is to vary the thing you suspect and hold the rest, which is
+what a control is for.
+
 The corollary is about what to do with a minority failure. Ask whether it is
 *wrong* or merely *weak*. A draw that states something true but less
 informative costs one paragraph; a gate that rejects it costs the whole article
