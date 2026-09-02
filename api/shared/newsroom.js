@@ -250,7 +250,7 @@ function syndicatedOriginal(article) {
  * 2026-08-31:
  *
  *     88 entries · 67 carry a status · 21 do not
- *     the 21 are 19 tier A and 2 tier B — our own journalism
+ *     the 21 are 19 tier A and 2 tier B
  *     all 50 tier C entries carry `published`
  *
  * So a reader who re-measures now finds most entries populated and could
