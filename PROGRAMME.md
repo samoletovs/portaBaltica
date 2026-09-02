@@ -85,6 +85,29 @@ newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
               a manual run's success is therefore no evidence at all about the
               lock. That has to be read, not argued.
 
+              ⚠️ **And `host.json` on master is not what runs.** A session
+              checked the tree that is actually deployed, which I had not:
+
+                NEWSROOM_REVISION            aebc239  (#370, 2026-09-01 20:58Z)
+                aebc239:newsroom/host.json   "functionTimeout": "00:30:00"
+                CONTROL 908da40              "00:10:00"  -- the probe distinguishes
+                d82233b (the raise) is an ancestor of aebc239
+
+              and that the deployed revision is still *current* for the
+              newsroom, which is what makes the gap to master harmless —
+              measured against master at `b4a5047`, since the count moves with
+              every commit and the **0** is the part that does not:
+
+                aebc239..b4a5047             10 commits, 2 files
+                                             AGENTS.md, PROGRAMME.md
+                watched by newsroom-ci       0   (newsroom/**, src/news-types.ts,
+                                                  pytest.ini, newsroom-ci.yml)
+                CONTROL 27abc908..aebc239    1   test_alert_notify.py
+                                                 -- the filter check discriminates
+
+              Read `NEWSROOM_REVISION` from app settings and the file from *that*
+              commit. Master's copy is evidence about master.
+
               **So I read it. There is no held lease** — measured ~7 h before
               the next fire, from the platform rather than inferred:
 
