@@ -3687,6 +3687,30 @@ four ordinary series that were also absent were on the **same chart**, which is
 the only reason the zero was disbelieved. This costs one extra assertion and it is the only thing standing
 between a tooling failure and a confident wrong bug report.
 
+⚠️ **And "same object" is not enough: the control must share the *property* your
+query depends on.** A session searched this file for two phrases, got `0 / 0` for
+text that is demonstrably present, and **its positive control fired** — right
+object, right two commits, could find things in it. Every diagnostic said the
+instrument was healthy. It was blind anyway, because `AGENTS.md` is hard-wrapped
+and the control **fits on one line while the queries do not**.
+
+Three instances, and the first is the positive half already told above:
+
+```
+refLines   the four ordinary series were drawn by recharts in jsdom, the
+           SAME WAY as the markers -- shared property, control worked
+theirs     single-line control, wrapped queries -- control fired, probe blind
+mine       `reading the artefact` occurs on 6 single lines; I used it as a
+           positive control all day against queries that span wraps
+```
+
+The third is the one to learn from because it is **standing rather than a
+one-off**: a control chosen once and reused is chosen against the query you had
+that day. So state the property the query depends on — *spans a line break*,
+*rendered by the same engine*, *served after hydration* — and pick a control that
+has it. A single-line control validates only single-line queries, and it will
+pass forever while telling you nothing.
+
 **And a control certifies the artefact it ran on, not the one beside it.** That
 is the same clause stated as a limit rather than as an instruction, and it is
 the form that catches the case where controls are present, correct, and cover
