@@ -807,6 +807,29 @@ probe actually calls answers HTTP 200 in 145–350ms from an ordinary connection
 four times out of four. Its 6.2s is our egress failing to reach it, the same
 signature as Open-Meteo, not the source being down.
 
+⚠️ **And that stall is intermittent and not source-specific — it reaches
+*required* checks, where the optional budget cannot help.** Measured
+2026-09-02T10:45Z, when the published verdict went `degraded`, required 8/9:
+
+```
+CSP PxWeb, from the function   6203 ms, deadline 3000 ms exceeded, UNHEALTHY
+the same URL, from here        5 of 5 HTTP 200 in 140-401 ms
+four minutes later             CSP 235-288 ms · Riga 276 ms · required 9/9
+```
+
+Two things follow. The `6202`/`6203` near-identity across two unrelated sources
+points at the egress path rather than at either host — and Riga, recorded above
+at 6202 ms on eight consecutive requests, answers in **276 ms** today, so that
+figure was a moment rather than a property. Do not read it as characteristic.
+
+And `OPTIONAL_RESPONSE_BUDGET_MS` is **750 ms applied only in the optional path**,
+while `overallStatus` degrades on any unhealthy *required* check — so a required
+source cannot be budgeted away, and a stall on one publishes `degraded` for a
+host that is up. **When the status page reports a required source unhealthy at
+roughly six seconds, probe the source directly before believing it is down.**
+That is one command, and here it was the difference between an outage report and
+a transient nobody needed to know about.
+
 **Never let two definitions share a cache key.** Several indicators legitimately
 read the same cube — `bop_c6_q` backs seven balance-of-payments series,
 `sts_rb_q` backs registrations and bankruptcies, `mar_go_qm_{cc}` backs total
