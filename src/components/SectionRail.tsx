@@ -69,11 +69,46 @@ export function SectionRail({ sections }: { sections: SectionLink[] }) {
 
   // Keep the active chip in view on a narrow screen, where the rail scrolls
   // sideways and the section you are in may be off the end of it.
+  //
+  // ⚠️ This scrolls the rail's own box rather than calling `scrollIntoView`,
+  // and the difference is not stylistic. `scrollIntoView` sets Chromium's
+  // **sequential focus navigation starting point** to the element it scrolls
+  // to, so the next Tab begins there instead of at the top of the document.
+  // Because this effect runs as soon as the IntersectionObserver first reports
+  // a section, it fired before any reader had touched the page.
+  //
+  // Measured against production at 2026-09-02T08:2xZ, viewport 375, no hash
+  // and no `:target` anywhere:
+  //
+  //     /              Tab 1 -> <a href="#main">    the skip link
+  //     /data          Tab 1 -> <a href="#trade">   24 elements in
+  //     /data/energy   Tab 1 -> <a href="#main">
+  //
+  // So on the dashboard overview a keyboard or switch user's first Tab landed
+  // in the middle of the page, past the skip link, the masthead, the country
+  // switcher, the range controls and the theme toggle — with no indication
+  // that anything had been skipped. `/data/energy` renders no rail, which is
+  // why it was unaffected and why this looked like a page-specific oddity
+  // rather than the rail.
+  //
+  // Setting `scrollLeft` moves the same pixels and touches no focus state.
   useEffect(() => {
-    if (!active || !railRef.current) return;
+    const scroller = fadeRef.current;
+    if (!active || !railRef.current || !scroller) return;
     const chip = railRef.current.querySelector<HTMLElement>(`[data-section="${active}"]`);
-    chip?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [active]);
+    if (!chip) return;
+
+    // Rects rather than `offsetLeft`: the nav is `sticky`, so it — not the
+    // scrolling div — is the chip's offsetParent, and the two disagree by the
+    // scroller's padding.
+    const chipBox = chip.getBoundingClientRect();
+    const viewBox = scroller.getBoundingClientRect();
+    if (chipBox.left < viewBox.left) {
+      scroller.scrollLeft -= viewBox.left - chipBox.left;
+    } else if (chipBox.right > viewBox.right) {
+      scroller.scrollLeft += chipBox.right - viewBox.right;
+    }
+  }, [active, fadeRef]);
 
   return (
     <nav
