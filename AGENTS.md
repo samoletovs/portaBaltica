@@ -612,6 +612,25 @@ act of correcting someone else.
 So before quoting a search as evidence of uniqueness, **write down what it held
 fixed.** That list is the population, and it is not the one the search reports.
 
+⚠️ **And "in the act of correcting someone else" is not a coincidence — it is the
+condition.** A third instance is recorded further down in its own words: a
+paragraph about an overconfident reading endorsed a command its author had never
+run, and says so — *"I did not look because I was not in doubt, and then wrote
+this paragraph endorsing the thing I had not run"*. Three instances, every one
+produced inside a correction.
+
+The mechanism inverts the obvious guard, which is why it is worth naming rather
+than filing as carelessness: **a correction is written in the register that feels
+most rigorous, and that is exactly when an example goes unexecuted, because the
+surrounding humility reads as having done the work.** Hedging, conceding a point
+and showing your working all supply the *sensation* of verification while
+supplying none of it — and they supply it most strongly to the person writing.
+
+So the rule is not "be careful when correcting". It is the one this book already
+applies to guidance — **an example is a claim about behaviour, so run it** — with
+the addition that it must be run *especially* inside a correction, because that
+is the one context in which you will most feel you already have.
+
 **Declare its cadence.** Every probe carries a `cadence` and a `maxLag` in
 `api/shared/statusChecks.js`, and `api/shared/freshness.js` judges the newest
 observation against them. A registry test fails if a probe omits them, because
@@ -2560,6 +2579,29 @@ against a fix that was entirely correct. It defended itself only because the
 reading was absurd — a tier A article carrying a tier B slug — which is the row
 of the taxonomy that does not generalise. Give a control's collection a name no
 loop variable could collide with.
+
+⚠️ **And a `$` inside an unquoted argument beginning with `-` is not expanded at
+all.** PowerShell parses such a token as a parameter *name*, and a parameter name
+takes no interpolation, so the literal reaches the command:
+
+```
+$needle = 'datastore_search_sql'
+git log -S$needle   -- api/shared/ckan.js    ->  0 commits
+git log "-S$needle" -- api/shared/ckan.js    ->  1 commit
+GIT_TRACE says:  git log ... '-S$needle' ...    <- the LITERAL, never expanded
+```
+
+Git accepts `-S$needle` as a perfectly good pickaxe for the seven-character
+string `$needle`, finds none of it, and exits **0**. Two states, one artefact:
+*no matches* and *a variable that never expanded*. Measured while checking
+somebody else's correct finding, where it read as **"their result does not
+reproduce"** — the confident false regression this file exists to prevent.
+
+Quote the whole argument. And note that a positive control does **not** save you
+here, which is what makes it worth writing down: `-S'literalstring'` works, so a
+control written with a literal passes while the variable form beside it silently
+fails. What separated them was `GIT_TRACE`, which shows the argv git actually
+received rather than the one you believe you sent.
 
 *The temporal control.* The obvious alternative is a convention that changed
 over time, which would make this a clock rather than a signature. Cohorts
@@ -4903,6 +4945,12 @@ measured on b5fb6ad          # not "on master", which means something else by
 programme where several sessions merge into one branch through an afternoon,
 every message describing "master" describes a different tree from the one its
 reader will check, and the gap is invisible from both ends.
+
+One step further, and it costs two words: **say what the SHA *is*, not only what
+it is.** A bare `cfe1342` dropped into a list of one's own results reads as
+attribution, because a hash carries no relation to the text around it and the
+reader supplies one. It was in fact master's head at the time of measurement, and
+nothing in the line said so. `master head cfe1342` cannot be misread.
 
 The same applies to *when*, and it costs one field. A report saying
 `open PRs: 1 (#175)` was read four hours later as a stale snapshot; it was a
