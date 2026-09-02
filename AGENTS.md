@@ -1240,7 +1240,7 @@ question rather than an open one:
 | `hlth_cd_asdr2` causes of death | 31.9-month lag, 3647ms, 93 ICD codes | Permanently retrospective |
 | `crim_off_cat`, `env_wat_cat`, `nrg_ind_id` | 19.9-month lag | Permanently retrospective |
 | `isoc_ci_ifp_iu` internet use | 182 `ind_type` values, 7.9-month lag | Unpinnable at reasonable cost |
-| `migr_asyappctzm` monthly asylum | **RESOLVED 2026-08-29** — see below | Codes resolved, definition measured. Needs one pass across four files. |
+| `migr_asyappctzm` monthly asylum | **RESOLVED 2026-08-29, SHIPPED since** — see below | Not a rejection, and no longer pending: it is `asylum_applications` in `indicators.js` and live. Re-measured 2026-09-02, `assumptions 0`. |
 | Statistics Estonia (`andmed.stat.ee`) | HTTP 200, 224–518ms, **PxWeb** — the protocol `api/historical-data` already speaks | Technically cheap, strategically wrong: buys depth in one country and manufactures the asymmetry the Baltic grid exists to avoid |
 | Statistics Lithuania (`osp-rs.stat.gov.lt`) | HTTP 200, 2386ms, **SDMX 2.1**, 7.3 MB dataflow catalogue | Different protocol entirely, for the same strategic cost |
 
@@ -1277,6 +1277,32 @@ freq=M unit=PER citizen=TOTAL sex=T applicant=FRST age=TOTAL
 dimension reports it and overstates freshness by a month — the `demo_r_mwk_ts`
 trap again. `eurostat.js` already skips nulls, so nothing downstream is wrong;
 the hazard is in probes written to check it.
+
+**And that warning has since become per-country, which is the more useful
+form.** Measured against the deployed endpoint on 2026-09-02:
+
+```
+LV  2026-05=240  2026-06=350  2026-07=null    freshness.period 2026-06
+EE  2026-05= 50  2026-06= 40  2026-07=null    freshness.period 2026-06
+LT  2026-05= 20  2026-06= 20  2026-07=  50    freshness.period 2026-07
+```
+
+Lithuania has published the month the note calls null; Latvia and Estonia have
+not. So *"`2026-07` is null"* was true of the cube in August and is now true of
+two countries out of three — a claim that decayed without anything being wrong
+with it, because publication is per-country and the note was written about the
+coordinate.
+
+This is the `demo_r_mwk_ts` lesson arriving a second time and confirming it:
+**per-country `latest` must drive display, and it does** — the endpoint reports
+a different `freshness.period` for each country and marks none of them stale.
+The counts differ for the same reason: LV 66, EE 66, LT 67 observations.
+
+**This indicator is live.** `asylum_applications` in `api/shared/indicators.js`,
+referenced by `src/chart-ref.ts`, `assumptions 0` on every request. The row
+above said "needs one pass across four files" long after that pass was made —
+a survey entry that had gone stale in the direction that invents work, which is
+the same failure as one that hides it.
 
 **Candidates measured and worth adding** — ~~in order~~ **all three shipped in
 `#189` on 2026-08-28.** Kept because re-measuring them on the way in corrected
