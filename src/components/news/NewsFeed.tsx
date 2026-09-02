@@ -155,10 +155,78 @@ export default function NewsFeed() {
 
   if (articles === null) {
     return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading the front page">
-        <div className="news-skeleton h-40 animate-pulse rounded-xl" />
-        <div className="news-skeleton h-24 animate-pulse rounded-xl" />
-        <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+      /*
+        `min-h-screen` is the whole fix, and it is not decoration.
+
+        The loading state was three bars — about 384px. The feed that replaces
+        it is roughly 12,000px, so the footer sat mid-viewport during the load
+        and was thrown far below it when the articles arrived. Measured against
+        production at 2026-09-02T09:4xZ, one layout shift at 745-966ms doing
+        almost all of the damage, at every width:
+
+              375   CLS 0.6892      768   CLS 0.6654
+             1024   CLS 0.7273     1280   CLS 0.5819
+
+        Google calls anything above 0.25 poor, so the front page was between
+        2.2x and 2.9x that — on the one page most readers arrive at.
+
+        A skeleton cannot reserve 12,000px, and does not need to: CLS only
+        counts elements that are *visible* when they move. Reserving a viewport
+        puts the footer below the fold before the content lands, so its journey
+        from just-off-screen to far-off-screen is not a shift anybody sees.
+
+        The extra bars are there because a 100vh box with three small bars at
+        the top reads as a page that failed to load rather than one that is
+        loading.
+      */
+      <div
+        key="front-page-loading"
+        className="min-h-screen"
+        aria-busy="true"
+        aria-label="Loading the front page"
+      >
+        {/*
+          Reserves the section filter's exact height, rather than a guess at it.
+
+          The filter is absent while loading and 44px or 96px afterwards — one
+          row that scrolls sideways below `sm`, two rows where it wraps, one
+          again at `lg` once the container is wide enough for all ten chips.
+          Measured on the real control: 320/375 → 44, 640/768 → 96,
+          1024/1280 → 44, plus `mb-6` in every case.
+
+          Reproducing that with a height would mean encoding today's wrap
+          points as numbers, and they move whenever a label or a section
+          changes. Rendering the same container with the same buttons and the
+          same labels reproduces it *by construction* instead: the browser wraps
+          the placeholder exactly where it will wrap the real thing.
+
+          `disabled` so it is not a tab stop, `aria-hidden` so the loading
+          announcement above is the only thing a screen reader hears.
+        */}
+        <div
+          className="mb-6 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible"
+          aria-hidden="true"
+        >
+          {['Everything', ...Object.values(SECTION_LABELS)].map((label) => (
+            <button
+              key={label}
+              type="button"
+              disabled
+              className="news-skeleton shrink-0 animate-pulse rounded-full border px-4 py-2 text-caption text-transparent"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <div className="news-skeleton h-40 animate-pulse rounded-xl" />
+          <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+          <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+          <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+          <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+          <div className="news-skeleton h-24 animate-pulse rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -168,7 +236,7 @@ export default function NewsFeed() {
     corrections.state === 'ok' && corrections.slugs.has(summary.slug);
 
   return (
-    <div>
+    <div key="front-page-loaded">
       {sections.length > 1 && (
         <SectionFilter sections={sections} filter={filter} onChange={setFilter} />
       )}

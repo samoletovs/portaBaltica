@@ -82,6 +82,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
   ['historicalData.live.test.ts', 'every Latvian indicator the API advertises still returns data'],
   [
+    'layoutStability.live.test.ts',
+    'the front page settles without moving what a reader is already looking at — CLS was 0.58-0.73 against Google\'s 0.25 "poor" line, because React reconciled the loading skeleton INTO the feed so every bar became an article card in place. A source test cannot see this: it is a property of two renders and the browser between them. Its healthy reading is zero, so it causes a shift on purpose afterwards and requires the same observer to report it',
+  ],
+  [
     'newsRailPlacement.live.test.ts',
     'the elsewhere rail is a sidebar at every width with room for one — it is the second grid child, so in a single column it lands after the WHOLE feed, and with the corpus at 49 articles that put it 12.3 screens down at 768px while 1024px had it 0.4 screens down. Position is read in a browser rather than inferred from a class name, and the phone width is asserted in the opposite direction so a short or unrendered feed fails instead of passing',
   ],
