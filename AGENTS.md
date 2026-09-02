@@ -3716,6 +3716,44 @@ because two orders were run and disagreed.
 **Strip block comments first, always.** It costs nothing in JavaScript, where
 `/*` and `//` share no prefix, and it decides the answer wherever they do.
 
+**And the trap has a form with no comments in it at all**, where stripping
+cannot help because the document *is* prose — a book that records its own
+corrections, like this one. A session verified that a corrected rule had
+reached master; I checked the same thing and got the opposite answer:
+
+```
+measured at 0f2f05e, before this paragraph existed:
+'only meaningful while merged is false'   their needle   ABSENT    correct
+'only meaningful while'                   mine           PRESENT   false
+```
+
+⚠️ **That table is pinned to a SHA because writing it down falsified it**: this
+paragraph quotes the dead claim in order to discuss it, so the first needle went
+`0 → 1` the moment it was committed, and the label-only needle multiplied. A
+second draft stated that multiplier as a number and was wrong by one *because
+stating it added another occurrence* — so the count is deliberately absent here.
+The entry is now itself an instance of the thing it describes, which is why the
+population belongs beside the figure.
+
+Both hit the same line, and that line is the **correction**: *"only meaningful
+while the pull request is `OPEN` — not, as the first correction said, while
+`merged` is false"*. I was one message from telling them their merged work was
+not on master.
+
+**A correction quotes the claim in order to say it was wrong**, so the
+recognisable part of a dead claim does not merely tend to survive — it is
+*guaranteed* to, by the grammar of correcting things. The remedy is therefore
+about the needle rather than the stripping: **search the clause that made the
+claim wrong, not the phrase that makes it recognisable.** `merged is false` is
+the falsifying clause; `only meaningful while` is the label, and the label is
+precisely what a correction preserves.
+
+Same day, same fault, with a real defect behind it: sweeping for `disabled`
+near `datastore_search_sql` matched `ckan.js`'s retraction *and*
+`tradeStats.js`'s live stale citation, and only printing the lines told them
+apart. That is the existing remedy working — a needle carrying the asserting
+verb would not have needed it.
+
 ⚠️ **That rule as stated is over-broad, and the discriminator is which way a
 comment pushes the verdict.** A mention either *satisfies* the check or merely
 *triggers* it, and only one of those can hide anything:
