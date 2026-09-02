@@ -612,6 +612,33 @@ act of correcting someone else.
 So before quoting a search as evidence of uniqueness, **write down what it held
 fixed.** That list is the population, and it is not the one the search reports.
 
+⚠️ **And there is a cheaper test than writing down what you held fixed, because it
+needs no introspection: ask whether any datum you have could have separated the
+candidates at all.** Measured on a four-row table with two rival keys — boolean
+presence over the whole file, and a count with fenced blocks stripped:
+
+```
+'A fourth kind has no reading...'   A=1  B=1
+'A what needs a population...'      A=1  B=1
+'Two mechanisms, one symptom'       A=1  B=1
+CONTROL, absent                     A=0  B=0
+all four published rows agree under both keys : TRUE
+```
+
+The search came back clean and confident, and **could not have come back any
+other way.** A phrase occurring twice *inside* fences would have separated them
+(`A=1, B=0`), or three times in prose (`A=1, B=3`) — neither shape was present. So
+the honest output was *"correct under at least one key; I cannot recover yours"*,
+and what was written was *"correct under this key"*, which asserts recovery.
+
+**The asymmetry says when this happens.** That session had declined this exact
+move four hours earlier — *reproducing a number is not recovering what was
+counted* — on a figure it wanted to be **wrong**. It made the move on a figure it
+wanted to **explain**. A reconstruction that fails leaves you with a question; one
+that succeeds feels like an answer, and success is precisely the condition under
+which nobody asks whether the search space held a second solution.
+
+
 ⚠️ **And "in the act of correcting someone else" is not a coincidence — it is the
 condition.** A third instance is recorded further down in its own words: a
 paragraph about an overconfident reading endorsed a command its author had never
