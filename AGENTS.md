@@ -4852,6 +4852,35 @@ against the instant the writer stated, or say plainly that it is a reading-time
 gap.** `git rev-list --count <their-sha>..<the-sha-that-was-head-when-they-wrote>`
 is the honest measurement; `..origin/master` is the flattering one.
 
+⚠️ **And there is a case where the message was *not* accurate when sent, because
+the sender's own merge falsified it.** That is not asynchronous handoff — it is
+self-inflicted, and it is far harder to see, because from the inside a premise
+you formed an hour ago is indistinguishable from one that is still true. Four
+instances in a day, between two people:
+
+```
+a handover task    "articleMeta.js still needs the prefix"
+                   -> already done, in a PR I had merged that morning
+a PR body          "#335 is a live wire-alert issue, deliberately left open"
+                   -> closed 5 h before that PR merged
+a workflow comment "that step has never delivered"
+                   -> false by 98 minutes; the author's own merge delivered it
+a bug report       "the passage cites a fold that does not exist"
+                   -> true, and their own #371 had fixed it 24 minutes earlier
+```
+
+The last is the cleanest: a correct finding, correctly measured, reported to the
+one person who could not act on it because they had already acted. **Every one
+of the four was formed while true and used after it was false**, and a brief
+reads identically either way — there is no artefact that distinguishes a live
+premise from a dead one.
+
+So the check is cheap and specific: **before dispatching a brief or a report,
+re-read the thing it asserts — especially if you merged anything in between.**
+Not "is my information fresh", which invites a yes, but "does the claim still
+hold *now*". The two premises most likely to be dead are the ones you were most
+confident about, because confidence is what stopped you re-reading.
+
 ## A permission is not a capability — resolve one real example through it
 
 A flag that grants something reads as evidence the thing happens. It is not:
