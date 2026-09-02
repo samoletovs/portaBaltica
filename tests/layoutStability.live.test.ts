@@ -50,6 +50,11 @@ import { launchForLiveCheck } from './liveBrowser';
 
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 
+/** Where the published index lives, for picking a real article to measure. */
+const ARTICLES =
+  process.env.PB_ARTICLES_BASE_URL ??
+  'https://stportabalticabpmff5so.blob.core.windows.net/articles';
+
 /** Google's "good" boundary. The fix measures 0.000; this is the ceiling. */
 const GOOD_CLS = 0.1;
 
@@ -145,6 +150,108 @@ describe('layout stability on the deployed front page', () => {
       'the front page moves under the reader while it loads. It was 0.58-0.73 before the ' +
         'skeleton was keyed separately from the feed and given the space the feed needs; ' +
         'anything above 0.1 means one of those has come undone.',
+    ).toEqual([]);
+  }, 300_000);
+
+  it('holds an article page still while the prose arrives', async () => {
+    // The page most readers arrive on from search or a shared link, and the
+    // one the first sweep of this missed entirely: `navigableRoutes()` cannot
+    // enumerate a parameterised route, so `/article/:slug` was measured last.
+    //
+    // Measured against production before the fix, five runs at each width with
+    // zero variance: 0.1453 at 375 and 0.0788 at 1280, one shift each, source
+    // `footer.news-border.news-subtle` going `548,129 -> 0,0` — a footer
+    // leaving the viewport as a 230px skeleton became several thousand pixels
+    // of article. After: 0.0000 at both.
+    const browser = await launchForLiveCheck();
+    if (!browser) return;
+
+    // A real slug, because an invented one renders "Article not found", which
+    // cannot shift and would pass this for the wrong reason.
+    const index = (await (await fetch(`${ARTICLES}/index.json`)).json()) as {
+      articles: { slug: string; tier: string }[];
+    };
+    const article = index.articles.find(
+      (a) => a.tier === 'A' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(a.slug),
+    );
+    expect(article, 'no tier A article with a usable slug in the live index').toBeDefined();
+
+    const readings: { width: number; cls: number; chars: number; afterShift: number }[] = [];
+
+    try {
+      for (const width of [375, 1280]) {
+        const context = await browser.newContext({ viewport: { width, height: 900 } });
+        await context.addInitScript(() => {
+          localStorage.setItem('pb-onboarding-complete', 'true');
+          (window as unknown as { __cls: number }).__cls = 0;
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+              if (shift.hadRecentInput) continue;
+              (window as unknown as { __cls: number }).__cls += shift.value ?? 0;
+            }
+          }).observe({ type: 'layout-shift', buffered: true });
+        });
+
+        const page = (await context.newPage()) as unknown as Driver;
+        await page.goto(`${BASE}/article/${article!.slug}`, {
+          waitUntil: 'domcontentloaded',
+          timeout: 45_000,
+        });
+        await page.waitForTimeout(6000);
+
+        const measured = await page.evaluate(() => ({
+          cls: Number(((window as unknown as { __cls: number }).__cls ?? 0).toFixed(4)),
+          chars: (document.body.innerText ?? '').trim().length,
+        }));
+
+        const afterShift = await page.evaluate(() => {
+          const spacer = document.createElement('div');
+          spacer.style.height = '300px';
+          document.body.insertBefore(spacer, document.body.firstChild);
+          return new Promise<number>((resolve) => {
+            setTimeout(
+              () => resolve(Number(((window as unknown as { __cls: number }).__cls ?? 0).toFixed(4))),
+              1200,
+            );
+          });
+        });
+
+        readings.push({ width, ...measured, afterShift });
+        await context.close();
+      }
+    } finally {
+      await browser.close();
+    }
+
+    for (const r of readings) {
+      // VACUITY GUARD, and it is the one that caught a false regression while
+      // this fix was being measured: a local build without the API rendered
+      // 2456 characters against production's 3373, and the missing chart's
+      // collapse read as the fix making things worse. A page that did not
+      // render its article cannot demonstrate a stable article.
+      expect(
+        r.chars,
+        `only ${r.chars} characters at ${r.width}px; the article did not render, so a ` +
+          'stable reading says nothing about it',
+      ).toBeGreaterThan(1200);
+
+      expect(
+        r.afterShift,
+        `at ${r.width}px the observer did not report a shift this test caused on purpose, ` +
+          `so its reading of ${r.cls} is a fact about the instrument rather than about the page`,
+      ).toBeGreaterThan(r.cls);
+    }
+
+    const poor = readings
+      .filter((r) => r.cls > GOOD_CLS)
+      .map((r) => `${r.width}px: CLS ${r.cls}`);
+
+    expect(
+      poor,
+      'an article page moves under the reader while it loads. It was 0.1453 at 375px ' +
+        'before the loading skeleton was keyed separately from the article and given a ' +
+        "viewport's worth of height.",
     ).toEqual([]);
   }, 300_000);
 });

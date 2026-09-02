@@ -70,9 +70,35 @@ export default function ArticlePage() {
 
   if (load === null) {
     return (
-      <div className="mx-auto max-w-measure space-y-3" aria-busy="true" aria-label="Loading article">
+      /*
+        `min-h-screen` and a key, for the reasons `NewsFeed` records.
+
+        The skeleton is about 230px; a published article is several thousand.
+        So the footer sat mid-viewport during the load and was thrown below it
+        when the prose arrived. Measured against production at 375px, on a tier
+        A article: **CLS 0.1453**, one shift, source
+        `footer.news-border.news-subtle` going `548,129 -> 0,0` — a footer
+        leaving the viewport rather than moving within it.
+
+        Article pages were missed by the first sweep of this because
+        `navigableRoutes()` cannot enumerate a parameterised route, so
+        `/article/:slug` — the page most readers arrive on from search or a
+        shared link — was measured last rather than first.
+
+        `min-h-screen` puts the footer below the fold before the prose lands.
+        The key stops React reconciling this tree into `ArticleView`'s: a node
+        that MOVES is a layout shift, one that is removed and replaced is not.
+      */
+      <div
+        key="article-loading"
+        className="mx-auto min-h-screen max-w-measure space-y-3"
+        aria-busy="true"
+        aria-label="Loading article"
+      >
         <div className="news-skeleton h-8 w-3/4 animate-pulse rounded" />
         <div className="news-skeleton h-4 w-1/2 animate-pulse rounded" />
+        <div className="news-skeleton h-40 animate-pulse rounded" />
+        <div className="news-skeleton h-40 animate-pulse rounded" />
         <div className="news-skeleton h-40 animate-pulse rounded" />
       </div>
     );
@@ -96,7 +122,7 @@ export default function ArticlePage() {
   }
 
   if (load.state === 'retracted') {
-    return <ArticleView article={load.article} />;
+    return <ArticleView key="article-loaded" article={load.article} />;
   }
 
   if (load.state === 'not-servable') {
@@ -121,5 +147,5 @@ export default function ArticlePage() {
     );
   }
 
-  return <ArticleView article={load.article} />;
+  return <ArticleView key="article-loaded" article={load.article} />;
 }
