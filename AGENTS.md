@@ -2804,13 +2804,38 @@ afternoon rather than making it luck: the intervals were `2h47m` and `2h42m`,
 both past the boundary.
 
 ⚠️ Two sessions corrected this paragraph and **the second correction was itself
-wrong**, in the direction the first had already ruled out. It reported the split
+wrong**. It reported the split
 as exactly `720 / 720`, which is what round-**half-up** gives; under banker's
 rounding the twenty-four exact-half minutes divide 12/12 by parity, so the true
 split is `732 / 708`. Its sharper rule — *"`Minutes >= 30` is always wrong"* —
-fails at `02:30` and `04:30`. **A correction inherits the errors of the entry it
-has not read to the end**, which is the staleness this file documents, arriving
-between two people fixing the same sentence two hours apart.
+fails at `02:30` and `04:30`.
+
+⚠️ **That correction was first diagnosed as staleness — as a session working
+from an entry it had not read to the end — and the ordering falsifies it:**
+
+```
+33bc806  11:29:01   the entry that session actually read
+7b74a84  13:02:22   where banker's rounding was established -- 93 min LATER
+at 33bc806:  'banker' 0 · 'half-to-even' 0    CONTROL 'TotalHours' 2
+```
+
+The material postdated the correction by an hour and a half, so there was no
+end left unread. The real cause is one line of the sweep that produced
+`720 / 720`:
+
+```js
+const int = Math.round(totalHours);   // PowerShell [int] semantics
+```
+
+`Math.round` is round-half-up and `[int]` is round-half-to-even, so **a
+PowerShell bug was measured in JavaScript** — a right answer about the wrong
+object, with the equivalence asserted in a comment and never executed. The
+refutation was one command in the language the bug lives in.
+
+Worth separating the two, because they prescribe different things: staleness
+says *re-read the entry*, and would not have helped here. What would have
+helped is this file's existing rule that **an example is a claim about
+behaviour — execute it**, applied to a comment rather than to prose.
 
 ⚠️ **And it is not a threshold: `[int]` is banker's rounding**, so at *exactly*
 0.5 the answer depends on the **parity** of the integer part. This paragraph
