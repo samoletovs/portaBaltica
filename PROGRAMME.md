@@ -650,6 +650,38 @@ than from telemetry (whose retention here is under a day):
 2026-09-01  killed      14:10:00Z   600 s of 600 s   margin  0
 ```
 
+**Two rows read as a climb, and the series is not one.** All nine scheduled
+runs the workspace holds, in minutes, read from `AppRequests` rather than from
+the run reports — which cannot show a run that never finished:
+
+```
+08-24  0.55    08-27  1.79    08-30   4.83
+08-25  5.53    08-28  5.63    08-31   8.38
+08-26  7.10    08-29  5.48    09-01  10.00  killed
+```
+
+So **8 of 9 fired and finished unattended**, and the duration swings rather
+than climbs — 7.10 down to 1.79, back up to 5.63. The pair above is the top two
+values of a noisy series, not its trajectory, and reading a trend off them is
+the overfit this file warns about under *one generation is not a measurement*.
+What is true is that the workload had reached 84% of the old ceiling before
+crossing it, and that 625.8 s against 1800 s is 35% where against the old 600 s
+it was **104%** — the fix was necessary, not merely sufficient. Predict nothing
+from the last run's duration; watch the ceiling.
+
+⚠️ **`runs/latest.json` cannot answer this and looks as though it can.** It is
+written when a run *finishes*, so a killed run leaves the previous report
+standing — on 2026-09-01 it read `trigger: manual` from the re-run, carrying no
+trace of the timer run that had died nineteen minutes earlier. `AGENTS.md` has
+the general rule; the instrument that answers it is the pair emitted at both
+ends, plus the exception that names the ceiling in the platform's own words:
+
+```
+Executing 'Functions.newsroom_edition' (Reason='Timer fired at 2026-09-01T14:00:00.0077895+00:00', Id=f7575a2c)
+Executed  'Functions.newsroom_edition' (Failed, Id=f7575a2c, Duration=600011ms)
+AppExceptions  "Timeout value of 00:10:00 was exceeded by function: Functions.newsroom_edition"
+```
+
 `d82233b` raised `functionTimeout` to `00:30:00` with a pin. **The re-run took
 625.8 s**, so the fix was not merely sufficient but *necessary* — at 600 s it
 would have failed a second time. 6 new originals, all stamped `rev=d82233b9`,
