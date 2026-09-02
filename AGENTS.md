@@ -2919,7 +2919,9 @@ one line.
 
 ⚠️ **And `[int]` rounds in PowerShell rather than truncating**, so a duration
 composed from `[int]$d.TotalHours` plus `$d.Minutes` plus `$d.Seconds` is wrong
-whenever the fraction exceeds 0.5. **Two sessions hit it independently within an
+**whenever `[int]x ≠ [math]::Floor(x)`** — that is, when the fraction exceeds
+0.5, *or* equals 0.5 and the integer part is odd. **Two sessions hit it
+independently within an
 hour**, on different intervals, each while verifying the other's timestamp work:
 
 ```
@@ -3011,6 +3013,25 @@ fixture exposes the bug**:
 02:30:00   prints 2h30m0s   correct -- BY ACCIDENT, even hour rounds down
 03:30:00   prints 4h30m0s   wrong
 ```
+
+⚠️ **And the correction to that sentence was wrong in the other direction, which
+is the lesson.** The line first read *"≥ 0.5"*, over-predicting `02:30`; I changed
+it to *"exceeds 0.5"*, which under-predicts `03:30` — **the very row printed four
+lines above it.** For an afternoon the entry's stated rule contradicted the
+entry's own worked example, in a paragraph about a rounding rule that was wrong
+at the boundary.
+
+`≥` → `>` is a one-character edit that fixed `2.5` and broke `3.5`. Both spellings
+are **thresholds**, and the phenomenon is **parity-dependent**, so no threshold
+can be right: the operator was never the defect.
+
+> **When a rule is wrong at a boundary, moving the boundary trades one error for
+> another. Replace the model, not the operator.**
+
+The tell is available before you edit: *if your rule is a threshold and your
+counterexample table has a parity column, the threshold is the wrong shape.* The
+replacement needs no table — `[int]x ≠ [math]::Floor(x)` is the definition, and
+it agrees with the parity form on **0 disagreements across all 1440 minutes**.
 
 `2h30m` is exactly the duration a person reaches for when checking a duration
 formatter, and it **passes**. So this entry's own point applies one level down:
