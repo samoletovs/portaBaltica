@@ -2710,6 +2710,30 @@ The local-format text in that error is the tell — it is the object rendering
 itself, not the wire format you think you are parsing. Hit twice in one hour
 *after* writing it down in a journal, which is the argument for it being here.
 
+⚠️ **And the inverse: `-q`/`--jq` hands you text, which PowerShell then splits —
+losing CRLF.** Four extractions of one pull request body, same environment, same
+minute:
+
+```
+gh pr view --json body -q .body      Object[] 153   joined -> 10967
+gh api ...             --jq .body    Object[] 153   joined -> 10967
+gh pr view --json body | ConvertFrom-Json   String  -> 11119
+gh api ...             | ConvertFrom-Json   String  -> 11119
+```
+
+The artefact holds **152 CRLF pairs** — counted as literal `\r\n` escapes in the
+raw JSON, before any extractor touches it — so `11119` is its true length and
+`10967` is what survives newline translation. Python's `text=True` reaches the
+same `10967` by the same mechanism in a different language.
+
+Two sessions concluded from this that the type *varies by environment* and that
+**"a probe cannot be made safe by choosing the other command"**. That is wrong,
+and usefully so: it varies by how you **extract**, not by where you run, and both
+commands are safe through `ConvertFrom-Json` and unsafe through `-q`. So when the
+exact bytes matter — a length, a hash, a diff — parse the JSON and never take the
+jq shortcut. And read `.GetType().Name` before trusting `.Length`, because on the
+`Object[]` it is a **line count**.
+
 **What makes this worth a paragraph is that it cancelled another error.** Asked
 when a claim was introduced, I ran `git log -S` with no direction filter — `-S`
 is symmetric, so the newest match was the commit that *removed* the string,
