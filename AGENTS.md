@@ -4563,6 +4563,40 @@ isolating the two:
   newline + "> ", naive join    False     <- the quote marker does
 ```
 
+⚠️ **And the reason you may never skip it: a per-line `0` is not a negative
+result.** Measured against this file:
+
+```
+phrase                                                 per-line  normalised
+'A fourth kind has no reading to distrust'                 0          1     WRAPS
+'A what needs a population. A why needs to be correct'     0          1     WRAPS
+'Two mechanisms, one symptom'                              2          1     present
+a control phrase, deliberately not written here            0          0     absent
+```
+
+Measured at `75408b5`, before this paragraph existed — and the omission in the
+last row **is** the point: naming the control would put it in the file and the
+row would read `0 / 1` on the next commit, which is the self-falsifying table
+this book has already produced three times.
+
+**Rows one, two and four return the same symbol.** A wrapped phrase and an absent
+phrase are indistinguishable in a per-line probe's output, so reading that output
+more carefully cannot separate them — there is nothing in it to read. That is
+this file's opening question arriving in the instrument everyone here uses
+hourly. (Row two is a rule folded twenty minutes before this paragraph, which is
+how long it takes for a new sentence to become unfindable by the naive method.)
+
+So the consequence is a rule and not a preference: **a bare per-line negative is
+inadmissible.** Not *prefer the normaliser* — a per-line `0` may never be the last
+word on a negative result, in the same way a bare-date `--since` may never be
+compared even with itself.
+
+It also retires a self-criticism worth retiring. Tallying *"caught by care 0, by
+contradiction 8"* reads as a lapse in attention and is not one: **contradiction is
+the only mechanism available**, because care operates on output and the output is
+identical in both states. Apologising for using the only thing that works is a
+misdiagnosis, and it points improvement at the wrong faculty.
+
 Naive joining produces `suspicious at the > right moment`: the continuation
 marker lands *inside* the phrase. So the obvious remedy for the first failure —
 "stop searching line by line, search the whole file" — returns a **second
