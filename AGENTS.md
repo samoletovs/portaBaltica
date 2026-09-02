@@ -5024,10 +5024,31 @@ So the population of a correction is not "files repeating this claim". It is
 
 Measured across `api/` and `src/` at `96cb839`: **155 comments in 44 files assert
 another file's behaviour by name.** That is the exposure a wording-grep cannot
-see, and it is the reason this is worth a sweep rather than an intention. One of
-the 155 was demonstrably stale; how many of the other 154 are is **unmeasured**,
-and saying so costs nothing where implying zero would be the confident silence
-this book is otherwise about.
+see, and it is the reason this is worth a sweep rather than an intention.
+
+Half that sweep is mechanical — **does the cited file still exist?** Run on all
+155:
+
+```
+3 name a file not on master
+  recharts/.../axisSelectors.js   a node_modules path       false positive
+  /assets/index-OLDHASH.js        an illustrative name      false positive
+  tests/api-contracts.test.ts     renamed in #16, cb4df75   genuinely stale
+```
+
+Two are the class this book already excuses for its backtick guard — third-party
+paths and placeholders. The third had been wrong since **PR #16**, and git
+records it as a pure rename, `{api-contracts.test.ts => api-contracts.live.test.ts} | 0`:
+a comment explaining a production timeout has pointed at a filename that does not
+exist for the entire life of the project, surviving every sweep in between for
+exactly the reason above — **no grep for a claim's wording would ever look at
+it.** Fixed in the commit that added this paragraph.
+
+The other half stays **unmeasured**, and it is the harder half: a citation can be
+stale while the file it names still exists. That is precisely the `tradeStats.js`
+case — `ckan.js` was right there, and it was its *docstring* that had moved.
+Saying so costs nothing, where implying zero would be the confident silence this
+book is otherwise about.
 
 ## A permission is not a capability — resolve one real example through it
 

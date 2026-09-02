@@ -314,7 +314,7 @@ const handler = async function (context, req) {
     // its own 10-15s timeout, so a single slow upstream delayed all the
     // others and the worst case was the SUM of the timeouts (~55s) rather
     // than the longest one. That is what made /api/ai-insights intermittently
-    // time out on a cold cache, and why tests/api-contracts.test.ts fails
+    // time out on a cold cache, and why tests/api-contracts.live.test.ts fails
     // against production when the 15s client budget expires first.
     //
     // The calls are independent, so kicking them all off here makes the worst
