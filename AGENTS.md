@@ -2320,6 +2320,33 @@ closes the question: the reader reports the count sound and stops. It is the
 same shape as *the correct sibling that conceals the broken one*, arriving in
 arithmetic rather than in code.
 
+⚠️ **And the modal word is a separate claim from the observation it qualifies.**
+One session produced both of these, in adjacent messages, about the same number:
+
+```
+"the delta is INVARIANT at 8"        three readings across one quiet day
+"the delta IS the dependabot count,  dependabot is merely the only author
+ BY DEFINITION"                      the filter excludes TODAY
+```
+
+Both observations were correct and carefully measured. **Both qualifiers were
+guesses.** The `8` was stable because dependabot happened not to merge in the
+window; the identity held because the filter happened to exclude exactly one
+author — measured, it admits `app/copilot-swe-agent` in full, so it is not
+"not-me" in general.
+
+The test is one question and it is cheap: **what would have to change for this to
+stop being true?** If you can name it — a merge, a new author, a quiet week — the
+claim is contingent and the honest form says so. If you cannot, it may be by
+construction. The version that survived needs no window at all: *the delta is the
+count of merged PRs whose author the filter excludes.*
+
+Note where the second one landed: **it was written while correcting the first**,
+by the person who had just made that argument. Same error at a different
+strength, minutes apart — this file's *"produced in the act of correcting someone
+else"*, applied to a qualifier rather than to a figure. Population is thin and
+worth stating: both instances are one session's, on one afternoon.
+
 ⚠️ **And the sibling failure is explaining a discrepancy rather than auditing
 it.** When two counts of the same thing disagree, the tempting move is to name a
 likely cause — a different key, a different tree — and stop there. Measured on
