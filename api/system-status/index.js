@@ -215,7 +215,22 @@ async function probe(check) {
     // carries. `/api/economy-data` renders one row per parsed rate, so a
     // document that yields a reference date and no rates is an empty currency
     // ticker behind a green light — the shape of false green this registry
-    // exists to remove, and the reason both sides now share `shared/ecb.js`.
+    // exists to remove.
+    //
+    // ⚠️ **This is NOT made redundant by both sides sharing `shared/ecb.js`.**
+    // One parser removes *vocabulary* drift; this removes *field* drift. The
+    // two callers read different fields of the same parse — `freshness.ecbXml`
+    // reads `referenceDate`, the ticker reads `rates` — so a document with a
+    // valid date and no rates parses cleanly, dates cleanly, and still leaves
+    // the ticker empty. Measured:
+    //
+    //     parseDaily.referenceDate   2026-09-03
+    //     parseDaily.rates           {}
+    //     freshness.ecbXml           { at: '2026-09-03T23:59:59Z' }
+    //
+    // Delete this and the green outlives the ticker again, with one parser and
+    // no spelling disagreement anywhere. `tests/ecbOneParser.test.ts` fails if
+    // it goes.
     const parsed = ecb.parseDaily(xml);
     if (Object.keys(parsed.rates).length === 0) {
       throw new Error('ECB XML carried no readable rates, so the currency ticker would be empty');

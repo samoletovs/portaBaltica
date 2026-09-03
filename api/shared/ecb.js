@@ -21,14 +21,33 @@
  * second implementation that can disagree.
  *
  * The remedy is not a better regex. It is one parser, called by both, so that
- * the green cannot outlive the ticker **at any strictness** — if this function
- * stops recognising the document, the probe and the ticker fail together.
+ * neither side can fail to recognise a document the other accepts — if this
+ * function stops reading the document, the probe and the ticker fail together.
  *
  * It reads `<Cube>` elements once and takes their attributes uniformly, so
  * there is no separate pattern for `time` and for `currency`/`rate` that could
  * drift apart again. `Cube` is matched with an optional namespace prefix
  * because the envelope carries one and a future document may put it on the
  * cubes too.
+ *
+ * ⚠️ **One parser is necessary and NOT sufficient, and the difference is why
+ * `system-status` throws on an empty `rates` rather than trusting this.** A
+ * shared parser removes *vocabulary* drift — disagreement about how the
+ * document is spelled. It does nothing about *field* drift, because the two
+ * callers read **different fields of the same parse**: `freshness.ecbXml`
+ * reads `referenceDate`, and the currency ticker reads `rates`. Measured on a
+ * document carrying a valid date and no rates at all:
+ *
+ *     parseDaily.referenceDate   2026-09-03
+ *     parseDaily.rates           {}
+ *     freshness.ecbXml           { at: '2026-09-03T23:59:59Z' }   <- STILL GREEN
+ *
+ * So the green outlives the ticker again, through one parser, with no
+ * spelling disagreement anywhere. What closes that gap is the probe asserting
+ * on **the field the consumer reads** rather than on the field the document
+ * happens to carry — `api/system-status/index.js` refuses a parse whose
+ * `rates` are empty. Both halves are load-bearing; removing either reopens
+ * the fault from a different direction.
  */
 
 const CUBE_ELEMENT = /<\s*(?:[\w.-]+:)?Cube\b([^>]*?)\/?>/gi;
