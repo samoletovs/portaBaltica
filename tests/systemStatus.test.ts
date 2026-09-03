@@ -350,12 +350,12 @@ describe('the published visit counts', () => {
    */
   const cache = require('../api/shared/cache.js');
 
-  async function withResponse(responder: () => Promise<unknown>) {
+  async function withResponse(responder: () => Promise<unknown>, now?: number) {
     const original = es.httpJson;
     cache.clear();
     es.httpJson = responder;
     try {
-      return await status.visitStats(Date.now());
+      return await status.visitStats(now === undefined ? Date.now() : now);
     } finally {
       es.httpJson = original;
       cache.clear();
@@ -416,5 +416,80 @@ describe('the published visit counts', () => {
     // hour being read as a crash.
     const stats = await withResponse(() => Promise.resolve(published));
     expect(typeof stats.ageMs).toBe('number');
+  });
+
+  /**
+   * The age is measured from the publisher's stamp, not from our cache.
+   *
+   * `visitStats` used to return `hit.ageMs` — how long this process had held
+   * the blob. That is bounded by `VISIT_STATS_TTL_MS`, ten minutes, while the
+   * blob is republished hourly, so the reported age could not reach the values
+   * it was supposed to describe and fell to zero on every cache miss.
+   * `SystemStatusFooter` maps zero to the words "just now", so a stale figure
+   * was announced as live.
+   *
+   * `now` is pinned rather than taken from the clock. A fixture that derives
+   * its expected value from `Date.now()` is a test whose verdict depends on the
+   * day it runs, which is the failure this repo has already paid for twice.
+   */
+  const PINNED_NOW = Date.parse('2026-09-03T12:00:00Z');
+
+  it('ages the figure from when it was published, not from when we cached it', async () => {
+    const ninetyMinutes = 90 * 60 * 1000;
+    const stats = await withResponse(
+      () => Promise.resolve({
+        ...published,
+        generatedAt: new Date(PINNED_NOW - ninetyMinutes).toISOString(),
+      }),
+      PINNED_NOW,
+    );
+
+    // The cache is cleared by `withResponse`, so the old implementation read a
+    // fresh memo and returned 0 here — "just now" for a ninety-minute-old count.
+    expect(stats.ageMs).toBe(ninetyMinutes);
+  });
+
+  it('lets the age exceed the cache TTL, because the blob is hourly', async () => {
+    // The bound is the point. Ten minutes was the ceiling the old value could
+    // report; an hourly figure routinely passes it, so a reported age that can
+    // never exceed the TTL is measuring the wrong thing by construction.
+    const VISIT_STATS_TTL_MS = 10 * 60 * 1000;
+    const fiftyMinutes = 50 * 60 * 1000;
+    const stats = await withResponse(
+      () => Promise.resolve({
+        ...published,
+        generatedAt: new Date(PINNED_NOW - fiftyMinutes).toISOString(),
+      }),
+      PINNED_NOW,
+    );
+
+    expect(stats.ageMs).toBeGreaterThan(VISIT_STATS_TTL_MS);
+  });
+
+  it('says null rather than zero when there is no usable stamp', async () => {
+    // "I cannot tell" must not render as "just now". Zero is a claim that the
+    // figure is live; null makes the renderer omit the phrase entirely, which
+    // is the same rule that makes the whole block absent rather than zeroed.
+    const missing = await withResponse(
+      () => Promise.resolve({ ...published, generatedAt: undefined }), PINNED_NOW);
+    expect(missing.ageMs).toBeNull();
+
+    const unparseable = await withResponse(
+      () => Promise.resolve({ ...published, generatedAt: 'not a date' }), PINNED_NOW);
+    expect(unparseable.ageMs).toBeNull();
+  });
+
+  it('never reports a negative age when the stamp runs ahead of us', async () => {
+    // Clock skew between the workflow runner and this host is enough to put the
+    // stamp in the future, and a negative age renders as "fresher than fresh".
+    const stats = await withResponse(
+      () => Promise.resolve({
+        ...published,
+        generatedAt: new Date(PINNED_NOW + 5 * 60 * 1000).toISOString(),
+      }),
+      PINNED_NOW,
+    );
+
+    expect(stats.ageMs).toBe(0);
   });
 });
