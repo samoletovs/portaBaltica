@@ -69,7 +69,23 @@ const BLOB = 'https://stportabalticabpmff5so.blob.core.windows.net/articles';
 /** Apple HIG and Material both ask 44. `index.css` sets 2.75rem for the same reason. */
 const MIN_PX = 44;
 
-/** Where touch happens. The floor is about thumbs, so it is measured on a phone. */
+/**
+ * Where touch happens. The floor is about thumbs, so it is measured on a phone.
+ *
+ * **375-only is a decision, not a fact, and it is arguable.** Measured at
+ * affe582, `/follow`'s two feed-URL chips render `513x31` at 768 and 1280 and
+ * are comfortably over the floor at 320 and 375, because they wrap to more
+ * lines on a phone and get taller. So widening this constant would report them
+ * — and tablets are thumbed, which is the argument for doing so.
+ *
+ * They are deliberately left alone. `DESIGN.md` §4.7 already reasoned about
+ * those chips and chose wrapping over a fade so the whole address stays on
+ * screen; growing them to 44px at desktop widths is a separate decision about
+ * pointer targets, not about thumbs, and it belongs to whoever wants to make
+ * it. Recorded here so the next session that measures 768, finds `513x31` and
+ * reasonably wonders whether it is a defect gets the answer at the site rather
+ * than having to re-derive it.
+ */
 const WIDTH = 375;
 
 /**
@@ -136,6 +152,21 @@ describe('touch targets on the deployed site', () => {
     // unmeasured while this file's own header claimed "every route".
     const routes = [...navigableRoutes(), ...CONCRETE_PARAM_ROUTES, await articleRoute()];
 
+    // The population is asserted before it is walked, as an equality on the
+    // parameterised members. `routeCoverage.test.ts` guards the *derivation* of
+    // `navigableRoutes()` with floors and `toContain`, and knows nothing about
+    // these three — so without this, a `:param` route dropping back out of the
+    // sweep reopens exactly the gap this change closed, and every signal stays
+    // green. A filter would not do: it would match nothing and report success.
+    expect(
+      routes.filter((r) => !navigableRoutes().includes(r)).map((r) => r.replace(/^(\/article)\/.+/, '$1/:slug')),
+      'the parameterised routes are no longer in the sweep. They are the population this ' +
+        'guard was missing when three 18px links shipped on every article.',
+    ).toEqual([...CONCRETE_PARAM_ROUTES, '/article/:slug']);
+
+    /** Every route actually walked, so a route that silently drops out fails. */
+    const walked: string[] = [];
+
     const offenders: Offender[] = [];
     const skipLink: { route: string; w: number; h: number; focused: boolean }[] = [];
     let seen = 0;
@@ -150,6 +181,7 @@ describe('touch targets on the deployed site', () => {
       });
 
       for (const route of routes) {
+        walked.push(route);
         await page.setViewportSize({ width: WIDTH, height: 812 });
         await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 45_000 });
         // Charts, the ticker and the feed all arrive after first paint, and a
@@ -230,6 +262,15 @@ describe('touch targets on the deployed site', () => {
     } finally {
       await browser.close();
     }
+
+    // Every intended route was actually visited. `seen > 300` is a floor over
+    // the whole sweep and would not notice one route dropping out, because the
+    // other nineteen carry it past the floor on their own.
+    expect(
+      walked,
+      'a route was not walked. The sweep is only as good as its population, and this ' +
+        'guard has already shipped one defect by walking a smaller set than the site.',
+    ).toEqual(routes);
 
     // VACUITY GUARD. A page that rendered no controls, or a selector that
     // stopped matching, would otherwise report a clean sweep.
