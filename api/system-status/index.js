@@ -672,6 +672,9 @@ async function visitStats(now) {
     const stats = hit.value;
     if (!stats || typeof stats.today !== 'number') return null;
 
+    const generatedAt = stats.generatedAt || null;
+    const stampedAt = generatedAt === null ? NaN : Date.parse(generatedAt);
+
     return {
       // Named for what Azure Monitor actually counts. `SiteHits` is every HTTP
       // request the SWA serves, and a single-page app serves a dozen or more per
@@ -684,10 +687,42 @@ async function visitStats(now) {
       last30Days: stats.last30Days,
       dailyAverage30d: stats.dailyAverage30d,
       timezone: stats.timezone || 'Europe/Riga',
-      generatedAt: stats.generatedAt || null,
-      // How old the figure is, so the panel can say "an hour ago" rather than
-      // implying it is live.
-      ageMs: hit.ageMs,
+      generatedAt: generatedAt,
+      /**
+       * How old the figure is, measured from the instant the workflow stamped
+       * it — not from when this process last fetched the blob.
+       *
+       * It used to be `hit.ageMs`, which is how long *our memo cache* has held
+       * the file. Those are different quantities and the difference is not
+       * subtle, because `hit.ageMs` is bounded by `VISIT_STATS_TTL_MS` (ten
+       * minutes) while the blob is republished **hourly**. So the reported age
+       * could never exceed ten minutes for a figure that routinely reaches
+       * sixty, and it reset to **0** on every cache miss.
+       *
+       * Measured against production on 2026-09-03, six requests:
+       *
+       *     X-Cache  Age  ageMs(old)  generatedAt            true age
+       *     miss     0    552388      2026-09-03T04:55:05Z   6526131  (108m)
+       *     hit      9    552388      2026-09-03T04:55:05Z   6534546  (109m)
+       *     hit     25    552388      2026-09-03T04:55:05Z   6551057  (109m)
+       *     miss     0    482578      2026-09-03T04:55:05Z   6559712  (109m)
+       *
+       * `SystemStatusFooter` renders this through `freshnessLabel`, which maps
+       * 0 to the words "just now" — so an hour-and-a-half-old traffic count was
+       * announced as live on any cold cache, which is precisely what both this
+       * function's comment and that component's comment said must not happen.
+       *
+       * `generatedAt` is an instant and survives being cached; this duration
+       * does not, and is re-derived here only because the renderer reads this
+       * field. It is frozen for at most the response TTL (60s) against a value
+       * spanning an hour, where the old one was wrong by the whole hour. The
+       * eventual home for the subtraction is the render, from `generatedAt`.
+       *
+       * Null rather than zero when there is no usable stamp: "I cannot tell"
+       * must never render as "just now", which is the same rule that makes the
+       * whole block absent rather than zeroed when the blob cannot be read.
+       */
+      ageMs: Number.isNaN(stampedAt) ? null : Math.max(0, now - stampedAt),
     };
   } catch (e) {
     return null;
