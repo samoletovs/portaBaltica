@@ -29,6 +29,7 @@
  */
 
 const es = require('./eurostat.js');
+const ecb = require('./ecb.js');
 
 /**
  * Milliseconds per cadence unit.
@@ -217,18 +218,22 @@ function asUtc(text) {
 }
 
 const extract = {
-  /** ECB publishes one `<Cube time='YYYY-MM-DD'>` per daily reference set. */
+  /**
+   * ECB publishes one `<Cube time='YYYY-MM-DD'>` per daily reference set.
+   *
+   * Delegates to `shared/ecb.js` rather than carrying its own pattern. This
+   * used to match `time=` with its own tolerant regex while `economy-data`
+   * matched `currency=`/`rate=` with a much stricter one, so the two could
+   * disagree about the same document — and only in one direction, because the
+   * tolerant one was the probe. A valid double-quoted reserialisation left
+   * this returning a date while the currency ticker rendered nothing.
+   */
   ecbXml: function (xml) {
-    if (typeof xml !== 'string') return null;
-    const dates = [];
-    const re = /time\s*=\s*['"](\d{4}-\d{2}-\d{2})['"]/g;
-    let m;
-    while ((m = re.exec(xml)) !== null) dates.push(m[1]);
-    if (dates.length === 0) return null;
-    dates.sort();
+    const parsed = ecb.parseDaily(xml);
+    if (parsed.referenceDate === null) return null;
     // Dated at end of day: the rates are for that date, and treating them as
     // midnight would make a same-day publication look a day old.
-    return { at: dates[dates.length - 1] + 'T23:59:59Z' };
+    return { at: parsed.referenceDate + 'T23:59:59Z' };
   },
 
   /** Elering returns `{ data: { lv: [{ timestamp, price }], ... } }`, unix seconds. */

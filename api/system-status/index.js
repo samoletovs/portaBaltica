@@ -4,6 +4,7 @@ const freshness = require('../shared/freshness.js');
 const registry = require('../shared/statusChecks.js');
 const cache = require('../shared/cache.js');
 const ckan = require('../shared/ckan.js');
+const ecb = require('../shared/ecb.js');
 const trade = require('../shared/tradeStats.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
@@ -209,6 +210,17 @@ async function probe(check) {
     const hasEnvelope = /<\s*(?:\w+:)?Envelope\b/i.test(xml);
     const hasCube = /<\s*(?:\w+:)?Cube\b/i.test(xml);
     if (!hasEnvelope || !hasCube) throw new Error('ECB XML missing required elements (envelope and/or cube)');
+
+    // Probe what the consumer needs, not merely what dates the document
+    // carries. `/api/economy-data` renders one row per parsed rate, so a
+    // document that yields a reference date and no rates is an empty currency
+    // ticker behind a green light — the shape of false green this registry
+    // exists to remove, and the reason both sides now share `shared/ecb.js`.
+    const parsed = ecb.parseDaily(xml);
+    if (Object.keys(parsed.rates).length === 0) {
+      throw new Error('ECB XML carried no readable rates, so the currency ticker would be empty');
+    }
+
     return freshness.extract.ecbXml(xml);
   }
 

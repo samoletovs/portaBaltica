@@ -1,5 +1,6 @@
 const https = require('https');
 const businessRegistry = require('../shared/businessRegistry.js');
+const ecb = require('../shared/ecb.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const country = require('../shared/country.js');
@@ -29,26 +30,60 @@ function jsonGet(url) {
 
 const ECB_RATES_URL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml';
 const ELERING_URL = 'https://dashboard.elering.ee/api/nps/price';
+
+// The nine we publish, of the twenty-nine the ECB files. A curation, not a
+// parse limit: `ecb.parseDaily` returns all of them and this picks.
+const CURRENCY_NAMES = {
+  USD: 'US Dollar', GBP: 'British Pound', PLN: 'Polish Zloty',
+  SEK: 'Swedish Krona', NOK: 'Norwegian Krone', CHF: 'Swiss Franc',
+  JPY: 'Japanese Yen', CZK: 'Czech Koruna', DKK: 'Danish Krone',
+};
+
+/**
+ * The published euro reference rates, or an empty list with the reason logged.
+ *
+ * Two things were wrong here and neither needed the ECB to change anything.
+ *
+ * **It had its own parser.** `currency='X' rate='Y'` — single quotes, that
+ * attribute order, exactly one space — while `shared/freshness.js` read the
+ * same document with a pattern accepting either quote style and any spacing.
+ * Measured on the live file reserialised with double quotes, which is valid
+ * XML for the identical data: this returned **0 of 9** rates while the status
+ * probe still returned a reference date and reported the ECB healthy. The
+ * disagreement was ordered, so it could only ever fail toward a false green.
+ * Both now call `shared/ecb.js`, so the probe cannot outlive the ticker.
+ *
+ * **And it caught everything into `[]`.** An unreachable ECB and a document we
+ * could not parse produced the same empty array, so nobody debugging an empty
+ * ticker could tell which had happened. That is the defect `optionalCount`
+ * below was written to fix — *"a wrong number that looks exactly like a right
+ * one"* — and it was never applied here. The two states are now distinct
+ * warnings, because they call for different work: one is an outage to wait
+ * out, the other is a format change to follow.
+ */
 async function fetchECBRates() {
+  let xml;
   try {
-    const xml = await httpGet(ECB_RATES_URL);
-    const rates = [];
-    const currencyNames = {
-      USD: 'US Dollar', GBP: 'British Pound', PLN: 'Polish Zloty',
-      SEK: 'Swedish Krona', NOK: 'Norwegian Krone', CHF: 'Swiss Franc',
-      JPY: 'Japanese Yen', CZK: 'Czech Koruna', DKK: 'Danish Krone',
-    };
-    for (const code of Object.keys(currencyNames)) {
-      const regex = new RegExp("currency='" + code + "' rate='([\\d.]+)'");
-      const match = xml.match(regex);
-      if (match) {
-        rates.push({ currency: code, rate: parseFloat(match[1]), name: currencyNames[code] });
-      }
-    }
-    return rates;
+    xml = await httpGet(ECB_RATES_URL);
   } catch (e) {
+    warnUnavailable('ECB exchange rates', e);
     return [];
   }
+
+  const parsed = ecb.parseDaily(xml);
+  if (Object.keys(parsed.rates).length === 0) {
+    // Reachable and unreadable is a different fact from unreachable, and it is
+    // the one that means the document's shape moved under us.
+    warnUnavailable('ECB exchange rates',
+      'fetched ' + xml.length + ' bytes but parsed no rates; the document shape may have changed');
+    return [];
+  }
+
+  return Object.keys(CURRENCY_NAMES)
+    .filter(function (code) { return parsed.rates[code] !== undefined; })
+    .map(function (code) {
+      return { currency: code, rate: parsed.rates[code], name: CURRENCY_NAMES[code] };
+    });
 }
 
 /**
@@ -323,3 +358,8 @@ module.exports = withSecurity(withCache(handler, {
   graceMs: 7200000,
   staleWhileRevalidate: true,
 }));
+
+// Exported for the tests, as `system-status` exports `visitStats`. The two
+// empty-list paths differ in what they mean and a test is the only consumer
+// that can tell them apart, since both render as an absent ticker.
+module.exports.fetchECBRates = fetchECBRates;
