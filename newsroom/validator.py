@@ -360,6 +360,29 @@ def check_no_invented_numbers(context: ValidationContext) -> CheckResult:
     justified three paragraphs away is not really justified. The headline and
     dek are checked against the union of all figures, since they summarise the
     whole article.
+
+    WHY THIS STOPPED FIRING, AND WHY THAT IS THE REPAIR WORKING
+    -----------------------------------------------------------
+    It used to be the commonest rejection on the wire — three runs on
+    2026-08-25 rejected every original article, and the surviving failures were
+    all one shape::
+
+        no_invented_numbers: body[0]: '119' not in figures
+
+    The prose was inventing nothing. The model had been *given* the figure and
+    had failed to repeat it into the right block's array: clerical work, done
+    badly, through run after run of increasingly explicit instruction.
+
+    ``write/reconcile.py`` now does that bookkeeping deterministically before
+    the validator sees the draft, which is why the check has gone quiet. It
+    cannot launder anything: the only values it will attach come from
+    ``signal.fields``, and a numeral with no matching verified field is left
+    exactly where it is for this check to reject.
+
+    So the zero is evidence that a deterministic pre-pass removed a clerical
+    fault, **not** that the check is dead — the truth fault it exists for still
+    rejects, and this is the one of the quiet checks that a real draft could
+    still trip tomorrow.
     """
     name = "no_invented_numbers"
     all_figures: list[Mapping[str, Any]] = [
@@ -412,6 +435,25 @@ def check_snippet_verbatim(context: ValidationContext) -> CheckResult:
     Byte equality, not "close enough". A single altered character is the
     difference between quoting an outlet's own syndication snippet — which DSM
     Art. 15 carves out — and publishing a derived work, which it does not.
+
+    WHY ITS PRODUCTION RECORD IS UNMEASURED RATHER THAN CLEAN
+    ---------------------------------------------------------
+    This one is not like the two above, and the difference matters. It is
+    reachable and it can fail — it guards the collect → archive → syndicate
+    round trip, comparing the card's copied snippet against the archived raw
+    bytes, so an encoding or re-parse drift trips it.
+
+    But **nothing would report it if it did.** ``Report.rejected`` in
+    ``pipeline/run.py`` is ``[g.article for g in self.generated if not
+    g.publishable]`` — tier A only — while a syndicated card that fails the
+    validator is marked rejected inside ``syndicate()`` and merely logged. So
+    tier B/C rejections never reach ``runs/latest.json``, and on a tier A
+    article this check returns "not applicable: no syndicated content" by
+    construction.
+
+    Its zero across the recorded window is therefore an artefact of where the
+    run report looks, not evidence about the wire. Read the logs, not the run
+    report, before concluding anything about it.
     """
     name = "snippet_verbatim"
     syndicated = context.syndicated
@@ -567,7 +609,26 @@ def check_no_rewrite_of_restricted_source(context: ValidationContext) -> CheckRe
 
 
 def check_byline_discloses_ai(context: ValidationContext) -> CheckResult:
-    """Tier A must carry a disclosed AI byline; tiers B and C must carry none."""
+    """Tier A must carry a disclosed AI byline; tiers B and C must carry none.
+
+    WHY THIS HAS NEVER FIRED IN PRODUCTION, AND WHY THAT IS CORRECT
+    ---------------------------------------------------------------
+    It guards **our code**, not the model. The byline is assembled by
+    ``generator.py`` from ``render_byline(persona)``, which returns
+    ``persona.byline`` straight out of ``personas.yaml`` — and the word
+    "byline" does not appear anywhere in the writer's prompt, so the model is
+    never asked for one and has no slot to put one in.
+
+    So the only thing that can make this check fail is a regression in
+    ``personas.yaml`` or in ``render_byline``. That is worth guarding: the
+    disclosure is a standing promise to the reader and to the AI-use policy,
+    and it is exactly the kind of thing a rename would quietly drop.
+
+    A reachable check that cannot be tripped by the model is indistinguishable
+    from a broken one until somebody writes the reason down, which is what this
+    paragraph is. ``test_check_reachability.py`` asserts both halves of it
+    rather than leaving them as prose.
+    """
     name = "byline_discloses_ai"
     persona = context.article.get("persona")
     tier = context.tier
@@ -632,7 +693,22 @@ def check_no_lived_experience_claims(context: ValidationContext) -> CheckResult:
 
 
 def check_attribution_present(context: ValidationContext) -> CheckResult:
-    """Tier B and C must carry their source's registered attribution string."""
+    """Tier B and C must carry their source's registered attribution string.
+
+    WHY THIS HAS NEVER FIRED IN PRODUCTION, AND WHY THAT IS CORRECT
+    ---------------------------------------------------------------
+    Same shape as ``byline_discloses_ai``: it guards our code. ``build_card``
+    sets ``"attribution": source.attribution`` directly from the registry, and
+    no model is consulted — a syndicated card is assembled, never written.
+
+    So this fails only if the registry loses an attribution or ``build_card``
+    stops copying it, which is precisely the regression worth catching, because
+    an unattributed tier B/C card is the thing DSM Art. 15 makes expensive.
+
+    Note it *can* also fail on a tier A article that cites no source at all —
+    measured, not assumed — so its zero is not an artefact of tier gating the
+    way ``snippet_verbatim``'s is.
+    """
     name = "attribution_present"
     tier = context.tier
 
