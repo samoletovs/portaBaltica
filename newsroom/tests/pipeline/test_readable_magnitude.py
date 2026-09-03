@@ -421,3 +421,164 @@ class TestThePromptTellsTheTruthAboutIt:
 
     def test_the_form_the_prompt_forbids_is_the_form_the_editor_refuses(self):
         assert house_style.unreadable_scale_phrase("4653 thousand passengers") is not None
+
+
+class TestASignIsTheSameQuestionAsAScale:
+    """A negative distance is DECLARED signed and WRITTEN as a magnitude.
+
+    THE REJECTIONS THAT PRODUCED THIS
+    ---------------------------------
+    Read from the published run history, ``runs/<date>/<HHMMSS>.json``, deduped
+    on each report's own ``finished_at`` -- 22 dated reports, 17 rejections::
+
+        2026-08-29  deviation      33.58 vs   -33.5778  tol 0.005
+        2026-08-30  deviation     130.97 vs  -130.969   tol 0.005
+        2026-08-31  deviation     130.97 vs  -130.969   tol 0.005
+        2026-09-01  deviation        6.9 vs      -6.9   tol 0.05
+        2026-09-01  deviation     130.97 vs  -130.969   tol 0.005
+
+    **5 of the 17 rejections**, every one with the magnitude correct to within
+    the check's own tolerance and only the sign wrong -- and three of them the
+    same signal (slug suffix ``14b009``, which is ``signal.id[:6]`` and so
+    fixes detector, metric, geography, period and value) regenerated and
+    rejected again on three consecutive days.
+
+    WHY THE FIX IS NOT IN THE GATE
+    ------------------------------
+    ``figures_traceable`` is right to compare signed, and both declarations
+    were executed rather than argued::
+
+        declare  130.97   figures_traceable False  no_invented_numbers True
+        declare -130.969  figures_traceable True   no_invented_numbers True
+
+    So the writer can already satisfy both; it was simply never told which form
+    goes where. ``value_justifies`` compares magnitude without sign by design,
+    which is what makes "132 GWh below" publishable against a declared -132.
+    Weakening the gate would have cost the 3 genuine magnitude faults it caught
+    over the same window.
+    """
+
+    @staticmethod
+    def _table(signal) -> str:
+        return "\n".join(
+            field_meanings.figure_table(signal, internal_only=units.INTERNAL_ONLY_FIELDS)
+        )
+
+    @staticmethod
+    def _junes(final: float):
+        return series_from(
+            [1000.0, 1004.0, 998.0, 1002.0, 1001.0, final],
+            periods=[f"{year}-06" for year in range(2021, 2027)],
+            metric="electricity_production",
+            metric_label="electricity production",
+            unit="GWh",
+            section="energy",
+        )
+
+    def test_the_writer_is_told_both_forms_of_a_negative_distance(self):
+        """Fails without the change: the table showed -132 and stopped."""
+        signal = detect_seasonal_deviation(self._junes(869.0))
+        assert signal.fields["deviation"] == pytest.approx(-132.0)
+
+        table = self._table(signal)
+
+        assert "deviation = -132" in table
+        assert "write this as 132 GWh — declare the value as -132" in table
+
+    def test_the_pair_it_names_passes_both_numeric_checks(self):
+        """The requirement, not the wording: an article written to this table
+        must survive the gate that was rejecting it."""
+        signal = detect_seasonal_deviation(self._junes(869.0))
+        declared = signal.fields["deviation"]
+
+        token = numeric_scan.scan("Production ran 132 GWh below the seasonal average.")
+        figure = {"value": declared, "signal_field": "deviation", "unit": "GWh"}
+
+        assert token, "the probe must be able to see a numeral at all"
+        assert all(numeric_scan.is_justified(t, [figure]) for t in token)
+        assert abs(declared - signal.fields["deviation"]) <= 0.005
+
+    def test_a_negative_LEVEL_keeps_its_sign(self):
+        """CONTROL. -2 °C is written -2 °C; dropping that sign invents a
+        reading four degrees from the truth. Only a distance may lose it."""
+        signal = detect_seasonal_deviation(
+            series_from(
+                [-8.0, -7.6, -8.2, -7.8, -7.9, -2.0],
+                periods=[f"{year}-02" for year in range(2021, 2027)],
+                metric="mean_air_temperature",
+                metric_label="mean air temperature",
+                unit="\u00b0C",
+                section="environment",
+            )
+        )
+        table = self._table(signal)
+
+        assert "latest_value = -2" in table
+        assert "seasonal_mean = -7.9" in table
+        assert "write this as" not in table
+
+    def test_a_positive_distance_says_nothing_extra(self):
+        """CONTROL. The line is emitted only where the two forms differ.
+
+        Kept under a thousand so the pre-existing SCALE line cannot fire and be
+        mistaken for this one -- and asserted on the deviation's own line
+        rather than on the whole table, so the two mechanisms stay separable.
+        """
+        signal = detect_seasonal_deviation(
+            series_from(
+                [500.0, 504.0, 498.0, 502.0, 501.0, 632.0],
+                periods=[f"{year}-06" for year in range(2021, 2027)],
+                metric="electricity_production",
+                metric_label="electricity production",
+                unit="GWh",
+                section="energy",
+            )
+        )
+        assert signal.fields["deviation"] > 0
+
+        lines = field_meanings.figure_table(
+            signal, internal_only=units.INTERNAL_ONLY_FIELDS
+        )
+        after_deviation = self._line_after(lines, "- deviation =")
+
+        assert after_deviation is not None, "the probe must have found the row"
+        assert "write this as" not in after_deviation
+
+    @staticmethod
+    def _line_after(lines: list[str], prefix: str) -> str | None:
+        """The continuation line for a field, or '' when it has none."""
+        for index, line in enumerate(lines):
+            if line.strip().startswith(prefix):
+                following = lines[index + 1] if index + 1 < len(lines) else ""
+                return "" if following.strip().startswith("- ") else following
+        return None
+
+    def test_the_negative_row_is_the_one_carrying_the_line(self):
+        """The positive control's other half, read the same way: it is the
+        DEVIATION's own continuation that changed, not some neighbouring row."""
+        signal = detect_seasonal_deviation(self._junes(869.0))
+
+        lines = field_meanings.figure_table(
+            signal, internal_only=units.INTERNAL_ONLY_FIELDS
+        )
+        after_deviation = self._line_after(lines, "- deviation =")
+
+        assert after_deviation is not None
+        assert "write this as 132 GWh — declare the value as -132" in after_deviation
+
+    def test_the_classification_is_the_shared_one(self):
+        """A second copy of DIFFERENCE_FIELDS would drift from the first, which
+        is the failure ``units`` says in its own comment it exists to prevent.
+        Asserted over the whole set, with a name outside it as the control."""
+        assert units.DIFFERENCE_FIELDS, "an empty set would pass this vacuously"
+
+        assert all(
+            field_meanings.writes_magnitude(name, -1.0)
+            for name in units.DIFFERENCE_FIELDS
+        )
+        assert not any(
+            field_meanings.writes_magnitude(name, 1.0)
+            for name in units.DIFFERENCE_FIELDS
+        )
+        for level in ("latest_value", "seasonal_mean", "previous_value"):
+            assert not field_meanings.writes_magnitude(level, -1.0)

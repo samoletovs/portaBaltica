@@ -236,6 +236,32 @@ def period_word(signal: Signal) -> str:
     return reading_word(frequency, 2)
 
 
+def writes_magnitude(name: str, value: float) -> bool:
+    """Is this field written as a magnitude, with its direction in words?
+
+    True only for a NEGATIVE reading of a field that is a distance rather than
+    a level. Both halves are load-bearing:
+
+    * A positive difference is already written as it is declared, so there is
+      nothing to say and the table stays short.
+    * A *level* keeps its sign whatever it is. ``-2`` °C is written ``-2`` °C;
+      a trade balance of ``-1857000`` is a deficit and writing ``1857000``
+      inverts it. Only a distance carries its direction in a word the prose
+      supplies — "below", "behind", "narrower" — which is what makes dropping
+      the sign lossless there and lossy everywhere else.
+
+    ``units.DIFFERENCE_FIELDS`` is that classification and is imported rather
+    than restated; its own comment records why there must be exactly one copy.
+    """
+    return value < 0 and name in _difference_fields()
+
+
+def _difference_fields() -> frozenset[str]:
+    from newsroom.pipeline import units
+
+    return units.DIFFERENCE_FIELDS
+
+
 def figure_table(signal: Signal, *, internal_only: frozenset[str]) -> list[str]:
     """The shared rendering: name, value, unit and what it means.
 
@@ -257,6 +283,30 @@ def figure_table(signal: Signal, *, internal_only: frozenset[str]) -> list[str]:
     ``no_invented_numbers`` accepts the second because a figure's unit carries
     its own scale: 4653 in "thousand passengers" *is* 4.65 million passengers.
     See ``numeric_scan.value_justifies``.
+
+    **A sign is the same question, and for a while only the scale half was
+    answered.** Prose writes "132 GWh below the seasonal average" for a
+    ``deviation`` of ``-132``, because the direction is carried by the word
+    "below"; writing "-132 below" is a double negative. ``no_invented_numbers``
+    already allows exactly that — ``value_justifies`` compares magnitude without
+    sign, and says so — but ``figures_traceable`` compares the DECLARED value
+    against the signal signed, as it must, since a sign is often the whole
+    story. So the two forms diverge and the writer was told only one of them.
+
+    Measured over the whole recorded rejection history, that gap was **5 of 17
+    rejections**: every one declared the right magnitude and dropped the sign,
+    and one article was regenerated and rejected on it three days running.
+    Emitting the line the scale case already gets closes it without touching a
+    gate — the writer declares ``-132`` and writes ``132 GWh``, and both checks
+    pass.
+
+    Keyed on ``units.DIFFERENCE_FIELDS`` rather than on a list of names written
+    here, because that set is already the newsroom's one enumeration of "this
+    is a distance, not a level" and a second copy would drift from it. The
+    distinction is load-bearing rather than tidy: a *difference* of -132 is
+    written as a magnitude with its direction in words, while a *level* of
+    -2 °C is written -2 °C, and telling a writer to drop that sign would
+    invent a reading 4 °C away from the truth.
     """
     from newsroom.pipeline import units
 
@@ -271,8 +321,9 @@ def figure_table(signal: Signal, *, internal_only: frozenset[str]) -> list[str]:
         suffix = f" — {meaning}" if meaning else ""
         lines.append(f"  - {name} = {shown}   ({label}){suffix}")
 
+        written = abs(numeric) if writes_magnitude(name, numeric) else numeric
         readable = units.display_quantity(
-            name, numeric, signal.unit, overrides=signal.field_units
+            name, written, signal.unit, overrides=signal.field_units
         )
         if readable != f"{shown} {label}".strip() and readable != shown:
             lines.append(
