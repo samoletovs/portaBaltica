@@ -36,17 +36,90 @@ import { navigableRoutes } from './routes';
  * wreck the leading of the text they sit in. The exclusion is by computed
  * `display: inline`, which is what "inside running prose" actually means in
  * layout terms — not a list of components.
+ *
+ * THE POPULATION WAS SMALLER THAN THE SITE, AND THAT IS WHERE THE NEXT DEFECT WAS
+ * ------------------------------------------------------------------------------
+ * `navigableRoutes()` drops every route whose path contains a `:`, because an
+ * invented id renders a not-found page and a not-found page passes for the
+ * wrong reason. Correct — and it left `/article/:slug`, the most-read route
+ * type on a news site, measured by nothing. Its sibling
+ * `reducedMotionLayout.live.test.ts` had already noticed this and carries
+ * `CONCRETE_PARAM_ROUTES`; this file did not, so the two guards walked
+ * different populations and this one walked the smaller.
+ *
+ * Measured against production at affe582, eight articles, identical every time:
+ *
+ *      67x18   "Economy"                the section kicker
+ *     116x18   "Open the full series"   the chart's link to /data
+ *     104x18   "Open the dataset"       the provenance link
+ *
+ *   /indicator/gdp        38 controls, 0 under 44   <- control, param route, clean
+ *   /correspondents/nida  31 controls, 0 under 44   <- control, param route, clean
+ *
+ * So the answer was not "parameterised routes are broken" — two of them were
+ * already clean, which is what makes the article finding a finding rather than
+ * a property of the probe.
  */
 
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 
+/** Where the finished articles live. Same source `tabStopNames.live.test.ts` reads. */
+const BLOB = 'https://stportabalticabpmff5so.blob.core.windows.net/articles';
+
 /** Apple HIG and Material both ask 44. `index.css` sets 2.75rem for the same reason. */
 const MIN_PX = 44;
 
-/** Where touch happens. The floor is about thumbs, so it is measured on a phone. */
+/**
+ * Where touch happens. The floor is about thumbs, so it is measured on a phone.
+ *
+ * **375-only is a decision, not a fact, and it is arguable.** Measured at
+ * affe582, `/follow`'s two feed-URL chips render `513x31` at 768 and 1280 and
+ * are comfortably over the floor at 320 and 375, because they wrap to more
+ * lines on a phone and get taller. So widening this constant would report them
+ * — and tablets are thumbed, which is the argument for doing so.
+ *
+ * They are deliberately left alone. `DESIGN.md` §4.7 already reasoned about
+ * those chips and chose wrapping over a fade so the whole address stays on
+ * screen; growing them to 44px at desktop widths is a separate decision about
+ * pointer targets, not about thumbs, and it belongs to whoever wants to make
+ * it. Recorded here so the next session that measures 768, finds `513x31` and
+ * reasonably wonders whether it is a defect gets the answer at the site rather
+ * than having to re-derive it.
+ */
 const WIDTH = 375;
 
-const ROUTES = navigableRoutes();
+/**
+ * Routes that need a real parameter, which no derivation can invent.
+ *
+ * Each entry is a claim that this specific page is worth measuring. `gdp` and
+ * `nida` are stable ids; an article slug is not, so it is derived below rather
+ * than written down — the archive turns over and a hardcoded slug would 404
+ * into a not-found page, which cannot have an undersized control and would
+ * therefore pass for the wrong reason.
+ */
+const CONCRETE_PARAM_ROUTES = ['/indicator/gdp', '/correspondents/nida'];
+
+/**
+ * One real article, derived from the published index.
+ *
+ * Throws rather than returning nothing: an empty result here would silently
+ * drop `/article/:slug` from the sweep and restore the exact gap this change
+ * closes, while everything stayed green.
+ */
+async function articleRoute(): Promise<string> {
+  const index = await (await fetch(`${BLOB}/index.json`)).json();
+  const list = Array.isArray(index) ? index : (index.articles ?? []);
+  const article = list.find(
+    (a: { status?: string; tier?: string }) => a.status === 'published' && a.tier !== 'C',
+  );
+  if (!article?.slug) {
+    throw new Error(
+      'no published non-tier-C article in the index, so /article/:slug cannot be measured. ' +
+        'Failing rather than sweeping one route fewer and reporting a pass.',
+    );
+  }
+  return `/article/${article.slug}`;
+}
 
 const SELECTOR =
   'button, a[href], input, select, textarea, [role="button"], [role="tab"], [tabindex]:not([tabindex="-1"])';
@@ -74,6 +147,26 @@ describe('touch targets on the deployed site', () => {
     const browser = await launchForLiveCheck();
     if (!browser) return;
 
+    // Built here rather than at module scope because one member is derived from
+    // the live index. `navigableRoutes()` alone is what left `/article/:slug`
+    // unmeasured while this file's own header claimed "every route".
+    const routes = [...navigableRoutes(), ...CONCRETE_PARAM_ROUTES, await articleRoute()];
+
+    // The population is asserted before it is walked, as an equality on the
+    // parameterised members. `routeCoverage.test.ts` guards the *derivation* of
+    // `navigableRoutes()` with floors and `toContain`, and knows nothing about
+    // these three — so without this, a `:param` route dropping back out of the
+    // sweep reopens exactly the gap this change closed, and every signal stays
+    // green. A filter would not do: it would match nothing and report success.
+    expect(
+      routes.filter((r) => !navigableRoutes().includes(r)).map((r) => r.replace(/^(\/article)\/.+/, '$1/:slug')),
+      'the parameterised routes are no longer in the sweep. They are the population this ' +
+        'guard was missing when three 18px links shipped on every article.',
+    ).toEqual([...CONCRETE_PARAM_ROUTES, '/article/:slug']);
+
+    /** Every route actually walked, so a route that silently drops out fails. */
+    const walked: string[] = [];
+
     const offenders: Offender[] = [];
     const skipLink: { route: string; w: number; h: number; focused: boolean }[] = [];
     let seen = 0;
@@ -87,7 +180,8 @@ describe('touch targets on the deployed site', () => {
         localStorage.setItem('pb-onboarding-complete', 'true');
       });
 
-      for (const route of ROUTES) {
+      for (const route of routes) {
+        walked.push(route);
         await page.setViewportSize({ width: WIDTH, height: 812 });
         await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 45_000 });
         // Charts, the ticker and the feed all arrive after first paint, and a
@@ -169,18 +263,27 @@ describe('touch targets on the deployed site', () => {
       await browser.close();
     }
 
+    // Every intended route was actually visited. `seen > 300` is a floor over
+    // the whole sweep and would not notice one route dropping out, because the
+    // other nineteen carry it past the floor on their own.
+    expect(
+      walked,
+      'a route was not walked. The sweep is only as good as its population, and this ' +
+        'guard has already shipped one defect by walking a smaller set than the site.',
+    ).toEqual(routes);
+
     // VACUITY GUARD. A page that rendered no controls, or a selector that
     // stopped matching, would otherwise report a clean sweep.
     expect(
       seen,
-      `only ${seen} interactive controls across ${ROUTES.length} routes; the selector has ` +
+      `only ${seen} interactive controls across ${routes.length} routes; the selector has ` +
         'stopped matching, or the pages did not render, and the pass below would mean nothing',
     ).toBeGreaterThan(300);
 
     // The skip link must be reachable and sized. Asserted separately because it
     // is the one control that is deliberately invisible until focused, so a
     // sweep that did not tab to it would silently never measure it.
-    expect(skipLink.length, 'no skip link found on any route').toBe(ROUTES.length);
+    expect(skipLink.length, 'no skip link found on any route').toBe(routes.length);
     const unfocused = skipLink.filter((s) => !s.focused).map((s) => s.route);
     expect(
       unfocused,

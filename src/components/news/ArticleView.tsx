@@ -278,9 +278,13 @@ export function ArticleView({ article }: { article: Article }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <TierBadge tier={article.tier} />
         <FormatBadge format={article.format} />
+        {/* The section link is a real navigation target, not a chip inside a
+            larger one, so it takes the 44px floor rather than `target-inline`.
+            Measured 43–99×18 across eight articles at every width: the row is
+            `items-center`, so the target grows and the badges stay put. */}
         <Link
           to={`/data/${article.section}`}
-          className="news-link text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
+          className="news-link flex min-h-11 items-center text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
         >
           {SECTION_LABELS[article.section] ?? article.section}
         </Link>
