@@ -246,4 +246,49 @@ describe('the probe cannot report green while the ticker would be empty', () => 
       es.httpText = original;
     }
   });
+
+  /**
+   * And the whole chain, because "the probe refuses it" is only half the claim.
+   *
+   * The point of one parser was that a green cannot outlive the ticker. That is
+   * a statement about the *published verdict*, not about an internal throw, so
+   * it is asserted end-to-end: the real registry entry, through
+   * `runRegistryCheck`, into `overallStatus`.
+   *
+   * `ECB Exchange Rates` is `required: true`, so an unhealthy reading reaches
+   * the site verdict rather than being absorbed the way an optional source is.
+   */
+  it('turns a parse failure into a published red, not just an internal throw', async () => {
+    const es = require('../api/shared/eurostat.js');
+    const status = require('../api/system-status/index.js');
+    const registry = require('../api/shared/statusChecks.js');
+
+    const ecbCheck = registry.CHECKS.find((c: { name: string }) => c.name === 'ECB Exchange Rates');
+    expect(ecbCheck, 'the registry entry must exist for this to mean anything').toBeTruthy();
+    expect(ecbCheck.required, 'and it must be required, or the verdict cannot move').toBe(true);
+
+    const datedButEmpty = [
+      "<gesmes:Envelope xmlns:gesmes='http://www.gesmes.org/xml/2002-08-01'>",
+      "  <Cube><Cube time='2026-09-02'></Cube></Cube>",
+      '</gesmes:Envelope>',
+    ].join('\n');
+
+    const original = es.httpText;
+    try {
+      // CONTROL: the ordinary document publishes healthy, so the red below is
+      // about this document rather than about the probe refusing everything.
+      es.httpText = () => Promise.resolve(SINGLE_QUOTED);
+      const good = await status.runRegistryCheck(ecbCheck, new Date(), Date.now());
+      expect(good.status, 'CONTROL: the live shape is healthy').toBe('healthy');
+
+      es.httpText = () => Promise.resolve(datedButEmpty);
+      const bad = await status.runRegistryCheck(ecbCheck, new Date(), Date.now());
+
+      expect(bad.status, 'a document the ticker cannot use is not healthy').toBe('unhealthy');
+      expect(status.overallStatus([bad]), 'and it reaches the published verdict')
+        .not.toBe('healthy');
+    } finally {
+      es.httpText = original;
+    }
+  });
 });
