@@ -52,23 +52,31 @@ generation and the editorial gates where they earn their keep.
 master        40e66aa · working tree clean · 0 open PRs · all checks green
 site          healthy · required 9/9 · all sources 13/13 · 0 stale
 live suite    242 passed / 18 files, run against production at 16:58Z
-newsroom      timer 0 0 14 * * * · edition takes 625.8s · functionTimeout 30m
+newsroom      timer 0 0 14 * * * · edition takes 556.7s on the TIMER · functionTimeout 30m
 
-              ⚠️ **No SCHEDULED run has completed under that timeout.** The
-              14:00Z timer run was killed at 600011 ms; `d82233b` raised the
-              limit at **14:14:51Z**; and the only edition since was the
-              **manual** re-run I fired at 14:29:57Z — `runs/latest.json` says
-              `trigger: manual`, which is how a session caught this. So the fix
-              is proven *necessary* (the re-run took 625.8 s, past the old
-              600 s ceiling).
+              ⚠️ **This block used to open "No SCHEDULED run has completed under
+              that timeout" and quote 625.8 s as "the edition". Both are now
+              stale, and in the reassuring direction: the margin is WIDER than
+              recorded.** `625.8 s` was the **manual** re-run of 2026-09-01
+              fired at 14:29:57Z; the scheduled run of 2026-09-02 took
+              **556.687 s**, 11% faster. Quoting the manual figure overstated
+              the edition by 69 s against a ceiling the whole block is about.
 
-              **It decomposes into three legs, and only the conjunction is
-              open** — a session's decomposition, which is a better handover
-              than the word "unverified":
+              The history stands and is not rewritten: the 14:00Z timer run of
+              2026-09-01 really was killed at 600011 ms, `d82233b` really did
+              raise the limit at 14:14:51Z, and the fix is proven *necessary*
+              because 625.8 s does exceed the old 600 s ceiling.
 
-                the timer fires on schedule      PROVEN, 2026-09-01 14:00:00.008Z
-                a 625.8 s edition finishes <30m  PROVEN on the HTTP path only
-                both on ONE scheduled run        OPEN, 2026-09-02T14:00Z
+              **All three legs are now PROVEN, on one scheduled run** — read
+              from the execution log pair rather than inferred, and written up
+              under "The single open question — CLOSED" at the end of this file:
+
+                the timer fires on schedule      PROVEN, Reason='Timer fired at
+                                                 2026-09-02T14:00:00.0150453+00:00'
+                the edition finishes <30m        PROVEN, Duration=556687ms = 31%
+                                                 of the ceiling
+                both on ONE scheduled run        PROVEN, one Id at both ends,
+                                                 bdd639f7-f277-4028-b5d3-f81d7d33c89f
 
               ⚠️ **That second leg is weaker than it looks, and a session caught
               it.** `newsroom_run_now` is `@app.route(POST)`, not
@@ -251,9 +259,30 @@ answer. That habit caught all four.
    trigger and both conditions are unmet — no stall (79–2426 ms) and no new
    host behind the pattern. `api/ai-insights/index.js` L253-262 already argues
    the same decline for Elering and the ECB with 51 sampled generations behind
-   it. The `dashboardCadence` flake was fixed in `#207`. And
-   `environment-data.airQuality.bandCount`, recorded as the last seam orphan,
-   now has two readers and is not one.
+   it. The `dashboardCadence` flake was fixed in `#207`.
+
+   ⚠️ **This item used to end "`environment-data.airQuality.bandCount` … now has
+   two readers and is not one." That is false, and the outcome it supports is
+   still right — which is why the reason had to be replaced rather than the
+   conclusion.** Measured on master:
+
+   ```
+   node scripts/seam-sweep.mjs   ->  app 321 · test-only 26 · ORPHAN 1
+   the one orphan IS environment-data :: airQuality.bandCount
+     srcReaders 0 · srcStrongReaders 0 · testReaders 0
+   ```
+
+   The supposed "two readers" are `src/types.ts:138`, which is a **type
+   declaration** (`bandCount?: number;`) and reads nothing, and
+   `tests/seamSweep.test.ts:192-195`, which is **the sweep's own guard file** —
+   excluded by design, precisely so the sweep cannot absorb its own findings and
+   report fewer orphans the more thoroughly they are written down.
+
+   **Keep the field anyway.** It is the denominator of `rank`, and a rank with
+   no population is the bare number this programme keeps warning about. So the
+   disposition is *annotate*, not *delete* — and the lesson is the narrower one:
+   a name appearing in a file is not a reader of it, and a declaration is the
+   easiest of all to mistake for one.
 
 7. **One question is left deliberately open, and leaving it open is the
    answer.** `#333` made `/api/ai-insights` retry Open-Meteo, which hangs on
@@ -2728,15 +2757,42 @@ having it is worth *replacing* one, and the bar in `AGENTS.md` — a `what` need
 population, a `why` needs to be correct — governs additions and says nothing
 about total size. That is the gap. A size budget belongs beside it.
 
-### The single open question
+### The single open question — CLOSED, 2026-09-03
 
-The 14:00Z scheduled newsroom run had **not fired** at stand-down (12:57Z). It has
-never been proven that a *timer-triggered* edition completes: `newsroom_run_now`
-is `@app.route`, so an HTTP run does not answer it. Read the **execution log**
-pair — `Executing 'Functions.newsroom_edition'` / `Executed … (Succeeded|Failed,
-Duration=…)` with the same `Id` — not the `requests` table, which carries a
-duration and so is written at the end and cannot say whether something started.
-Then read `trigger` on `runs/latest.json`.
+It read: *"The 14:00Z scheduled newsroom run had **not fired** at stand-down
+(12:57Z). It has never been proven that a timer-triggered edition completes."*
+It has now, and the instruction it carried was the right one — the answer came
+from the **execution log pair**, which is emitted at both ends with a matching
+`Id`, and not from `requests`, which carries a duration and so is written at the
+end and cannot say whether anything started.
+
+```
+14:00:00  Executing 'Functions.newsroom_edition'
+          (Reason='Timer fired at 2026-09-02T14:00:00.0150453+00:00',
+           Id=bdd639f7-f277-4028-b5d3-f81d7d33c89f)
+14:09:16  Executed  'Functions.newsroom_edition'
+          (Succeeded, Id=bdd639f7-f277-4028-b5d3-f81d7d33c89f, Duration=556687ms)
+
+runs/latest.json, read as RAW BYTES rather than through ConvertFrom-Json:
+  "finished_at": "2026-09-02T14:09:16Z"      <- the Z is on the wire
+  "trigger":     "timer"                     <- not "manual"
+  "schedule":    "0 0 14 * * *"
+```
+
+All three legs on one scheduled run: the timer fired on schedule, the edition
+finished, and both belong to the same execution. `Duration=556687ms` is
+**9m16.7s against a 30-minute ceiling — 31% of it.**
+
+⚠️ **Two instrument notes, because the first attempt got a clean zero from a
+correctly configured component.** `portabaltica-ai` is **workspace-based**, so
+`az monitor app-insights query` reports `traces | count -> 0` *ever*; the data
+needs the Log Analytics workspace **and** the table `AppTraces`, not `traces`,
+and either change alone still returns zero. And `Invoke-RestMethod` runs
+`ConvertFrom-Json`, which types a date-like string to `[datetime]` and **drops
+the `Z`** — so `finished_at` renders as a local wall clock and a reader three
+hours away cannot tell 14:09Z from 14:09 local. Read `.Content` from
+`Invoke-WebRequest` when a zone is load-bearing.
+
 
 ### Instrument traps with the longest shelf life
 
