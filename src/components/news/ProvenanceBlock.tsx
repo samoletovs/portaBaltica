@@ -157,6 +157,12 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                       )}
                     </p>
                   )}
+                  {/* The dataset link measured 104×18 on every article at every
+                      width. This `<p>` is a flex row rather than a sentence, so
+                      the link is a standalone control and SC 2.5.8's
+                      running-prose exemption does not reach it — unlike the
+                      `display: inline` research links below, which are genuinely
+                      prose and are deliberately left alone. */}
                   <p className="news-subtle mt-2 flex flex-wrap items-center gap-x-3 text-caption">
                     <span>
                       Retrieved{' '}
@@ -169,7 +175,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
                         href={source.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="news-link underline underline-offset-2"
+                        className="news-link flex min-h-11 items-center underline underline-offset-2"
                       >
                         Open the dataset ↗<span className="sr-only"> (opens in a new tab)</span>
                       </a>

@@ -106,7 +106,7 @@ const LIVE_CHECKS = new Map<string, string>([
   ['reducedMotionLayout.live.test.ts', 'the deployed site does not scroll sideways'],
   [
     'touchTargets.live.test.ts',
-    'every rendered control on every route clears 44x44 — design-system.test.ts asserts the CSS RULE exists, which can only confirm a floor for the selectors somebody thought of, and the site skip link is a standalone <a> outside any nav so no rule reached it and it rendered 139x40 focused. 886 of 886 other controls already clear the floor, so this is a property the site meets rather than an aspiration',
+    'every rendered control on every route — including the parameterised ones — clears 44x44. design-system.test.ts asserts the CSS RULE exists, which can only confirm a floor for the selectors somebody thought of, and the site skip link is a standalone <a> outside any nav so no rule reached it and it rendered 139x40 focused. Its route population was `navigableRoutes()`, which drops every path containing a `:`, so /article/:slug — the most-read route type on a news site — was measured by nothing, and shipped three links at 18px on every article. It now derives a real article slug from the published index and carries /indicator/gdp and /correspondents/nida, both of which were already clean, which is what makes the article finding a finding rather than a property of the probe',
   ],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
   [

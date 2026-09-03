@@ -76,7 +76,16 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
     <figure className="news-border news-panel my-8 rounded-xl border p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="news-subtle text-caption font-semibold uppercase tracking-widest">Live data</p>
-        <Link to={seriesHref} className="news-link text-caption underline underline-offset-4">
+        {/* `flex min-h-11 items-center` for the same reason the masthead
+            wordmark carries it: the 44px rule in `index.css` reaches `nav a`,
+            and this is a standalone link outside any nav, so no rule touched
+            it. Measured 116×18 at 320/375/768/1280 on every article. It is not
+            a link in running prose — its row is a flex container — so SC 2.5.8's
+            prose exemption does not reach it either. */}
+        <Link
+          to={seriesHref}
+          className="news-link flex min-h-11 items-center text-caption underline underline-offset-4"
+        >
           Open the full series →
         </Link>
       </div>
