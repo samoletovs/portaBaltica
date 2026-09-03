@@ -727,6 +727,23 @@ The single most important component. An article is servable only if
 | `attribution_present` | a tier B/C item lacks its required attribution string |
 | `comparison_basis_stated` | a change is described without naming what it is measured against |
 | `no_repeated_findings` | two paragraphs rest on the identical set of `signal_field`s |
+| `no_unsupported_mechanism` | a paragraph carrying no figure explains *why* something moved |
+| `record_claim_holds` | a superlative over the series is not licensed by `provenance.context.placement` |
+
+**That table is asserted against `CHECK_NAMES`, and it is asserted because it
+had already drifted.** The last two rows were missing for as long as they have
+existed, and the omission was found by a session reading this file, counting
+nine, and reporting a wrong number — while `no_unsupported_mechanism` was the
+**single largest cause of rejection in production**, 9 of the 17 recorded across
+the whole published run history. So the contract's own summary hid the check
+that was doing the most work, in the direction that reads as "there is less
+here than there is".
+
+This is the third member of a family the two meta tests at the end of
+`test_validator_rejects.py` already document — a check that cannot reject
+anything, and a check registered but never run. All three are one shape: **two
+enumerations that must agree, where nothing made them.** Prose is an
+enumeration too, and it is the one no test was walking.
 
 The general case, which the rest of this section is examples of:
 
