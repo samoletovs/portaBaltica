@@ -3434,6 +3434,43 @@ the name of the failing assertion is the only thing that says *what*. Reporting
 count without its population — one level up, in the verification rather than in
 the measurement.
 
+### The applied-check must match the plant's shape
+
+Every plant rule above assumes a **substitution** — anchor out, replacement in —
+so the read-back is *"the original clause is gone"*. For an **insertion** the
+anchor is supposed to survive, and that check then reads `False` on a plant that
+applied perfectly.
+
+Measured while planting a phantom row into a table:
+
+```
+anchor occurrences                              1
+phantom already present (must be 0)             0
+applied, checked as "anchor gone"           False   <- the plant HAD applied
+applied, checked as an INSERTION              True
+  new content present exactly once            True
+  anchor still present BY DESIGN              True
+NAMED by  test_every_documented_check_is_one_that_runs
+```
+
+**What proved the plant landed was the name of the failing assertion**, which
+cannot fail unless a phantom row exists — not the applied-flag, which was
+actively wrong. That is *read the name, not the exit code* arriving one level
+down, in the harness rather than in the suite.
+
+So the check is not a fixed string, it is a question about the mutation you
+wrote:
+
+| plant | applied when |
+|---|---|
+| **substitution** | replacement present, **original clause gone** |
+| **insertion** | new content present exactly once, **anchor still present**, and the new content absent beforehand |
+| **deletion** | anchor gone, and nothing else changed length |
+
+The third column of the insertion row is the one people skip. Without *"absent
+beforehand"* a phantom that was already in the file reads as a plant you just
+made, and the assertion it trips was passing for a reason you did not create.
+
 ### A green needs an opportunity count, and a working fix can erase it
 
 Everything above is about a red that means less than it looks. This is the
@@ -3929,7 +3966,83 @@ asserting the check happened is not. This is *absence resolving to success*
 wearing a denominator's clothes — and both of us wrote it into the probe we were
 using to reassure the other about a name that lied about its population.
 
+### Three instruments that answer a confident zero in this environment
+
+Each is a real reading from a correctly configured system, and each fails toward
+*"nothing here"*. Every one was found by a control, not by care.
+
+**Application Insights, when the component is workspace-based.** The classic
+query path is not merely empty for the window — it is empty *ever*, which reads
+exactly like a Function that never ran:
+
+```
+az monitor app-insights query --app portabaltica-ai -g portabaltica-rg
+  traces   | summarize count()   ->  n=0  EVER
+  requests | summarize count()   ->  n=0  EVER
+
+CONTROL, is it even the right component?
+  functionapp appsettings APPLICATIONINSIGHTS_CONNECTION_STRING
+    InstrumentationKey=75cd70d6-6079-4ceb-b7d3-f5c7833faf6e
+  app-insights component show --query instrumentationKey
+                              =75cd70d6-6079-4ceb-b7d3-f5c7833faf6e   <- it is
+
+az monitor log-analytics query -w <portabaltica-law customerId>
+  AppTraces ...                  ->  2 rows                <- the data was here
+```
+
+**Two changes are needed together** — the workspace endpoint *and* the table
+name `AppTraces` rather than `traces`. Either alone still returns zero. Without
+the control proving the component was right, the honest-looking conclusion is
+"the timer never fired" about a run that succeeded.
+
+**`npm ci` on this machine, against the corporate proxy.** It fails with
+`E404 … react-router-dom-7.18.3.tgz`, and the tempting verification — hash the
+lockfiles and copy `node_modules` from the main checkout — **passes while what
+it establishes is false**:
+
+```
+worktree package-lock.json SHA256  4E07C19CC60C31BE0C5E98FFE9EFE67053A1620E9D416A1DCF9F5934FC16F8FE
+main     package-lock.json SHA256  4E07C19CC60C31BE0C5E98FFE9EFE67053A1620E9D416A1DCF9F5934FC16F8FE
+identical                          True          <- and it proves NOTHING
+
+lock pins react-router-dom         7.18.3
+GET  …/react-router-dom-7.18.2.tgz -> 200, 2382 bytes    <- POSITIVE CONTROL
+GET  …/react-router-dom-7.18.3.tgz -> 404
+CONTROL 0.0.0-zzq                  -> 404
+```
+
+**The proxy does not carry the version the lock pins, so no tree on this machine
+can satisfy it** — which is why an identical lockfile is not evidence about an
+installed tree. The discriminating read is the version in
+`node_modules/<pkg>/package.json`, never the lock. ⚠️ **`HEAD` returns 405 for
+both versions**, so a HEAD-based probe cannot distinguish them at all; use `GET`.
+
+⚠️ And do not reach for the main checkout as a donor without looking: measured,
+its `node_modules` **exists and is empty** — 0 top-level directories, no `react`
+either. `npm ci` deletes `node_modules` before installing, so a failed run
+leaves exactly that. **A directory that exists is not a directory with anything
+in it**, and `Test-Path` cannot tell you which you have.
+
+Related, and the same shape one level out: **`$env:GIT_ROOT` is not set here**,
+so `cd $env:GIT_ROOT` succeeds silently and lands in the home directory. Every
+repo-relative script then reports `MODULE_NOT_FOUND`, which reads as *"the
+script is missing"* rather than *"I am in the wrong directory"*. Use absolute
+paths.
+
+**`Select-Object -Last N` on a running command.** It cannot know the last N
+until the stream ends, so it buffers the lot and a live suite looks hung:
+
+```
+… | Select-Object -Last 2    line 2 at 2192ms · line 3 at 2193ms   <- both at the END
+CONTROL, without it          line 1 at 21ms · line 2 at 733ms · line 3 at 1444ms
+```
+
+Harmless on a command that has already finished, which is why it survives; on
+one you are waiting for, it hides the progress you were watching for. Tee to a
+file and read the file.
+
 ### When a probe reports "absent", check the probe can see anything
+
 
 The reading `refLines: 0` is true on master, true on a fixed branch, and true
 for a chart that does not exist. jsdom gives `ResponsiveContainer` no size, so
