@@ -95,6 +95,9 @@ describe('the key indicator table at 320px', () => {
         localStorage.setItem('pb-onboarding-complete', 'true');
       });
       await page.goto(BASE + '/data', { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      // Headless overlay scrollbars otherwise give the label more room than a
+      // normal browser window. Include the scrollbar gutter in this 320px check.
+      await page.addStyleTag({ content: 'html { scrollbar-gutter: stable; }' });
       // The table renders from a fetch; an empty table cannot have a cut label,
       // so measuring too early would pass for the wrong reason. The row count
       // is asserted below, which is what makes that a failure rather than a

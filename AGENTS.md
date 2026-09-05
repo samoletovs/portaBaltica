@@ -3921,6 +3921,13 @@ correct?" is not — comparisons whose operand can be absent, membership tests
 against a collection that can be empty, and any `success()` downstream of
 something allowed to fail.
 
+In `deploy.yml`, upload and live verification are separate outcomes. Smoke's
+`continue-on-error` only defers failure until the summary and Telegram receipt
+have reported both. The final step makes a successful push upload with failed
+or skipped verification red, without rolling back the live code. Overall
+workflow success requires both upload and verification; `tests/deployWorkflow.test.ts`
+guards the outcome conditions, notification ordering, and failure command.
+
 The codebase already gets this right in at least one place, unprompted.
 `ProvenanceBlock.tsx` reads:
 
