@@ -280,3 +280,26 @@ No paid mail purchase, subscription checkout, automatic correction of existing
 articles or source-rights clearance was performed. The public contact alias is
 configured but end-to-end delivery and branded replies still need verification.
 This technical release is not commercial-launch approval.
+
+### Final release verification
+
+The final web/API release is `1563a2e`, which also preserves the independently
+merged mobile-label and live-check improvements. The newsroom remains at
+`60765f0`; its source is unchanged in the later commits.
+
+- [Final web/API CI and deployment](https://github.com/samoletovs/portaBaltica/actions/runs/33961280980):
+  succeeded, including all 147 offline test files and all 21 live smoke files.
+  The final unverified-deployment gate did not fire.
+- [Newsroom CI and deployment](https://github.com/samoletovs/portaBaltica/actions/runs/33958496584):
+  both Python versions and the pipeline deployment succeeded.
+- The first live sweep found three API-docs links below the 44px touch-width
+  floor. Commit `9924a12` fixes them; all 24 indicator links were measured at
+  least 44x44px at 320, 375 and 1280px, with keyboard navigation intact.
+- A subsequent sweep still assumed every article rendered initially. The shared
+  pagination helper in PR #400 now follows "Show more" before whole-feed checks,
+  retaining correction-marker, negative-control and accessibility assertions.
+  Both formerly failing live suites passed independently (21 tests).
+
+The final full smoke run completed successfully at 11:01 UTC on 2026-09-05.
+Payments and briefing enquiries remain disabled; email delivery, source rights,
+production billing and the other commercial gates remain outstanding.
