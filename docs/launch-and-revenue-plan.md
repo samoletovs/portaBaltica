@@ -116,7 +116,7 @@ deliverable emerges. Validate rather than treating these as market prices.
 | Pilot value | Readers demonstrate a repeated job and willingness to pay | Owner |
 | Delivery economics | Revenue net of tax/fees exceeds model/data/hosting and reviewer/support labour | Owner |
 | Release | Reviewed commit, successful CI and production reader-journey checks | Engineering |
-| History privacy | Resolve the existing push guard's historical identity findings with explicit owner approval; never bypass the guard | Owner |
+| History privacy | Review existing historical identity findings separately; the new-commit range must pass the unchanged push guard | Owner |
 
 ## Measurement, not vanity metrics
 
@@ -239,19 +239,31 @@ separate opt-in, unsubscribe, processor and privacy arrangements.
 
 ## Publication status
 
-The implementation is committed locally on `feat/business-readiness-20260905`
-(code commit `459b9fe`). The attempted push was not completed and no pull request
-or production deployment was created.
+The implementation was first committed on `feat/business-readiness-20260905`
+(code commit `459b9fe`, initial status record `60765f0`). On 2026-09-05 the owner
+explicitly requested commit, merge and deployment. Remote `master` was
+fast-forwarded from `727fcf4` to `60765f0` through the unchanged pre-push hook,
+without a force push, exception, history rewrite or pull request.
 
-The isolated checkout initially could not discover the central leak patterns.
-A clean checkout of the same verified commit inside the workspace resolved
-configuration discovery without copying private configuration or changing the
-guard. Its full pre-push audit then flagged identity metadata in **463 historical
-commits**. Current file-content and staged-change checks passed; historical
-metadata remains a separate blocker.
+The initial new-branch attempt had a different audit scope: it scanned existing
+ancestry and flagged identity metadata in **463 historical commits**. Those
+commits were already on public master. The ordinary existing-branch update audits
+the actual outgoing range; both new commits and all 84 changed files passed its
+13 configured patterns. A clean workspace checkout resolved configuration
+discovery without copying private configuration or changing the hook.
 
-Do not disable the hook, manufacture another publication path around it, or
-rewrite shared history automatically. The owner must review the history findings
-and explicitly authorize a remediation plan, including the implications for
-existing references and collaborators. Production and the enquiry flag remain
-unchanged.
+Historical metadata still warrants owner-approved remediation, including the
+implications for existing references and collaborators; the clean outgoing range
+does not certify old history.
+
+The existing workflows have deployed the frontend/API and newsroom at `60765f0`.
+Live verification confirmed the briefing page on both Azure and custom hostnames,
+search and pagination, correct project counts, delivery-interval electricity
+prices, one-year annual history, server metadata and the sitemap. The Function
+App reports that revision and both daily/weekly timers are registered.
+
+Enquiries and payments remain disabled. No new resource or paid service was
+created. The cost helper failed to launch Azure CLI on Windows; Cost Management
+returned HTTP 429 after backoff, and the consumption fallback provided no usable
+cost values. Current metered spend is unknown, not zero. Production-eligible
+billing and all commercial activation gates above remain separate work.

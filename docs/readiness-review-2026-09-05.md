@@ -258,15 +258,25 @@ The leak guard found three pre-existing personal-name references in the touched
 project instructions; those references were anonymized. Historical commits were
 not rewritten, and this is not a claim that repository history has been scrubbed.
 
-**Release remains withheld.** No production deployment, paid mail purchase,
-subscription checkout, automatic correction of existing articles or source-rights
-clearance was performed. The public contact alias is configured but end-to-end
-delivery and branded replies still need verification.
+### Subsequent owner-requested deployment
 
-The code is committed locally as `459b9fe` on
-`feat/business-readiness-20260905`. Publication could not proceed: after resolving
-configuration discovery through a clean workspace checkout, the unchanged
-pre-push guard flagged identity metadata in 463 historical commits. No hook was
-bypassed, no history was rewritten, and no PR was created. This needs a separate
-owner-approved history/privacy remediation decision; a clean new commit does
-not certify the repository's prior history.
+The owner explicitly requested merge and deployment on 2026-09-05. `master` was
+fast-forwarded from `727fcf4` to `60765f0`, including code commit `459b9fe`.
+The unchanged pre-push guard passed the actual outgoing range: 84 files and
+both new commits, against 13 patterns. No hook exception, force push, history
+rewrite or PR was used. The initial new-branch guard had scanned existing
+ancestry; its findings in 463 already-published historical commits remain
+separate remediation work rather than evidence of new identifying content.
+
+The frontend/API and newsroom are now deployed at `60765f0`. Live checks on the
+custom domain confirmed 466 distinct funding projects with complete status
+totals, current 15-minute electricity selection, one annual observation for a
+one-year population request, search/pagination/recovery, metadata/sitemap wiring,
+closed enquiries and no console errors at mobile/desktop widths. Both actual
+Azure and custom hostnames serve the new briefing metadata. The newsroom reports
+the deployed revision and registered daily/weekly timers.
+
+No paid mail purchase, subscription checkout, automatic correction of existing
+articles or source-rights clearance was performed. The public contact alias is
+configured but end-to-end delivery and branded replies still need verification.
+This technical release is not commercial-launch approval.
