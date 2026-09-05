@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
 import { navigableRoutes } from './routes';
+import { revealAllFeedArticles } from './liveFeed';
+import type { FeedDriver } from './liveFeed';
 
 /**
  * Every control on the deployed site is big enough to hit with a thumb.
@@ -132,7 +134,7 @@ const SELECTOR =
  * type-only reference trips it. Naming the methods used is cheaper than an
  * exemption and documents the dependency more precisely.
  */
-type Driver = {
+type Driver = FeedDriver & {
   goto(url: string, opts: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<unknown>;
   setViewportSize(size: { width: number; height: number }): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
@@ -195,7 +197,7 @@ describe('touch targets on the deployed site', () => {
         await page.keyboard.press('Tab');
         await page.waitForTimeout(200);
 
-        const measured = await page.evaluate(
+        const measure = () => page.evaluate(
           ({ selector, min }: { selector: string; min: number }) => {
             const active = document.activeElement;
 
@@ -255,9 +257,18 @@ describe('touch targets on the deployed site', () => {
           { selector: SELECTOR, min: MIN_PX },
         );
 
-        seen += measured.counted;
-        for (const s of measured.small) offenders.push({ route, ...s });
-        if (measured.skip) skipLink.push({ route, ...measured.skip });
+        const snapshots = [await measure()];
+        if (route === '/') {
+          // Keep the natural first-Tab and pagination-button measurements,
+          // then also measure controls on every subsequently revealed card.
+          await revealAllFeedArticles(page);
+          snapshots.push(await measure());
+        }
+        seen += Math.max(...snapshots.map((snapshot) => snapshot.counted));
+        for (const snapshot of snapshots) {
+          for (const s of snapshot.small) offenders.push({ route, ...s });
+        }
+        if (snapshots[0].skip) skipLink.push({ route, ...snapshots[0].skip });
       }
     } finally {
       await browser.close();

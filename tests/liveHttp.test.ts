@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchLivePage } from './liveHttp';
+import { fetchLivePage, waitForLiveRateWindow } from './liveHttp';
 
 const pause = vi.hoisted(() => vi.fn<(ms: number) => Promise<void>>());
 vi.mock('node:timers/promises', () => ({ setTimeout: pause, default: { setTimeout: pause } }));
@@ -21,6 +21,12 @@ afterEach(() => {
 });
 
 describe('live HTTP checks respect the production rate limit without hiding failures', () => {
+  it('waits out the complete request window before a new browser dashboard burst', async () => {
+    await waitForLiveRateWindow();
+    expect(pause).toHaveBeenCalledExactlyOnceWith(60_250);
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it('waits through a full Retry-After window before checking the actual retried page', async () => {
     request
       .mockResolvedValueOnce(new Response('limited', { status: 429, headers: { 'Retry-After': '60' } }))
