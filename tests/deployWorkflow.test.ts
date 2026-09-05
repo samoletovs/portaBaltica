@@ -1,5 +1,6 @@
+// @vitest-environment node
 /**
- * Guards the deploy workflow's concurrency settings.
+ * Guards deploy concurrency and the uploaded-versus-live-verified contract.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -25,7 +26,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 const WORKFLOW = resolve(__dirname, '..', '.github', 'workflows', 'deploy.yml');
 const workflow = readFileSync(WORKFLOW, 'utf-8');
@@ -51,6 +54,58 @@ function stepBlock(name: string): string {
     (line) => line.trim() !== '' && line.search(/\S/) <= indent,
   );
   return [lines[start], ...rest.slice(0, end === -1 ? rest.length : end)].join('\n');
+}
+
+type Outcome = 'success' | 'failure' | 'skipped' | 'cancelled';
+
+interface DeploymentContext {
+  event?: string;
+  deploy: Outcome;
+  smoke: Outcome;
+  failed?: boolean;
+}
+
+/** These workflow conditions use only the shared JS/Actions boolean subset. */
+function conditionMatches(name: string, {
+  event = 'push', deploy, smoke, failed = false,
+}: DeploymentContext): boolean {
+  const condition = /^\s*if:\s*(.+)$/m.exec(stepBlock(name))?.[1]?.trim();
+  if (!condition) throw new Error(`Missing condition for ${name}`);
+  // Actions implicitly adds success() unless a status function is present.
+  if (failed && !/\b(always|success|failure|cancelled)\s*\(/.test(condition)) return false;
+  const result: unknown = runInNewContext(condition, {
+    github: { event_name: event },
+    steps: { deploy: { outcome: deploy }, smoke: { outcome: smoke } },
+    always: () => true,
+    success: () => !failed,
+    failure: () => failed,
+  });
+  return result === true;
+}
+
+function runStep(name: string, env: Record<string, string> = {}) {
+  const script = /\brun:\s*\|\r?\n([\s\S]*)/.exec(stepBlock(name))?.[1];
+  if (!script) throw new Error(`Missing shell block for ${name}`);
+  const bash = process.platform === 'win32'
+    ? resolve(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe')
+    : 'bash';
+  // Exercise the actual workflow shell; curl captures arguments, never sends.
+  const result = spawnSync(bash, ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c',
+    `curl() { printf '%s\\n' "$@"; }\n${script.replace(/\$\{\{[^}]+}}/g, 'test-context')}`,
+  ], {
+    encoding: 'utf8',
+    timeout: 30_000,
+    env: {
+      ...process.env,
+      NAURO_BOT_TOKEN: 'test-token',
+      NAURO_CHAT_ID: 'test-chat',
+      COMMIT_MESSAGE: 'test change',
+      RUN_URL: 'https://github.com/example/repo/actions/runs/123',
+      ...env,
+    },
+  });
+  expect(result.error).toBeUndefined();
+  return result;
 }
 
 describe('deploy workflow concurrency', () => {
@@ -143,6 +198,99 @@ describe('the live smoke step', () => {
     expect(install, 'no step installs a browser, so the browser-based live checks cannot run').toBeGreaterThan(-1);
     expect(smoke, 'no step runs the live suite').toBeGreaterThan(-1);
     expect(install, 'the browser must be installed before the suite runs, not after').toBeLessThan(smoke);
+  });
+
+  describe('uploaded versus live-verified deployment', () => {
+    const gate = 'Fail unverified deployment';
+    const receipt = 'Notify Telegram (success)';
+    const failure = 'Notify Telegram (failure)';
+
+    it('preserves the existing jobs and cadence', () => {
+      const jobs = workflow.slice(workflow.indexOf('\njobs:'));
+      expect([...jobs.matchAll(/^ {2}(\w+):\s*$/gm)].map((match) => match[1]))
+        .toEqual(['quality', 'build_and_deploy', 'close_pull_request']);
+      expect(workflow).not.toMatch(/^\s+schedule:/m);
+    });
+
+    it('defers smoke failure only until reporting, then enforces it last', () => {
+      expect(stepBlock('Deploy to Azure SWA')).toMatch(/^\s+id: deploy$/m);
+      expect(stepBlock('Live smoke tests')).toMatch(/^\s+id: smoke$/m);
+      expect(stepBlock('Live smoke tests')).toMatch(/^\s+continue-on-error: true$/m);
+      expect(stepBlock(gate)).not.toMatch(/continue-on-error:/);
+      const deployJob = workflow.slice(workflow.indexOf('\n  build_and_deploy:'), workflow.indexOf('\n  close_pull_request:'));
+      const names = [...deployJob.matchAll(/^ {6}- name: (.+)$/gm)].map((match) => match[1]);
+      expect(names.at(-1)).toBe(gate);
+      for (const name of ['Live smoke tests', 'Report smoke result', receipt, failure]) {
+        expect(names.indexOf(name)).toBeGreaterThan(-1);
+        expect(names.indexOf(name)).toBeLessThan(names.indexOf(gate));
+      }
+    });
+
+    it.each([
+      ['success', 'success', false, false],
+      ['success', 'failure', false, true], // continue-on-error keeps success() true.
+      ['success', 'failure', true, true],
+      ['success', 'skipped', true, true], // e.g. browser installation failed.
+      ['success', 'skipped', false, true],
+      ['success', 'cancelled', true, true],
+      ['failure', 'skipped', true, false],
+      ['skipped', 'skipped', true, false],
+      ['skipped', 'skipped', false, false],
+      ['cancelled', 'skipped', false, false],
+    ] as const)('upload=%s, smoke=%s, prior failure=%s => verification failure=%s',
+      (deploy, smoke, failed, mustFail) => {
+        const context = { deploy, smoke, failed };
+        expect(conditionMatches(gate, context)).toBe(mustFail);
+        expect(conditionMatches('Report smoke result', context)).toBe(deploy === 'success');
+        expect(conditionMatches(receipt, context)).toBe(deploy === 'success');
+        expect(conditionMatches(failure, context)).toBe(failed && deploy !== 'success');
+      });
+
+    it.each(['pull_request', 'workflow_run', 'workflow_dispatch'])(
+      'does not report or fail a non-push event (%s)', (event) => {
+        for (const name of [gate, 'Report smoke result', receipt, failure]) {
+          expect(conditionMatches(name, { event, deploy: 'success', smoke: 'failure', failed: true })).toBe(false);
+        }
+      });
+
+    it('exits nonzero after notification even when continue-on-error masked the failed suite', () => {
+      const context = { deploy: 'success', smoke: 'failure', failed: false } as const;
+      expect(conditionMatches(receipt, context)).toBe(true);
+      expect(conditionMatches(failure, context)).toBe(false);
+      expect(conditionMatches(gate, context)).toBe(true);
+      const result = runStep(gate);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('::error::Live verification failed; inspect failed assertions');
+      expect(result.stdout).toContain('no rollback was performed');
+    });
+
+    it.each(['success', 'failure', 'skipped'])('reports the actual %s smoke outcome in the uploaded receipt', (outcome) => {
+      const result = runStep(receipt, { SMOKE_OUTCOME: outcome });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('disable_web_page_preview=true');
+      if (outcome === 'success') {
+        expect(result.stdout).toContain('✅ <b>portaBaltica</b> deployed');
+        expect(result.stdout).not.toContain('LIVE CHECKS FAILED');
+      } else {
+        expect(result.stdout).toContain('⚠️ <b>portaBaltica</b> deployed — LIVE CHECKS FAILED');
+        expect(result.stdout).toContain('Live verification failed; inspect failed assertions');
+        expect(result.stdout).toContain('Run: https://github.com/example/repo/actions/runs/123');
+        expect(result.stdout).not.toContain('deploy FAILED');
+      }
+      expect(result.stdout).not.toContain('something it depends on');
+    });
+
+    it('keeps the upload-failure receipt distinct and disables its link preview too', () => {
+      const result = runStep(failure);
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('❌ <b>portaBaltica</b> deploy FAILED');
+      expect(result.stdout).toContain('disable_web_page_preview=true');
+    });
+
+    it('does not misdiagnose UI assertion failures as dependency outages in the summary', () => {
+      expect(stepBlock('Report smoke result')).toContain('Live verification failed; inspect failed assertions');
+      expect(workflow).not.toMatch(/something it depends on/i);
+    });
   });
 
   it('installs the same browser the checks ask for', () => {

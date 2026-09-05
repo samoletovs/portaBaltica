@@ -144,6 +144,7 @@ jobs:
       # caught before merge. Previews are what we give up, and on a three-slot
       # cap shared by a bot-driven PR queue they were never dependable anyway.
       - name: Deploy to Azure SWA
+        id: deploy
         if: github.event_name == 'push'
         uses: Azure/static-web-apps-deploy@v1
         with:
@@ -175,11 +176,9 @@ jobs:
       # PR gate, where they only measured production's latency from a runner
       # and could fail a correct change because a Free-tier Function was cold.
       #
-      # continue-on-error because this reports on the deployment rather than
-      # gating it: the code is already live, so failing the job would not roll
-      # anything back, it would only make the notification below say "deploy
-      # FAILED" when the deploy in fact succeeded. The step's own red mark
-      # carries the signal, and the summary line below states it plainly.
+      # Defer failure only until the upload and verification outcomes have been
+      # reported separately. The final step fails unverified deployments; it
+      # does not roll back the code that is already live.
       - name: Live smoke tests
         id: smoke
         if: github.event_name == 'push'
@@ -187,33 +186,23 @@ jobs:
         run: npm run test:live
 
       - name: Report smoke result
-        if: github.event_name == 'push'
+        if: always() && github.event_name == 'push' && steps.deploy.outcome == 'success'
         run: |
           if [ "${{ steps.smoke.outcome }}" = "success" ]; then
             echo "Live smoke tests passed against the deployment." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### Live smoke tests FAILED after deploy" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "The code is live. Something it depends on is not answering." >> "$GITHUB_STEP_SUMMARY"
-            echo "Check the endpoints before assuming the release is healthy." >> "$GITHUB_STEP_SUMMARY"
+            echo "The code is live. Live verification failed; inspect failed assertions." >> "$GITHUB_STEP_SUMMARY"
+            echo "A skipped suite also leaves this deployment unverified; inspect preceding setup steps." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # The smoke outcome is carried INTO this message, not left to the step's
-      # own red mark and the summary above.
-      #
-      # `continue-on-error` on the smoke step is right — the code is already
-      # live and failing the job would announce "deploy FAILED" for a deploy
-      # that succeeded. But it also means `success()` stays true when the live
-      # checks fail, so this notification used to send a bare ✅ whatever the
-      # site was actually doing. The only signals were a red step and a summary
-      # line, neither of which reaches anybody not already reading the run.
-      #
-      # That is a notification that cannot report a failure, and it is why
-      # `/data` scrolled sideways on every phone from #84 until someone opened
-      # the site by hand. A ✅ that is sent unconditionally is worse than no
-      # message: it is not silence, it is a false assurance.
+      # Report successful upload even if browser setup failed and smoke was
+      # skipped. Only successful verification earns a tick. Keep both messages
+      # before the final failure so a live-check failure is not called an
+      # upload failure.
       - name: Notify Telegram (success)
-        if: success() && github.event_name == 'push'
+        if: always() && github.event_name == 'push' && steps.deploy.outcome == 'success'
         env:
           NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
           NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
@@ -228,12 +217,14 @@ jobs:
             TAIL="URL: https://portabaltica.naurolabs.com"
           else
             HEADLINE="⚠️ <b>portaBaltica</b> deployed — LIVE CHECKS FAILED"
-            TAIL="The code is live and something it depends on is not answering.
+            TAIL="The code is live. Live verification failed; inspect failed assertions.
+          If the suite was skipped, inspect preceding setup steps.
           Run: ${RUN_URL}"
           fi
           curl -sf -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
             --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
             --data-urlencode "text=${HEADLINE}
           Branch: ${{ github.ref_name }}
           Commit: ${COMMIT_MSG}
@@ -242,7 +233,7 @@ jobs:
             || echo "::warning::Telegram notification failed"
 
       - name: Notify Telegram (failure)
-        if: failure() && github.event_name == 'push'
+        if: failure() && github.event_name == 'push' && steps.deploy.outcome != 'success'
         env:
           NAURO_BOT_TOKEN: ${{ secrets.NAURO_BOT_TOKEN }}
           NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
@@ -253,6 +244,7 @@ jobs:
           curl -sf -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
             --data-urlencode "parse_mode=HTML" \
+            --data-urlencode "disable_web_page_preview=true" \
             --data-urlencode "text=❌ <b>portaBaltica</b> deploy FAILED
           Branch: ${{ github.ref_name }}
           Commit: ${COMMIT_MSG}
@@ -268,6 +260,14 @@ jobs:
             https://api.github.com/repos/samoletovs/naurolabs/dispatches \
             -d '{"event_type": "project-deployed", "client_payload": {"project": "portaBaltica"}}' \
             || echo "::warning::Landing page sync dispatch failed"
+
+      # Overall success means upload AND live verification. Notifications above
+      # distinguish deployed from live-verified; a red run performs no rollback.
+      - name: Fail unverified deployment
+        if: always() && github.event_name == 'push' && steps.deploy.outcome == 'success' && steps.smoke.outcome != 'success'
+        run: |
+          echo "::error::Live verification failed; inspect failed assertions. The code is live; no rollback was performed."
+          exit 1
 
   # ── Close PR preview ───────────────────────────────────────────────
   # Pull requests no longer create staging environments (see the deploy step

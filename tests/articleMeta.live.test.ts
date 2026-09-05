@@ -30,6 +30,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
+import { fetchLivePage as get, LIVE_HTTP_TEST_OPTIONS } from './liveHttp';
 
 const require = createRequire(import.meta.url);
 
@@ -78,17 +79,6 @@ interface Summary {
   headline: string;
   dek?: string;
   syndicated?: { original_url?: string; attribution?: string };
-}
-
-interface Fetched {
-  status: number;
-  headers: Headers;
-  body: string;
-}
-
-async function get(url: string): Promise<Fetched> {
-  const response = await fetch(url, { redirect: 'follow' });
-  return { status: response.status, headers: response.headers, body: await response.text() };
 }
 
 function metaContent(html: string, attribute: string, name: string): string | null {
@@ -158,7 +148,7 @@ beforeAll(async () => {
     slug: string;
   }[];
   correctedSlugs = new Set(log.map((entry) => entry.slug));
-});
+}, LIVE_HTTP_TEST_OPTIONS.timeout);
 
 /**
  * The exact `og:title` an article must carry.
@@ -182,7 +172,7 @@ function expectedOgTitle(article: Summary): string {
     : article.headline;
 }
 
-describe('the HTML a crawler receives for a published article', () => {
+describe('the HTML a crawler receives for a published article', LIVE_HTTP_TEST_OPTIONS, () => {
   it('carries that article\'s own headline, not the site name', async () => {
     // Three different articles, because the defect was that all of them were
     // identical. One article passing proves nothing about that.
@@ -283,7 +273,7 @@ describe('the HTML a crawler receives for a published article', () => {
   });
 });
 
-describe('the HTML a crawler receives for a syndicated article', () => {
+describe('the HTML a crawler receives for a syndicated article', LIVE_HTTP_TEST_OPTIONS, () => {
   /**
    * The one assertion the source cannot make.
    *
@@ -294,11 +284,10 @@ describe('the HTML a crawler receives for a syndicated article', () => {
    * before, and exactly the class of claim a source test is blind to.
    */
   it('names the source as the canonical version, not us', async () => {
-    // Every one of them rather than a sample. The population is 54 today — 4
-    // tier B and 50 tier C — and it is derived from the index rather than
-    // written down, so it tracks whatever the newsroom syndicates next. The
-    // cost is one static fetch each and the whole file runs in about two
-    // seconds; a sample would leave the rest unmeasured for no saving.
+    // Keep the whole population. These are rate-limited Function requests, not
+    // static files: 54 syndicated pages plus the preceding checks exceed the
+    // 60/minute budget. get() honors one bounded Retry-After instead of replaying
+    // this whole sweep immediately and amplifying the throttling.
     for (const article of syndicated) {
       const page = await get(`${BASE}/article/${article.slug}`);
       expect(page.status, `${article.slug} did not serve`).toBe(200);
@@ -310,7 +299,7 @@ describe('the HTML a crawler receives for a syndicated article', () => {
         `${article.slug} claims OUR url as the canonical copy of somebody else's article`,
       ).toBe(article.syndicated!.original_url);
     }
-  });
+  }, 120_000);
 
   it('still points og:url and robots at our own page', async () => {
     // og:url is what a social platform dedupes shares against, not an indexing
@@ -346,7 +335,7 @@ describe('the HTML a crawler receives for a syndicated article', () => {
   });
 });
 
-describe('the HTML a crawler receives for a retracted article', () => {  it('marks the headline rather than repeating it bare, and is never indexable', async () => {
+describe('the HTML a crawler receives for a retracted article', LIVE_HTTP_TEST_OPTIONS, () => {  it('marks the headline rather than repeating it bare, and is never indexable', async () => {
     // The corrections policy keeps this page up and #113 makes it say why. So
     // the card carries the marking with the headline — a share card has no
     // page around it to supply the context — but claims nothing else.
@@ -370,7 +359,7 @@ describe('the HTML a crawler receives for a retracted article', () => {  it('mar
   });
 });
 
-describe('the HTML a crawler receives for an article that is not there', () => {
+describe('the HTML a crawler receives for an article that is not there', LIVE_HTTP_TEST_OPTIONS, () => {
   it('answers 404 for a slug that never existed', async () => {
     const absent = await get(`${BASE}/article/${ABSENT_SLUG}`);
     expect(absent.status).toBe(404);
@@ -392,7 +381,7 @@ describe('the HTML a crawler receives for an article that is not there', () => {
   });
 });
 
-describe('the rest of the site is untouched', () => {
+describe('the rest of the site is untouched', LIVE_HTTP_TEST_OPTIONS, () => {
   it('serves the front page with the head its own module specifies', async () => {
     const page = await get(`${BASE}/`);
     expect(page.status).toBe(200);
@@ -416,7 +405,7 @@ describe('the rest of the site is untouched', () => {
   });
 });
 
-describe('the deploy-race recovery reaches readers', () => {
+describe('the deploy-race recovery reaches readers', LIVE_HTTP_TEST_OPTIONS, () => {
   /**
    * Whether the inline recovery survives the build is a question about what
    * ships, so it is asked of what ships.

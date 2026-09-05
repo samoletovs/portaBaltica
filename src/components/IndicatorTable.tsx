@@ -211,7 +211,7 @@ export function IndicatorTable() {
                 the name the whole 98px and lets it wrap, so nothing is cut and
                 no information is dropped. `sm` and up is untouched. */}
             <div className="min-w-0 block sm:flex sm:items-baseline sm:gap-2 overflow-hidden">
-              <span className="text-ui dash-fg dash-hover-fg transition-colors sm:truncate sm:shrink">{row.title}</span>{' '}
+              <span className="text-ui dash-fg dash-hover-fg transition-colors wrap-anywhere sm:wrap-normal sm:truncate sm:shrink">{row.title}</span>{' '}
               <span className="text-caption dash-subtle sm:shrink-0">{row.unit}</span>
               {/* The same ambiguity as on the cards, in a row that has no space
                   for the full sentence: a green ▼ here and a red ▼ two rows
