@@ -48,6 +48,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { launchForLiveCheck } from './liveBrowser';
+import { revealAllFeedArticles } from './liveFeed';
 
 /**
  * The browser handle, derived from the helper rather than imported from
@@ -264,6 +265,7 @@ async function open(path: string, settleFor = 8000) {
   const page = await browser!.newPage({ viewport: { width: 1280, height: 900 } });
   const response = await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(settleFor);
+  if (path === '/') await revealAllFeedArticles(page);
   return { page, status: response?.status() ?? 0 };
 }
 

@@ -8,6 +8,11 @@ const WINDOW_MARGIN_MS = 250;
 // population sweep on assertion failure: the reader handles its own one retry.
 export const LIVE_HTTP_TEST_OPTIONS = { timeout: 95_000, retry: 0 } as const;
 
+/** Reserve a fresh reader window before a dashboard's concurrent request burst. */
+export async function waitForLiveRateWindow(): Promise<void> {
+  await sleep(MAX_RETRY_AFTER_MS + WINDOW_MARGIN_MS);
+}
+
 export interface LivePage {
   status: number;
   headers: Headers;

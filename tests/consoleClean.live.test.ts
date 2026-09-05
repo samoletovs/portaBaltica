@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
+import { waitForLiveRateWindow } from './liveHttp';
 
 /**
  * Does the deployed site load without throwing at the reader?
@@ -86,6 +87,7 @@ afterAll(async () => {
 describe('the deployed site loads without throwing at the reader', () => {
   it('the probe can see an error at all', async () => {
     if (!browser) return;
+    await waitForLiveRateWindow();
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const seen = watch(page);
 
@@ -108,10 +110,13 @@ describe('the deployed site loads without throwing at the reader', () => {
     ).toBeGreaterThanOrEqual(2);
 
     await page.close();
-  }, 90_000);
+  }, 155_000);
 
   it.each(ROUTES)('%s loads clean', async (route) => {
     if (!browser) return;
+    // A dashboard visit fans out to many endpoints. Keep this fresh-reader
+    // check separate from the preceding suite/control's per-IP request budget.
+    if (route === '/data') await waitForLiveRateWindow();
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const seen = watch(page);
 
@@ -125,5 +130,5 @@ describe('the deployed site loads without throwing at the reader', () => {
     const unexpected = seen.errors.filter((e) => !ALLOWED.some((p) => p.test(e)));
     expect(unexpected, `${route} logged errors a reader's console would show`).toEqual([]);
     expect(seen.failed, `${route} had requests fail outright`).toEqual([]);
-  }, 90_000);
+  }, 155_000);
 });
