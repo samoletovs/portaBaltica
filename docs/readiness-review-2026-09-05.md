@@ -262,3 +262,11 @@ not rewritten, and this is not a claim that repository history has been scrubbed
 subscription checkout, automatic correction of existing articles or source-rights
 clearance was performed. The public contact alias is configured but end-to-end
 delivery and branded replies still need verification.
+
+The code is committed locally as `459b9fe` on
+`feat/business-readiness-20260905`. Publication could not proceed: after resolving
+configuration discovery through a clean workspace checkout, the unchanged
+pre-push guard flagged identity metadata in 463 historical commits. No hook was
+bypassed, no history was rewritten, and no PR was created. This needs a separate
+owner-approved history/privacy remediation decision; a clean new commit does
+not certify the repository's prior history.

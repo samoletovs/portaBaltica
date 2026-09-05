@@ -116,6 +116,7 @@ deliverable emerges. Validate rather than treating these as market prices.
 | Pilot value | Readers demonstrate a repeated job and willingness to pay | Owner |
 | Delivery economics | Revenue net of tax/fees exceeds model/data/hosting and reviewer/support labour | Owner |
 | Release | Reviewed commit, successful CI and production reader-journey checks | Engineering |
+| History privacy | Resolve the existing push guard's historical identity findings with explicit owner approval; never bypass the guard | Owner |
 
 ## Measurement, not vanity metrics
 
@@ -235,3 +236,22 @@ No subscription, spending limit or resource placement was changed here.
 
 No lead database or newsletter has been introduced. A future mailing list needs
 separate opt-in, unsubscribe, processor and privacy arrangements.
+
+## Publication status
+
+The implementation is committed locally on `feat/business-readiness-20260905`
+(code commit `459b9fe`). The attempted push was not completed and no pull request
+or production deployment was created.
+
+The isolated checkout initially could not discover the central leak patterns.
+A clean checkout of the same verified commit inside the workspace resolved
+configuration discovery without copying private configuration or changing the
+guard. Its full pre-push audit then flagged identity metadata in **463 historical
+commits**. Current file-content and staged-change checks passed; historical
+metadata remains a separate blocker.
+
+Do not disable the hook, manufacture another publication path around it, or
+rewrite shared history automatically. The owner must review the history findings
+and explicitly authorize a remediation plan, including the implications for
+existing references and collaborators. Production and the enquiry flag remain
+unchanged.
