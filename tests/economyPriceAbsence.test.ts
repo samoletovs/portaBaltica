@@ -42,15 +42,14 @@ function fakeResponse(body: string, statusCode = 200) {
   return res;
 }
 
-/** One priced interval, at the hour the handler will look for. */
+/** Current Elering delivery resolution, including absent and null intervals. */
 function eleringPayload(opts: { includeCurrentHour: boolean; price?: number | null }) {
   const now = new Date();
   const rows = [];
-  for (let h = 0; h < 24; h++) {
-    // The handler matches on the host-local hour, so build the timestamps the
-    // same way rather than assuming the host runs on UTC.
+  for (let interval = 0; interval < 96; interval++) {
+    const h = Math.floor(interval / 4);
     const at = new Date(now);
-    at.setHours(h, 0, 0, 0);
+    at.setHours(h, (interval % 4) * 15, 0, 0);
     if (!opts.includeCurrentHour && h === now.getHours()) continue;
     rows.push({
       timestamp: Math.floor(at.getTime() / 1000),

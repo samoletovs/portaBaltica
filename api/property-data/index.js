@@ -138,15 +138,17 @@ const handler = async function (context, req) {
       fetchConstructionPermits(),
       fetchEnergyCerts(),
     ]);
+    const available = construction.total !== null || energy.total !== null;
 
     context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
+      status: available ? 200 : 502,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': available ? 'public, max-age=3600' : 'no-store' },
       body: JSON.stringify({
         constructionPermits: construction.permits,
         totalPermits: construction.total,
         energyCerts: energy.certs,
         totalCerts: energy.total,
+        ...(available ? {} : { error: 'Property data sources unavailable' }),
         fetchedAt: new Date().toISOString(),
       }),
     };

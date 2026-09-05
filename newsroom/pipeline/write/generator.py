@@ -272,7 +272,7 @@ def generate_article(
         # above about traceability does not carry, which makes re-running the
         # verdict necessary here rather than merely cheap.
         if style.cuts or style.corrections:
-            result.verdict = _revalidate(result.article, signal)
+            result.verdict = _revalidate(result.article, signal, research)
 
         # ASK FIRST, THEN CUT — the third application of the shape above, and
         # the one remaining place where the fault it addresses still spikes the
@@ -305,7 +305,7 @@ def generate_article(
         # common published shape.
         if last_attempt and not result.publishable:
             if _cut_unsupported_mechanism(result.article, result.verdict):
-                result.verdict = _revalidate(result.article, signal)
+                result.verdict = _revalidate(result.article, signal, research)
 
         if result.publishable and best is None:
             best = result
@@ -503,7 +503,7 @@ def _article_from_payload(
         },
     )
 
-    verdict = _verdict_for(article, signal)
+    verdict = _verdict_for(article, signal, research)
     article.provenance["validator"] = verdict.to_dict()
 
     if verdict.passed and _shape_is_publishable(article):
@@ -554,7 +554,9 @@ def _shape_failure(article: Article) -> str:
     return "failed the article shape checks"
 
 
-def _verdict_for(article: Article, signal: Signal) -> Verdict:
+def _verdict_for(
+    article: Article, signal: Signal, research: ResearchContext | None = None
+) -> Verdict:
     """Validate against the signal the article was written from.
 
     The whole traceability claim rests on this call: the validator resolves
@@ -573,10 +575,15 @@ def _verdict_for(article: Article, signal: Signal) -> Verdict:
     """
     signal_payload = signal.to_json()
     signal_payload["payload"] = dict(signal.fields)
-    return validate(article.to_json(), signal=signal_payload)
+    return validate(
+        article.to_json(), signal=signal_payload,
+        evidence=research.validation_evidence() if research else (),
+    )
 
 
-def _revalidate(article: Article, signal: Signal) -> Verdict:
+def _revalidate(
+    article: Article, signal: Signal, research: ResearchContext | None = None
+) -> Verdict:
     """Recompute the verdict after prose was deleted, and re-decide status.
 
     ``apply_house_style`` may cut an empty closing, which leaves the stored
@@ -605,7 +612,7 @@ def _revalidate(article: Article, signal: Signal) -> Verdict:
     The verdict now travels back so the caller can store it. Same computation,
     same article, one field that stops lying.
     """
-    verdict = _verdict_for(article, signal)
+    verdict = _verdict_for(article, signal, research)
     article.provenance["validator"] = verdict.to_dict()
     if verdict.passed and _shape_is_publishable(article):
         article.status = "published"

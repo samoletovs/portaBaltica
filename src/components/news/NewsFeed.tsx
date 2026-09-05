@@ -10,6 +10,7 @@ import { SECTION_LABELS } from '../../newsroom/sections';
 import { useOverflowFade } from '../../utils/useOverflowFade';
 
 type Filter = 'all' | string;
+const PAGE_SIZE = 12;
 
 /**
  * The section filter, as its own component.
@@ -77,6 +78,8 @@ export default function NewsFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [corrections, setCorrections] = useState<CorrectionState>({ state: 'loading' });
 
   usePageMeta({
@@ -139,8 +142,12 @@ export default function NewsFeed() {
       (articles ?? [])
         .filter((article) => article.tier !== 'C')
         .filter((article) => filter === 'all' || article.section === filter)
+        .filter((article) => {
+          const text = `${article.headline} ${article.dek ?? ''}`.toLowerCase();
+          return search.trim().toLowerCase().split(/\s+/).every((word) => text.includes(word));
+        })
         .sort(byNewestFirst),
-    [articles, filter],
+    [articles, filter, search],
   );
 
   // Deliberately NOT narrowed by the section filter. The rail is a standing
@@ -231,14 +238,45 @@ export default function NewsFeed() {
     );
   }
 
-  const [lead, ...rest] = ours;
+  const [lead, ...rest] = ours.slice(0, visibleCount);
   const isCorrected = (summary: ArticleSummary) =>
     corrections.state === 'ok' && corrections.slugs.has(summary.slug);
 
   return (
     <div key="front-page-loaded">
+      <p className="news-muted mb-4 text-ui">
+        Using Baltic data at work?{' '}
+        <Link to="/briefings" className="news-link underline underline-offset-4">
+          Help shape our business briefing pilot
+        </Link>.
+      </p>
+      {!failed && (
+        <div className="mb-4">
+          <label htmlFor="news-search" className="news-fg block text-ui font-semibold">
+            Search headlines and summaries
+          </label>
+          <input id="news-search" type="search" maxLength={200} value={search}
+            aria-describedby="news-search-scope" aria-controls="news-results"
+            className="news-border news-panel news-fg w-full rounded-lg border px-3 py-2 text-ui"
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setVisibleCount(PAGE_SIZE);
+            }} />
+          <p id="news-search-scope" className="news-subtle mt-2 text-caption">
+            Searches the current published index, not article bodies or other outlets.
+          </p>
+        </div>
+      )}
       {sections.length > 1 && (
-        <SectionFilter sections={sections} filter={filter} onChange={setFilter} />
+        <SectionFilter sections={sections} filter={filter} onChange={(next) => {
+          setFilter(next);
+          setVisibleCount(PAGE_SIZE);
+        }} />
+      )}
+      {!failed && (
+        <p role="status" className="news-subtle mb-4 text-ui">
+          Showing {Math.min(visibleCount, ours.length)} of {ours.length} matching articles
+        </p>
       )}
 
       {/*
@@ -266,17 +304,29 @@ export default function NewsFeed() {
         wins.
       */}
       <div className="grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div>
+        <div id="news-results">
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-12 text-center">
               <h1 className="balance-text news-fg text-title font-semibold">
-                {failed ? 'The front page could not be loaded' : 'Nothing to report yet today'}
+                {failed ? 'The front page could not be loaded' : search.trim() ? 'No matching articles' : 'Nothing to report yet today'}
               </h1>
               <p className="pretty-text news-muted mx-auto mt-3 max-w-md text-callout">
                 {failed
                   ? 'Published articles are served as static files. If this persists, the dashboard is unaffected.'
-                  : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
+                  : search.trim()
+                    ? 'Try fewer words or clear the search and section filter. The current index may not contain older coverage.'
+                    : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
               </p>
+              {search.trim() && (
+                <button type="button" className="news-link mt-4 px-3 py-2 text-ui underline underline-offset-4"
+                  onClick={() => {
+                    setSearch('');
+                    setFilter('all');
+                    setVisibleCount(PAGE_SIZE);
+                  }}>
+                  Clear search and filters
+                </button>
+              )}
               <p className="mt-6 text-ui">
                 <Link
                   to="/data"
@@ -311,6 +361,13 @@ export default function NewsFeed() {
                   />
                 ))}
               </div>
+              {visibleCount < ours.length && (
+                <button type="button" aria-controls="news-results"
+                  className="news-border news-panel news-hover-panel news-fg mt-6 rounded-lg border px-4 py-2 text-ui font-semibold"
+                  onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
+                  Show more articles
+                </button>
+              )}
             </>
           )}
 
@@ -347,8 +404,8 @@ export default function NewsFeed() {
             <h2 className="news-fg text-callout font-semibold">Keep up with this</h2>
             <p className="news-muted mt-2 text-ui">
               Some days carry several stories and some carry none, so a feed is the only reliable
-              way to catch the ones you want. There is no email list: we do not collect addresses,
-              so there is nothing to unsubscribe from.
+              way to catch the ones you want. There is no email list: following by feed does not
+              ask for your address, so there is nothing to unsubscribe from.
             </p>
             <p className="mt-3 text-ui">
               <Link to="/follow" className="news-link underline underline-offset-4">

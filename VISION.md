@@ -82,20 +82,26 @@ rather than a dependency.
 
 ## Revenue hypothesis
 
-| Tier | Price | Value |
-|------|-------|-------|
-| Free | €0 | The portal, all articles, the public dashboard |
-| Pro | €15/month | Alerts, historical trends, CSV export |
-| Enterprise | €49/month | REST API, webhooks, white-label embed |
+The first experiment, selected on 2026-09-05, is **scoped business briefings for
+Baltic-focused analysts and small businesses**. The articles, dashboard, history,
+CSV exports and feeds remain free. History and exports are already public
+features, not credible differentiators for the formerly proposed Pro tier.
 
-Infrastructure cost is **~€3–5/month** (Functions Flex free grant, cheap blob,
-gpt-4o-mini on the shared foundryLab account, SWA Free). Break-even: one
-Enterprise or three Pro subscribers.
+We will test whether source-linked, human-reviewed work on a specific recurring
+decision saves enough time to earn a paid pilot and then a repeat purchase.
+`/briefings` describes that discovery pilot; it does not promise an operating
+subscription, delivery schedule or validated price.
+
+The earlier EUR 3-5/month infrastructure target is not a business break-even
+calculation. Count data licensing, email, hosting beyond credits, payment fees,
+applicable taxes, support and editorial labour. Demand and commercial reuse
+permissions remain unproven. See [the launch and revenue plan](docs/launch-and-revenue-plan.md)
+for test prices, cost assumptions and explicit continue/stop gates.
 
 ## Self-sustaining progression
 
 1. **Prove €1** — an agent CAN earn money
-2. **Cover costs** — ~€5/month infrastructure
+2. **Cover delivery costs** — including editorial labour, source licences and support, not only infrastructure
 3. **Fund experiments** — ~€50-100/month to finance new NauroLabs projects
 4. **Real revenue** — €500+/month, replicable pattern
 
@@ -117,7 +123,8 @@ finding, and we publish it.
   tier B from the European Commission and Parliament; tier C from LSM English,
   ERR News, The Baltic Times
 - **Phase 2:** Deeper Estonian and Lithuanian statistical coverage
-- **Phase 3:** Alerts and the paid API tier
+- **Phase 3:** Permission-cleared, human-reviewed business briefing pilots;
+  alerts and a paid API remain candidates only if paying customers need them
 - **Phase 4:** Additional languages — using the free Azure Translator F0 tier for
   **our own** articles only. Never for third-party content: translating someone
   else's journalism is both a derivative work and explicitly named in Google's
@@ -125,8 +132,9 @@ finding, and we publish it.
 
 ## Design principles
 
-1. **Data is free, journalism is the product** — raw government data is CC0; the
-   reporting we build on it is ours
+1. **The evidence remains accessible** — underlying data retains its own
+   source-specific licence and attribution obligations; value comes from the
+   research, preparation and review we add
 2. **The model never supplies a number** — figures come from the pipeline, prose
    comes from the model, and a validator enforces the boundary
 3. **Fail closed** — no validator verdict means not servable; a collector failure

@@ -177,10 +177,8 @@ async def issue(
 ) -> list[str]:
     """Apply each correction to its article. Returns the slugs actually changed.
 
-    Idempotent and independent: a correction whose article is missing, already
-    corrected, or unreadable is skipped without touching the others. Never
-    raises — a correction that cannot be filed must not take an edition down,
-    and the next run will try again.
+    Existing annotations are reconciled with the public log without rewriting
+    their original timestamp. Missing or unreadable articles do not stop others.
     """
     changed: list[str] = []
     log_entries: list[dict[str, str]] = []
@@ -207,6 +205,13 @@ async def issue(
 
         annotated = annotate(document, correction)
         if annotated is None:
+            recorded = next(
+                note for note in document.get("corrections", [])
+                if str(note.get("description") or "").strip() == correction.description.strip()
+            )
+            log_entries.append(
+                correction.to_log_entry(recorded, str(document.get("headline") or ""))
+            )
             continue
 
         try:

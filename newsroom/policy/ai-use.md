@@ -1,6 +1,6 @@
 # How portaBaltica uses AI
 
-**Last updated:** 2026-08-24
+**Last updated:** 2026-09-05
 **Accountable publisher:** Andre Kõpu (human)
 
 portaBaltica is an experiment in whether artificial intelligence can produce
@@ -127,7 +127,7 @@ proposing a headline; organising an explanation; choosing which comparison makes
 a trend legible; offering a candidate cause, where it is attributed by name and
 marked as unconfirmed (see section 1).
 
-**Forbidden, and blocked in code rather than merely discouraged:**
+**Editorial prohibitions, backed by bounded automated checks:**
 
 | The model may not | Why |
 |---|---|
@@ -136,12 +136,17 @@ marked as unconfirmed (see section 1).
 | Rewrite another outlet's article | Both a copyright matter and a quality one. See section 5. |
 | Claim lived experience | No correspondent may say it visited, phoned, interviewed, attended or witnessed anything. It did not. |
 | Invent an expert | A cause may only be attributed to a source we retrieved or to one of our own AI analysts, named by role and disclosed as AI. A paragraph crediting an invented "Dr" is rejected before publication. |
-| Invent a quote | We publish no quotes that are not verbatim in a cited public source. |
+| Invent a quote | Detected quotations and attributed statements must match excerpts of cited official document text fetched for validation. Punctuation and whitespace are normalised, not the wording. |
 | Present itself as human | See section 4. |
 
-An article that fails any of these checks is not published. The system fails
-closed: when something is uncertain, nothing goes out. On a quiet day we publish
-less. We never generate filler to fill a page.
+An article that fails a check is not published. These checks are not a semantic
+truth certificate: they cannot establish that every causal premise is true or
+that a source excerpt is interpreted correctly. Human editorial review remains
+necessary. A denial in one sentence does not support speculation in another, and
+declaring a figure does not authorise an unrelated explanation.
+Negation is carried only between directly recognised coordinated predicates.
+After an unrecognised fragment, a draft must repeat the data subject and denial;
+the gate can reject valid but ambiguous grammar rather than guess its scope.
 
 **We also do not report a change the source cannot measure.** Some of the
 statistics here are estimates drawn from samples — the unemployment rate comes
@@ -284,10 +289,18 @@ away our mistakes.
 Statistical offices revise. A first estimate is published from partial returns
 and restated weeks later when the rest arrive; this is normal practice and is
 documented in their own revision policies. So a figure we reported accurately in
-August can describe a number that no longer exists by October. Every run, the
-pipeline re-reads the series behind every figure it has published and compares
-them against the reading it published on. When one has moved, the article gets a
-note recording both values and the date each was read.
+August can describe a number that no longer exists by October. New ledger entries
+track raw source observations for headline readings, each country's constituent
+of a Baltic divergence, explicit comparison periods, and cited context facts with
+source coordinates. Display rounding is not a source revision. When a tracked
+observation changes beyond its measurement floor, the article gets a dated note.
+
+Coverage is bounded by the fetched source history and a 2,000-row ledger; this is
+not a promise to monitor every historical claim indefinitely. Older ledger rows
+without a raw-observation marker are excluded from automatic revision comparison.
+They need explicit maintenance using archived observations, not silent backfilling
+from today's values. Existing articles and correction notices are not rewritten
+by this change.
 
 The article's text is left alone in that case. We do not go back and change the
 number in a sentence we already published: the piece did say what it said, and

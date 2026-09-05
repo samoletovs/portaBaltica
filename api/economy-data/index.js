@@ -4,6 +4,9 @@ const ecb = require('../shared/ecb.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const country = require('../shared/country.js');
+const priceIntervals = require('../shared/priceIntervals.js');
+const latvianSeries = require('../shared/latvianSeries.js');
+const es = require('../shared/eurostat.js');
 
 function httpGet(url) {
   const lib = url.startsWith('https') ? https : http;
@@ -111,39 +114,18 @@ async function fetchECBRates() {
  */
 async function fetchElectricityPrices(zone) {
   try {
-    // Already normalised by the handler, so no `|| 'lv'` here — a fallback at
-    // this depth could only mask a programming error by answering with Latvia.
-    var country = zone;
-    const now = new Date();
-    const start = new Date(now);
+    const start = new Date();
     start.setUTCHours(0, 0, 0, 0);
     const end = new Date(start);
-    end.setDate(end.getDate() + 1);
+    end.setUTCDate(end.getUTCDate() + 2);
     const url = ELERING_URL + '?start=' + start.toISOString() + '&end=' + end.toISOString();
-    const data = await jsonGet(url);
-    const zonePrices = (data.data && data.data[country]) || [];
-    const prices = zonePrices.map(function (p) {
-      return { timestamp: new Date(p.timestamp * 1000).toISOString(), price: p.price };
+    const schedule = await priceIntervals.loadSchedule(url, jsonGet, {
+      scope: 'day-ahead', graceMs: 7200000,
     });
-    const currentHour = now.getHours();
-    const currentEntry = zonePrices.find(function (p) {
-      return new Date(p.timestamp * 1000).getHours() === currentHour;
-    });
-    // The entry existing does not mean it carries a price: a published interval
-    // with a null price is a normal thing for a day-ahead feed to contain.
-    //
-    // `Number.isFinite` alone is the whole guard — unlike the global `isFinite`
-    // it does not coerce, so it rejects `null`, `undefined`, `NaN`, `Infinity`
-    // and the string `'50'` on its own. A `typeof === 'number'` beside it was
-    // redundant, which mutation testing showed by removing it and watching
-    // nothing fail.
-    const price = currentEntry && Number.isFinite(currentEntry.price)
-      ? currentEntry.price
-      : null;
-    return { prices: prices, current: price };
+    return { rows: schedule.data[zone] || [], priceSchedule: schedule.meta };
   } catch (e) {
     warnUnavailable('electricity prices', e);
-    return { prices: [], current: null };
+    return { rows: [], priceSchedule: null };
   }
 }
 
@@ -273,22 +255,18 @@ async function fetchPxWebIndicators() {
 
   // Unemployment rate (monthly, seasonally adjusted)
   try {
-    var unemData = await httpsPost(PXWEB + '/EMP/NBBA/NBBB/NBB150m', {
-      query: [
-        { code: 'SEX', selection: { filter: 'item', values: ['T'] } },
-        { code: 'SESON', selection: { filter: 'item', values: ['SA'] } },
-        { code: 'ContentsCode', selection: { filter: 'item', values: ['NBB1501m'] } },
-      ],
-      response: { format: 'json-stat2' },
-    });
-    if (unemData && unemData.value) {
-      var uVals = unemData.value.filter(function (v) { return v !== null; });
+    var unemData = await latvianSeries.fetchEurostatSeries('unemployment', 2);
+    var uVals = unemData.series.filter(function (point) { return point.value !== null; });
+    if (uVals.length) {
       var latestU = uVals[uVals.length - 1];
       indicators.push({
         label: 'Unemployment',
-        value: latestU != null ? latestU.toFixed(1) + '%' : 'N/A',
+        value: latestU.value.toFixed(1) + '%',
         unit: '',
         change: '',
+        period: latestU.period,
+        source: unemData.source,
+        freshness: es.isSeriesStale(unemData.series),
       });
     }
   } catch (e) { indicators.push({ label: 'Unemployment', value: 'N/A', unit: '', change: '' }); }
@@ -320,10 +298,19 @@ const handler = async function (context, req) {
       isLatvia ? fetchPxWebIndicators() : Promise.resolve([]),
     ]);
 
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const currentEntry = priceIntervals.currentInterval(electricity.rows, now.getTime());
+    const current = currentEntry && Number.isFinite(currentEntry.price) ? currentEntry.price : null;
+    const prices = electricity.rows.map(function (p) {
+      return { timestamp: new Date(p.timestamp * 1000).toISOString(), price: p.price };
+    }).filter(function (p) { return p.timestamp.slice(0, 10) === today; });
     const result = {
       exchangeRates: exchangeRates,
-      electricityPrices: electricity.prices,
-      electricityCurrent: electricity.current,
+      electricityPrices: prices,
+      electricityCurrent: current,
+      electricityCurrentTime: current === null ? null : new Date(currentEntry.timestamp * 1000).toISOString(),
+      priceSchedule: electricity.priceSchedule,
       indicators: indicators.length > 0 ? indicators : [
         { label: 'GDP Growth', value: 'N/A', unit: '', change: '' },
         { label: 'Avg Salary', value: 'N/A', unit: '', change: '' },
@@ -334,7 +321,7 @@ const handler = async function (context, req) {
         activeVatPayers: vatCount,
         suspendedBusinesses: suspendedCount,
       },
-      fetchedAt: new Date().toISOString(),
+      fetchedAt: electricity.priceSchedule ? electricity.priceSchedule.retrievedAt : now.toISOString(),
     };
 
     context.res = {
@@ -355,6 +342,7 @@ module.exports = withSecurity(withCache(handler, {
   name: 'economy-data',
   keyOn: ['country'],
   ttlMs: 1800000,
+  timeBucketMs: priceIntervals.DELIVERY_INTERVAL_MS,
   graceMs: 7200000,
   staleWhileRevalidate: true,
 }));

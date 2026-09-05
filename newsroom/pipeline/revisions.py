@@ -120,10 +120,10 @@ class Revision:
         vintage = self.figure.observed_at[:10] or "publication"
         return (
             f"{self.figure.metric_label.capitalize()} for {self.figure.geography} in "
-            f"{self.figure.period} was {self.figure.value:g}{_unit(self.figure.unit)} when this "
+            f"{self.figure.period} was {self.figure.value!s}{_unit(self.figure.unit)} when this "
             f"article was written, the value the source published as of {vintage}. "
             f"It has since been revised {self.direction} to "
-            f"{self.current_value:g}{_unit(self.figure.unit)} "
+            f"{self.current_value!s}{_unit(self.figure.unit)} "
             f"(read {self.current_observed_at[:10]}). The article's text is unchanged and "
             f"reports the earlier vintage; this note records the revision. "
             f"Statistical agencies revise routinely — this is a restatement by the "
@@ -135,7 +135,8 @@ class Revision:
         return {
             "corrected_at": isoformat(utcnow()),
             "description": self.description(),
-            "previous_value": f"{self.figure.value:g}{_unit(self.figure.unit)}",
+            "previous_value": f"{self.figure.value!s}{_unit(self.figure.unit)}",
+            "revision_id": self.fingerprint,
             # Set here rather than inferred anywhere, because THIS CLASS IS THE
             # CLAIM: a `Revision` exists only when the source restated a figure
             # we reported faithfully, which is what `description()` two methods
@@ -170,7 +171,7 @@ class Revision:
         A correction log that repeats itself every run is worse than none: it
         buries the real ones and makes the article look chaotically wrong.
         """
-        return f"{self.figure.key}->{self.current_value:.6g}"
+        return f"{self.figure.key}:{self.figure.value!r}->{self.current_value!r}"
 
 
 def _unit(unit: str) -> str:
@@ -192,8 +193,16 @@ def find_revisions(
     by_key = {(s.metric, s.geography): s for s in series_list}
     revisions: list[Revision] = []
     for figure in ledger:
+        if not figure.raw_source:
+            continue
         series = by_key.get(figure.series_key)
         if series is None:
+            continue
+        if figure.source_id and figure.source_id != series.source.source_id:
+            continue
+        if figure.dataset and figure.dataset != series.source.dataset:
+            continue
+        if figure.unit != series.unit:
             continue
         observation = series.at(figure.period)
         if observation is None:
@@ -220,13 +229,16 @@ def find_revisions(
 def already_recorded(article_corrections: Sequence[dict], revision: Revision) -> bool:
     """Has this exact restatement already been noted on the article?
 
-    Matched on the stated previous value and the new value appearing in the
-    text, rather than on a stored fingerprint, so it also holds for corrections
-    written before this module existed.
+    New corrections use the exact coordinate/value fingerprint. The textual
+    fallback is retained only for old corrections without that identity.
     """
     previous = f"{revision.figure.value:g}"
     current = f"{revision.current_value:g}"
     for correction in article_corrections:
+        if correction.get("revision_id"):
+            if correction["revision_id"] == revision.fingerprint:
+                return True
+            continue
         description = str(correction.get("description") or "")
         recorded_previous = str(correction.get("previous_value") or "")
         if previous in recorded_previous and current in description:
@@ -1001,9 +1013,17 @@ async def apply_correction_note(
         raise ValueError(f"{slug}: stored article is not a JSON object")
     updated = append_correction(document, note)
     if updated is None:
-        log.info("correction already present on %s; nothing written", slug)
-        return None
-    await store.put_json(f"{slug}.json", updated)
+        # Retry a partial write using the original note, including its timestamp.
+        recorded = next(
+            (entry for entry in document.get("corrections", [])
+             if str(entry.get("description") or "").strip()
+             == str(note.get("description") or "").strip()), None,
+        )
+        if recorded is None:
+            return None
+        note = recorded
+    else:
+        await store.put_json(f"{slug}.json", updated)
     await store.append_corrections(
         [
             {
@@ -1019,7 +1039,7 @@ async def apply_correction_note(
             }
         ]
     )
-    log.info("correction appended to %s and to the public log", slug)
+    log.info("correction present on %s and in the public log", slug)
     return updated
 
 

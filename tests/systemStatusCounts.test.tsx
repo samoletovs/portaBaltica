@@ -127,6 +127,17 @@ describe('the headline count agrees with the badge', () => {
 });
 
 describe('a required failure and an optional one are distinguishable', () => {
+  it('marks stale required data as a warning rather than an unreachable system', async () => {
+    fetchSystemStatus.mockResolvedValue(payload('stale', [
+      check('Eurostat', 'stale', true, 'Baltic comparisons'),
+      check('ECB Exchange Rates', 'healthy', true, 'Currency ticker'),
+    ]));
+    await renderFooter();
+    const label = screen.getByText('System stale');
+    expect(label.classList.contains('dash-warning')).toBe(true);
+    expect(label.classList.contains('dash-negative')).toBe(false);
+  });
+
   it('a required source down moves both the badge and the count', async () => {
     // The other side of the plant. If this rendered the same way as the
     // optional case, the fix would have made every failure look harmless —

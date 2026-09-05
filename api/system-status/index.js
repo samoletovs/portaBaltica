@@ -552,7 +552,8 @@ function withBudget(promise, check, budgetMs, startedAt) {
  */
 function runOptionalCheck(check, now, startedAt, runner) {
   const run = runner || runCheck;
-  const key = cache.requestKey('status-optional', check.url || check.name);
+  const key = cache.requestKey('status-optional', check.url || check.name,
+    check.type === 'elering-system' ? ['start', 'end'] : []);
 
   // The fetcher deliberately never rejects: `memo` only stores what resolves,
   // and the failure is the thing we most need to stop re-paying for.

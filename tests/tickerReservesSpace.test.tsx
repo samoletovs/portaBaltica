@@ -90,7 +90,7 @@ function stripClasses(container: HTMLElement): [string, string] | null {
 }
 
 describe('the ticker while it does not yet know', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); });
   afterEach(() => vi.unstubAllGlobals());
 
   it('holds the strip open before the fetch comes back', async () => {

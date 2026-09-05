@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 import { useTheme } from '../ThemeContext';
 import { useCountry } from '../CountryContext';
@@ -9,6 +9,7 @@ import { hourFormatter, dayFormatter, firstDayChange } from '../utils/marketCloc
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { DownloadMenu } from './DownloadMenu';
 import { SeriesSwatch } from './SeriesSwatch';
+import { usePriceRefresh } from '../hooks/usePriceRefresh';
 
 /** Bidding zone → the shared series palette, so a zone is the same colour here
  *  as the country is on every comparison chart. */
@@ -55,19 +56,27 @@ const ZONE_DASH: Record<string, string | undefined> = {
 export function PowerMarketCard() {
   const [data, setData] = useState<PowerPriceData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const { chartColors } = useTheme();
   const { timezone, tzAbbr } = useCountry();
   const formatHour = hourFormatter(timezone);
   const dayOf = dayFormatter(timezone);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchPowerPrices()
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch(() => { if (!cancelled) setData(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+  const refresh = useCallback(async (signal: AbortSignal, initial: boolean) => {
+    if (initial) { setData(null); setLoading(true); }
+    else setData(previous => previous ? {
+      ...previous, currentTime: null, currentSpread: null, coupled: null,
+      zones: list<PowerPriceZone>(previous.zones).map(zone => ({ ...zone, current: null })),
+    } : null);
+    try {
+      const next = await fetchPowerPrices(signal);
+      if (!signal.aborted) { setData(next); setRefreshFailed(false); }
+    } catch {
+      if (!signal.aborted) setRefreshFailed(true);
+    }
+    finally { if (!signal.aborted) setLoading(false); }
   }, []);
+  usePriceRefresh(refresh);
 
   if (loading) {
     return (
@@ -87,6 +96,11 @@ export function PowerMarketCard() {
   }
 
   const decoupled = data.coupled === false;
+  const coupled = data.coupled === true;
+  const now = new Date().toISOString();
+  // The aggregates use UTC; a relative label must also match the reader's day.
+  const currentDay = data.today === now.slice(0, 10) && data.today === dayOf(now);
+  const summaryPeriod = data.today ? `${data.today} (UTC)` : 'the retained schedule';
   const decoupledShare = data.totalIntervals > 0
     ? Math.round((data.decoupledIntervals / data.totalIntervals) * 100)
     : 0;
@@ -164,15 +178,15 @@ export function PowerMarketCard() {
         </div>
         <div
           className={`px-2 py-1 rounded text-caption font-semibold whitespace-nowrap ${
-            decoupled ? 'news-status-warning' : 'news-status-positive'
+            decoupled ? 'news-status-warning' : coupled ? 'news-status-positive' : ''
           }`}
           title={
             decoupled
               ? 'Zone prices differ, which means a cross-border link is congested'
-              : 'All Baltic zones cleared at the same price'
+              : coupled ? 'All Baltic zones cleared at the same price' : 'No price for the current delivery interval'
           }
         >
-          {decoupled ? `Decoupled · €${data.currentSpread?.toFixed(2)} gap` : 'Coupled'}
+          {decoupled ? `Decoupled · €${data.currentSpread?.toFixed(2)} gap` : coupled ? 'Coupled' : 'Current price unavailable'}
         </div>
       </div>
 
@@ -209,7 +223,7 @@ export function PowerMarketCard() {
           footnote called it today, so a quiet day beside a volatile tomorrow
           reported a range neither of them had. */}
       <p className="text-caption mb-3" style={{ color: 'var(--text-tertiary)' }}>
-        Range is today&apos;s low to high
+        {currentDay ? "Range is today's low to high" : `Low to high for ${summaryPeriod}`}
       </p>
 
       <div className="h-40">
@@ -244,10 +258,13 @@ export function PowerMarketCard() {
           `Day-ahead electricity price, ${list<PowerPriceZone>(data.zones).length} bidding zones ` +
           `plotted across ${chartData.length} intervals` +
           (chartData.length > 0
-            ? ` from ${formatHour(String(chartData[0].time))} to ${formatHour(String(chartData[chartData.length - 1].time))}`
+            ? ` from ${currentDay ? '' : `${dayOf(String(chartData[0].time))} `}${formatHour(String(chartData[0].time))}` +
+              ` to ${currentDay ? '' : `${dayOf(String(chartData[chartData.length - 1].time))} `}${formatHour(String(chartData[chartData.length - 1].time))}`
             : '') +
-          (firstTomorrow ? `, continuing into tomorrow from ${formatHour(firstTomorrow.time)}` : ', today only') +
-          `. ${decoupledShare}% of today's intervals decoupled` +
+          (firstTomorrow
+            ? `, continuing into ${currentDay ? 'tomorrow' : dayOf(firstTomorrow.time)} from ${formatHour(firstTomorrow.time)}`
+            : currentDay ? ', today only' : ', retained history') +
+          `. ${decoupledShare}% of ${currentDay ? "today's" : summaryPeriod} intervals decoupled` +
           (data.widestSpread
             ? `, widest spread €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}`
             : '') +
@@ -292,7 +309,7 @@ export function PowerMarketCard() {
               <ReferenceLine
                 x={firstTomorrow.time}
                 stroke={chartColors.reference}
-                label={{ value: 'tomorrow', position: 'insideTopRight', fill: chartColors.axis, fontSize: CHART_TICK_SIZE }}
+                label={{ value: currentDay ? 'tomorrow' : dayOf(firstTomorrow.time), position: 'insideTopRight', fill: chartColors.axis, fontSize: CHART_TICK_SIZE }}
               />
             )}
             {ZONE_ORDER.map((zone) => (
@@ -313,12 +330,17 @@ export function PowerMarketCard() {
 
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-          {decoupledShare}% of today&apos;s {data.totalIntervals} intervals decoupled
+          {currentDay
+            ? `${decoupledShare}% of today's ${data.totalIntervals} intervals decoupled`
+            : `${decoupledShare}% of ${data.totalIntervals} intervals decoupled · ${summaryPeriod}`}
           {data.widestSpread ? ` · widest €${data.widestSpread.spread.toFixed(2)} at ${formatHour(data.widestSpread.time)}` : ''}
           {data.tomorrowOutlook
-            ? ` · tomorrow published, ${data.tomorrowOutlook.totalIntervals} intervals`
-            : ' · tomorrow not published yet'}
+            ? ` · ${currentDay ? 'tomorrow' : data.tomorrowOutlook.date || 'Next reported day'} published, ${data.tomorrowOutlook.totalIntervals} intervals`
+            : currentDay ? ' · tomorrow not published yet' : ' · no later day published in this schedule'}
           {' · '}Source: {data.source}
+          {refreshFailed && ' · Refresh failed'}
+          {(data.priceSchedule?.stale || refreshFailed) && ' · Last-good schedule'}
+          {data.fetchedAt && <> · Retrieved <time dateTime={data.fetchedAt}>{data.fetchedAt}</time></>}
         </p>
         <DownloadMenu data={exportPayload} />
       </div>

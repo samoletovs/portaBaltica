@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePageMeta } from '../newsroom/usePageMeta';
 
 const API_ENDPOINTS = [
-  { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Live electricity prices, ECB exchange rates, PxWeb macro indicators, business pulse', cache: '30 min' },
+  { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Electricity delivery-interval prices, ECB exchange rates, national and Eurostat macro indicators, business pulse', cache: 'Until the next electricity delivery interval (at most 15 min)' },
   { method: 'GET', path: '/api/environment-data', params: '?country=lv|ee|lt', description: 'Weather for 4 cities, air quality, capital-region population', cache: '15 min' },
   { method: 'GET', path: '/api/historical-data', params: '?indicator=gdp&years=5', description: '24 Latvian indicators with time series from CSP PxWeb, falling back to Eurostat where a national table is unavailable. The `source` field always names the provider that answered.', cache: '1 hour' },
   { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 72 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
@@ -38,7 +38,7 @@ export function ApiDocsPage() {
   usePageMeta({
     title: 'API documentation | portaBaltica',
     description:
-      'Twelve public JSON endpoints over Baltic open data: Eurostat indicators for Latvia, Estonia and Lithuania, Nord Pool electricity prices, port statistics, and searchable Latvian business and address registers.',
+      'Public JSON endpoints over Baltic data: Eurostat indicators for Latvia, Estonia and Lithuania, electricity prices, port statistics, and searchable Latvian business and address registers.',
     canonicalPath: '/api-docs',
   });
 
@@ -51,7 +51,8 @@ export function ApiDocsPage() {
 
         <h1 className="balance-text text-headline sm:text-display font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>API documentation</h1>
         <p className="text-ui mb-8" style={{ color: 'var(--text-secondary)' }}>
-          All endpoints are free and public. No authentication required. Data sourced from government open data (CC0/CC-BY).
+          All endpoints are free and public. No authentication required. Source-specific terms apply;
+          public API access is not a grant of commercial redistribution rights. There is no paid API or service-level agreement.
           Base URL: <code className="font-mono text-caption break-all px-1 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)' }}>https://portabaltica.naurolabs.com</code>
         </p>
 
@@ -88,16 +89,14 @@ export function ApiDocsPage() {
         </p>
         <div className="flex flex-wrap gap-2 mb-12">
           {INDICATORS.map((ind) => (
-            <code key={ind} className="text-caption font-mono px-2 py-1 rounded cursor-pointer" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}
-              onClick={() => navigate(`/indicator/${ind}`)}>
+            <Link key={ind} to={`/indicator/${ind}`} className="inline-flex min-h-11 items-center text-caption font-mono px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}>
               {ind}
-            </code>
+            </Link>
           ))}
         </div>
 
-        {/* Pricing */}
-        <h2 className="balance-text text-title font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Pricing</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+        <h2 className="balance-text text-title font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Free public access</h2>
+        <div className="mb-8">
           <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
             <p className="text-ui mb-1" style={{ color: 'var(--text-primary)' }}>Free</p>
             <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€0</p>
@@ -111,32 +110,22 @@ export function ApiDocsPage() {
               <li>3 country support</li>
             </ul>
           </div>
-          <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '2px solid var(--news-accent)' }}>
-            <p className="text-ui mb-1" style={{ color: 'var(--news-accent)' }}>Pro</p>
-            <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€15<span className="text-ui font-normal" style={{ color: 'var(--text-tertiary)' }}>/month</span></p>
-            <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
-              <li>Everything in Free</li>
-              <li>Email alerts on changes</li>
-              <li>Custom indicator watchlist</li>
-            </ul>
-            <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>Coming soon</p>
-          </div>
-          <div className="rounded-xl p-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-            <p className="text-ui mb-1" style={{ color: 'var(--text-primary)' }}>Enterprise</p>
-            <p className="text-title font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>€49<span className="text-ui font-normal" style={{ color: 'var(--text-tertiary)' }}>/month</span></p>
-            <ul className="text-caption space-y-1" style={{ color: 'var(--text-secondary)' }}>
-              <li>Everything in Pro</li>
-              <li>REST API access (1000 calls/hr)</li>
-              <li>Webhook notifications</li>
-              <li>White-label embed</li>
-              <li>Priority support</li>
-            </ul>
-            <p className="text-caption mt-3" style={{ color: 'var(--text-tertiary)' }}>Coming soon</p>
-          </div>
         </div>
+        <p className="news-muted mb-8 text-ui">
+          Current electricity fields are recomputed at delivery-interval boundaries. Published
+          schedules cache for 15 minutes. During an upstream outage, a still-covered interval may
+          use a recent schedule; check <code className="font-mono break-all">priceSchedule.stale</code> and{' '}
+          <code className="font-mono break-all">priceSchedule.retrievedAt</code> before relying on it.
+        </p>
+        <p className="news-muted mb-8 text-ui">
+          We are exploring a human-reviewed business briefing pilot, not selling access to
+          these public endpoints. No paid plan or guaranteed delivery schedule is available.{' '}
+          <Link to="/briefings" className="news-link underline underline-offset-4">Explore the briefing pilot</Link>.
+        </p>
 
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
-          Data from CSP Latvia, Eurostat, ECB, Elering, data.gov.lv, Open-Meteo. All government data is published under CC0 or CC-BY licenses.
+          Data from CSP Latvia, Eurostat, ECB, Elering, data.gov.lv and Open-Meteo.
+          Check the original provider's attribution, licensing and hosted-service terms before reuse.
           Built by <a href="https://naurolabs.com" style={{ color: 'var(--text-secondary)' }}>NauroLabs</a>.
         </p>
       </main>

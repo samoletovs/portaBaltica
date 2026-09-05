@@ -4,6 +4,14 @@
 
 Baltic open data intelligence dashboard. Evolving from a maritime-only dashboard to a full Bloomberg-style data platform covering 44+ Latvia government APIs across economy, property, energy, environment, transport, and business intelligence.
 
+The current commercial experiment is documented in
+[`docs/launch-and-revenue-plan.md`](docs/launch-and-revenue-plan.md): business
+briefings, not a paywall on public history or exports. `/briefings` is a
+discovery page; its enquiry form is disabled unless
+`VITE_BRIEFING_ENQUIRIES_OPEN` is exactly `true` at build time. Verify inbound
+mail and branded replies before enabling it. Never record the private
+forwarding destination in this repository.
+
 ## Tech stack
 
 - **Frontend:** React 19, TypeScript 5.9, Tailwind CSS 4.2, Vite 8
@@ -2618,7 +2626,7 @@ them, and it is false. Measured across every PR on master at `bd96024`, keyed
 on trailer name:
 
 ```
-n=182  Copilot App + Dmitrijs Andrejevs
+n=182  Copilot App + human reviewer
 n= 78  Copilot                            <- that session's five live here
 n= 72  dependabot[bot]
 n= 11  Copilot App + samoletovs           <- #310 lives here
@@ -2651,7 +2659,7 @@ of their own; with a single commit they collapse and with two they do not. So
 level quieter than the raw count, and in the same direction.
 
 What survives is a **set** test rather than an equality: a name appearing in a
-signature that appears in *none* of yours. `Dmitrijs Andrejevs` and
+signature that appears in *none* of yours. The human reviewer's name and
 `samoletovs` never appear in mine, so `#310`, `#317` and `#319` are all
 demonstrably not from my configuration — and a superset like `Copilot`
 → `Copilot + Copilot App` is consistent with being mine, which is exactly the
@@ -2789,7 +2797,7 @@ evidence, which is the opposite of how a convention usually helps.
 
 *The squash confound.* A squash concatenates one trailer per source commit, so
 the raw signature is a **commit count wearing an identity's clothes** —
-`Copilot App + Copilot App + Dmitrijs Andrejevs` is one configuration, not
+`Copilot App + Copilot App + human reviewer` is one configuration, not
 three. Deduping collapses **24 raw signatures to 11 when keyed on name** — and
 that qualifier is load-bearing, for the reason below. Skip the dedup entirely
 and you report that this repo has twenty-four kinds of contributor.

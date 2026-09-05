@@ -87,7 +87,9 @@ class TestTheMeasurabilityPromise:
 
 class TestTheRevisionPromise:
     def test_the_policy_makes_it(self, policy_text: str) -> None:
-        assert "re-reads the series" in policy_text
+        assert "raw source observations" in policy_text
+        assert "2,000-row ledger" in policy_text
+        assert "without a raw-observation marker" in policy_text
         assert "restatement by the source from an error by us" in policy_text, (
             "the policy must distinguish a source revision from our own mistake; "
             "conflating them trains readers to discount both"
@@ -282,23 +284,25 @@ class TestTheHypothesisPromise:
         )
 
         assert not verdict.passed
-        assert "named person's mouth" in verdict.detail
+        assert "Dr. Ineta" in verdict.detail
 
     def test_the_validator_keeps_the_attribution_and_hedge_promise(self) -> None:
-        from newsroom.validator import check_no_unsupported_mechanism
+        from newsroom.pipeline.safety import personas, registry
+        from newsroom.validator import ValidationContext, check_no_unsupported_mechanism
 
-        source = inspect.getsource(check_no_unsupported_mechanism)
-        speaks_at = source.find("_speaks_for_the_newsroom(")
-        general_at = source.find("_ATTRIBUTED_TO_A_SOURCE.search(")
-
-        assert speaks_at != -1, "the desk-hypothesis branch is gone from the gate"
-        assert general_at != -1
-        assert speaks_at < general_at, (
-            "the policy promises our own analysts are held to a STRICTER rule than "
-            "an outside institution. _ATTRIBUTED_TO_A_SOURCE matches any sentence "
-            "containing 'says', so if it is tested first the hedge requirement is "
-            "a branch nothing reaches and the promise is unkept"
-        )
+        for disclosure, hedge, expected in (
+            ("AI ", "", False), ("", "may be ", False), ("AI ", "may be ", True),
+        ):
+            candidate = {
+                "body": [{"type": "paragraph", "text":
+                    f"The newsroom's {disclosure}economist says the rise {hedge}driven by demand."
+                }],
+                "provenance": {},
+            }
+            verdict = check_no_unsupported_mechanism(ValidationContext(
+                article=candidate, registry=registry(), personas=personas(),
+            ))
+            assert verdict.passed is expected
 
     def test_the_panel_keeps_the_no_figure_promise(self) -> None:
         from newsroom.pipeline.hypothesis import LENSES, _admissible

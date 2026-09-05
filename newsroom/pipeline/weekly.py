@@ -205,6 +205,8 @@ def collect_week(
 
     seen: dict[str, PublishedFigure] = {}
     for figure in figures:
+        if not figure.summary:
+            continue
         published = (figure.published_at or "")[:10]
         if not published or not (start <= published <= end):
             continue

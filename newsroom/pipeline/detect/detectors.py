@@ -320,6 +320,7 @@ def detect_streak(series: TimeSeries, *, min_length: int = 3) -> Signal | None:
             "direction": direction,
             "latest_period": latest.period,
             "streak_start_period": start.period,
+            "streak_periods": ", ".join(o.period for o in series.observations[-(run + 1):]),
             "frequency": series.frequency,
         },
     )
@@ -487,7 +488,10 @@ def detect_divergence(
     return Signal(
         detector="divergence",
         metric=sample.metric,
-        metric_label=sample.metric_label,
+        metric_label=(
+            "difference in intraday price ranges"
+            if sample.metric == "day_ahead_power_spread" else sample.metric_label
+        ),
         geography="Baltic",
         period=period,
         value=spread,
@@ -522,6 +526,7 @@ def detect_divergence(
             "period": period,
             "geographies": ", ".join(sorted(usable)),
             "frequency": sample.frequency,
+            "baseline_periods": ", ".join(sorted(common - {period})),
         },
     )
 
@@ -690,7 +695,10 @@ def detect_structural_divergence(
     return Signal(
         detector="structural_divergence",
         metric=sample.metric,
-        metric_label=sample.metric_label,
+        metric_label=(
+            "difference in intraday price ranges"
+            if sample.metric == "day_ahead_power_spread" else sample.metric_label
+        ),
         geography="Baltic",
         period=common[-1],
         value=latest_gap,
@@ -740,6 +748,7 @@ def detect_structural_divergence(
             "geographies": ", ".join(sorted(usable)),
             "frequency": sample.frequency,
             "direction": "widening" if widening is not None else "inverted",
+            "baseline_periods": ", ".join(common),
         },
         chart_ref=sample.chart_ref,
     )

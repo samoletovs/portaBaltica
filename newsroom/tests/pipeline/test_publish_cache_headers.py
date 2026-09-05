@@ -36,6 +36,13 @@ class RecordingContainer:
     def upload_blob(self, **kwargs: Any) -> None:
         self.uploads.append(kwargs)
 
+    def download_blob(self, name: str) -> Any:
+        from azure.core.exceptions import ResourceNotFoundError
+
+        error = ResourceNotFoundError(f"{name} has not been published")
+        error.error_code = "BlobNotFound"
+        raise error
+
     def get_blob_client(self, *_: Any, **__: Any) -> Any:  # pragma: no cover
         raise AssertionError("the store must not need a blob client to write")
 

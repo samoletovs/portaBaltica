@@ -131,6 +131,7 @@ const handler = async function (context, req) {
     // the quiet weeks would drop it from search exactly when a reader is most
     // likely to be wondering where the wrap went.
     add('/follow', today, '0.7');
+    add('/briefings', today, '0.7');
     add('/weekly', today, '0.7');
     add('/about/ai', today, '0.6');
     // The masthead index. It is in the site navigation, `main.tsx` routes it to

@@ -18,6 +18,8 @@ import asyncio
 import json
 from typing import Any
 
+import pytest
+
 from newsroom.pipeline.models import Article
 from newsroom.pipeline.publish import ArticleStore
 
@@ -115,15 +117,12 @@ class TestTheIndexAccumulates:
             == ArticleStore.INDEX_MAX_ENTRIES
         )
 
-    def test_a_corrupt_existing_index_does_not_lose_the_new_run(self, tmp_path) -> None:
-        """Fail forward: a damaged index must not block today's publishing."""
+    def test_a_corrupt_existing_index_is_preserved_for_recovery(self, tmp_path) -> None:
         (tmp_path / "index.json").write_text("{ this is not json", encoding="utf-8")
         store = ArticleStore(local_dir=tmp_path)
-        asyncio.run(store.write_index([article("todays-story", published_at="2026-08-24T10:00:00Z")]))
-
-        payload = read_index(tmp_path)
-        assert payload["count"] == 1
-        assert payload["articles"][0]["slug"] == "todays-story"
+        with pytest.raises(json.JSONDecodeError):
+            asyncio.run(store.write_index([article("todays-story", published_at="2026-08-24T10:00:00Z")]))
+        assert (tmp_path / "index.json").read_text(encoding="utf-8") == "{ this is not json"
 
     def test_unservable_articles_are_never_indexed(self, tmp_path) -> None:
         store = ArticleStore(local_dir=tmp_path)

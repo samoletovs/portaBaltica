@@ -169,8 +169,8 @@ REPORTING TASK:
               — the streak is a declared figure in this piece.
     ALLOWED   "the data does not show what drove the change"
               — denying a mechanism needs no evidence.
-    ALLOWED   "the ministry attributes it to the tariff change"
-              — a named source is on the record and is cited.
+    ALLOWED   'According to Latvijas Banka, "Demand is subdued."'
+              — only if those words occur in the supplied, cited official excerpt.
     REJECTED  "the rise reflects growing capacity at its ports"
               — capacity is nowhere in this article's figures.
 
@@ -252,6 +252,13 @@ A CORRECT PARAGRAPH LOOKS LIKE THIS. Study the pairing of text and figures:
 Note three things about it: both numerals are declared; the comparison basis
 ("from ... in the same month a year earlier") sits in the same sentence as the
 change; and no year, count or derived percentage appears anywhere.
+
+ATTRIBUTION AND QUOTES: Naming an institution does not establish what it said.
+Only attribute an exact excerpt of supplied official document text to its publisher.
+Do not paraphrase it as the publisher's claim. Otherwise offer a clearly unconfirmed
+hypothesis in the newsroom's AI analyst's name, or omit the explanation.
+A denial in one sentence never licenses speculation in another; figures do not
+license an unrelated cause. Typographic quotation marks do not change these rules.
 
 THE TWO MISTAKES THAT REJECT MOST ARTICLES, AND EXACTLY HOW TO AVOID THEM:
 

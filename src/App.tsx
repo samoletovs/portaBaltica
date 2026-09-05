@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { PORTS, DASHBOARD_SECTIONS } from './types';
 import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
@@ -20,6 +20,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCountry } from './CountryContext';
 import { usePageMeta } from './newsroom/usePageMeta';
+import { usePriceRefresh } from './hooks/usePriceRefresh';
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -192,6 +193,20 @@ export default function App() {
   const [euFunds, setEuFunds] = useState<EUFundsData | null>(null);
   const [euLoading, setEuLoading] = useState(true);
 
+  const refreshEconomy = useCallback(async (signal: AbortSignal, initial: boolean) => {
+    if (initial) { setEconomyData(null); setEconomyLoading(true); }
+    else setEconomyData(previous => previous ? { ...previous, electricityCurrent: null } : null);
+    try {
+      const data = await fetchEconomyData(country.toLowerCase(), signal);
+      if (!signal.aborted) {
+        // This tile has no last-good badge; do not label a fallback price as fresh.
+        setEconomyData(data?.priceSchedule?.stale ? { ...data, electricityCurrent: null } : data);
+      }
+    } catch { /* Keep the current price absent; retain dated series and other indicators. */ }
+    finally { if (!signal.aborted) setEconomyLoading(false); }
+  }, [country]);
+  usePriceRefresh(refreshEconomy);
+
   // Load all data in parallel
   useEffect(() => {
     let cancelled = false;
@@ -209,17 +224,6 @@ export default function App() {
         setPortStats(stats);
       } catch { /* non-critical */ } finally {
         if (!cancelled) setMaritimeLoading(false);
-      }
-    }
-
-    // Economy
-    async function loadEconomy() {
-      setEconomyLoading(true);
-      try {
-        const data = await fetchEconomyData(country.toLowerCase());
-        if (!cancelled) setEconomyData(data);
-      } catch { /* non-critical */ } finally {
-        if (!cancelled) setEconomyLoading(false);
       }
     }
 
@@ -257,7 +261,6 @@ export default function App() {
     }
 
     loadMaritime();
-    loadEconomy();
     loadProperty();
     loadEnvironment();
     loadEUFunds();

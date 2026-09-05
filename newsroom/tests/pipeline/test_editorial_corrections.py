@@ -183,15 +183,17 @@ async def test_the_log_entry_quotes_the_note_rather_than_rebuilding_it():
 
 
 @pytest.mark.asyncio
-async def test_a_second_run_files_nothing():
-    store = FakeStore({"a-slug": _article()})
+async def test_a_second_run_files_nothing(tmp_path):
+    from newsroom.pipeline.publish import ArticleStore
+
+    store = ArticleStore(account_url="", local_dir=tmp_path)
+    await store.write_published("a-slug", _article())
     await issue(store, [CORRECTION])
-    store.documents["a-slug"] = store.written["a-slug"]
 
     changed = await issue(store, [CORRECTION])
 
     assert changed == []
-    assert len(store.logged) == 1
+    assert len(store._read_corrections_log()) == 1
 
 
 @pytest.mark.asyncio
@@ -343,4 +345,3 @@ def test_corrections_are_filed_after_the_article_is_published():
     source = inspect.getsource(run_module.run_once)
 
     assert source.index("_store_all(") < source.index("issue_corrections(")
-

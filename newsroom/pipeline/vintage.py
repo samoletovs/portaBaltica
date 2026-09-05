@@ -34,14 +34,14 @@ separately from the telling of them.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
-from newsroom.pipeline import config
+from newsroom.pipeline.detect.series import TimeSeries
 from newsroom.pipeline.models import Article, Signal, isoformat, utcnow
+from newsroom.pipeline.publish import ArticleStore
 
 log = logging.getLogger(__name__)
 
@@ -79,6 +79,10 @@ class PublishedFigure:
     #: figure therefore needs the basis or it cannot describe a movement at all.
     #: Optional so ledger rows written before this field are still readable.
     comparison_basis: str = ""
+    raw_source: bool = True
+    summary: bool = True
+    source_id: str = ""
+    dataset: str | None = None
 
     @property
     def key(self) -> str:
@@ -107,6 +111,10 @@ class PublishedFigure:
             "headline": self.headline,
             "observed_at": self.observed_at,
             "published_at": self.published_at,
+            "raw_source": self.raw_source,
+            "summary": self.summary,
+            "source_id": self.source_id,
+            "dataset": self.dataset,
         }
         if self.signal_id:
             out["signal_id"] = self.signal_id
@@ -132,46 +140,67 @@ class PublishedFigure:
                 published_at=str(payload.get("published_at") or ""),
                 signal_id=payload.get("signal_id") or None,
                 comparison_basis=str(payload.get("comparison_basis") or ""),
+                raw_source=payload.get("raw_source") is True,
+                summary=payload.get("summary", True) is True,
+                source_id=str(payload.get("source_id") or ""),
+                dataset=payload.get("dataset") or None,
             )
         except (KeyError, TypeError, ValueError) as exc:
             log.warning("skipping unreadable ledger entry (%s)", exc)
             return None
 
 
-def figures_from(article: Article, signal: Signal) -> list[PublishedFigure]:
-    """What this article committed us to, in series coordinates.
-
-    Only the headline value of the signal's own series is recorded. A signal
-    also carries derived quantities — a margin, a z-score, a percentage change —
-    and those are *computed from* the series rather than published in it, so a
-    revision expresses itself through the value they were derived from. Watching
-    the underlying reading catches every one of them once; watching each
-    derivative separately would raise the same revision several times over.
-    """
+def figures_from(
+    article: Article, signal: Signal, series_list: Sequence[TimeSeries] = ()
+) -> list[PublishedFigure]:
+    """Record raw observations, never rounded signal fields, for future comparisons."""
     if article.status != "published":
         return []
-    retrieved = ""
-    for source in signal.sources:
-        if source.retrieved_at:
-            retrieved = source.retrieved_at
-            break
-    return [
-        PublishedFigure(
-            metric=signal.metric,
-            metric_label=signal.metric_label,
-            geography=signal.geography,
-            period=signal.period,
-            value=float(signal.value),
-            unit=signal.unit,
-            slug=article.slug,
-            article_id=article.id,
-            headline=article.headline,
-            observed_at=retrieved,
-            published_at=article.published_at or article.created_at,
-            signal_id=(article.provenance or {}).get("signal_id"),
-            comparison_basis=signal.comparison_basis,
-        )
-    ]
+    common = {
+        "slug": article.slug, "article_id": article.id, "headline": article.headline,
+        "published_at": article.published_at or article.created_at,
+        "signal_id": (article.provenance or {}).get("signal_id"),
+        "comparison_basis": signal.comparison_basis,
+    }
+    tracked: dict[tuple[str, str, str], bool] = {}
+    geographies = (
+        [g.strip() for g in signal.context.get("geographies", "EE, LV, LT").split(",")]
+        if signal.geography == "Baltic" else [signal.geography]
+    )
+    for geo in geographies:
+        tracked[(signal.metric, geo, signal.period)] = signal.geography != "Baltic"
+    for key, value in signal.context.items():
+        if key.endswith(("_period", "_periods")):
+            for period in value.split(","):
+                for geo in geographies:
+                    tracked.setdefault((signal.metric, geo, period.strip()), False)
+
+    cited = {f.signal_field for block in article.body for f in block.figures}
+    context = (article.provenance or {}).get("context") or {}
+    for fact in context.get("facts", []):
+        if fact.get("field") in cited and fact.get("metric") and fact.get("geography"):
+            tracked.setdefault((fact["metric"], fact["geography"], fact["period"]), False)
+    raw_series = {(s.metric, s.geography): s for s in series_list}
+    result: list[PublishedFigure] = []
+    for (metric, geo, period), summary in tracked.items():
+        series = raw_series.get((metric, geo))
+        observation = series.at(period) if series is not None else None
+        if series is None or observation is None:
+            continue
+        result.append(PublishedFigure(
+            metric=metric, metric_label=series.metric_label, geography=geo,
+            period=period, value=observation.value, unit=series.unit,
+            observed_at=series.source.retrieved_at, source_id=series.source.source_id,
+            dataset=series.source.dataset, raw_source=True, summary=summary, **common,
+        ))
+    if signal.geography == "Baltic" and result:
+        # Weekly synthesis needs the finding, not an arbitrary constituent.
+        result.insert(0, PublishedFigure(
+            metric=signal.metric, metric_label=signal.metric_label, geography="Baltic",
+            period=signal.period, value=signal.value, unit=signal.unit,
+            observed_at=result[0].observed_at, raw_source=False, summary=True, **common,
+        ))
+    return result
 
 
 class VintageLedger:
@@ -235,13 +264,8 @@ class VintageLedger:
         return cls(e for e in parsed if e is not None)
 
 
-class VintageStore:
-    """Local-first persistence, with Blob when the environment provides it.
-
-    Mirrors :class:`~newsroom.pipeline.publish.ArticleStore`: local is always
-    written so a run is reproducible offline, Blob is authoritative when
-    present so one machine's leftovers cannot become the record.
-    """
+class VintageStore(ArticleStore):
+    """The same durable-write and authoritative-read contract as article storage."""
 
     def __init__(
         self,
@@ -250,55 +274,18 @@ class VintageStore:
         account_url: str | None = None,
         container: str | None = None,
     ) -> None:
-        self._local_dir = Path(
-            local_dir or (config.LOCAL_ARCHIVE_DIR.parent / ".newsroom-articles")
-        )
-        self._account_url = account_url if account_url is not None else config.STORAGE_ACCOUNT_URL
-        self._container = container or config.ARTICLES_CONTAINER
-        self._blob: Any = None
-        self._blob_failed = False
-
-    def _container_client(self) -> Any:
-        if self._blob is not None or self._blob_failed or not self._account_url:
-            return self._blob
-        try:
-            from azure.identity import DefaultAzureCredential
-            from azure.storage.blob import BlobServiceClient
-
-            service = BlobServiceClient(self._account_url, credential=DefaultAzureCredential())
-            self._blob = service.get_container_client(self._container)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("vintage blob container unavailable (%s); local only", exc)
-            self._blob_failed = True
-        return self._blob
+        super().__init__(local_dir=local_dir, account_url=account_url, container=container)
 
     def _read(self) -> VintageLedger:
-        container = self._container_client()
-        if container is not None:
-            try:
-                raw = container.download_blob(LEDGER_BLOB).readall()
-                return VintageLedger.from_json(json.loads(raw.decode("utf-8")))
-            except Exception as exc:  # noqa: BLE001
-                log.info("no readable vintage ledger in blob yet (%s)", exc)
-        local = self._local_dir / LEDGER_BLOB
-        if local.exists():
-            try:
-                return VintageLedger.from_json(json.loads(local.read_text(encoding="utf-8")))
-            except Exception as exc:  # noqa: BLE001
-                log.warning("local vintage ledger unreadable (%s)", exc)
-        return VintageLedger()
+        payload = self._read_authoritative(LEDGER_BLOB)
+        if payload is not None and (
+            not isinstance(payload, dict) or not isinstance(payload.get("figures"), list)
+        ):
+            raise ValueError("invalid vintage ledger")
+        return VintageLedger.from_json(payload)
 
     def _write(self, ledger: VintageLedger) -> None:
-        body = json.dumps(ledger.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
-        target = self._local_dir / LEDGER_BLOB
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                container.upload_blob(name=LEDGER_BLOB, data=body, overwrite=True)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("vintage ledger blob write failed (%s)", exc)
+        self._put_json(LEDGER_BLOB, ledger.to_json(), "no-cache")
 
     async def load(self) -> VintageLedger:
         return await asyncio.to_thread(self._read)

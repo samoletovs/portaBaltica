@@ -267,6 +267,14 @@ class ResearchContext:
     #: record said which of the three had happened.
     discovery: str = "not_configured"
 
+    def validation_evidence(self) -> tuple[dict[str, str], ...]:
+        """In-memory source text for validation; never copied into public provenance."""
+        return tuple(
+            {"source_id": item.source_id, "url": item.url, "document": item.document}
+            for item in self.items
+            if item.role == "official_statement" and item.document
+        )
+
     def to_provenance(self) -> dict[str, Any]:
         return {
             "method": "registered_feeds",

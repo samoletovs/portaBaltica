@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useCountry } from '../CountryContext';
 import { changeDescription, sentimentColor, sentimentOf } from '../utils/polarity';
 import { finite, list } from '../utils/payload';
+import { fetchEconomyData } from '../api';
+import { usePriceRefresh } from '../hooks/usePriceRefresh';
 
 interface TickerItem {
   label: string;
@@ -10,6 +12,7 @@ interface TickerItem {
   indicator?: string;
   /** The API's preformatted delta, e.g. "+0.3pp". */
   change?: string;
+  retrievedAt?: string;
 }
 
 /**
@@ -90,12 +93,12 @@ export function DataTicker() {
   const [settled, setSettled] = useState(false);
   const { country } = useCountry();
 
-  useEffect(() => {
-    // Fetch economy data for ticker values
-    fetch(`/api/economy-data?country=${country.toLowerCase()}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => {
-        if (!d) return;
+  const refresh = useCallback(async (signal: AbortSignal, initial: boolean) => {
+    if (initial) { setItems([]); setSettled(false); }
+    else setItems(previous => previous.filter(item => item.indicator !== 'electricity_price'));
+    try {
+        const d = await fetchEconomyData(country.toLowerCase(), signal);
+        if (signal.aborted || !d) return;
 
         // One absent field used to cost the whole ticker. `electricityCurrent`
         // was read as `d.electricityCurrent.toFixed(2)` inside this `.then`,
@@ -121,7 +124,11 @@ export function DataTicker() {
             const electricity = finite(value);
             return electricity === null
               ? null
-              : { label: 'Electricity', value: `€${electricity.toFixed(2)}/MWh` };
+              : {
+                label: d.priceSchedule?.stale ? 'Electricity (last-good schedule)' : 'Electricity',
+                value: `€${electricity.toFixed(2)}/MWh`, indicator: 'electricity_price',
+                retrievedAt: d.priceSchedule?.retrievedAt ?? d.fetchedAt,
+              };
           }),
           ...tickerItems<{ currency: string; rate: unknown }>(
             list<{ currency: string; rate: unknown }>(d.exchangeRates).slice(0, 4),
@@ -147,10 +154,10 @@ export function DataTicker() {
         // steady-state totals that have been the same order of magnitude for
         // years. They are still on the Economy tile, in context and beside
         // their source, which is where a number without a delta belongs.
-      })
-      .catch(() => {})
-      .finally(() => setSettled(true));
+    } catch { /* Keep independent ticker items, never a previous-interval price. */ }
+    finally { if (!signal.aborted) setSettled(true); }
   }, [country]);
+  usePriceRefresh(refresh);
 
   if (items.length === 0) {
     // Nothing to show, and we know it: collapse rather than hold 35px of
@@ -202,7 +209,8 @@ export function DataTicker() {
             const magnitude = item.change ? magnitudeOf(item.change) : null;
             const sentiment = item.indicator ? sentimentOf(item.indicator, magnitude) : 'none';
             return (
-              <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0">
+              <span key={i} className="flex items-center gap-2 text-caption font-mono shrink-0"
+                title={item.retrievedAt ? `Schedule retrieved ${item.retrievedAt}` : undefined}>
                 <span style={{ color: 'var(--text-tertiary)' }}>{item.label}</span>
                 <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{item.value}</span>
                 {item.change && (

@@ -1,4 +1,5 @@
 import type { MarineWeatherForecast, PortWeather, Port, PortDataResponse, EconomyData, PropertyData, EnvironmentData, BusinessSearchResult, EUFundsData, AddressSearchResult, SystemStatus, TradePartnersData } from './types';
+import { PRICE_INTERVAL_MS, priceInterval, isCurrentPriceTime } from './utils/priceFreshness';
 
 
 export interface BalticCompareSeriesPoint {
@@ -82,6 +83,7 @@ export interface PowerPricePoint {
 }
 
 export interface PowerPriceData {
+  priceSchedule?: EconomyData['priceSchedule'];
   unit: string;
   zones: PowerPriceZone[];
   series: PowerPricePoint[];
@@ -177,7 +179,8 @@ export async function fetchTradePartners(): Promise<TradePartnersData> {
 // ─── Cached fetch helper ───
 
 const CACHE_TTL: Record<string, number> = {
-  economy: 30 * 60 * 1000,    // 30 min — electricity updates hourly
+  economy: PRICE_INTERVAL_MS, // Also invalidated at the next delivery boundary.
+  'power-prices': PRICE_INTERVAL_MS,
   property: 60 * 60 * 1000,   // 1 hour — daily data
   environment: 15 * 60 * 1000, // 15 min — weather updates frequently
   baltic_compare: 60 * 60 * 1000,
@@ -243,20 +246,21 @@ function evictOldestEntries(fraction: number): boolean {
   return true;
 }
 
-function writeCache(cacheKey: string, data: unknown): void {
-  const payload = JSON.stringify({ data, timestamp: Date.now() });
+function writeCache(cacheKey: string, data: unknown, timestamp = Date.now()): void {
   try {
-    localStorage.setItem(cacheKey, payload);
-    return;
+    const payload = JSON.stringify({ data, timestamp });
+    try {
+      localStorage.setItem(cacheKey, payload);
+      return;
+    } catch (error) {
+      // Denied storage is not a quota problem; eviction cannot repair it.
+      if (!(error instanceof DOMException) ||
+        !['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED'].includes(error.name)) return;
+    }
+    if (evictOldestEntries(0.25)) localStorage.setItem(cacheKey, payload);
   } catch {
-    // Most likely the quota. Make room and try once more.
-  }
-  if (!evictOldestEntries(0.25)) return;
-  try {
-    localStorage.setItem(cacheKey, payload);
-  } catch {
-    // Still no room — the payload may simply be larger than the quota. Caching
-    // is an optimisation, so failing to cache must never fail the request.
+    // Cache access, enumeration, eviction and retry are all optional. Network
+    // and response parsing errors are handled outside this boundary.
   }
 }
 
@@ -265,6 +269,7 @@ function readCache<T>(cacheKey: string, key: string): T | null {
     const cached = localStorage.getItem(cacheKey);
     if (!cached) return null;
     const { data, timestamp } = JSON.parse(cached);
+    if (isPricingKey(key) && priceInterval(timestamp) !== priceInterval()) return null;
     if (Date.now() - timestamp < getTTL(key)) return data as T;
   } catch {
     // Malformed cache is no cache; fall through to a live request.
@@ -273,6 +278,80 @@ function readCache<T>(cacheKey: string, key: string): T | null {
 }
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
+
+function isPricingKey(key: string): boolean {
+  return key.startsWith('economy-') || key === 'power-prices';
+}
+
+interface PriceRequest {
+  promise: Promise<unknown>;
+  controller: AbortController;
+  readers: number;
+}
+const priceRequests = new Map<string, PriceRequest>();
+
+function readPriceRequest<T>(key: string, request: PriceRequest, signal?: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.readers++;
+    let finished = false;
+    function release() {
+      if (finished) return;
+      finished = true;
+      signal?.removeEventListener('abort', abort);
+      request.readers--;
+      // App and the ticker share a request; one unmount cannot cancel the other.
+      if (request.readers === 0) {
+        request.controller.abort();
+        if (priceRequests.get(key) === request) priceRequests.delete(key);
+      }
+    }
+    function abort() {
+      if (finished) return;
+      release();
+      reject(new DOMException('Request cancelled', 'AbortError'));
+    }
+    signal?.addEventListener('abort', abort, { once: true });
+    void (async () => {
+      try {
+        const data = await request.promise;
+        if (!finished) { release(); resolve(data as T); }
+      } catch (error) {
+        if (!finished) { release(); reject(error); }
+      }
+    })();
+  });
+}
+
+async function cachedPriceFetch<T>(key: string, endpoint: string, signal?: AbortSignal): Promise<T> {
+  if (signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+  const cacheKey = `${CACHE_PREFIX}${key}`;
+  const cached = readCache<T>(cacheKey, key);
+  if (cached !== null) return cached;
+  const startedAt = Date.now();
+  const requestKey = `${cacheKey}|${priceInterval(startedAt)}`;
+  let request = priceRequests.get(requestKey);
+  if (!request) {
+    const entry: PriceRequest = {
+      controller: new AbortController(), readers: 0, promise: Promise.resolve(),
+    };
+    entry.promise = (async () => {
+      try {
+        const response = await fetch(endpoint, { signal: entry.controller.signal, cache: 'no-cache' });
+        if (!response.ok) throw new Error(`${key} API failed: ${response.status}`);
+        const data: unknown = await response.json();
+        if (entry.controller.signal.aborted) throw new DOMException('Request cancelled', 'AbortError');
+        // A response begun in the old interval must not become a new cache hit.
+        if (priceInterval(startedAt) === priceInterval()) writeCache(cacheKey, data, startedAt);
+        return data;
+      } finally {
+        if (priceRequests.get(requestKey) === entry) priceRequests.delete(requestKey);
+      }
+    })();
+    priceRequests.set(requestKey, entry);
+    request = entry;
+  }
+  return readPriceRequest<T>(requestKey, request, signal);
+}
 
 /**
  * Fetch once per key per TTL, and once per key at a time.
@@ -286,7 +365,8 @@ const inFlightRequests = new Map<string, Promise<unknown>>();
  *
  * There is now one function and no choice to get wrong.
  */
-async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
+async function cachedFetch<T>(key: string, endpoint: string, signal?: AbortSignal): Promise<T> {
+  if (isPricingKey(key)) return cachedPriceFetch<T>(key, endpoint, signal);
   const cacheKey = `${CACHE_PREFIX}${key}`;
 
   const cached = readCache<T>(cacheKey, key);
@@ -312,8 +392,13 @@ async function cachedFetch<T>(key: string, endpoint: string): Promise<T> {
 
 // ─── New data endpoints ───
 
-export async function fetchEconomyData(country = 'lv'): Promise<EconomyData> {
-  return cachedFetch<EconomyData>(`economy-${country}`, `/api/economy-data?country=${country}`);
+export async function fetchEconomyData(country = 'lv', signal?: AbortSignal): Promise<EconomyData> {
+  const code = country.toLowerCase();
+  const data = await cachedFetch<EconomyData>(`economy-${code}`, `/api/economy-data?country=${code}`, signal);
+  if (data && 'electricityCurrentTime' in data && !isCurrentPriceTime(data.electricityCurrentTime)) {
+    return { ...data, electricityCurrent: null };
+  }
+  return data;
 }
 
 export async function fetchPropertyData(): Promise<PropertyData> {
@@ -359,8 +444,15 @@ export async function fetchBalticCompare(indicator: string, years = 5): Promise<
   );
 }
 
-export async function fetchPowerPrices(): Promise<PowerPriceData> {
-  return cachedFetch<PowerPriceData>('power-prices', '/api/power-prices');
+export async function fetchPowerPrices(signal?: AbortSignal): Promise<PowerPriceData> {
+  const data = await cachedFetch<PowerPriceData>('power-prices', '/api/power-prices', signal);
+  if (data && !isCurrentPriceTime(data.currentTime)) {
+    return {
+      ...data, currentTime: null, currentSpread: null, coupled: null,
+      zones: Array.isArray(data.zones) ? data.zones.map(zone => ({ ...zone, current: null })) : [],
+    };
+  }
+  return data;
 }
 
 /** One metered or forecast interval of the Estonian power system. */

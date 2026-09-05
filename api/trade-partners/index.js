@@ -191,7 +191,8 @@ const handler = async function (context, req) {
     const periods = [exportsSide.period, importsSide.period].filter(Boolean).sort();
     const dataAsOf = periods.length > 0 ? periods[0] : null;
 
-    const balanceEur = exportsSide.totalEur === null || importsSide.totalEur === null
+    const balanceEur = exportsSide.period !== importsSide.period ||
+      exportsSide.totalEur === null || importsSide.totalEur === null
       ? null
       : exportsSide.totalEur - importsSide.totalEur;
 

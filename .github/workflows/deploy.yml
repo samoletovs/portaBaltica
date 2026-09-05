@@ -123,6 +123,7 @@ jobs:
           # allowSharedKeyAccess=false. Published journalism is public by
           # definition; the archive and the approval queue are not.
           VITE_ARTICLES_BASE_URL: https://stportabalticabpmff5so.blob.core.windows.net/articles
+          VITE_BRIEFING_ENQUIRIES_OPEN: ${{ vars.VITE_BRIEFING_ENQUIRIES_OPEN }}
         run: npm ci && npm run build
 
       - name: Install API deps

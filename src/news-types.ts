@@ -33,7 +33,8 @@ export type ValidatorCheckName =
   | 'comparison_basis_stated'
   | 'no_repeated_findings'
   /**
-   * A paragraph with no figures may not explain why something happened.
+   * Causal claims need grounding, including in headlines, deks and paragraphs
+   * carrying figures. A denial in one sentence does not excuse the next.
    *
    * Added after a weekly wrap published — and was retracted within the hour —
    * for a paragraph asserting that rising throughput reflected "the growing
@@ -58,6 +59,7 @@ export interface ValidatorCheck {
   name: ValidatorCheckName;
   passed: boolean;
   detail?: string;
+  blocks?: number[];
 }
 
 export interface ValidatorVerdict {
@@ -262,8 +264,30 @@ export function analystLabel(attribution: string): string {
  * The article's "passport": what it was built from, by what, when, and who is
  * accountable. Rendered on the page — not merely stored.
  */
+/** Numeric facts captured with the article so interrupted registration can be replayed. */
+export interface PublishedObservation {
+  metric: string;
+  metric_label: string;
+  geography: string;
+  period: string;
+  value: number;
+  unit: string;
+  slug: string;
+  article_id: string;
+  headline: string;
+  observed_at: string;
+  published_at: string;
+  raw_source: boolean;
+  summary: boolean;
+  source_id: string;
+  dataset: string | null;
+  signal_id?: string;
+  comparison_basis?: string;
+}
+
 export interface Provenance {
   sources: ProvenanceSource[];
+  published_observations?: PublishedObservation[];
   signal_id?: string;
   /** Null for tiers B and C, which involve no generation at all. */
   model?: string | null;
@@ -322,6 +346,8 @@ export interface Correction {
   corrected_at: string;
   description: string;
   previous_value?: string;
+  kind?: 'our_error' | 'source_revision';
+  revision_id?: string;
 }
 
 /**

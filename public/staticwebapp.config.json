@@ -34,6 +34,7 @@
     { "route": "/newsroom", "rewrite": "/api/page-shell" },
     { "route": "/newsroom/*", "rewrite": "/api/page-shell" },
     { "route": "/follow", "rewrite": "/api/page-shell" },
+    { "route": "/briefings", "rewrite": "/api/page-shell" },
     { "route": "/weekly", "rewrite": "/api/page-shell" },
     { "route": "/corrections", "rewrite": "/api/page-shell" },
     { "route": "/about/ai", "rewrite": "/api/page-shell" },

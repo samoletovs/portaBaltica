@@ -20,6 +20,7 @@ from newsroom.pipeline import run as run_module
 from newsroom.pipeline.analyst import AnalystBrief, Mechanism
 from newsroom.pipeline.write import generator, prompts
 from newsroom.validator import (
+    CheckResult,
     _is_hedged_desk_hypothesis,
     check_no_unsupported_mechanism,
 )
@@ -218,11 +219,14 @@ def test_the_no_brief_fallback_also_stops_demanding_a_denial():
 # ── the gate admits the shape the prompt asks for ───────────────────────
 
 
-def _verdict(text: str, *, panellists: tuple[str, ...] = (), informed_by: str = ""):
+def _verdict(
+    text: str, *, panellists: tuple[str, ...] = (), informed_by: str = "",
+    evidence: tuple[dict[str, str], ...] = (),
+) -> CheckResult:
     """The check in isolation, on a one-paragraph article.
 
     ``ValidationContext`` is deliberately explicit about what a check may see,
-    and this one reads ``blocks`` plus ``provenance.hypotheses``. The registry
+    and this one reads the prose, panel provenance and fetched excerpts. The registry
     and persona arguments are structural, so they are supplied from the real
     ones rather than stubbed — a stub here would be a second definition of
     what the validator considers valid.
@@ -231,6 +235,10 @@ def _verdict(text: str, *, panellists: tuple[str, ...] = (), informed_by: str = 
     from newsroom.validator import ValidationContext
 
     provenance: dict = {}
+    if evidence:
+        provenance["research"] = {"consulted": [
+            {"source_id": item["source_id"], "url": item["url"]} for item in evidence
+        ]}
     if panellists:
         entry = {
             "claim": "c", "lens": "demography", "discipline": "d",
@@ -248,11 +256,22 @@ def _verdict(text: str, *, panellists: tuple[str, ...] = (), informed_by: str = 
         }
     article = {"body": [{"type": "paragraph", "text": text}], "provenance": provenance}
     return check_no_unsupported_mechanism(
-        ValidationContext(article=article, registry=registry(), personas=personas())
+        ValidationContext(
+            article=article, registry=registry(), personas=personas(), evidence=evidence,
+        )
     )
 
 
 DEMOGRAPHER = "the newsroom's AI demographer"
+BANK_EVIDENCE = ({
+    "source_id": "latvijas_banka_news",
+    "url": "https://www.bank.lv/review",
+    "document": (
+        "The fall is driven by weaker demand. "
+        "The fall is driven by weaker external demand. "
+        "The fall is driven by emigration."
+    ),
+},)
 
 
 def test_a_hedged_disclosed_desk_hypothesis_passes():
@@ -310,7 +329,8 @@ def test_an_invented_expert_cannot_carry_a_cause():
         panellists=(DEMOGRAPHER,),
     )
     assert not verdict.passed
-    assert "named person's mouth" in verdict.detail
+    assert "Dr. Ineta" in verdict.detail
+    assert verdict.blocks == (0,)
 
 
 def test_no_exemption_rescues_an_invented_expert():
@@ -359,12 +379,14 @@ def test_an_invented_expert_is_caught_in_every_baltic_alphabet():
 
 
 def test_an_institution_is_not_a_person():
-    """The control. Institutions carry no honorific, so reporting is untouched."""
+    """An institutional attribution needs a cited excerpt, not a human byline."""
     assert _verdict(
-        "According to Latvijas Banka, the fall is driven by weaker demand."
+        "According to Latvijas Banka, the fall is driven by weaker demand.",
+        evidence=BANK_EVIDENCE,
     ).passed
     assert _verdict(
-        "The central bank said the fall is driven by weaker external demand."
+        "Latvijas Banka said the fall is driven by weaker external demand.",
+        evidence=BANK_EVIDENCE,
     ).passed
 
 
@@ -407,7 +429,8 @@ def test_a_real_named_official_properly_attributed_still_passes():
     ).passed
     # The institution is the right attribution, and it passes.
     assert _verdict(
-        "According to Latvijas Banka, the fall is driven by weaker external demand."
+        "According to Latvijas Banka, the fall is driven by weaker external demand.",
+        evidence=BANK_EVIDENCE,
     ).passed
 
 
@@ -444,6 +467,7 @@ def test_an_unrelated_name_does_not_trip_the_desk_branch():
     assert _verdict(
         "According to Latvijas Banka, the fall is driven by emigration.",
         panellists=("Dr Liina Sarapuu",),
+        evidence=BANK_EVIDENCE,
     ).passed
 
 
@@ -461,6 +485,7 @@ def test_a_publisher_the_panel_cited_does_not_start_failing_ordinary_reporting()
         "According to Latvijas Banka, the fall is driven by emigration.",
         panellists=("Dr Liina Sarapuu",),
         informed_by="Latvijas Banka news",
+        evidence=BANK_EVIDENCE,
     )
     assert verdict.passed
 
@@ -483,25 +508,13 @@ def test_a_document_backed_hypothesis_still_needs_the_hedge():
     ).passed
 
 
-def test_the_prose_attribution_limit_is_pre_existing_and_recorded():
-    """The residual, pinned so it is a known boundary rather than a surprise.
-
-    This check reads the grammar of attribution and never its truth, so a cause
-    put in a publisher's mouth passes — and did so before the panel existed,
-    measured against the untouched validator with no panel present. The panel
-    is built not to walk into it (every claim is attributed to the panellist,
-    a cited release is recorded as ``informed_by``, and the brief forbids
-    "according to <publisher>" for a panel cause), but the gate itself cannot
-    tell the two apart.
-
-    If someone later tightens this — by requiring that an attributed cause name
-    a source whose document text was actually fetched — this test is what tells
-    them the behaviour was deliberate rather than overlooked.
-    """
-    assert _verdict(
+def test_a_publisher_cause_requires_its_matching_fetched_excerpt():
+    text = (
         "According to Latvijas Banka, the fall in construction output is driven "
         "by the withdrawal of the energy subsidy."
-    ).passed
+    )
+    assert not _verdict(text).passed
+    assert not _verdict(text, evidence=BANK_EVIDENCE).passed
 
 
 def test_a_hedge_without_attribution_still_fails():

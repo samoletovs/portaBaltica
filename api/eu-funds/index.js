@@ -1,37 +1,14 @@
-const https = require('https');
+const ckan = require('../shared/ckan.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
-function jsonGet(url) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { timeout: 15000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed')); }
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
+async function projectResource() {
+  const pkg = await ckan.ckan('package_show', { id: 'eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti' });
+  const resource = (pkg.resources || []).find(function (r) {
+    return r.datastore_active && r.name === 'AF projektu saraksts';
   });
-}
-
-const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
-
-async function getLatestActiveResource(datasetId) {
-  try {
-    var pkg = await jsonGet(CKAN_API + '/package_show?id=' + datasetId);
-    var resources = (pkg.result && pkg.result.resources) || [];
-    var active = resources.filter(function (r) { return r.datastore_active; });
-    return active.length > 0 ? active[active.length - 1] : null;
-  } catch (e) {
-    return null;
-  }
+  if (!resource || !/^[0-9a-f-]{36}$/i.test(resource.id)) throw new Error('EU funds project list unavailable');
+  return resource;
 }
 
 /**
@@ -42,39 +19,38 @@ async function getLatestActiveResource(datasetId) {
  */
 const handler = async function (context, req) {
   try {
-    var resource = await getLatestActiveResource('eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti');
-    if (!resource) {
-      context.res = {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projects: [], total: 0, fetchedAt: new Date().toISOString() }),
-      };
-      return;
+    var resource = await projectResource();
+    var results = await Promise.all([
+      ckan.ckan('datastore_search', {
+        resource_id: resource.id,
+        limit: 20,
+        sort: 'PedejasDatuAtjauninasanasDatums desc,ProjektaNumurs asc',
+        fields: 'ProjektaNumurs,ProjektaStatuss,PedejasDatuAtjauninasanasDatums',
+      }),
+      ckan.ckan('datastore_search_sql', {
+        sql: 'SELECT "ProjektaStatuss" AS status, COUNT(*) AS count FROM "' + resource.id + '" GROUP BY "ProjektaStatuss"',
+      }),
+    ]);
+    var records = results[0].records;
+    var total = results[0].total;
+    if (!Array.isArray(records) || !Number.isFinite(total) || !Array.isArray(results[1].records)) {
+      throw new Error('EU funds returned an incomplete project list');
     }
-
-    var data = await jsonGet(CKAN_API + '/datastore_search?resource_id=' + resource.id + '&limit=200');
-    var records = (data.result && data.result.records) || [];
-    var total = (data.result && data.result.total) || 0;
-
-    // Group by status
-    var byStatus = {};
-    for (var i = 0; i < records.length; i++) {
-      var rec = records[i];
-      var status = rec['Statuss'] || 'Unknown';
-      byStatus[status] = (byStatus[status] || 0) + 1;
-    }
-
-    var statusSummary = Object.entries(byStatus)
-      .map(function (e) { return { status: e[0], count: e[1] }; })
+    var statusSummary = results[1].records
+      .map(function (r) {
+        var count = Number(r.count);
+        if (!Number.isFinite(count) || count < 0) throw new Error('EU funds returned an invalid status count');
+        return { status: r.status || 'Unknown', count: count };
+      })
       .sort(function (a, b) { return b.count - a.count; });
 
-    // Return latest projects with summary
+    // The datastore sorts by project update, not by amendment version.
     var projects = records.slice(0, 20).map(function (rec) {
       return {
         number: rec['ProjektaNumurs'] || '',
-        version: rec['Numurs'] || '',
-        date: rec['SpekaStasanasDatums'] || '',
-        status: rec['Statuss'] || '',
+        version: '',
+        date: rec['PedejasDatuAtjauninasanasDatums'] || '',
+        status: rec['ProjektaStatuss'] || '',
       };
     });
 
@@ -85,13 +61,14 @@ const handler = async function (context, req) {
         projects: projects,
         statusSummary: statusSummary,
         total: total,
+        dateMeaning: 'Project data last updated',
         source: 'ES Atveseļošanas fonds (data.gov.lv, CC0)',
         fetchedAt: new Date().toISOString(),
       }),
     };
   } catch (error) {
     context.res = {
-      status: 500,
+      status: 502,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: error.message }),
     };

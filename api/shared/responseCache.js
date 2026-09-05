@@ -55,7 +55,7 @@ const rateLimit = require('./rateLimit.js');
 function responseKey(name, query, keyOn) {
   const parts = keyOn.slice().sort().map(function (param) {
     const raw = query && query[param];
-    return param + '=' + (raw === undefined || raw === null ? '' : String(raw));
+    return encodeURIComponent(param) + '=' + encodeURIComponent(raw === undefined || raw === null ? '' : String(raw));
   });
   return 'response|' + name + '|' + parts.join('&');
 }
@@ -119,7 +119,11 @@ function withCache(handler, options) {
     const limited = rateLimit.check(req);
     if (limited) { context.res = limited; return; }
 
-    const key = responseKey(opts.name, (req && req.query) || {}, opts.keyOn);
+    const intervalMs = opts.timeBucketMs;
+    const bucket = intervalMs > 0 ? Math.floor(Date.now() / intervalMs) : null;
+    // A price marked "current" cannot survive into another delivery interval.
+    const key = responseKey(opts.name, (req && req.query) || {}, opts.keyOn) +
+      (bucket === null ? '' : '|interval=' + bucket);
 
     let result;
     try {
@@ -156,6 +160,12 @@ function withCache(handler, options) {
       Age: String(ageSeconds),
       'X-Cache': result.servedAfterFailure ? 'stale' : (result.cached ? 'hit' : 'miss'),
     });
+    if (bucket !== null) {
+      const remaining = Math.max(0, Math.floor(((bucket + 1) * intervalMs - Date.now()) / 1000));
+      const declared = /max-age=(\d+)/i.exec(headers['Cache-Control'] || '');
+      headers['Cache-Control'] = 'public, max-age=' +
+        Math.min(remaining, declared ? Number(declared[1]) : Math.floor(ttlMs / 1000)) + ', must-revalidate';
+    }
 
     // A revalidation running behind this response is worth saying out loud:
     // it is the difference between "this is a few seconds old and nobody is

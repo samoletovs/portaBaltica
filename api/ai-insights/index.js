@@ -3,6 +3,7 @@ const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const airQuality = require('../shared/airQuality.js');
+const priceIntervals = require('../shared/priceIntervals.js');
 const countries = require('../shared/country.js');
 
 /**
@@ -77,6 +78,7 @@ function splitByDay(rows, todayKey) {
     if (typeof p.price !== 'number' || !Number.isFinite(p.price)) continue;
     const key = new Date(p.timestamp * 1000).toISOString().slice(0, 10);
     if (key === todayKey) { today.push(p); continue; }
+    if (key > todayKey) continue;
     if (!byDay.has(key)) byDay.set(key, []);
     byDay.get(key).push(p.price);
   }
@@ -323,14 +325,15 @@ const handler = async function (context, req) {
     // insight instead of the whole response.
     var now = new Date();
     var dayStart = new Date(now); dayStart.setUTCHours(0, 0, 0, 0);
-    var dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    var dayEnd = new Date(dayStart); dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
     // A trailing window, so today can be characterised against the market's own
     // recent distribution rather than against a constant somebody chose. Same
     // endpoint and one call: the window widens, nothing new is fetched.
     var windowStart = new Date(dayStart.getTime() - PRICE_WINDOW_DAYS * 86400e3);
 
-    var eleringPromise = jsonGet(
-      ELERING_URL + '?start=' + windowStart.toISOString() + '&end=' + dayEnd.toISOString()
+    var eleringPromise = priceIntervals.loadSchedule(
+      ELERING_URL + '?start=' + windowStart.toISOString() + '&end=' + dayEnd.toISOString(),
+      jsonGet, { scope: 'trailing-' + PRICE_WINDOW_DAYS, graceMs: 3600000 }
     );
     var ecbPromise = httpGetText(ECB_URL);
     var airPromise = openMeteoGet(
@@ -369,6 +372,7 @@ const handler = async function (context, req) {
     // `unavailable` field — `sea-state` serves `unavailable: []` today — and
     // the correctness of those siblings is why nobody looked at this one.
     var unavailable = [];
+    var priceSchedule = null;
     /**
      * Record a source that produced no insight, and why.
      *
@@ -383,16 +387,17 @@ const handler = async function (context, req) {
     }
     try {
       var elData = await eleringPromise;
+      priceSchedule = elData.meta;
+      now = new Date();
       var allRows = (elData.data && elData.data[zone]) || [];
-      var split = splitByDay(allRows, dayStart.toISOString().slice(0, 10));
+      var split = splitByDay(allRows, now.toISOString().slice(0, 10));
       var prices = split.today;
 
       if (prices.length > 0) {
         var avg = prices.reduce(function (s, p) { return s + p.price; }, 0) / prices.length;
         var minP = Math.min.apply(null, prices.map(function (p) { return p.price; }));
         var maxP = Math.max.apply(null, prices.map(function (p) { return p.price; }));
-        var curHour = now.getHours();
-        var curEntry = prices.find(function (p) { return new Date(p.timestamp * 1000).getHours() === curHour; });
+        var curEntry = priceIntervals.currentInterval(prices, now.getTime());
         // Not `: avg`. Reporting the day's average *as* the current price is a
         // guard whose false branch is a claim, and a plausible one — an average
         // price looks exactly like a price. #131 removed the same line from
@@ -649,6 +654,7 @@ const handler = async function (context, req) {
           // Carried on the failure too, so even a total outage says which four
           // sources were lost and why.
           unavailable: unavailable,
+          priceSchedule: priceSchedule,
           generatedAt: new Date().toISOString(),
           source: 'portaBaltica AI (data-driven)',
         }),
@@ -673,6 +679,7 @@ const handler = async function (context, req) {
         // closed vocabulary and never from the upstream's own error text, which
         // carries our request URL.
         unavailable: unavailable,
+        priceSchedule: priceSchedule,
         generatedAt: new Date().toISOString(),
         source: 'portaBaltica AI (data-driven)',
       }),
@@ -690,6 +697,7 @@ module.exports = withSecurity(withCache(handler, {
   name: 'ai-insights',
   keyOn: ['country'],
   ttlMs: 900000,
+  timeBucketMs: priceIntervals.DELIVERY_INTERVAL_MS,
   graceMs: 3600000,
   staleWhileRevalidate: true,
 }));

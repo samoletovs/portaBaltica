@@ -115,6 +115,7 @@ class RunReport:
     #: restated a figure we printed. Reported separately from ``errors``: a
     #: revision is the system working, not the system failing.
     corrections: list[Revision] = field(default_factory=list)
+    publication_ids: set[str] | None = None
 
     @property
     def published(self) -> list[Article]:
@@ -135,6 +136,8 @@ class RunReport:
             for card in self.syndicated
             if card.status == "published" and is_servable(card)
         )
+        if self.publication_ids is not None:
+            return [a for a in articles if a.id in self.publication_ids]
         return articles
 
     @property
@@ -629,83 +632,114 @@ async def run_once(
 
 
 async def _store_all(store: ArticleStore, report: RunReport) -> None:
+    candidates = report.published
+    report.publication_ids = set()
+    stored: set[str] = set()
     for result in report.generated:
         try:
+            if result.article in candidates:
+                # The durable article must carry its original readings before
+                # its index entry can suppress regeneration on a later run.
+                result.article.provenance["published_observations"] = [
+                    figure.to_json()
+                    for figure in figures_from(result.article, result.signal, report.series)
+                ]
             await store.put(result.article)
+            stored.add(result.article.id)
         except Exception as exc:  # noqa: BLE001
             log.exception("failed to store article %s", result.article.id)
             report.errors.append(f"store {result.article.id}: {exc}")
     for card in report.syndicated:
         try:
             await store.put(card)
+            stored.add(card.id)
         except Exception as exc:  # noqa: BLE001
             log.exception("failed to store card %s", card.id)
             report.errors.append(f"store {card.id}: {exc}")
-    await store.write_index(report.published)
+    confirmed = [a for a in candidates if a.id in stored]
+    try:
+        await store.write_index(confirmed)
+    except Exception as exc:  # noqa: BLE001
+        log.exception("failed to publish index")
+        report.errors.append(f"index: {exc}")
+    else:
+        report.publication_ids = {a.id for a in confirmed}
 
 
 async def _watch_revisions(
     store: ArticleStore, report: RunReport, *, vintages: VintageStore | None = None
 ) -> None:
-    """Correct what the source has restated, then record today's claims.
-
-    Order matters and is the reverse of what looks natural. Revisions are looked
-    for *before* this run's figures are added to the ledger, because a figure
-    published minutes ago is being compared against the very reading that
-    produced it — it can only ever match, and folding it in first would spend a
-    blob round-trip to prove that a number equals itself.
-    """
+    """Register durable publications, recover interrupted registration, then correct."""
     vintages = vintages or VintageStore()
     ledger = await vintages.load()
 
-    log_entries: list[dict[str, str]] = []
-    for revision in find_revisions(ledger, report.series):
-        document = await store.read_published(revision.figure.slug)
-        if document is None:
-            log.info(
-                "revised figure belongs to %s, which is no longer stored; skipping",
-                revision.figure.slug,
-            )
+    fresh = [
+        figure
+        for article in report.published if report.publication_ids is not None
+        for figure in _publication_observations(article.to_json())
+    ]
+    if fresh:
+        ledger.record(fresh)
+        await vintages.save(ledger)
+
+    indexed = await asyncio.to_thread(store._read_existing_index)
+    indexed_slugs = {entry["slug"] for entry in indexed if entry.get("tier") == "A"}
+    documents: dict[str, dict] = {}
+    registered = {figure.key for figure in ledger}
+    recovered: list[PublishedFigure] = []
+    for slug in sorted(indexed_slugs | {figure.slug for figure in ledger}):
+        document = await store.read_published(slug)
+        if document is None or document.get("status") != "published":
             continue
-        # Only a published article can be corrected. Annotating a retracted one
-        # with "the source has restated this" is incoherent — we withdrew the
-        # story because its premise was wrong, so there is no claim left to
-        # correct — and it would recur on every run, because the ledger drives
-        # this loop rather than the article does. `retract` forgets the figures
-        # for exactly that reason; this is the second lock on the same door, for
-        # the case where a figure outlives its article by some other route.
-        if document.get("status") != "published":
-            log.info(
-                "revised figure belongs to %s, which is %s; not correcting it",
-                revision.figure.slug,
-                document.get("status"),
+        documents[slug] = document
+        if slug in indexed_slugs:
+            recovered.extend(
+                figure for figure in _publication_observations(document)
+                if figure.key not in registered
             )
+    if recovered:
+        ledger.record(recovered)
+        await vintages.save(ledger)
+
+    for revision in find_revisions(ledger, report.series):
+        document = documents.get(revision.figure.slug)
+        if document is None:
             continue
         annotated = annotate(document, revision)
         if annotated is None:
-            continue  # already noted on a previous run
+            continue
         await store.write_published(revision.figure.slug, annotated)
+        documents[revision.figure.slug] = annotated
         report.corrections.append(revision)
-        log_entries.append(revision.to_log_entry(annotated["corrections"][-1]))
         log.info("correction appended to %s: %s", revision.figure.slug, revision.description())
 
-    # The public log is a separate artefact from the article, and it is what
-    # /corrections reads. `src/news-api.ts` has documented this file since the
-    # frontend was written; nothing had ever produced it, so the page said "No
-    # corrections have been issued yet" as a permanent condition rather than a
-    # true one.
+    # Repair every recorded notice, even if the source has changed again,
+    # reverted, or no longer supplies that period in this run's fetched window.
+    log_entries = [
+        editorial_corrections.EditorialCorrection(
+            slug=slug, description=note["description"],
+        ).to_log_entry(note, str(document.get("headline") or ""))
+        for slug, document in documents.items()
+        for note in document.get("corrections", [])
+        if note.get("kind") == "source_revision"
+    ]
     if log_entries:
         total = await store.append_corrections(log_entries)
         log.info("public corrections log now holds %d entr(ies)", total)
 
-    fresh: list[PublishedFigure] = []
-    for result in report.generated:
-        if result.publishable and result.article.status == "published":
-            fresh.extend(figures_from(result.article, result.signal))
-    if fresh:
-        ledger.record(fresh)
-        await vintages.save(ledger)
-        log.info("vintage ledger now tracks %d published figure(s)", len(ledger))
+
+def _publication_observations(document: dict) -> list[PublishedFigure]:
+    """Read only publication-time snapshots; legacy articles need archive maintenance."""
+    rows = (document.get("provenance") or {}).get("published_observations", [])
+    if not isinstance(rows, list):
+        raise ValueError("invalid publication observation snapshot")
+    figures: list[PublishedFigure] = []
+    for row in rows:
+        figure = PublishedFigure.from_json(row) if isinstance(row, dict) else None
+        if figure is None or figure.slug != document.get("slug") or figure.article_id != document.get("id"):
+            raise ValueError("invalid publication observation identity")
+        figures.append(figure)
+    return figures
 
 
 def approval_queue(report: RunReport) -> list[dict[str, object]]:

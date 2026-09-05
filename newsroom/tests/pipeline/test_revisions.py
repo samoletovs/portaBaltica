@@ -174,7 +174,7 @@ class TestTheLedger:
         assert figures_from(draft, signal) == []
 
         draft.status = "published"
-        recorded = figures_from(draft, signal)
+        recorded = figures_from(draft, signal, [series([("2026-06", 6.6)], retrieved=RETRIEVED)])
         assert len(recorded) == 1
         assert recorded[0].observed_at == RETRIEVED, "the vintage must be the retrieval time"
 

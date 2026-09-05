@@ -107,7 +107,7 @@ function requestKey(namespace, url, volatile) {
   const params = [];
   parsed.searchParams.forEach(function (value, name) {
     if (skip.indexOf(name) >= 0) return;
-    params.push(name + '=' + value);
+    params.push(encodeURIComponent(name) + '=' + encodeURIComponent(value));
   });
   params.sort();
 

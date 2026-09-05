@@ -1,27 +1,8 @@
-const https = require('https');
+const ckan = require('../shared/ckan.js');
+const { normaliseSearch } = require('../shared/searchQuery.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
-function jsonGet(url) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { timeout: 15000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed')); }
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-  });
-}
-
-const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
 const UBO_RESOURCE_ID = '20a9b26d-d056-4dbb-ae18-9ff23c87bdee';
 
 /**
@@ -52,18 +33,15 @@ function totalOf(response, fallback) {
 }
 
 const handler = async function (context, req) {
-  var query = (req.query && req.query.q) || '';
-  if (!query || query.length < 3) {
+  var query = normaliseSearch(req.query && req.query.q, false);
+  if (!query) {
     context.res = {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Query parameter "q" required (min 3 chars)' }),
+      body: JSON.stringify({ error: 'Query parameter "q" required (3–200 searchable characters)' }),
     };
     return;
   }
-
-  // Sanitize input — only allow alphanumeric, spaces, and Latvian diacritics
-  query = query.replace(/[^\w\sāčēģīķļņōŗšūžĀČĒĢĪĶĻŅŌŖŠŪŽ-]/gi, '').trim();
 
   try {
     var results = [];
@@ -80,20 +58,20 @@ const handler = async function (context, req) {
 
     // Try as registration number first (numeric)
     if (/^\d+$/.test(query)) {
-      var url = CKAN_API + '/datastore_search?resource_id=' + UBO_RESOURCE_ID +
-        '&filters=' + encodeURIComponent(JSON.stringify({ legal_entity_registration_number: query })) +
-        '&limit=' + PAGE_LIMIT;
-      var data = await jsonGet(url);
+      var data = { result: await ckan.ckan('datastore_search', {
+        resource_id: UBO_RESOURCE_ID,
+        filters: { legal_entity_registration_number: query },
+        limit: PAGE_LIMIT,
+      }) };
       results = (data.result && data.result.records) || [];
       matched = totalOf(data, results.length);
     }
 
     // Also search by surname (text search)
     if (results.length === 0) {
-      var textUrl = CKAN_API + '/datastore_search?resource_id=' + UBO_RESOURCE_ID +
-        '&q=' + encodeURIComponent(query) +
-        '&limit=' + PAGE_LIMIT;
-      var textData = await jsonGet(textUrl);
+      var textData = { result: await ckan.ckan('datastore_search', {
+        resource_id: UBO_RESOURCE_ID, q: query, limit: PAGE_LIMIT,
+      }) };
       results = (textData.result && textData.result.records) || [];
       matched = totalOf(textData, results.length);
     }
@@ -134,7 +112,7 @@ const handler = async function (context, req) {
     };
   } catch (error) {
     context.res = {
-      status: 500,
+      status: 502,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: error.message }),
     };

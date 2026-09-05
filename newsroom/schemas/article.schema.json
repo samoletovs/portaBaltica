@@ -130,6 +130,34 @@
         "signal_id": { "type": "string", "description": "The deterministic signal that triggered this story." },
         "signal_detector": { "type": "string", "description": "Which detector fired." },
         "signal_finding": { "type": "string", "description": "metric|geography|period — the reading itself, which ranking suppresses on next run so the wire does not retell a story it has already told." },
+        "published_observations": {
+          "type": "array",
+          "description": "Publication-time readings for retrying interrupted vintage registration; never reconstructed from subsequently revised source values.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metric", "metric_label", "geography", "period", "value", "unit", "slug", "article_id", "headline", "observed_at", "published_at", "raw_source", "summary", "source_id", "dataset"],
+            "properties": {
+              "metric": { "type": "string" },
+              "metric_label": { "type": "string" },
+              "geography": { "type": "string" },
+              "period": { "type": "string" },
+              "value": { "type": "number" },
+              "unit": { "type": "string" },
+              "slug": { "type": "string" },
+              "article_id": { "type": "string" },
+              "headline": { "type": "string" },
+              "observed_at": { "type": "string", "format": "date-time" },
+              "published_at": { "type": "string", "format": "date-time" },
+              "raw_source": { "type": "boolean" },
+              "summary": { "type": "boolean" },
+              "source_id": { "type": "string" },
+              "dataset": { "type": ["string", "null"] },
+              "signal_id": { "type": "string" },
+              "comparison_basis": { "type": "string" }
+            }
+          }
+        },
         "cites": {
           "type": "array",
           "items": { "type": "string" },
@@ -399,6 +427,7 @@
           "corrected_at": { "type": "string", "format": "date-time" },
           "description": { "type": "string" },
           "previous_value": { "type": "string" },
+          "revision_id": { "type": "string", "description": "Exact source-coordinate and value identity for idempotent revision recording." },
           "kind": {
             "type": "string",
             "enum": ["our_error", "source_revision"],

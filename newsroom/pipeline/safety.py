@@ -23,7 +23,7 @@ make an unrelated import failure look like a config error.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 try:  # repository-root layout
     from newsroom import fencing, persona_rules, source_registry, validator
@@ -214,6 +214,7 @@ def validate(
     *,
     signal: Mapping[str, Any] | None = None,
     raw_feed_item: Mapping[str, Any] | None = None,
+    evidence: Sequence[Mapping[str, Any]] = (),
 ) -> Verdict:
     """Run the full validator with the registries already bound."""
     return validator.validate_article(
@@ -222,6 +223,7 @@ def validate(
         personas=personas(),
         signal=signal,
         raw_feed_item=raw_feed_item,
+        evidence=evidence,
     )
 
 

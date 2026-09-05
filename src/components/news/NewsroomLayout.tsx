@@ -105,6 +105,10 @@ export function NewsroomLayout() {
               Follow
             </Link>
             {' · '}
+            <Link to="/briefings" className="news-hover underline underline-offset-2">
+              Business briefings
+            </Link>
+            {' · '}
             <Link to="/newsroom" className="news-hover underline underline-offset-2">
               The newsroom
             </Link>

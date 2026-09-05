@@ -272,15 +272,22 @@ class TestTodaysClaimsAreRecorded:
             created_at=PUBLISHED_AT,
             provenance={"validator": {"passed": True, "checks": []}, "signal_id": "sig1"},
             body=[Block(type="paragraph", text="The rate fell to 6.6%.")],
+            dek="The June reading.",
+            persona={
+                "id": "nida", "name": "Ilze Nida", "beat": "Economy & Labour",
+                "byline": "Ilze Nida · AI correspondent, Economy & Labour",
+            },
         )
 
         class _Verdict:
             passed = True
 
         report = RunReport(
-            series=[_series(6.6)],
+            series=[_series(6.6, retrieved="2026-08-24T10:00:00Z")],
             generated=[GenerationResult(signal=signal, article=article, verdict=_Verdict())],
         )
+        await run_module._store_all(articles, report)
+        assert report.publication_ids == {"01ABC"}
         await _watch_revisions(articles, report, vintages=vintages)
 
         ledger = await vintages.load()

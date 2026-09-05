@@ -25,6 +25,7 @@ const AiPolicyPage = lazy(() => import('./components/news/AiPolicyPage.tsx'))
 const CorrectionsPage = lazy(() => import('./components/news/CorrectionsPage.tsx'))
 const FollowPage = lazy(() => import('./components/news/FollowPage.tsx'))
 const WeeklyPage = lazy(() => import('./components/news/WeeklyPage.tsx'))
+const BriefingsPage = lazy(() => import('./components/news/BriefingsPage.tsx'))
 
 const LEGACY_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS)
 
@@ -76,6 +77,7 @@ createRoot(document.getElementById('root')!).render(
                           when the article behind it changes. */}
                       <Route path="/follow" element={<FollowPage />} />
                       <Route path="/weekly" element={<WeeklyPage />} />
+                      <Route path="/briefings" element={<BriefingsPage />} />
                     </Route>
                     <Route path="/data/:section?" element={<App />} />
                     <Route path="/indicator/:id" element={<IndicatorPage />} />

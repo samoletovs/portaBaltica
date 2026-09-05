@@ -85,9 +85,12 @@ class ArticleStore:
         self._blob_failed = False
 
     def _container_client(self) -> Any:
-        if self._blob is not None or self._blob_failed or not self._account_url:
+        if self._blob_failed:
+            raise RuntimeError("configured article storage is unavailable")
+        if self._blob is not None or not self._account_url:
             return self._blob
         try:
+            from azure.core.exceptions import ResourceExistsError
             from azure.identity import DefaultAzureCredential
             from azure.storage.blob import BlobServiceClient
 
@@ -95,13 +98,49 @@ class ArticleStore:
             container = service.get_container_client(self._container)
             try:
                 container.create_container()
-            except Exception:  # noqa: BLE001
+            except ResourceExistsError:
                 pass
             self._blob = container
         except Exception as exc:  # noqa: BLE001
-            log.warning("article blob container unavailable (%s); local only", exc)
             self._blob_failed = True
+            raise RuntimeError("configured article storage is unavailable") from exc
         return self._blob
+
+    def _write_document(self, name: str, body: bytes, cache_control: str) -> None:
+        container = self._container_client()
+        if container is None:
+            self._write_local(name, body)
+            return
+        container.upload_blob(
+            name=name, data=body, overwrite=True,
+            content_settings=_content_settings(cache_control),
+        )
+        try:
+            self._write_local(name, body)
+        except OSError:
+            log.warning("local mirror failed after durable upload of %s", name, exc_info=True)
+
+    def _read_authoritative(self, name: str) -> Any:
+        container = self._container_client()
+        if container is not None:
+            from azure.core.exceptions import ResourceNotFoundError
+
+            try:
+                payload = json.loads(container.download_blob(name).readall())
+            except ResourceNotFoundError as exc:
+                # A missing document can be initialised; a missing container cannot.
+                if exc.error_code == "BlobNotFound":
+                    return None
+                raise
+        else:
+            local = self._local_dir / name
+            try:
+                payload = json.loads(local.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                return None
+        if payload is None:
+            raise ValueError(f"null publication document: {name}")
+        return payload
 
     @staticmethod
     def blob_name_for(article: Article) -> str:
@@ -146,19 +185,7 @@ class ArticleStore:
             raise NotServable(f"{article.id}: {problem}")
         name = self.blob_name_for(article)
         body = json.dumps(article.to_json(), ensure_ascii=False, indent=2).encode("utf-8")
-        await asyncio.to_thread(self._write_local, name, body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                await asyncio.to_thread(
-                    container.upload_blob,
-                    name=name,
-                    data=body,
-                    overwrite=True,
-                    content_settings=_content_settings(_ARTICLE_CACHE_CONTROL),
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("blob write failed for %s (%s)", name, exc)
+        await asyncio.to_thread(self._write_document, name, body, _ARTICLE_CACHE_CONTROL)
         return name
 
     def _write_local(self, name: str, body: bytes) -> None:
@@ -167,45 +194,23 @@ class ArticleStore:
         target.write_bytes(body)
 
     def _read_json(self, name: str) -> dict[str, Any] | None:
-        container = self._container_client()
-        if container is not None:
-            try:
-                downloaded = container.download_blob(name).readall()
-                return json.loads(downloaded)
-            except Exception:  # noqa: BLE001 — absent or unreadable is not an error
-                pass
-        local = self._local_dir / name
-        if local.exists():
-            try:
-                return json.loads(local.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                return None
-        return None
+        payload = self._read_authoritative(name)
+        if payload is not None and not isinstance(payload, dict):
+            raise ValueError(f"invalid object document: {name}")
+        return payload
 
     async def read_json(self, name: str) -> dict[str, Any] | None:
         """A JSON document written by :meth:`put_json`, or ``None``.
 
-        Never raises for an absent or corrupt document. The only caller is the
-        run report reading its own predecessor to carry a rolling count
-        forward, and a missing history must degrade to "no history" rather than
-        failing the run that was trying to record itself.
+        Only a missing document returns ``None``. Corrections, retractions and
+        operational state share this reader: stale local fallback or corruption
+        must not become permission to replace the authoritative document.
         """
         return await asyncio.to_thread(self._read_json, name)
 
     def _put_json(self, name: str, payload: dict[str, Any], cache_control: str) -> str:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-        self._write_local(name, body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                container.upload_blob(
-                    name=name,
-                    data=body,
-                    overwrite=True,
-                    content_settings=_content_settings(cache_control),
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("blob write failed for %s (%s)", name, exc)
+        self._write_document(name, body, cache_control)
         return name
 
     async def put_json(
@@ -229,41 +234,15 @@ class ArticleStore:
         which for a file written by an older version of this pipeline is exactly
         the part worth preserving.
         """
-        name = f"{slug}.json"
-        container = self._container_client()
-        if container is not None:
-            try:
-                raw = container.download_blob(name).readall()
-                payload = json.loads(raw.decode("utf-8"))
-                if isinstance(payload, dict):
-                    return payload
-            except Exception as exc:  # noqa: BLE001
-                log.info("no readable article %s in blob (%s)", name, exc)
-        local = self._local_dir / name
-        if local.exists():
-            try:
-                payload = json.loads(local.read_text(encoding="utf-8"))
-                if isinstance(payload, dict):
-                    return payload
-            except Exception as exc:  # noqa: BLE001
-                log.warning("local article %s unreadable (%s)", name, exc)
-        return None
+        payload = self._read_authoritative(f"{slug}.json")
+        if payload is not None and not isinstance(payload, dict):
+            raise ValueError(f"invalid published article: {slug}")
+        return payload
 
     def _write_published(self, slug: str, payload: dict[str, Any]) -> None:
         name = f"{slug}.json"
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-        self._write_local(name, body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                container.upload_blob(
-                    name=name,
-                    data=body,
-                    overwrite=True,
-                    content_settings=_content_settings(_ARTICLE_CACHE_CONTROL),
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("blob write failed for %s (%s)", name, exc)
+        self._write_document(name, body, _ARTICLE_CACHE_CONTROL)
 
     async def read_published(self, slug: str) -> dict[str, Any] | None:
         return await asyncio.to_thread(self._read_published, slug)
@@ -276,24 +255,12 @@ class ArticleStore:
     INDEX_BLOB = "index.json"
 
     def _read_corrections_log(self) -> list[dict[str, Any]]:
-        container = self._container_client()
-        if container is not None:
-            try:
-                raw = container.download_blob(self.CORRECTIONS_BLOB).readall()
-                payload = json.loads(raw.decode("utf-8"))
-                if isinstance(payload, list):
-                    return [e for e in payload if isinstance(e, dict)]
-            except Exception as exc:  # noqa: BLE001
-                log.info("no corrections log in blob yet (%s)", exc)
-        local = self._local_dir / self.CORRECTIONS_BLOB
-        if local.exists():
-            try:
-                payload = json.loads(local.read_text(encoding="utf-8"))
-                if isinstance(payload, list):
-                    return [e for e in payload if isinstance(e, dict)]
-            except Exception as exc:  # noqa: BLE001
-                log.warning("local corrections log unreadable (%s)", exc)
-        return []
+        payload = self._read_authoritative(self.CORRECTIONS_BLOB)
+        if payload is None:
+            return []
+        if not isinstance(payload, list) or any(not isinstance(e, dict) for e in payload):
+            raise ValueError("invalid corrections log")
+        return payload
 
     #: Reserved room for our own reporting, and a separate ceiling for link-outs.
     #:
@@ -361,18 +328,7 @@ class ArticleStore:
                 existing.append(entry)
                 seen.add(key)
         body = json.dumps(existing, ensure_ascii=False, indent=2).encode("utf-8")
-        self._write_local(self.CORRECTIONS_BLOB, body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                container.upload_blob(
-                    name=self.CORRECTIONS_BLOB,
-                    data=body,
-                    overwrite=True,
-                    content_settings=_content_settings(_INDEX_CACHE_CONTROL),
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("corrections log blob write failed (%s)", exc)
+        self._write_document(self.CORRECTIONS_BLOB, body, _INDEX_CACHE_CONTROL)
         return len(existing)
 
     async def append_corrections(self, entries: Sequence[dict[str, Any]]) -> int:
@@ -384,27 +340,13 @@ class ArticleStore:
         Blob is authoritative: a local run must not be able to publish a front
         page built from one machine's leftovers.
         """
-        container = self._container_client()
-        if container is not None:
-            try:
-                raw = container.download_blob(self.INDEX_BLOB).readall()
-                payload = json.loads(raw.decode("utf-8"))
-                existing = payload.get("articles")
-                if isinstance(existing, list):
-                    return [e for e in existing if isinstance(e, dict)]
-            except Exception as exc:  # noqa: BLE001
-                log.info("no readable index in blob yet (%s); starting fresh", exc)
-
-        local = self._local_dir / self.INDEX_BLOB
-        if local.exists():
-            try:
-                payload = json.loads(local.read_text(encoding="utf-8"))
-                existing = payload.get("articles")
-                if isinstance(existing, list):
-                    return [e for e in existing if isinstance(e, dict)]
-            except Exception as exc:  # noqa: BLE001
-                log.warning("local index unreadable (%s); starting fresh", exc)
-        return []
+        payload = self._read_authoritative(self.INDEX_BLOB)
+        if payload is None:
+            return []
+        existing = payload.get("articles") if isinstance(payload, dict) else None
+        if not isinstance(existing, list) or any(not isinstance(e, dict) for e in existing):
+            raise ValueError("invalid publication index")
+        return existing
 
     @staticmethod
     def _dedupe_by_signal(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -603,19 +545,7 @@ class ArticleStore:
             ensure_ascii=False,
             indent=2,
         ).encode("utf-8")
-        await asyncio.to_thread(self._write_local, self.INDEX_BLOB, body)
-        container = self._container_client()
-        if container is not None:
-            try:
-                await asyncio.to_thread(
-                    container.upload_blob,
-                    name=self.INDEX_BLOB,
-                    data=body,
-                    overwrite=True,
-                    content_settings=_content_settings(_INDEX_CACHE_CONTROL),
-                )
-            except Exception as exc:  # noqa: BLE001
-                log.warning("index blob write failed (%s)", exc)
+        await asyncio.to_thread(self._write_document, self.INDEX_BLOB, body, _INDEX_CACHE_CONTROL)
         return self.INDEX_BLOB
 
 

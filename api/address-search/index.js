@@ -1,27 +1,8 @@
-const https = require('https');
+const ckan = require('../shared/ckan.js');
+const { normaliseSearch } = require('../shared/searchQuery.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
-function jsonGet(url) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { timeout: 15000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed')); }
-      });
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-  });
-}
-
-const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
 // Resource 6: "Building and land addresses" — 608K addresses with GPS coordinates
 const ADDRESS_RESOURCE_ID = 'a510737a-18ce-400f-ad4b-04fce5228272';
 
@@ -32,28 +13,26 @@ const ADDRESS_RESOURCE_ID = 'a510737a-18ce-400f-ad4b-04fce5228272';
  * Returns matching addresses with coordinates, postal codes, and municipality info.
  */
 const handler = async function (context, req) {
-  var query = (req.query && req.query.q) || '';
-  if (!query || query.length < 3) {
+  var query = normaliseSearch(req.query && req.query.q, true);
+  if (!query) {
     context.res = {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Query parameter "q" required (min 3 chars)' }),
+      body: JSON.stringify({ error: 'Query parameter "q" required (3–200 searchable characters)' }),
     };
     return;
   }
 
-  // Sanitize — allow Latin, Latvian diacritics, numbers, spaces, commas, hyphens
-  query = query.replace(/[^\w\sāčēģīķļņōŗšūžĀČĒĢĪĶĻŅŌŖŠŪŽ,.\-]/gi, '').trim();
-
   try {
     // Full-text search on the address datastore
-    var url = CKAN_API + '/datastore_search?resource_id=' + ADDRESS_RESOURCE_ID +
-      '&q=' + encodeURIComponent(query) +
-      '&limit=20' +
-      '&fields=KODS,STD,ATRIB,DD_N,DD_E,STATUSS,NOSAUKUMS';
-    var data = await jsonGet(url);
-    var records = (data.result && data.result.records) || [];
-    var total = (data.result && data.result.total) || 0;
+    var data = await ckan.ckan('datastore_search', {
+      resource_id: ADDRESS_RESOURCE_ID, q: query, limit: 20,
+      filters: { STATUSS: 'EKS' },
+      fields: 'KODS,STD,ATRIB,DD_N,DD_E,STATUSS,NOSAUKUMS',
+    });
+    var records = data.records;
+    var total = data.total;
+    if (!Array.isArray(records) || !Number.isFinite(total)) throw new Error('Address registry returned an incomplete search');
 
     var addresses = records
       .filter(function (r) { return r.STATUSS === 'EKS'; }) // Only active addresses
@@ -81,7 +60,7 @@ const handler = async function (context, req) {
     };
   } catch (error) {
     context.res = {
-      status: 500,
+      status: 502,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: error.message }),
     };

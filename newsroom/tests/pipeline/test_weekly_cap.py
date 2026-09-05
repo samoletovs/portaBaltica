@@ -37,24 +37,18 @@ rewritten in the same change.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 
 import pytest
 
 from newsroom.pipeline.weekly import MAX_FINDINGS, MIN_FINDINGS, collect_week
+from newsroom.pipeline.vintage import PublishedFigure
 
 NOW = date(2026, 8, 30)  # a Sunday, which is when a wrap is written
 
 
-class Figure:
-    """The three fields `collect_week` reads off a `PublishedFigure`."""
-
-    def __init__(self, slug: str, published_at: str) -> None:
-        self.slug = slug
-        self.published_at = published_at
-
-
-def a_week(count: int, *, start_day: int = 24) -> list[Figure]:
+def a_week(count: int, *, start_day: int = 24) -> list[PublishedFigure]:
     """`count` findings, one per article, spread forward from Monday 24 August.
 
     Distinct days where possible so the ordering under test is observable: a
@@ -62,7 +56,13 @@ def a_week(count: int, *, start_day: int = 24) -> list[Figure]:
     from "input order".
     """
     return [
-        Figure(f"art-{i:02d}", f"2026-08-{start_day + (i % 7):02d}T09:00:00Z")
+        PublishedFigure(
+            metric="unemployment_rate", metric_label="unemployment rate",
+            geography="LV", period="2026-07", value=6.8, unit="%",
+            slug=f"art-{i:02d}", article_id=f"article-{i}", headline=f"Finding {i}",
+            observed_at="2026-08-24T08:00:00Z",
+            published_at=f"2026-08-{start_day + (i % 7):02d}T09:00:00Z",
+        )
         for i in range(count)
     ]
 
@@ -141,6 +141,18 @@ def test_the_findings_are_ordered_newest_first() -> None:
     corpus = collect_week(a_week(MAX_FINDINGS + 4), now=NOW)
     stamps = [f.published_at for f in corpus.figures]
     assert stamps == sorted(stamps, reverse=True), stamps
+
+
+def test_revision_only_observations_do_not_consume_the_findings_cap() -> None:
+    offered = a_week(MAX_FINDINGS + 4)
+    revision_only = [
+        replace(f, slug=f"{f.slug}-baseline", summary=False, published_at="2026-08-30T23:00:00Z")
+        for f in offered
+    ]
+    expected = collect_week(offered, now=NOW)
+    actual = collect_week(revision_only + offered, now=NOW)
+    assert actual.slugs == expected.slugs
+    assert len(actual) == MAX_FINDINGS
 
 
 def test_the_two_bounds_do_not_overlap() -> None:

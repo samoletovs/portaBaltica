@@ -152,7 +152,7 @@ const CHECKS = [
   },
   {
     name: 'NordPool Electricity',
-    url: buildNordPoolProbeUrl(),
+    get url() { return buildNordPoolProbeUrl(); },
     type: 'elering',
     required: true,
     powers: 'Day-ahead power prices',
@@ -182,7 +182,7 @@ const CHECKS = [
      * burst that nobody can experience, which is how a status page teaches
      * readers to ignore it.
      */
-    url: buildGridStateProbeUrl(),
+    get url() { return buildGridStateProbeUrl(); },
     type: 'elering-system',
     required: false,
     powers: 'Live grid state panel (production, renewable share, net balance)',

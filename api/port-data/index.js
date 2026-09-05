@@ -280,15 +280,17 @@ const handler = async function (context, req) {
     const measurePeriods = [groupLatest(goods), groupLatest(passengers), groupLatest(vessels)];
     const newestPeriod = newestOf(measurePeriods);
     const oldestPeriod = oldestOf(measurePeriods);
+    const available = newestPeriod !== null || cargoMix.total !== null;
 
     context.res = {
-      status: 200,
+      status: available ? 200 : 502,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=' + CACHE_SECONDS,
+        'Cache-Control': available ? 'public, max-age=' + CACHE_SECONDS : 'no-store',
       },
       body: JSON.stringify({
         country: country,
+        ...(available ? {} : { error: 'Maritime data sources unavailable' }),
         goods: {
           unit: 'THS_T',
           countryOnly: goods.countryOnly,

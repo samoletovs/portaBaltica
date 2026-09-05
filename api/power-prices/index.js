@@ -75,22 +75,25 @@ function couplingOf(rows) {
   };
 }
 
+const priceIntervals = require('../shared/priceIntervals.js');
+
 const handler = async function (context, req) {
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 2);
 
-  const todayKey = start.toISOString().slice(0, 10);
-  const tomorrowKey = new Date(start.getTime() + 86400e3).toISOString().slice(0, 10);
-
   const url = ELERING_URL +
     '?start=' + encodeURIComponent(start.toISOString()) +
     '&end=' + encodeURIComponent(end.toISOString());
 
   try {
-    const payload = await es.httpJson(url, { deadlineMs: 10000 });
-    const raw = (payload && payload.data) || {};
+    const schedule = await priceIntervals.loadSchedule(url, function (sourceUrl) {
+      return es.httpJson(sourceUrl, { deadlineMs: 10000 });
+    }, { scope: 'day-ahead', graceMs: 3600000 });
+    const raw = schedule.data;
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const tomorrowKey = new Date(Date.parse(todayKey) + 86400e3).toISOString().slice(0, 10);
 
     // Align every zone on a shared timeline so a spread is always computed
     // across zones within the same interval.
@@ -103,7 +106,7 @@ const handler = async function (context, req) {
     }
 
     const timeline = Array.from(byTimestamp.keys()).sort(function (a, b) { return a - b; });
-    const nowSeconds = Math.floor(Date.now() / 1000);
+    const current = priceIntervals.currentInterval(timeline.map(function (timestamp) { return { timestamp: timestamp }; }));
 
     const series = [];
     let currentInterval = null;
@@ -117,6 +120,7 @@ const handler = async function (context, req) {
 
       const spread = +(Math.max.apply(null, baltic) - Math.min.apply(null, baltic)).toFixed(2);
       const iso = new Date(ts * 1000).toISOString();
+      if (iso.slice(0, 10) !== todayKey && iso.slice(0, 10) !== tomorrowKey) continue;
 
       const entry = {
         time: iso,
@@ -130,10 +134,11 @@ const handler = async function (context, req) {
         spread: spread,
       };
       series.push(entry);
-      if (ts <= nowSeconds) currentInterval = entry;
+      if (current && ts === current.timestamp) currentInterval = entry;
     }
 
     const todayRows = series.filter(function (s) { return s.day === todayKey; });
+    if (!series.length) throw new Error('Elering returned no priced intervals');
     const tomorrowRows = series.filter(function (s) { return s.day === tomorrowKey; });
 
     const today = couplingOf(todayRows);
@@ -181,7 +186,8 @@ const handler = async function (context, req) {
           widestSpread: tomorrow.widestSpread,
         } : null,
         source: 'Elering (Nord Pool day-ahead)',
-        fetchedAt: new Date().toISOString(),
+        priceSchedule: schedule.meta,
+        fetchedAt: schedule.meta.retrievedAt,
       }),
     };
   } catch (error) {
@@ -197,6 +203,7 @@ module.exports = withSecurity(withCache(handler, {
   name: 'power-prices',
   keyOn: [],
   ttlMs: 900000,
+  timeBucketMs: priceIntervals.DELIVERY_INTERVAL_MS,
   graceMs: 3600000,
   staleWhileRevalidate: true,
 }));

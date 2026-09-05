@@ -802,18 +802,21 @@ def test_should_accept_saying_the_data_does_not_establish_a_cause(
 def test_should_accept_an_explanation_a_named_source_is_on_the_record_for(
     tier_a_article: dict[str, Any], signal: dict[str, Any], validate
 ) -> None:
-    """The prompt permits this in terms: "use official research context to
-    explain plausible causes ... attribute it by name". An attributed cause is
-    reporting, not invention."""
+    """Attribution requires the cited document, not just an institution's name."""
     tier_a_article["body"].append(
         {
             "type": "paragraph",
-            "text": "According to Eurostat, the change reflects a revision to the method.",
+            "text": "According to Latvijas Banka, the change reflects a revision to the method.",
             "figures": [],
         }
     )
 
-    verdict = validate(tier_a_article, signal=signal)
+    evidence = [{
+        "source_id": "latvijas_banka_news", "url": "https://www.bank.lv/review",
+        "document": "The change reflects a revision to the method.",
+    }]
+    tier_a_article["provenance"]["research"] = {"consulted": evidence}
+    verdict = validate(tier_a_article, signal=signal, evidence=evidence)
 
     assert verdict.passed, [c.name for c in verdict.failures()]
 

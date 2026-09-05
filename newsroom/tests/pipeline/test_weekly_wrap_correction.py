@@ -209,10 +209,12 @@ class TestItAppliesToTheArticleAsItActuallyIs:
         assert store.logged[0]["description"] == WEEKLY_WRAP_BASIS.description
 
     @pytest.mark.asyncio
-    async def test_a_second_run_is_a_no_op(self):
-        store = FakeStore({SLUG: _wrap()})
+    async def test_a_second_run_is_a_no_op(self, tmp_path):
+        from newsroom.pipeline.publish import ArticleStore
+
+        store = ArticleStore(account_url="", local_dir=tmp_path)
+        await store.write_published(SLUG, _wrap())
         await issue(store, [WEEKLY_WRAP_BASIS])
-        store.documents[SLUG] = store.written[SLUG]
 
         assert await issue(store, [WEEKLY_WRAP_BASIS]) == []
-        assert len(store.logged) == 1
+        assert len(store._read_corrections_log()) == 1

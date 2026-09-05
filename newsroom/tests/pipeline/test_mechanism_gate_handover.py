@@ -1,30 +1,4 @@
-"""The figure exemption is wider than the rule ``no_unsupported_mechanism`` states.
-
-A HANDOVER, PINNED AS ASSERTIONS RATHER THAN PROSE
----------------------------------------------------
-``check_no_unsupported_mechanism``'s docstring says the test is *whether the
-thing attributed to is present in the piece's own figures*. The implementation
-asks only whether **any** figure is present. This file executes that difference
-so the note beside the check is a claim someone can run, not a paragraph that
-rots.
-
-The check itself is **not** loosened by anything here, and was measured before
-being left alone:
-
-===================================================  ===================
-live drafts refused                                   4 of 14, twice
-of those refusals, genuinely unsupported              9 of 9
-published corpus, provable-revision cohort            1 of 7
-attributions inside figure-carrying paragraphs       42
-... naming an unobserved property                     1, and it was honest
-===================================================  ===================
-
-So the gate has no false positives today and the hole is not being walked
-through. Closing it means testing a noun phrase against a set of field names,
-which carries false-positive risk the numeric test does not — and a false
-positive here costs an article. That is the next brief, not a change made at
-the end of a long run.
-"""
+"""Regression for the former blanket figure and named-source exemptions."""
 
 from __future__ import annotations
 
@@ -55,26 +29,12 @@ def verdict(text, figures=None):
     )
 
 
-class TestTheGapIsRealAndDemonstrable:
+class TestTheFigureExemptionIsClosed:
     def test_the_retracted_sentence_is_refused_when_it_carries_no_figure(self):
         assert not verdict(RETRACTED).passed
 
-    def test_and_passes_beside_a_figure_for_something_else(self):
-        """The handover, in one assertion.
-
-        The paragraph explains *capacity and efficiency* and declares a figure
-        for *throughput*. Declaring a figure does not make the attributed thing
-        present; it only makes the paragraph ineligible for this gate.
-
-        This test asserts the CURRENT behaviour, so whoever closes the gap gets
-        a red test telling them where the note is — rather than a passing suite
-        and a paragraph of prose they may never read.
-        """
-        assert verdict(RETRACTED, A_THROUGHPUT_FIGURE).passed, (
-            "the figure exemption has been narrowed — good. Update the "
-            "handover in check_no_unsupported_mechanism's docstring and delete "
-            "this test."
-        )
+    def test_an_unrelated_throughput_figure_does_not_prove_capacity(self):
+        assert not verdict(RETRACTED, A_THROUGHPUT_FIGURE).passed
 
 
 class TestTheCheckItselfIsSound:
@@ -89,8 +49,8 @@ class TestTheCheckItselfIsSound:
     def test_it_allows_an_honest_refusal(self):
         assert verdict("The data does not show what drove the change.").passed
 
-    def test_it_allows_an_attributed_cause(self):
-        assert verdict(
+    def test_it_requires_evidence_for_an_attributed_cause(self):
+        assert not verdict(
             "According to Latvijas Banka, the fall is driven by the tariff change."
         ).passed
 
@@ -120,5 +80,5 @@ class TestThePromptAndTheCheckAgree:
         assert not verdict(example).passed
 
     def test_the_allowed_examples_really_are_allowed(self):
-        assert verdict("the ministry attributes it to the tariff change").passed
+        assert not verdict("the ministry attributes it to the tariff change").passed
         assert verdict("the data does not show what drove the change").passed

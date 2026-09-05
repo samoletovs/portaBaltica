@@ -1,5 +1,5 @@
 const https = require('https');
-const EUROSTAT_INDICATORS = require('../shared/indicators.js');
+const latvianSeries = require('../shared/latvianSeries.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
@@ -86,6 +86,7 @@ var INDICATORS = {
     title: 'Unemployment Rate',
     source: 'CSP Latvia (PxWeb)',
     eurostatFallback: 'unemployment',
+    preferEurostat: true,
   },
   house_prices: {
     path: '/VEK/PC/PCI/PCI050c',
@@ -337,20 +338,7 @@ var INDICATORS = {
  * indicator is unavailable or returns a cube this endpoint cannot read flatly.
  */
 async function fetchEurostatSeries(eurostatKey, years) {
-  const def = EUROSTAT_INDICATORS[eurostatKey];
-  if (!def) throw new Error('No Eurostat definition for ' + eurostatKey);
-  const data = await es.httpJson(es.buildUrl(def, years || 10, ['LV']), { deadlineMs: 20000 });
-  const parsed = es.parseJsonStat(data, ['LV']);
-  const lv = parsed.countries.LV;
-  if (!lv || lv.series.every(function (s) { return s.value === null; })) {
-    throw new Error('Eurostat returned no data for ' + eurostatKey);
-  }
-  return {
-    series: lv.series,
-    unit: def.unit,
-    title: def.title,
-    source: 'Eurostat (' + def.dataset + ')',
-  };
+  return latvianSeries.fetchEurostatSeries(eurostatKey, years);
 }
 
 function summarise(series) {
@@ -380,30 +368,7 @@ function summarise(series) {
  * what "Renewable energy share" was doing with a 12,750-cell table.
  */
 function readPxWebSeries(data, transform) {
-  if (!data || !data.value) return null;
-
-  const timeDim = data.id ? data.id[data.id.length - 1] : 'TIME';
-  let timeLabels = [];
-  if (data.dimension && data.dimension[timeDim] && data.dimension[timeDim].category) {
-    const cat = data.dimension[timeDim].category;
-    timeLabels = cat.index ? Object.keys(cat.index).sort(function (a, b) {
-      return (cat.index[a] || 0) - (cat.index[b] || 0);
-    }) : [];
-  }
-
-  const values = Array.isArray(data.value) ? data.value : Object.values(data.value);
-  if (timeLabels.length === 0) return null;
-  if (values.length > timeLabels.length) return null;
-
-  const series = [];
-  for (let i = 0; i < values.length && i < timeLabels.length; i++) {
-    series.push({
-      period: timeLabels[i],
-      value: transform ? transform(values[i]) : values[i],
-    });
-  }
-  if (series.every(function (s) { return s.value === null; })) return null;
-  return series;
+  return latvianSeries.readPxWebSeries(data, transform);
 }
 
 /**
@@ -416,7 +381,7 @@ function readPxWebSeries(data, transform) {
  */
 const handler = async function (context, req) {
   var indicator = (req.query && req.query.indicator) || '';
-  var def = INDICATORS[indicator];
+  var def = Object.prototype.hasOwnProperty.call(INDICATORS, indicator) ? INDICATORS[indicator] : null;
   if (!def) {
     context.res = {
       status: 400,
@@ -445,11 +410,6 @@ const handler = async function (context, req) {
       series = null;
     }
 
-    // Optional: limit to last N years
-    if (series && years > 0) {
-      var cutoff = series.length - (years * (indicator === 'gdp' || indicator === 'salary' || indicator === 'house_prices' ? 4 : 12));
-      if (cutoff > 0) series = series.slice(cutoff);
-    }
   }
 
   // A national table that has stopped updating was the failure this endpoint
@@ -484,8 +444,8 @@ const handler = async function (context, req) {
 
   if (!series) {
     context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' },
+      status: 502,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       body: JSON.stringify({
         indicator: indicator,
         title: title,
@@ -500,6 +460,7 @@ const handler = async function (context, req) {
     return;
   }
 
+  series = latvianSeries.limitYears(series, years);
   context.res = {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },

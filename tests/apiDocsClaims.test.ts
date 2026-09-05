@@ -115,35 +115,17 @@ describe('the API docs page states numbers that are true', () => {
     ).toContain(`${total} data source checks (${required} required)`);
   });
 
-  it('does not sell a feature that is already free', () => {
-    // The whole point. #187 shipped CSV and JSON export to every visitor, and
-    // the Pro column went on advertising "CSV data export" as something to pay
-    // for. Splitting on the Pro heading rather than searching the whole file,
-    // because the words must still be allowed to appear in the Free column.
-    const proStart = PAGE.indexOf('>Pro<');
-    const proEnd = PAGE.indexOf('>Enterprise<');
-    expect(proStart, 'the Pro tier heading moved').toBeGreaterThan(0);
-    expect(proEnd, 'the Enterprise tier heading moved').toBeGreaterThan(proStart);
-    const pro = PAGE.slice(proStart, proEnd);
-
-    for (const shipped of [/CSV/i, /JSON export/i]) {
-      expect(
-        pro,
-        `the Pro tier advertises ${shipped} as coming soon, but export shipped free in #187`,
-      ).not.toMatch(shipped);
-    }
+  it('does not advertise paid plans that are not operating', () => {
+    expect(PAGE).toContain('Free public access');
+    expect(PAGE).toContain('No paid plan or guaranteed delivery schedule is available');
+    expect(PAGE).toContain('to="/briefings"');
+    expect(PAGE).not.toMatch(/>Pro<|>Enterprise<|Coming soon|1000 calls\/hr/);
   });
 
   it('does not describe full history as a paid upgrade', () => {
-    // `?years=30` answers for everyone: measured live, unemployment returned 67
-    // observations at years=5 and 367 at years=30, unauthenticated.
-    const proStart = PAGE.indexOf('>Pro<');
-    const proEnd = PAGE.indexOf('>Enterprise<');
-    const pro = PAGE.slice(proStart, proEnd);
-    expect(
-      pro,
-      'the Pro tier offers a longer history than Free, but ?years=30 is already unauthenticated',
-    ).not.toMatch(/\d+\+?\s*day history/i);
+    expect(PAGE).toContain('Full history, not a rolling window');
+    expect(PAGE).toContain('CSV and JSON export on every series');
+    expect(PAGE).not.toMatch(/\d+\+?\s*day history/i);
   });
 
   it('lists exactly the indicators the historical endpoint serves', () => {
@@ -265,6 +247,8 @@ describe('the API docs page states numbers that are true', () => {
     'RankedComparison.tsx',
     'TradePartnersPanel.tsx',
   ];
+  // This page explains reporting periods; it maps business questions, not observations.
+  const PERIOD_EXPLANATIONS = ['BriefingsPage.tsx'];
 
   it('backs "export on every series" with an export on every series', () => {
     // The Free tier sells "CSV and JSON export on every series". #187 shipped
@@ -313,6 +297,12 @@ describe('the API docs page states numbers that are true', () => {
       .sort();
 
     expect(periodic, 'a periodic surface that is neither a series nor a listed cross-section')
-      .toEqual([...CROSS_SECTIONS].sort());
+      .toEqual([...CROSS_SECTIONS, ...PERIOD_EXPLANATIONS].sort());
+  });
+
+  it('does not mistake a newly charted briefing page for explanatory copy', () => {
+    const source = readFileSync(resolve('src/components/news/BriefingsPage.tsx'), 'utf8');
+    expect(source).not.toMatch(/<ResponsiveContainer\b|\.period\b/);
+    expect([...source.matchAll(/(\w+)\.map\(/g)].map((match) => match[1])).toEqual(['QUESTIONS']);
   });
 });

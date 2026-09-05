@@ -75,7 +75,7 @@ export function SystemStatusFooter() {
 
   const statusColor =
     status.status === 'healthy' ? 'dash-positive' :
-    status.status === 'degraded' ? 'dash-warning' : 'dash-negative';
+    status.status === 'degraded' || status.status === 'stale' ? 'dash-warning' : 'dash-negative';
 
   /**
    * The count beside the badge must count what the badge counts.

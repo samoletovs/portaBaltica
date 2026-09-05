@@ -1,6 +1,6 @@
 # Corrections policy
 
-**Last updated:** 2026-08-24
+**Last updated:** 2026-09-05
 **Accountable publisher:** Andre Kõpu (human)
 
 ## The rule
@@ -30,10 +30,18 @@ Our articles are generated from open datasets by software. Two failure modes
 follow from that, and neither is hypothetical:
 
 **Upstream data changes.** Statistical agencies revise. A figure correct at
-publication can become wrong a month later through no error of ours. Because we
-record the dataset and the retrieval timestamp on every article, we can identify
-exactly which articles a revision affects — something a human newsroom usually
-cannot do at all.
+publication can change a month later through no error of ours. The automated
+watch compares marked raw observations while they remain in both the bounded
+ledger and the fetched source history. Publication metadata alone does not prove
+every affected claim was found. Legacy entries without raw-observation markers
+need reviewed, archive-based maintenance; see the AI-use policy.
+
+New publications also retain their original observation snapshots in provenance.
+An interrupted ledger registration can be retried from articles still in the
+publication index, without substituting later source values. Recorded source
+notices on indexed or ledger-tracked articles are reconciled with the public log
+even if the source changes again. These bounded retries do not repair the whole
+historical archive.
 
 **Systematic errors, not one-off ones.** When a human reporter makes a mistake, one
 article is wrong. When a detector or a prompt is wrong, *every article of that
@@ -58,7 +66,8 @@ hear it from you than not hear it at all.
 
 ## Our record
 
-The [corrections log](/corrections) is complete from launch. We publish
-corrections per hundred articles as an ongoing metric rather than a claim,
-because a portal of this kind should be judged on its error rate and not on its
-intentions.
+The [corrections log](/corrections) records issued notices. Absence of a notice is
+not evidence that an article is error-free or that every historical record has
+been reconciled. Source revisions are distinct from errors by this newsroom and
+must not be combined into a single reporting-error rate. Articles and their log
+entries are separate writes; failures need retry and, for legacy records, review.

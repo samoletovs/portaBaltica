@@ -67,7 +67,20 @@ const WEATHER_GRACE_MS = 60 * 60 * 1000;
 function cachedJson(url) {
   return cache.memo(cache.requestKey('open-meteo', url), WEATHER_TTL_MS, WEATHER_GRACE_MS, function () {
     return es.httpJson(url, HTTP);
-  }).then(function (result) { return result.value; });
+  });
+}
+
+function observationMetadata(result) {
+  const data = result.value;
+  const time = data.current && data.current.time;
+  const zoned = typeof time === 'string' && /[Zz]$|[+-]\d{2}:\d{2}$/.test(time);
+  const stamp = typeof time === 'string' ? Date.parse(zoned ? time : time + 'Z') : NaN;
+  const offset = zoned ? 0 : Number(data.utc_offset_seconds || 0) * 1000;
+  return {
+    retrievedAt: new Date(Date.now() - result.ageMs).toISOString(),
+    observedAt: Number.isFinite(stamp) ? new Date(stamp - offset).toISOString() : null,
+    stale: result.servedAfterFailure || result.ageMs >= WEATHER_TTL_MS,
+  };
 }
 
 var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
@@ -148,12 +161,14 @@ async function fetchWeather(country) {
       '&longitude=' + city.lon +
       '&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code' +
       '&timezone=Europe/Riga';
-    return cachedJson(url).then(function (data) {
+    return cachedJson(url).then(function (result) {
+      var data = result.value;
       var current = data.current || {};
       // `|| 0` turned a missing reading into a real-looking measurement: an
       // absent temperature became 0°C, which in Latvia reads as an ordinary
       // winter day rather than as an error.
       return {
+        ...observationMetadata(result),
         city: city.name,
         temperature: numberOrNull(current.temperature_2m),
         windSpeed: numberOrNull(current.wind_speed_10m),
@@ -189,7 +204,8 @@ async function fetchAirQuality(country) {
       '?latitude=' + coords.lat + '&longitude=' + coords.lon +
       '&current=pm2_5,nitrogen_dioxide,european_aqi' +
       '&timezone=' + tz;
-    var data = await cachedJson(url);
+    var cached = await cachedJson(url);
+    var data = cached.value;
     var current = data.current || {};
     var aqi = numberOrNull(current.european_aqi);
 
@@ -203,6 +219,7 @@ async function fetchAirQuality(country) {
     var band = airQuality.classifyEuropeanAqi(aqi);
 
     return {
+      ...observationMetadata(cached),
       pm25: numberOrNull(current.pm2_5),
       no2: numberOrNull(current.nitrogen_dioxide),
       aqi: aqi,
@@ -272,10 +289,15 @@ const handler = async function (context, req) {
       fetchAirQuality(country),
       fetchCapitalPopulation(country),
     ]);
+    const retrievals = weather.cities.map(function (city) { return city.retrievedAt; })
+      .concat(airQuality.retrievedAt || []).filter(Boolean).sort();
+    const available = weather.cities.some(function (city) {
+      return city.temperature !== null || city.windSpeed !== null || city.humidity !== null;
+    }) || airQuality.available;
 
     context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=900' },
+      status: available ? 200 : 502,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': available ? 'public, max-age=900' : 'no-store' },
       body: JSON.stringify({
         weather: weather.cities,
         // Always present, even when empty. A missing `weather` key and an empty
@@ -292,7 +314,7 @@ const handler = async function (context, req) {
         capitalPopulationLabel: population.label,
         capitalPopulationYear: population.year,
         capitalPopulationSource: population.source,
-        fetchedAt: new Date().toISOString(),
+        fetchedAt: retrievals[0] || new Date().toISOString(),
       }),
     };
   } catch (error) {

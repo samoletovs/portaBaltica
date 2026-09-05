@@ -14,7 +14,7 @@ under test.
 from __future__ import annotations
 
 import copy
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 import pytest
 
@@ -261,6 +261,7 @@ def validate(registry: SourceRegistry, personas: PersonaRegistry):
         *,
         signal: Mapping[str, Any] | None = None,
         raw_feed_item: Mapping[str, Any] | None = None,
+        evidence: Sequence[Mapping[str, Any]] = (),
     ) -> ValidatorVerdict:
         return validate_article(
             article,
@@ -268,6 +269,7 @@ def validate(registry: SourceRegistry, personas: PersonaRegistry):
             personas=personas,
             signal=signal,
             raw_feed_item=raw_feed_item,
+            evidence=evidence,
         )
 
     return _validate

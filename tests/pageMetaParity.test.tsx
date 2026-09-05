@@ -40,6 +40,7 @@ import type { ReactElement } from 'react';
 
 import NewsFeed from '../src/components/news/NewsFeed';
 import FollowPage from '../src/components/news/FollowPage';
+import BriefingsPage from '../src/components/news/BriefingsPage';
 import WeeklyPage from '../src/components/news/WeeklyPage';
 import CorrectionsPage from '../src/components/news/CorrectionsPage';
 import AiPolicyPage from '../src/components/news/AiPolicyPage';
@@ -191,6 +192,7 @@ describe('the mirror agrees with the page, route by route', () => {
   const CASES: [string, string, () => ReactElement][] = [
     ['/', '/', () => <NewsFeed />],
     ['/follow', '/follow', () => <FollowPage />],
+    ['/briefings', '/briefings', () => <BriefingsPage />],
     ['/weekly', '/weekly', () => <WeeklyPage />],
     ['/corrections', '/corrections', () => <CorrectionsPage />],
     ['/about/ai', '/about/ai', () => <AiPolicyPage />],

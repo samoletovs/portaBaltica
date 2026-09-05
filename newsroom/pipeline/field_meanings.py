@@ -172,6 +172,12 @@ the series but not a value the indicator ever took. So:
   - What needs explaining is why the two moved APART, not why the indicator
     moved.
 """
+    if signal.metric == "day_ahead_power_spread":
+        note += (
+            "  - This is a difference in intraday price ranges, not a difference in average prices.\n"
+            "    Each country value is its daily maximum minus minimum interval price.\n"
+            "    Name that quantity in the headline and state both countries' ranges in the body.\n"
+        )
     if mention_thresholds:
         note += (
             "  - A threshold you propose must be stated on the distance, not on\n"

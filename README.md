@@ -14,6 +14,7 @@ written from stays available as the evidence behind them.
 | `/correspondents/:id` | Correspondent bio — what the AI system is, and who is accountable |
 | `/about/ai` | The AI-use policy |
 | `/corrections` | The public, append-only corrections log |
+| `/briefings` | Business briefing discovery pilot; enquiries stay closed until the contact channel is verified |
 | `/data`, `/data/:section` | The full indicator dashboard |
 | `/indicator/:id` | Indicator detail with the long series |
 | `/rss.xml`, `/sitemap.xml` | Feeds for our own articles |
@@ -38,6 +39,22 @@ value beyond the source APIs themselves.
   Open-Meteo, CSP PxWeb, and maritime sources.
 - Publishes original analysis of those series, with every figure traceable back
   to the dataset it came from.
+- Searches headlines and summaries in the current published index, with more
+  articles revealed on demand rather than one unbounded front-page list.
+
+## Launch and revenue
+
+The first commercial experiment is a narrowly scoped business briefing, not a
+paywall on existing public data. See [the launch and revenue plan](docs/launch-and-revenue-plan.md)
+for the readiness findings, rights and email activation gates, pricing
+hypotheses and 30/60/90-day validation decisions.
+
+`/briefings` is a discovery page, not an operating subscription service.
+`VITE_BRIEFING_ENQUIRIES_OPEN` must be exactly `true` at build time to show its
+enquiry form; CI reads the same-named repository variable. Keep it unset until
+inbound mail, branded replies and an accountable inbox owner are verified.
+The form prepares an email draft locally: it does not submit, store a lead,
+enrol anyone in a newsletter or collect payment.
 
 ## Where articles come from
 

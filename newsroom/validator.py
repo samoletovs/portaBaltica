@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Final, Mapping, Sequence
 
-from . import numeric_scan
+from . import claim_grounding, numeric_scan
 from .persona_rules import AI_DISCLOSURE, PersonaError, PersonaRegistry
 from .source_registry import SourceRegistry, SourceRegistryError
 
@@ -162,6 +162,8 @@ class ValidationContext:
 
     raw_feed_item: Mapping[str, Any] | None = None
     """The stored raw RSS item, for byte-comparison. Tiers B and C."""
+    evidence: Sequence[Mapping[str, Any]] = ()
+    """Fetched official text supplied by the caller, never by the draft."""
 
     @property
     def tier(self) -> str:
@@ -1133,15 +1135,14 @@ _DENIES_A_MECHANISM = re.compile(
     r"|\bis\s+unclear\b|\bremains\s+unexplained\b",
     re.IGNORECASE,
 )
-
-#: An explanation somebody else is on the record for. The prompt permits this
-#: in terms -- "use official research context to explain plausible causes ...
-#: attribute it by name" -- so an attributed cause is reporting, not invention.
-_ATTRIBUTED_TO_A_SOURCE = re.compile(
-    r"\baccording\s+to\b|\bsaid\b|\bsays\b|\bstated\b|\btold\b"
-    r"|\bthe\s+(?:bank|ministry|commission|government|office|agency|operator)\b"
-    r"|\bEurostat\b|\bthe\s+statistics\s+office\b",
-    re.IGNORECASE,
+_DATA_SUBJECT = re.compile(
+    r"^\s*(?:(?:the|this|these|those)\s+)?(?:data|figures|evidence|series|reading|nothing)\b",
+    re.I,
+)
+_NEGATED_AUXILIARY = re.compile(r"\b(?:(?:does|do|did|could|can|will|would)\s+not|cannot)\b", re.I)
+_BARE_ATTRIBUTION = re.compile(
+    r"^(?:reflect|indicate|highlight|underscore|underline|signal|suggest|demonstrate"
+    r"|point\s+to|stem\s+from|result\s+from)\b", re.I,
 )
 
 #: Who the newsroom's own causal panel speaks as, when the prose names a role
@@ -1345,16 +1346,9 @@ def states_a_panel_cause(article: Mapping[str, Any]) -> bool:
     disagree with the gate about what it is counting, which this repository has
     now been bitten by more than once.
 
-    ONE DELIBERATE DIVERGENCE, STATED RATHER THAN INHERITED
-    ------------------------------------------------------
-    The gate skips a paragraph carrying figures, because a figure makes the
-    paragraph traceable and ``figures_traceable`` owns it from there. That is
-    right for deciding what to *reject* and wrong for deciding what a reader
-    *read*: a cause offered in a paragraph that also carries a figure was still
-    offered. So this walks every paragraph. The divergence can only move the
-    count upward, and the alternative — a measurement covering a smaller
-    population than its subject — is the failure shape that hid the maritime
-    probe's blindness to three ports.
+    This article-level usage metric is not evidence of truth or validation:
+    the publication gate now checks individual assertions, including those in
+    paragraphs carrying figures.
     """
     panellists = _panellists_of(article)
     if not panellists:
@@ -1376,196 +1370,126 @@ def states_a_panel_cause(article: Mapping[str, Any]) -> bool:
 
 
 def check_no_unsupported_mechanism(context: ValidationContext) -> CheckResult:
-    """A paragraph with no figures may not explain why something happened.
-
-    THE FAILURE THIS CATCHES
-    ------------------------
-    A weekly wrap published, and was retracted within the hour, for this::
-
-        "This increase in container throughput is significant for Lithuania's
-         maritime sector, reflecting the growing capacity and efficiency of its
-         ports."
-
-    Throughput rising does not show capacity rising -- it is equally consistent
-    with heavier use of unchanged capacity -- and it says nothing whatever
-    about efficiency. Two claims about the world, neither in the data, on a
-    site whose whole proposition is that every figure traces to its dataset.
-
-    All nine checks passed it, and they passed it VACUOUSLY: the paragraph
-    carries no figures, so every numeric gate had nothing to look at.
-
-    WHY GROUNDEDNESS, AND WHY FIGURES ARE HOW IT IS MEASURED
-    --------------------------------------------------------
-    The verb is not the signal. The prompt's own worked example of bad prose
-    contains "the rise reflects a streak of eight consecutive annual increases
-    since 2008", which uses the same verb as the retracted sentence and is
-    *grounded* -- the streak is in the data. What separates them is whether the
-    thing attributed to is present in the piece's own figures.
-
-    A paragraph's declared figures are exactly that presence, made machine
-    readable. So the rule is: a paragraph that carries evidence may explain
-    what it carries; a paragraph that carries none may not explain anything on
-    its own authority. It may still deny a mechanism -- "the data does not show
-    what drove the change" is figure-free and is one of the better sentences
-    this wire publishes -- or report one somebody is named as the source of.
-
-    THE THIRD EXEMPTION, AND WHY IT NEEDS TWO CONDITIONS
-    ----------------------------------------------------
-    Denying a mechanism is honest exactly once. Measured across the published
-    corpus it had stopped being a considered judgement and become the default
-    ending: one article carried two of the analyst's mechanisms and still
-    closed "the data does not show what drove the change in sentiment",
-    because a mechanism relates two verified series and never says why either
-    moved. Nothing in the pipeline was asking.
-
-    :mod:`newsroom.pipeline.hypothesis` now asks, and what it returns is a
-    third kind of paragraph: a cause proposed by this newsroom's own panel,
-    with no outside institution to name. ``_is_hedged_desk_hypothesis`` admits
-    it only when the prose carries **both** the attribution and an explicit
-    mark that the cause is unconfirmed -- see that function for why either
-    alone would reopen the hole this check exists to close.
-
-    WHAT THIS CHECK STILL CANNOT SEE
-    --------------------------------
-    It reads the grammar of attribution, never the truth of it. So
-    *"According to Latvijas Banka, the fall is driven by X"* passes whether or
-    not the bank said any such thing, and it has passed since this check was
-    written -- measured against the untouched validator with no panel present
-    at all.
-
-    The panel does not widen that hole and is built not to walk into it:
-    ``hypothesis._admissible`` attributes every claim to the panellist for
-    **both** bases, recording a cited release as ``informed_by`` instead,
-    precisely because the guard can establish that a document was retrieved and
-    can never establish that it says the claim. The brief then tells the writer
-    in terms not to write "according to <publisher>" for a panel cause. That is
-    a prompt, not a guarantee, and it is named here rather than left implied.
-
-    Closing it properly means requiring that a cause attributed to a publisher
-    name a source whose **document text was actually fetched** -- a title-only
-    feed item cannot support a claim about what anyone said. That is a change
-    to a long-standing rule with its own regression surface, and it belongs in
-    its own piece of work rather than as a side effect of this one.
-    """
+    """Check each assertion independently; excerpt matching does not prove truth."""
     name = "no_unsupported_mechanism"
-    # (index, message) rather than two lists. The block a message names and the
-    # block the remedy must address are the same fact, and this repo's own
-    # recurring defect is a second enumeration that drifts from the first.
     problems: list[tuple[int, str]] = []
     panellists = _panellists(context)
-
-    for index, block in enumerate(context.blocks):
-        if block.get("type") != "paragraph":
-            continue
-        text = block.get("text")
-        if not isinstance(text, str) or not text.strip():
-            continue
-        if block.get("figures"):
-            continue
-        found = _ATTRIBUTION.search(text)
-        if not found:
-            continue
-
-        # FIRST, unconditionally: an apparent person credited with explaining
-        # something. This runs ahead of every exemption because each of them
-        # was, in turn, found to wave it through.
-        #
-        # `_DENIES_A_MECHANISM` matches "cannot", so
-        #
-        #     "Dr. Ineta Zvirbule suggests the decline is driven by weaker
-        #      demand, but the data cannot confirm it."
-        #
-        # read to the gate as a denial. It is not a denial: a denial has no
-        # proposer, and this credits one while bolting a caveat to an
-        # assertion. That sentence published.
-        #
-        # `_ATTRIBUTED_TO_A_SOURCE` matches a bare "said", so an earlier
-        # version that excused an honorific whenever that pattern matched
-        # rejected the "suggests" phrasing and passed "Dr. Ineta Zvirbule SAID
-        # the decline is driven by weaker demand" -- guarding the one verb the
-        # live failure happened to use.
-        #
-        # And the desk branch below is the sharpest of the three, because the
-        # brief now *teaches* the writer to put "the newsroom's AI demographer"
-        # in the sentence: the shape most likely to carry a hallucinated name
-        # alongside it was the shape that skipped the check for it. Measured,
-        # "Dr. Ineta Zvirbule, the newsroom's AI household economist, says the
-        # fall is likely driven by weaker demand, though this data cannot
-        # confirm it" satisfied all three desk clauses and published.
-        #
-        # So there is no exemption. A named person may not be the author of an
-        # explanation in our prose at all -- which is not a new rule, it is the
-        # one `personas.yaml` already states as "attributing opinion or intent
-        # to a named living person" and that nothing enforced. Institutions
-        # carry no honorific, so "According to Latvijas Banka" is untouched.
-        apparent_person = _apparent_person(text)
-        if apparent_person is not None:
-            problems.append(
-                (
-                    index,
-                    f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                    f"and credits {apparent_person!r}. This wire does not put an "
-                    f"explanation in a named person's mouth: it has interviewed nobody. "
-                    f"Attribute it to the institution that published it, or to the "
-                    f"newsroom's own AI analyst with the cause marked unconfirmed",
-                )
-            )
-            continue
-
-        # Our own analyst is tested before the general exemption and against a
-        # stricter rule than an outside publisher, because
-        # ``_ATTRIBUTED_TO_A_SOURCE`` matches any sentence containing "says" --
-        # so a desk cause stated flatly would otherwise pass on the generic
-        # attribution and the two requirements would never decide anything. A
-        # conjunction that some other clause always satisfies first is not a
-        # guard, it is an unreachable branch with a reassuring docstring.
-        #
-        # The asymmetry is also the correct editorial position: a central bank
-        # is on the record independently of this wire and answerable for what
-        # it said. Our analyst is a model this newsroom prompted, so a cause in
-        # its mouth needs the reader told both that it is unconfirmed and that
-        # the analyst is software.
-        if _speaks_for_the_newsroom(text, panellists):
-            missing = []
-            if not _MARKED_UNCONFIRMED.search(text):
-                missing.append("no mark that the cause is unconfirmed")
-            if not _MARKED_AI.search(text):
-                missing.append(
-                    "no disclosure that the analyst is AI -- name it the way the "
-                    "brief does, e.g. \"the newsroom's AI demographer\""
-                )
-            if not missing:
-                continue
-            problems.append(
-                (
-                    index,
-                    f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                    f"on the newsroom's own analyst's authority, in a paragraph carrying "
-                    f"no figure and {' and '.join(missing)}",
-                )
-            )
-            continue
-        if _DENIES_A_MECHANISM.search(text) or _ATTRIBUTED_TO_A_SOURCE.search(text):
-            continue
-        problems.append(
-            (
-                index,
-                f"body[{index}]: explains a movement -- {found.group(0).strip()!r} -- "
-                "in a paragraph carrying no figure. Say what the data shows, "
-                "attribute the explanation to a named source, name the newsroom's "
-                "own AI analyst AND mark the cause as unconfirmed, or say plainly "
-                "that the data does not establish a cause",
-            )
-        )
+    consulted = (context.provenance.get("research") or {}).get("consulted") or []
+    for location, paragraph in context.generated_prose():
+        match = re.fullmatch(r"body\[(\d+)\]", location)
+        index = int(match[1]) if match else -1
+        for text in claim_grounding.sentences(paragraph):
+            reason = _unsupported_claim(context, text, paragraph, panellists, consulted, index)
+            if reason:
+                problems.append((index, f"{location}: {reason}"))
 
     if problems:
         return CheckResult(
             name,
             False,
             "; ".join(message for _, message in problems),
-            blocks=tuple(index for index, _ in problems),
+            blocks=tuple(sorted({index for index, _ in problems if index >= 0})),
         )
-    return CheckResult(name, True, "no unevidenced explanation")
+    return CheckResult(name, True, "no unsupported attribution or causal assertion detected")
+
+
+def _unsupported_claim(
+    context: ValidationContext, text: str, paragraph: str, panellists: tuple[str, ...],
+    consulted: Sequence[Mapping[str, Any]], index: int,
+) -> str | None:
+    grounded = claim_grounding.supported_excerpt(
+        text, evidence=context.evidence, consulted=consulted, registry=context.registry,
+    )
+    if claim_grounding.quotes(text) and not grounded:
+        return "quotation is not an excerpt of a cited, fetched official document"
+    clauses = claim_grounding.clauses(text, _ATTRIBUTION)
+    if len(clauses) > 1 and not grounded:
+        subject = negation = ""
+        for connector, clause in clauses:
+            if connector in {"and", "or"} and subject:
+                if _NEGATED_AUXILIARY.match(clause):
+                    clause = f"{subject} {clause}"
+                elif negation and _BARE_ATTRIBUTION.match(clause):
+                    clause = f"{subject} {negation} {clause}"
+            reason = _unsupported_claim(context, clause, paragraph, panellists, consulted, index)
+            if reason:
+                return reason
+            scope = _DATA_SUBJECT.match(clause)
+            if scope:
+                subject = scope.group(0)
+                auxiliary = _NEGATED_AUXILIARY.search(clause, scope.end())
+                negation = auxiliary.group(0) if auxiliary else ""
+            else:
+                # An unrecognized fragment may introduce a different subject.
+                # Only directly coordinated predicates retain inherited scope.
+                subject = negation = ""
+        return None
+    attributions = list(_ATTRIBUTION.finditer(text))
+    found = attributions[0] if attributions else None
+    desk = _speaks_for_the_newsroom(text, panellists)
+    if not found:
+        if (claim_grounding.reports_source(text) and not grounded and not desk
+                and not _sourced_data_observation(context, text, index)):
+            return "attributed statement is not an excerpt of a cited, fetched official document"
+        return None
+    apparent_person = _apparent_person(text)
+    if apparent_person is not None:
+        return f"explanation credits {apparent_person!r}; use a cited institution or disclosed AI analyst"
+    if desk:
+        if not _MARKED_AI.search(text):
+            return "newsroom explanation has no disclosure that the analyst is AI"
+        if not _MARKED_UNCONFIRMED.search(paragraph):
+            return "newsroom explanation has no mark that the cause is unconfirmed"
+        return None
+    if grounded:
+        return None
+    denial = _DENIES_A_MECHANISM.search(text)
+    if (len(attributions) == 1 and denial and denial.start() < found.start()
+            and _DATA_SUBJECT.match(text)):
+        return None
+    block = context.blocks[index] if index >= 0 else {}
+    descriptive = re.compile(
+        r"\b(?:reflects?|reflecting|represents?|indicating|indicates?)\s+(?:a |an |the )?"
+        r"(?:streak|gap|spread|difference|reading|rate|index|distance|ratio|count)\b",
+        re.I,
+    )
+    if block.get("figures") and numeric_scan.scan(text) and all(
+        descriptive.match(text, attribution.start()) for attribution in attributions
+    ) and not re.search(r"\b(?:driven by|due to|because|caused by)\b", text, re.I):
+        return None
+    return f"unsupported explanation ({found.group(0).strip()!r}); cite an official excerpt or disclose an unconfirmed AI hypothesis"
+
+
+def _sourced_data_observation(context: ValidationContext, text: str, index: int) -> bool:
+    """Numeric attribution to a declared data provider is not a prose quotation."""
+    attribution = re.match(r"^\s*according\s+to\s+([^,]+),\s*(.+)$", text, re.I)
+    if attribution is None or not re.search(
+        r"\b(?:average|rate|price|index|reading|count|total|spread|gap)\b", attribution[2], re.I,
+    ):
+        return False
+    named = claim_grounding.words(attribution[1])
+    if not any(
+        source_id in context.registry
+        and context.registry.get(source_id).tier == "A"
+        and named in {
+            claim_grounding.words(source_id),
+            claim_grounding.words(context.registry.get(source_id).name),
+            claim_grounding.words(context.registry.get(source_id).publisher),
+        }
+        for source_id in context.source_ids()
+    ):
+        return False
+    blocks = [context.blocks[index]] if index >= 0 else context.blocks
+    figures = [figure for block in blocks for figure in block.get("figures", [])]
+    verified = [
+        figure for figure in figures
+        if isinstance(figure, Mapping)
+        and (value := _as_number(figure.get("value"))) is not None
+        and (resolved := _as_number(resolve_signal_field(context.signal, figure.get("signal_field", "")))) is not None
+        and abs(value - resolved) <= figure_value_tolerance(figure["value"])
+    ]
+    tokens = numeric_scan.scan(attribution[2])
+    return bool(tokens) and all(numeric_scan.is_justified(token, verified) for token in tokens)
 
 
 # ── check: record_claim_holds ───────────────────────────────────────────
@@ -1964,6 +1888,7 @@ def validate_article(
     signal: Mapping[str, Any] | None = None,
     raw_feed_item: Mapping[str, Any] | None = None,
     now: datetime | None = None,
+    evidence: Sequence[Mapping[str, Any]] = (),
 ) -> ValidatorVerdict:
     """Run every check and return the verdict.
 
@@ -1976,6 +1901,7 @@ def validate_article(
         personas=personas,
         signal=signal,
         raw_feed_item=raw_feed_item,
+        evidence=evidence,
     )
 
     results: list[CheckResult] = []

@@ -263,9 +263,10 @@ export default function FollowPage() {
         </h2>
 
         <p className="pretty-text news-muted mt-4 text-prose">
-          Deliberately. We do not collect addresses, so there is nothing here to leak, nothing to
-          sell, and nothing to unsubscribe from. A feed reader gives you the same articles without
-          us knowing who you are or whether you opened them.
+          Following by feed does not ask for your email address, so there is nothing to
+          unsubscribe from. A feed reader gives you the same articles without telling us who
+          you are or whether you opened them. Business enquiries, when available, are separate
+          email conversations and do not enrol you in a mailing list.
         </p>
       </section>
 

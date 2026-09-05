@@ -54,6 +54,10 @@ const STATIC_PAGES = {
     description:
       'Every way to keep up with portaBaltica: RSS, JSON Feed and the weekly review. No email list, no account, no tracking.',
   },
+  '/briefings': {
+    title: 'Business briefings | portaBaltica',
+    description: 'Help shape a Baltic business briefing for costs, hiring and demand decisions. Explore the free evidence and the scope of our discovery pilot.',
+  },
   '/weekly': {
     title: 'The weekly review | portaBaltica',
     description:
@@ -79,7 +83,7 @@ const STATIC_PAGES = {
   '/api-docs': {
     title: 'API documentation | portaBaltica',
     description:
-      'Twelve public JSON endpoints over Baltic open data: Eurostat indicators for Latvia, Estonia and Lithuania, Nord Pool electricity prices, port statistics, and searchable Latvian business and address registers.',
+      'Public JSON endpoints over Baltic data: Eurostat indicators for Latvia, Estonia and Lithuania, electricity prices, port statistics, and searchable Latvian business and address registers.',
   },
 };
 

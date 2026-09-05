@@ -75,6 +75,7 @@ export interface EconomyData {
    * fabricated value was indistinguishable from a reading.
    */
   electricityCurrent: number | null;
+  priceSchedule?: { retrievedAt: string | null; stale: boolean };
   indicators: EconomyIndicator[];
   businessPulse: BusinessPulse;
   fetchedAt: string;
@@ -94,9 +95,9 @@ export interface EnergyCertDistribution {
 
 export interface PropertyData {
   constructionPermits: ConstructionPermit[];
-  totalPermits: number;
+  totalPermits: number | null;
   energyCerts: EnergyCertDistribution[];
-  totalCerts: number;
+  totalCerts: number | null;
   fetchedAt: string;
 }
 
@@ -249,7 +250,7 @@ export interface DataSourceCheck {
 }
 
 export interface SystemStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: 'healthy' | 'stale' | 'degraded' | 'unhealthy';
   version: string;
   phase: string;
   dataSources: {
@@ -654,4 +655,3 @@ export interface TradePartnersData {
   source: string;
   fetchedAt: string;
 }
-
