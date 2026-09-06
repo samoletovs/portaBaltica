@@ -1088,6 +1088,18 @@ work rather than here.
 
 ### 4.1 The front page
 
+- The top News / Overview / Economy navigation is the only primary section row.
+  Secondary newsroom and policy destinations live in the global About disclosure
+  and the footer, not in another masthead row.
+- A compact news toolbar contains one labelled topic selector and search field.
+  It must not grow back into a large labelled form plus another strip of topic
+  tabs. Query instructions remain accessible without consuming a paragraph above
+  every story; result counts are visually prominent only while filtering.
+- Keep the AI-writing, AI-editing and named human-accountability disclosure above
+  the content. Compactness is not permission to blur these roles.
+- News query, topic and expanded-page state live in the URL so returning from an
+  article restores the reader's results. Typing filters locally; it must not
+  trigger a new API call. The search field remains available while the index loads.
 - One lead, at `text-display`, in a bordered panel.
 - Everything below it is a divided list, not a grid of cards. Rules between
   items, no boxes — the Guardian's "container" model.
@@ -1107,6 +1119,15 @@ work rather than here.
 
 ### 4.3 The dashboard
 
+- Country, date-range and chart-style controls belong to data and indicator
+  views. News and policy pages instead label their country selector as the
+  **market** context; it does not claim to filter the articles. The theme button
+  remains visible outside any scrolling control strip.
+- An indicator page uses one shared date range for its main chart, comparison
+  and exports, never competing global/local selections.
+- Missing and failed data keep an identifiable panel and useful recovery action.
+  A skeleton means a request is still pending, not that a completed request
+  returned no readings.
 - Page `h1` at `text-display`, sections at `text-title`. Both halves of the
   site open the same way.
 - **A panel title is `text-callout`, not a 12px uppercase micro-label.** The

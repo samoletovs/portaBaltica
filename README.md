@@ -41,6 +41,11 @@ value beyond the source APIs themselves.
   to the dataset it came from.
 - Searches headlines and summaries in the current published index, with more
   articles revealed on demand rather than one unbounded front-page list.
+- Keeps news tools compact: choose a topic, search locally, press `/` to focus
+  search or Escape to clear it. Query, topic and expanded results survive a trip
+  to an article and back through the URL.
+- Uses the top navigation for data sections and an About menu for newsroom,
+  policies, following and API documentation. Chart controls appear on data views.
 
 ## Launch and revenue
 

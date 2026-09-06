@@ -5,16 +5,17 @@ import { useTheme } from '../ThemeContext';
 import { useCountry, type Country } from '../CountryContext';
 import { useFilter } from '../FilterContext';
 import { formatValue, unitCaption } from '../utils/formatValue';
-import { fetchBalticCompare } from '../api';
-import { chartTick, chartTooltip, isNearlyFlat } from '../utils/chartType';
+import { fetchChartComparison } from '../utils/chartRequest';
+import { chartTick, chartTooltip, isNearlyFlat, periodAxisTicks, CHART_MIN_TICK_GAP } from '../utils/chartType';
 import { changeDescription, polarityNote, sentimentColor, sentimentOf, signed, type Sentiment } from '../utils/polarity';
 import { describeSeries } from '../utils/chartAccessibility';
-import { list } from '../utils/payload';
+import { finite, list } from '../utils/payload';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { freshnessOf, formatPeriod as formatPeriodLabel } from '../dataFreshness';
 import { FreshnessNotice } from './FreshnessNotice';
 import { judgementWithheld } from './freshnessStyle';
 import { DownloadMenu } from './DownloadMenu';
+import { IndicatorUnavailable } from './IndicatorUnavailable';
 
 // Mapping: dashboard indicator id → Eurostat baltic-compare indicator.
 //
@@ -119,6 +120,8 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
   const gradientId = useId();
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const navigate = useNavigate();
   const { chartColors } = useTheme();
   const { country } = useCountry();
@@ -151,17 +154,18 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
     const load = async () => {
       setLoading(true);
+      setFailed(false);
 
       // Use Eurostat for ALL countries (unified data source)
       const eurostatId = EUROSTAT_FALLBACK[id];
       if (eurostatId) {
         try {
-          const d = await fetchBalticCompare(eurostatId, years);
+          const d = await fetchChartComparison(eurostatId, years, attempt > 0);
           if (!cancelled) {
             if (d?.countries?.[country]) {
               const cs = d.countries[country];
-              const series = cs.series.filter((s): s is { period: string; value: number } => s.value !== null);
-              const values = series.map((s) => s.value);
+              const series = list<TimeSeriesPoint>(cs.series).map((s) => ({ ...s, value: finite(s.value) }));
+              const values = series.flatMap((s) => s.value === null ? [] : [s.value]);
               const latest = values.length > 0 ? values[values.length - 1] : null;
               const previous = values.length > 1 ? values[values.length - 2] : null;
               setData({
@@ -187,6 +191,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
         } catch {
           if (!cancelled) {
             setData(null);
+            setFailed(true);
           }
         } finally {
           if (!cancelled) {
@@ -200,13 +205,15 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       if (country === 'LV') {
         try {
           const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
-          const d = response.ok ? await response.json() : null;
+          if (!response.ok) throw new Error(`Historical data unavailable (${response.status})`);
+          const d = await response.json();
           if (!cancelled) {
             setData(d);
           }
         } catch {
           if (!cancelled) {
             setData(null);
+            setFailed(true);
           }
         } finally {
           if (!cancelled) {
@@ -224,11 +231,11 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     return () => {
       cancelled = true;
     };
-  }, [id, externalLoading, country, unit, years]);
+  }, [id, externalLoading, country, unit, years, attempt]);
 
   if (loading || externalLoading) {
     return (
-      <div className="dash-card border dash-edge rounded-xl p-4 animate-pulse">
+      <div className="dash-card border dash-edge rounded-xl p-4 animate-pulse" aria-busy="true" aria-label={`Loading ${title}`}>
         <div className="h-3 dash-raised rounded w-1/3 mb-3" />
         <div className="h-6 dash-raised rounded w-1/2 mb-2" />
         <div className="h-20 dash-raised rounded" />
@@ -236,10 +243,24 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
     );
   }
 
-  if (!data || list(data.series).length === 0) return null;
+  if (!data || !list<TimeSeriesPoint>(data.series).some((point) => finite(point.value) !== null)) {
+    return (
+      <div className="dash-card border dash-edge rounded-xl p-4">
+        <IndicatorUnavailable
+          title={title}
+          source={data?.source || (EUROSTAT_FALLBACK[id] ? 'Eurostat' : 'Latvia CSP / PxWeb')}
+          failed={failed}
+          onRetry={() => setAttempt((current) => current + 1)}
+        />
+        <button type="button" onClick={() => navigate(`/indicator/${id}`)} className="text-caption dash-muted underline min-h-11">
+          View {title} details
+        </button>
+      </div>
+    );
+  }
 
   const { summary } = data;
-  const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null).slice(-20);
+  const chartData = list<TimeSeriesPoint>(data.series).slice(-20);
   const isRise = summary.change !== null && summary.change > 0;
   const sentiment = sentimentOf(id, summary.change);
   const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
@@ -273,7 +294,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 
   // A series that crosses zero gets zero marked. On a percentage-change series
   // it is the most important value on the chart and it was previously invisible.
-  const values = chartData.map((p) => p.value as number);
+  const values = chartData.flatMap((p) => p.value === null ? [] : [p.value]);
   const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
   // Some series barely move, and a zero-based fill renders them as a dead flat
@@ -422,17 +443,22 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
 // Full chart for indicator detail pages
 export function IndicatorChart({
   id,
+  title,
   country: countryOverride,
   fallback,
 }: {
   id: string;
+  title?: string;
   country?: Country;
   /** Rendered instead of the no-data message when the series comes back empty. */
   fallback?: ReactNode;
 }) {
   const [data, setData] = useState<IndicatorData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [years, setYears] = useState(10);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [chartWidth, setChartWidth] = useState(0);
+  const { years } = useFilter();
   const { chartColors } = useTheme();
   const { country: selectedCountry } = useCountry();
   // An article about Estonia must show Estonia's series, whatever the
@@ -465,17 +491,18 @@ export function IndicatorChart({
 
     const load = async () => {
       setLoading(true);
+      setFailed(false);
 
       // Try Eurostat first (works for all countries)
       const eurostatId = EUROSTAT_FALLBACK[id];
       if (eurostatId) {
         try {
-          const d = await fetchBalticCompare(eurostatId, years);
+          const d = await fetchChartComparison(eurostatId, years, attempt > 0);
           if (!cancelled) {
             if (d?.countries?.[country]) {
               const cs = d.countries[country];
-              const series = cs.series.filter((s): s is { period: string; value: number } => s.value !== null);
-              const values = series.map((s) => s.value);
+              const series = list<TimeSeriesPoint>(cs.series).map((s) => ({ ...s, value: finite(s.value) }));
+              const values = series.flatMap((s) => s.value === null ? [] : [s.value]);
               const latest = values.length > 0 ? values[values.length - 1] : null;
               const previous = values.length > 1 ? values[values.length - 2] : null;
               setData({
@@ -504,6 +531,7 @@ export function IndicatorChart({
         } catch {
           if (!cancelled) {
             setData(null);
+            setFailed(true);
           }
         } finally {
           if (!cancelled) {
@@ -517,13 +545,15 @@ export function IndicatorChart({
         // Latvia-only indicators via PxWeb
         try {
           const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
-          const d = response.ok ? await response.json() : null;
+          if (!response.ok) throw new Error(`Historical data unavailable (${response.status})`);
+          const d = await response.json();
           if (!cancelled) {
             setData(d);
           }
         } catch {
           if (!cancelled) {
             setData(null);
+            setFailed(true);
           }
         } finally {
           if (!cancelled) {
@@ -541,27 +571,29 @@ export function IndicatorChart({
     return () => {
       cancelled = true;
     };
-  }, [id, years, country]);
+  }, [id, years, country, attempt]);
 
   if (loading) {
-    return <div className="h-64 dash-card rounded-xl animate-pulse" />;
+    return <div className="h-64 dash-card rounded-xl animate-pulse" aria-busy="true" aria-label={`Loading ${title ?? id}`} />;
   }
-  if (!data || list(data.series).length === 0) {
+  if (!data || !list<TimeSeriesPoint>(data.series).some((point) => finite(point.value) !== null)) {
     // Callers that have something better to show than an apology pass a
     // fallback. Under an article that is the three-country Eurostat series:
     // an empty panel captioned "Live data" tells the reader nothing, and the
     // stock message points at a comparison chart that only exists on /data.
-    if (fallback !== undefined) return <>{fallback}</>;
+    if (fallback !== undefined && !failed) return <>{fallback}</>;
     return (
-      <p style={{ color: 'var(--text-secondary)' }}>
-        {country !== 'LV'
-          ? 'This indicator is only available for Latvia via PxWeb. See the Baltic Comparison chart below for cross-country data.'
-          : 'No historical data available for this indicator.'}
-      </p>
+      <IndicatorUnavailable
+        title={title ?? data?.title ?? id.replaceAll('_', ' ')}
+        source={data?.source || (EUROSTAT_FALLBACK[id] ? 'Eurostat' : 'Latvia CSP / PxWeb')}
+        failed={failed}
+        onRetry={() => setAttempt((current) => current + 1)}
+      />
     );
   }
 
-  const chartData = list<TimeSeriesPoint>(data.series).filter((p) => p.value !== null);
+  const chartData = list<TimeSeriesPoint>(data.series);
+  const axis = periodAxisTicks(chartData.map((point) => point.period), chartWidth, formatPeriod, 60);
   const { summary } = data;
   const sentiment = sentimentOf(id, summary.change);
   const freshness = freshnessOfSeries(list<TimeSeriesPoint>(data.series));
@@ -573,7 +605,7 @@ export function IndicatorChart({
         : chartColors.negative;
   const fmt = (v: number | null) => formatValue(v, data.unit);
 
-  const values = chartData.map((p) => p.value as number);
+  const values = chartData.flatMap((p) => p.value === null ? [] : [p.value]);
   const crossesZero = values.some((v) => v < 0) && values.some((v) => v > 0);
 
   // What the download writes out: the series as held, rather than the charted
@@ -591,25 +623,6 @@ export function IndicatorChart({
 
   return (
     <div>
-      {/* Time range selector */}
-      <div className="flex items-center gap-2 mb-4" role="group" aria-label="Time range">
-        {[1, 3, 5, 10, 0].map((y) => (
-          <button
-            key={y}
-            onClick={() => setYears(y)}
-            aria-pressed={years === y}
-            className="px-3 py-1 text-caption rounded-lg transition-colors"
-            style={{
-              background: years === y ? 'var(--bg-raised)' : 'var(--bg-card)',
-              border: `1px solid ${years === y ? 'var(--news-accent)' : 'var(--border-card)'}`,
-              color: years === y ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            {y === 0 ? 'MAX' : `${y}Y`}
-          </button>
-        ))}
-      </div>
-
       {/* Named in place rather than through a wrapper. This chart is
           free-standing — measured, not assumed: it is not inside a button, so
           unlike the card sparkline it may legitimately hold focus. Keeping
@@ -623,8 +636,8 @@ export function IndicatorChart({
           A named wrapper around an unnamed focusable application announces the
           description to a browsing reader and nothing at all to a tabbing one. */}
       <div className="h-72 mb-4">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} aria-label={describeSeries(data.title, chartData, fmt, formatPeriod)}>
+        <ResponsiveContainer width="100%" height="100%" onResize={(width) => setChartWidth(width)}>
+          <AreaChart data={chartData} margin={{ top: 5, right: axis.inset, bottom: 5, left: 5 }} aria-label={describeSeries(data.title, chartData, fmt, formatPeriod)}>
             <defs>
               <linearGradient id={`detail-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity={0.22} />
@@ -637,7 +650,9 @@ export function IndicatorChart({
               tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
-              interval={Math.max(0, Math.floor(chartData.length / 8))}
+              ticks={axis.ticks}
+              interval="preserveStartEnd"
+              minTickGap={CHART_MIN_TICK_GAP}
               tickFormatter={(v: string) => formatPeriod(v)}
             />
             <YAxis
@@ -664,6 +679,7 @@ export function IndicatorChart({
               strokeWidth={2}
               fill={`url(#detail-grad-${id})`}
               dot={false}
+              isAnimationActive={false}
             />
           </AreaChart>
         </ResponsiveContainer>

@@ -160,13 +160,12 @@ describe('newsroom masthead disclosure', () => {
     );
   });
 
-  it('keeps the masthead to one line and four destinations', () => {
-    // It previously ran to three sentences and a second row of links, which
-    // pushed the lead story most of the way down the first screen.
-    renderPage(<NewsroomLayout />);
-
-    const nav = screen.getByRole('navigation', { name: 'Sections' });
-    expect(nav.querySelectorAll('a')).toHaveLength(4);
+  it('keeps disclosure above the content without a competing navigation row', () => {
+    const { container } = renderPage(<NewsroomLayout />);
+    const header = container.querySelector('header');
+    expect(header?.textContent).toContain(ACCOUNTABLE_PUBLISHER);
+    expect(header?.querySelector('nav')).toBeNull();
+    expect(header?.querySelector('a[href="/about/ai"]')).not.toBeNull();
   });
 });
 

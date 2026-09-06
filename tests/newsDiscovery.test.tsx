@@ -56,7 +56,7 @@ describe('finding useful published reporting', () => {
       tierASummary({ id: 'labour', slug: 'labour', section: 'labour', headline: 'Estonia hiring update' }),
       tierASummary({ id: 'economy', slug: 'economy', section: 'economy', headline: 'Latvia inflation update' }),
     ]);
-    fireEvent.click(screen.getByRole('button', { name: 'Economy' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'News topic' }), { target: { value: 'economy' } });
     fireEvent.change(screen.getByLabelText('Search headlines and summaries'), { target: { value: 'hiring' } });
     expect(screen.getByRole('heading', { name: 'No matching articles' })).toBeTruthy();
     expect(screen.queryByText('Nothing to report yet today')).toBeNull();

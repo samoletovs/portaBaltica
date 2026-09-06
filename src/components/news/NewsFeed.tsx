@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
 import { correctedSlugs, fetchArticleIndex, fetchCorrections } from '../../news-api';
 import type { CorrectionState } from '../../news-api';
@@ -7,68 +7,9 @@ import { usePageMeta } from '../../newsroom/usePageMeta';
 import { ArticleCard, CorrectionsUnavailable, FeedItem } from './NewsCard';
 import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
-import { useOverflowFade } from '../../utils/useOverflowFade';
+import { NewsTools } from './NewsTools';
 
-type Filter = 'all' | string;
 const PAGE_SIZE = 12;
-
-/**
- * The section filter, as its own component.
- *
- * Not a nicety: `useOverflowFade` attaches in an effect, and an effect runs
- * once when its *owner* mounts. `NewsFeed` mounts showing a skeleton, because
- * the index has not arrived, so the strip does not exist yet and the hook
- * bails on a null ref — measured, the fade never appeared (`mask: NONE` at
- * 320px with 601px hidden) while the two strips in `Header` worked, because
- * those elements are present at mount. A ref object cannot re-trigger the
- * effect when it is later filled, so the element has to arrive *with* its own
- * hook. Mounting this only once there are sections does exactly that.
- */
-function SectionFilter({
-  sections,
-  filter,
-  onChange,
-}: {
-  sections: string[];
-  filter: Filter;
-  onChange: (next: Filter) => void;
-}) {
-  const [ref, fade] = useOverflowFade<HTMLDivElement>();
-
-  return (
-    // One row that scrolls sideways on a phone, wrapping only once there is
-    // room to wrap into.
-    //
-    // Wrapping at every width made the filter cost **200px across four rows**
-    // at 320px — 26% of a 780px viewport, spent on a control, above any
-    // journalism. That is the same arithmetic §4.4 already applies to the
-    // guided tour: what costs a tenth of a laptop costs a quarter of a phone.
-    // A sideways strip is the answer the site header and the dashboard rail
-    // both already give, so this is the existing idiom rather than a new one.
-    <div
-      ref={ref}
-      className={`mb-6 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible ${fade}`}
-      role="group"
-      aria-label="Filter by section"
-    >
-      {(['all', ...sections] as Filter[]).map((section) => (
-        <button
-          key={section}
-          type="button"
-          onClick={() => onChange(section)}
-          aria-pressed={filter === section}
-          className={[
-            'shrink-0 rounded-full border px-4 py-2 text-caption transition-colors',
-            '',
-            filter === section ? 'news-tab-active' : 'news-tab-inactive news-hover',
-          ].join(' ')}
-        >
-          {section === 'all' ? 'Everything' : SECTION_LABELS[section as never] ?? section}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function byNewestFirst(a: ArticleSummary, b: ArticleSummary): number {
   return (b.published_at ?? '').localeCompare(a.published_at ?? '');
@@ -77,10 +18,38 @@ function byNewestFirst(a: ArticleSummary, b: ArticleSummary): number {
 export default function NewsFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [filter, setFilter] = useState<Filter>('all');
-  const [search, setSearch] = useState('');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [attempt, setAttempt] = useState(0);
+  const [params, setParams] = useSearchParams();
+  const navigationType = useNavigationType();
+  const { key: navigationKey } = useLocation();
+  const topic = params.get('topic') ?? 'all';
+  const filter = Object.hasOwn(SECTION_LABELS, topic) ? topic : 'all';
+  const urlSearch = (params.get('q') ?? '').slice(0, 200);
+  const [search, setSearch] = useState(urlSearch);
+  const [restoredKey, setRestoredKey] = useState(navigationKey);
+  const pageParam = Number(params.get('page') ?? 1);
+  const page = Number.isSafeInteger(pageParam) && pageParam > 0 ? pageParam : 1;
+  const visibleCount = Math.min(page, Math.max(1, Math.ceil((articles?.length ?? 0) / PAGE_SIZE))) * PAGE_SIZE;
   const [corrections, setCorrections] = useState<CorrectionState>({ state: 'loading' });
+
+  // Restore external navigation before rendering; our URL writes may lag typing.
+  if (navigationType !== 'REPLACE' && restoredKey !== navigationKey) {
+    setRestoredKey(navigationKey);
+    setSearch(urlSearch);
+  }
+
+  function changeFilter(key: 'q' | 'topic', value: string) {
+    if (key === 'q') setSearch(value);
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      if (search) next.set('q', search);
+      else next.delete('q');
+      if (!value || (key === 'topic' && value === 'all')) next.delete(key);
+      else next.set(key, value);
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }
 
   usePageMeta({
     title: 'portaBaltica | Baltic open data, reported',
@@ -92,7 +61,7 @@ export default function NewsFeed() {
   useEffect(() => {
     const controller = new AbortController();
     fetchArticleIndex(controller.signal)
-      .then((index) => setArticles(index.articles))
+      .then((index) => { if (!controller.signal.aborted) setArticles(index.articles); })
       .catch(() => {
         if (!controller.signal.aborted) {
           setFailed(true);
@@ -117,7 +86,7 @@ export default function NewsFeed() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
 
   // OUR SECTIONS DESCRIBE OUR JOURNALISM.
   //
@@ -160,6 +129,11 @@ export default function NewsFeed() {
     [articles],
   );
 
+  const tools = <NewsTools sections={sections} filter={filter} search={search}
+    shown={Math.min(visibleCount, ours.length)} total={ours.length}
+    loading={articles === null} failed={failed}
+    onFilter={(value) => changeFilter('topic', value)} onSearch={(value) => changeFilter('q', value)} />;
+
   if (articles === null) {
     return (
       /*
@@ -187,45 +161,11 @@ export default function NewsFeed() {
         loading.
       */
       <div
-        key="front-page-loading"
         className="min-h-screen"
         aria-busy="true"
         aria-label="Loading the front page"
       >
-        {/*
-          Reserves the section filter's exact height, rather than a guess at it.
-
-          The filter is absent while loading and 44px or 96px afterwards — one
-          row that scrolls sideways below `sm`, two rows where it wraps, one
-          again at `lg` once the container is wide enough for all ten chips.
-          Measured on the real control: 320/375 → 44, 640/768 → 96,
-          1024/1280 → 44, plus `mb-6` in every case.
-
-          Reproducing that with a height would mean encoding today's wrap
-          points as numbers, and they move whenever a label or a section
-          changes. Rendering the same container with the same buttons and the
-          same labels reproduces it *by construction* instead: the browser wraps
-          the placeholder exactly where it will wrap the real thing.
-
-          `disabled` so it is not a tab stop, `aria-hidden` so the loading
-          announcement above is the only thing a screen reader hears.
-        */}
-        <div
-          className="mb-6 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-x-visible"
-          aria-hidden="true"
-        >
-          {['Everything', ...Object.values(SECTION_LABELS)].map((label) => (
-            <button
-              key={label}
-              type="button"
-              disabled
-              className="news-skeleton shrink-0 animate-pulse rounded-full border px-4 py-2 text-caption text-transparent"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
+        {tools}
         <div className="space-y-4">
           <div className="news-skeleton h-40 animate-pulse rounded-xl" />
           <div className="news-skeleton h-24 animate-pulse rounded-xl" />
@@ -243,41 +183,8 @@ export default function NewsFeed() {
     corrections.state === 'ok' && corrections.slugs.has(summary.slug);
 
   return (
-    <div key="front-page-loaded">
-      <p className="news-muted mb-4 text-ui">
-        Using Baltic data at work?{' '}
-        <Link to="/briefings" className="news-link underline underline-offset-4">
-          Help shape our business briefing pilot
-        </Link>.
-      </p>
-      {!failed && (
-        <div className="mb-4">
-          <label htmlFor="news-search" className="news-fg block text-ui font-semibold">
-            Search headlines and summaries
-          </label>
-          <input id="news-search" type="search" maxLength={200} value={search}
-            aria-describedby="news-search-scope" aria-controls="news-results"
-            className="news-border news-panel news-fg w-full rounded-lg border px-3 py-2 text-ui"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setVisibleCount(PAGE_SIZE);
-            }} />
-          <p id="news-search-scope" className="news-subtle mt-2 text-caption">
-            Searches the current published index, not article bodies or other outlets.
-          </p>
-        </div>
-      )}
-      {sections.length > 1 && (
-        <SectionFilter sections={sections} filter={filter} onChange={(next) => {
-          setFilter(next);
-          setVisibleCount(PAGE_SIZE);
-        }} />
-      )}
-      {!failed && (
-        <p role="status" className="news-subtle mb-4 text-ui">
-          Showing {Math.min(visibleCount, ours.length)} of {ours.length} matching articles
-        </p>
-      )}
+    <div>
+      {tools}
 
       {/*
         The rail becomes a sidebar at `md`, not at `lg`.
@@ -317,12 +224,26 @@ export default function NewsFeed() {
                     ? 'Try fewer words or clear the search and section filter. The current index may not contain older coverage.'
                     : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
               </p>
+              {failed && (
+                <button type="button" className="news-border news-panel news-fg mt-4 rounded-lg border px-4 py-2 text-ui"
+                  onClick={() => {
+                    setArticles(null);
+                    setFailed(false);
+                    setCorrections({ state: 'loading' });
+                    setAttempt((value) => value + 1);
+                  }}>
+                  Retry loading articles
+                </button>
+              )}
               {search.trim() && (
                 <button type="button" className="news-link mt-4 px-3 py-2 text-ui underline underline-offset-4"
                   onClick={() => {
                     setSearch('');
-                    setFilter('all');
-                    setVisibleCount(PAGE_SIZE);
+                    setParams((previous) => {
+                      const next = new URLSearchParams(previous);
+                      ['q', 'topic', 'page'].forEach((key) => next.delete(key));
+                      return next;
+                    }, { replace: true });
                   }}>
                   Clear search and filters
                 </button>
@@ -364,7 +285,13 @@ export default function NewsFeed() {
               {visibleCount < ours.length && (
                 <button type="button" aria-controls="news-results"
                   className="news-border news-panel news-hover-panel news-fg mt-6 rounded-lg border px-4 py-2 text-ui font-semibold"
-                  onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>
+                  onClick={() => setParams((previous) => {
+                    const next = new URLSearchParams(previous);
+                    if (search) next.set('q', search);
+                    else next.delete('q');
+                    next.set('page', String(page + 1));
+                    return next;
+                  }, { replace: true })}>
                   Show more articles
                 </button>
               )}
@@ -410,6 +337,11 @@ export default function NewsFeed() {
             <p className="mt-3 text-ui">
               <Link to="/follow" className="news-link underline underline-offset-4">
                 RSS, JSON Feed and the weekly review →
+              </Link>
+            </p>
+            <p className="mt-3 text-ui">
+              <Link to="/briefings" className="news-link underline underline-offset-4">
+                Help shape our business briefing pilot
               </Link>
             </p>
           </section>

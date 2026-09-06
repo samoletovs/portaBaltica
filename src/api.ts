@@ -277,7 +277,15 @@ function readCache<T>(cacheKey: string, key: string): T | null {
   return null;
 }
 
-const inFlightRequests = new Map<string, Promise<unknown>>();
+interface CachedRequest {
+  promise: Promise<unknown>;
+}
+const inFlightRequests = new Map<string, CachedRequest>();
+
+interface CacheOptions {
+  /** Re-read the source and replace the shared cache only after a successful response. */
+  forceRefresh?: boolean;
+}
 
 function isPricingKey(key: string): boolean {
   return key.startsWith('economy-') || key === 'power-prices';
@@ -365,29 +373,38 @@ async function cachedPriceFetch<T>(key: string, endpoint: string, signal?: Abort
  *
  * There is now one function and no choice to get wrong.
  */
-async function cachedFetch<T>(key: string, endpoint: string, signal?: AbortSignal): Promise<T> {
+async function cachedFetch<T>(
+  key: string,
+  endpoint: string,
+  signal?: AbortSignal,
+  { forceRefresh = false }: CacheOptions = {},
+): Promise<T> {
   if (isPricingKey(key)) return cachedPriceFetch<T>(key, endpoint, signal);
   const cacheKey = `${CACHE_PREFIX}${key}`;
 
-  const cached = readCache<T>(cacheKey, key);
-  if (cached !== null) return cached;
+  if (!forceRefresh) {
+    const cached = readCache<T>(cacheKey, key);
+    if (cached !== null) return cached;
 
-  const existing = inFlightRequests.get(cacheKey);
-  if (existing) return existing as Promise<T>;
+    const existing = inFlightRequests.get(cacheKey);
+    if (existing) return existing.promise as Promise<T>;
+  }
 
-  const request = fetch(endpoint)
-    .then(async (res) => {
+  const request: CachedRequest = { promise: Promise.resolve() };
+  inFlightRequests.set(cacheKey, request);
+  request.promise = (async () => {
+    try {
+      const res = await (forceRefresh ? fetch(endpoint, { cache: 'no-cache' }) : fetch(endpoint));
       if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
       const data = await res.json() as T;
-      writeCache(cacheKey, data);
+      // A superseded request may finish for its own reader, but cannot undo a retry.
+      if (inFlightRequests.get(cacheKey) === request) writeCache(cacheKey, data);
       return data;
-    })
-    .finally(() => {
-      inFlightRequests.delete(cacheKey);
-    });
-
-  inFlightRequests.set(cacheKey, request as Promise<unknown>);
-  return request;
+    } finally {
+      if (inFlightRequests.get(cacheKey) === request) inFlightRequests.delete(cacheKey);
+    }
+  })();
+  return request.promise as Promise<T>;
 }
 
 // ─── New data endpoints ───
@@ -435,12 +452,18 @@ export async function fetchSystemStatus(): Promise<SystemStatus> {
   return res.json();
 }
 
-export async function fetchBalticCompare(indicator: string, years = 5): Promise<BalticCompareData | null> {
+export async function fetchBalticCompare(
+  indicator: string,
+  years = 5,
+  options?: CacheOptions,
+): Promise<BalticCompareData | null> {
   const normalizedYears = Number.isFinite(years) && years >= 0 ? years : 5;
   const encodedIndicator = encodeURIComponent(indicator);
   return cachedFetch<BalticCompareData | null>(
     `baltic_compare-${encodedIndicator}-${normalizedYears}`,
-    `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`
+    `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`,
+    undefined,
+    options,
   );
 }
 

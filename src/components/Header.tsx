@@ -5,6 +5,7 @@ import { useTheme } from '../ThemeContext';
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
 import { useFilter, YEAR_OPTIONS, STROKE_OPTIONS, type YearRange } from '../FilterContext';
 import { useOverflowFade } from '../utils/useOverflowFade';
+import { AboutMenu } from './AboutMenu';
 
 const SECTIONS: { id: DashboardSection | 'all' | 'news'; label: string; path: string }[] = [
   { id: 'news', label: 'News', path: '/' },
@@ -23,6 +24,7 @@ const SECTIONS: { id: DashboardSection | 'all' | 'news'; label: string; path: st
 export function Header() {
   const [clock, setClock] = useState(new Date());
   const location = useLocation();
+  const dataView = /^\/(data|indicator)(\/|$)/.test(location.pathname);
   const { theme, toggle } = useTheme();
   const { country, setCountry, timezone, tzAbbr } = useCountry();
   const { years, setYears, strokeStyle, setStrokeStyle } = useFilter();
@@ -110,7 +112,7 @@ export function Header() {
                 on the page. It is a raised surface with an accent underline
                 now, which is a state a reader can both see and, because the
                 accent is not the only cue, distinguish without colour. */}
-            <div className="flex items-center shrink-0 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Country">
+            {dataView ? <div className="flex items-center shrink-0 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Country">
               {(Object.keys(COUNTRY_INFO) as Country[]).map((c) => (
                 <button
                   key={c}
@@ -127,7 +129,19 @@ export function Header() {
                   {COUNTRY_INFO[c].flag} {c}
                 </button>
               ))}
-            </div>
+            </div> : (
+              <select aria-label="Market country" title="Country for the market ticker, not an article filter"
+                className="news-border news-panel news-fg shrink-0 rounded-lg border px-2 py-1 text-ui"
+                value={country} onChange={(event) => {
+                  const chosen = (['LV', 'EE', 'LT'] as const).find((value) => value === event.target.value);
+                  if (chosen) setCountry(chosen);
+                }}>
+                {(['LV', 'EE', 'LT'] as const).map((value) => (
+                  <option key={value} value={value}>{value} market</option>
+                ))}
+              </select>
+            )}
+            {dataView && <>
             {/* Date range selector */}
             <div className="flex items-center shrink-0 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-card)' }} role="group" aria-label="Date range filter">
               {YEAR_OPTIONS.map((y: YearRange) => (
@@ -170,6 +184,8 @@ export function Header() {
                 Chart lines are currently {strokeStyle === 'patterned' ? 'dashed' : 'solid'}
               </span>
             </button>
+            </>}
+          </div>
             <button
               onClick={toggle}
               className="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg transition-colors"
@@ -178,7 +194,6 @@ export function Header() {
             >
               <span className="text-ui" aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
             </button>
-          </div>
         </div>
 
         {/* Section tabs. The active tab is marked by the accent rule beneath it
@@ -189,9 +204,10 @@ export function Header() {
             to clip the last tab mid-character — "T…" — with nothing to say the
             row continued. A hard cut reads as a layout bug rather than as more
             content, so the mask fades the ends instead. */}
+        <div className="flex items-center gap-2">
         <nav
           ref={navRef}
-          className={`flex gap-0 -mb-px overflow-x-auto ${navFade}`}
+          className={`flex min-w-0 flex-1 gap-0 -mb-px overflow-x-auto ${navFade}`}
           aria-label="Site sections"
         >
           {SECTIONS.map((s) => (
@@ -209,6 +225,8 @@ export function Header() {
             </Link>
           ))}
         </nav>
+        <AboutMenu />
+        </div>
       </div>
     </header>
   );

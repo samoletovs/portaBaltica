@@ -336,7 +336,7 @@ export function IndicatorPage() {
         {/* The Latvian series, where one exists. */}
         {hasNationalSeries && (
           <div className="dash-card border dash-edge rounded-xl p-6 mb-6">
-            <IndicatorChart id={id} />
+            <IndicatorChart id={id} title={title} />
           </div>
         )}
 

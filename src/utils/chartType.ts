@@ -74,6 +74,28 @@ export function tickInterval(pointCount: number, targetLabels: number = TARGET_A
   return Math.max(0, Math.floor(pointCount / targetLabels));
 }
 
+export const CHART_MIN_TICK_GAP = 12;
+
+/** Keep both endpoints and budget by the longest date, without shrinking type. */
+export function periodAxisTicks(
+  periods: string[],
+  containerWidth: number,
+  formatLabel: (period: string) => string,
+  reservedWidth = 0,
+): { ticks: string[]; inset: number } {
+  const labelWidth = Math.max(0, ...periods.map((period) => formatLabel(period).length)) * CHART_TICK_SIZE * 0.62;
+  const inset = Math.ceil(labelWidth / 2);
+  const plotWidth = Math.max(0, containerWidth - reservedWidth - inset * 2);
+  const budget = Math.max(2, Math.min(TARGET_AXIS_LABELS, Math.floor(plotWidth / (labelWidth + CHART_MIN_TICK_GAP)) + 1));
+  let count = Math.min(periods.length, Math.max(2, Math.ceil(periods.length / (tickInterval(periods.length, budget) + 1))));
+  // Rounded observation indices can make one gap shorter than the ideal spacing.
+  while (count > 2 && Math.floor((periods.length - 1) / (count - 1)) * plotWidth / (periods.length - 1) < labelWidth + CHART_MIN_TICK_GAP) {
+    count--;
+  }
+  const ticks = Array.from({ length: count }, (_, i) => periods[count === 1 ? 0 : Math.round(i * (periods.length - 1) / (count - 1))]);
+  return { ticks, inset };
+}
+
 /**
  * The share of its own level a series has to move before a zero-based fill can
  * show the movement at all. Below this the fill is a flat bar and the shape is

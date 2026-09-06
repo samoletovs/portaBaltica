@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { BusinessSearchResult, EUFundsData, AddressSearchResult } from '../types';
 import { searchBusinessOwners, searchAddress } from '../api';
 import { useCountry } from '../CountryContext';
@@ -10,42 +10,61 @@ interface BusinessTileProps {
   euLoading: boolean;
 }
 
+type SearchState<T> =
+  | { status: 'idle' }
+  | { status: 'loading' | 'error'; query: string }
+  | { status: 'success'; query: string; data: T };
+
+function useRegistrySearch<T>(search: (query: string) => Promise<T>) {
+  const [query, setQuery] = useState('');
+  const [state, setState] = useState<SearchState<T>>({ status: 'idle' });
+  const requestId = useRef(0);
+  const pendingQuery = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    requestId.current += 1;
+    pendingQuery.current = null;
+  }, []);
+
+  function changeQuery(value: string) {
+    // Editing also invalidates a response already on its way.
+    requestId.current += 1;
+    pendingQuery.current = null;
+    setQuery(value);
+    setState({ status: 'idle' });
+  }
+
+  async function submit() {
+    const submitted = query.trim();
+    if (submitted.length < 3 || pendingQuery.current === submitted) return;
+    const current = ++requestId.current;
+    pendingQuery.current = submitted;
+    setState({ status: 'loading', query: submitted });
+    try {
+      const data = await search(submitted);
+      if (current === requestId.current) {
+        setState({ status: 'success', query: submitted, data });
+      }
+    } catch {
+      if (current === requestId.current) {
+        setState({ status: 'error', query: submitted });
+      }
+    } finally {
+      if (current === requestId.current) pendingQuery.current = null;
+    }
+  }
+
+  return { query, changeQuery, state, submit };
+}
+
 export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
   const { country } = useCountry();
-  const [query, setQuery] = useState('');
-  const [searchResult, setSearchResult] = useState<BusinessSearchResult | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
-  // Address search state
-  const [addrQuery, setAddrQuery] = useState('');
-  const [addrResult, setAddrResult] = useState<AddressSearchResult | null>(null);
-  const [addrSearching, setAddrSearching] = useState(false);
-
-  async function handleSearch() {
-    if (query.length < 3) return;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const result = await searchBusinessOwners(query);
-      setSearchResult(result);
-    } catch (e) {
-      setSearchError(e instanceof Error ? e.message : 'Search failed');
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  async function handleAddrSearch() {
-    if (addrQuery.length < 3) return;
-    setAddrSearching(true);
-    try {
-      const result = await searchAddress(addrQuery);
-      setAddrResult(result);
-    } catch { /* ignore */ } finally {
-      setAddrSearching(false);
-    }
-  }
+  const owners = useRegistrySearch<BusinessSearchResult>(searchBusinessOwners);
+  const addresses = useRegistrySearch<AddressSearchResult>(searchAddress);
+  const searchResult = owners.state.status === 'success' ? owners.state.data : null;
+  const addrResult = addresses.state.status === 'success' ? addresses.state.data : null;
+  const searching = owners.state.status === 'loading';
+  const addrSearching = addresses.state.status === 'loading';
 
   // The registry holds up to 904 matches for a common surname; this shows ten
   // of them. Derived once so the line above the list and the list itself cannot
@@ -68,25 +87,25 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
         )}
       </TileHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         {/* UBO Search */}
         <div className="dash-card border dash-edge rounded-xl p-6">
-          <p className="text-caption dash-muted mb-2">Who Owns This Company?</p>
+          <h3 className="text-callout font-semibold dash-fg mb-2">Who Owns This Company?</h3>
           <p className="text-caption dash-subtle mb-3">Search Latvia's Beneficial Owners Registry (195K+ records)</p>
 
           <div className="flex gap-2 mb-3">
             <input
               type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              value={owners.query}
+              onChange={(e) => owners.changeQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void owners.submit()}
               placeholder="Company reg# or surname..."
               className="flex-1 min-w-0 dash-raised border dash-edge rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search beneficial owners by company registration number or surname"
             />
             <button
-              onClick={handleSearch}
-              disabled={searching || query.length < 3}
+              onClick={() => void owners.submit()}
+              disabled={searching || owners.query.trim().length < 3}
               className="dash-btn dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
               aria-label="Search"
             >
@@ -94,29 +113,32 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
             </button>
           </div>
 
-          {searchError && (
-            <p className="text-caption dash-negative mb-2">{searchError}</p>
-          )}
-
-          {searchResult && (
-            <div>
-              {/*
-                The count comes from the registry, the list does not. Saying
-                only "904 matches" above ten rows would imply the ten are the
-                answer — so when the registry holds more than this response
-                carries, the line says the list stops. It used to read "50
-                matches" for every common surname, because the page cap was
-                published as the count.
-              */}
-              <p className="text-caption dash-muted mb-2">
+          <p role="status" aria-atomic="true" className={`text-caption mb-2 ${owners.state.status === 'error' ? 'dash-negative' : 'dash-muted'}`}>
+            {owners.state.status === 'idle' && 'Enter at least 3 characters, then search.'}
+            {owners.state.status === 'loading' && <>Searching owners for &quot;{owners.state.query}&quot;…</>}
+            {owners.state.status === 'error' && <>Could not search owners for &quot;{owners.state.query}&quot;. Please try again.</>}
+            {owners.state.status === 'success' && searchResult && (
+              shownCompanies.length === 0
+                ? <>No owners found for &quot;{owners.state.query}&quot;. Try another registration number or surname.</>
+                : <>
                 {finite(searchResult.totalMatches) === null
                   ? '—'
-                  : finite(searchResult.totalMatches)!.toLocaleString()} matches for &quot;{searchResult.query}&quot;
+                  : finite(searchResult.totalMatches)!.toLocaleString()} matches for &quot;{owners.state.query}&quot;
                 {shownCompanies.length < list(searchResult.companies).length
                   || searchResult.truncated
                   ? ` — showing ${shownCompanies.length}`
                   : ''}
-              </p>
+                </>
+            )}
+          </p>
+          {owners.state.status === 'error' && (
+            <button type="button" onClick={() => void owners.submit()} className="dash-btn dash-fg text-ui px-3 py-2 rounded-lg mb-3">
+              Retry owner search
+            </button>
+          )}
+
+          {searchResult && (
+            <div>
               <div className="space-y-3 max-h-60 overflow-y-auto">
                 {shownCompanies.map((company) => (
                   <div key={company.registrationNumber} className="dash-raised rounded-lg p-3">
@@ -140,16 +162,16 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
             </div>
           )}
 
-          {!searchResult && !searching && (
+          {owners.state.status === 'idle' && (
             <div className="text-caption dash-subtle">
-              <p>Try: <button onClick={() => { setQuery('40003229495'); }} className="dash-muted underline">40003229495</button> (company) or <button onClick={() => { setQuery('Bērziņš'); }} className="dash-muted underline">Bērziņš</button> (surname)</p>
+              <p>Try: <button onClick={() => owners.changeQuery('40003229495')} className="dash-muted underline">40003229495</button> (company) or <button onClick={() => owners.changeQuery('Bērziņš')} className="dash-muted underline">Bērziņš</button> (surname)</p>
             </div>
           )}
         </div>
 
         {/* EU Recovery Fund */}
         <div className="dash-card border dash-edge rounded-xl p-6">
-          <p className="text-caption dash-muted mb-2">EU Recovery & Resilience Fund</p>
+          <h3 className="text-callout font-semibold dash-fg mb-2">EU Recovery & Resilience Fund</h3>
 
           {euLoading && (
             <div className="animate-pulse space-y-2">
@@ -220,28 +242,44 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
 
         {/* Address Search */}
         <div className="dash-card border dash-edge rounded-xl p-6">
-          <p className="text-caption dash-muted mb-2">Address Lookup</p>
+          <h3 className="text-callout font-semibold dash-fg mb-2">Address Lookup</h3>
           <p className="text-caption dash-subtle mb-3">Search 608K+ Latvian addresses with GPS coordinates</p>
 
           <div className="flex gap-2 mb-3">
             <input
               type="text"
-              value={addrQuery}
-              onChange={(e) => setAddrQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddrSearch()}
+              value={addresses.query}
+              onChange={(e) => addresses.changeQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void addresses.submit()}
               placeholder="Street, city, or postal code..."
               className="flex-1 min-w-0 dash-raised border dash-edge rounded-lg px-3 py-2 text-ui dash-fg dash-placeholder"
               aria-label="Search Latvian addresses"
             />
             <button
-              onClick={handleAddrSearch}
-              disabled={addrSearching || addrQuery.length < 3}
+              onClick={() => void addresses.submit()}
+              disabled={addrSearching || addresses.query.trim().length < 3}
               className="dash-btn dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
               aria-label="Search addresses"
             >
               {addrSearching ? '...' : '📍'}
             </button>
           </div>
+
+          <p role="status" aria-atomic="true" className={`text-caption mb-2 ${addresses.state.status === 'error' ? 'dash-negative' : 'dash-muted'}`}>
+            {addresses.state.status === 'idle' && 'Enter at least 3 characters, then search.'}
+            {addresses.state.status === 'loading' && <>Searching addresses for &quot;{addresses.state.query}&quot;…</>}
+            {addresses.state.status === 'error' && <>Could not search addresses for &quot;{addresses.state.query}&quot;. Please try again.</>}
+            {addresses.state.status === 'success' && addrResult && (
+              list(addrResult.addresses).length === 0
+                ? <>No addresses found for &quot;{addresses.state.query}&quot;. Try another street, city or postal code.</>
+                : <>{finite(addrResult.total)?.toLocaleString() ?? '—'} total matches for &quot;{addresses.state.query}&quot; — showing {Math.min(list(addrResult.addresses).length, 8)}</>
+            )}
+          </p>
+          {addresses.state.status === 'error' && (
+            <button type="button" onClick={() => void addresses.submit()} className="dash-btn dash-fg text-ui px-3 py-2 rounded-lg mb-3">
+              Retry address search
+            </button>
+          )}
 
           {addrResult && (
             <div className="space-y-2 max-h-52 overflow-y-auto">
@@ -265,13 +303,12 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
                   </div>
                 </div>
               ))}
-              <p className="text-caption dash-subtle">{finite(addrResult.total)?.toLocaleString() ?? '—'} total matches</p>
             </div>
           )}
 
-          {!addrResult && !addrSearching && (
+          {addresses.state.status === 'idle' && (
             <p className="text-caption dash-subtle">
-              Try: <button onClick={() => { setAddrQuery('Brīvības iela'); }} className="dash-muted underline">Brīvības iela</button> or <button onClick={() => { setAddrQuery('LV-1010'); }} className="dash-muted underline">LV-1010</button>
+              Try: <button onClick={() => addresses.changeQuery('Brīvības iela')} className="dash-muted underline">Brīvības iela</button> or <button onClick={() => addresses.changeQuery('LV-1010')} className="dash-muted underline">LV-1010</button>
             </p>
           )}
         </div>

@@ -56,34 +56,34 @@ function liveShape() {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe('Section tabs', () => {
-  it('offers no tab for a section only other outlets occupy', async () => {
+describe('News topic filter', () => {
+  it('offers no topic for a section only other outlets occupy', async () => {
     stubIndex(liveShape());
 
     renderFeed();
 
     await waitFor(() => expect(screen.getByText('Latvian pay rises')).toBeTruthy());
 
-    const tabs = screen.getByRole('group', { name: 'Filter by section' });
+    const tabs = screen.getByRole('combobox', { name: 'News topic' });
     expect(tabs.textContent).toContain('Labour');
     expect(tabs.textContent).toContain('Energy');
     expect(tabs.textContent).not.toContain('Government');
   });
 
-  it('never offers a tab that leads to an empty front page', async () => {
+  it('never offers a topic that leads to an empty front page', async () => {
     stubIndex(liveShape());
 
     renderFeed();
     await waitFor(() => expect(screen.getByText('Latvian pay rises')).toBeTruthy());
 
-    const tabs = screen.getByRole('group', { name: 'Filter by section' });
-    const buttons = [...tabs.querySelectorAll('button')].filter(
-      (b) => b.textContent !== 'Everything',
+    const tabs = screen.getByRole('combobox', { name: 'News topic' });
+    const options = [...tabs.querySelectorAll('option')].filter(
+      (option) => option.value !== 'all',
     );
-    expect(buttons.length).toBeGreaterThan(0);
+    expect(options.length).toBeGreaterThan(0);
 
-    for (const button of buttons) {
-      fireEvent.click(button);
+    for (const option of options) {
+      fireEvent.change(tabs, { target: { value: option.value } });
       await waitFor(() =>
         expect(screen.queryByText('Nothing to report yet today')).toBeNull(),
       );
@@ -99,7 +99,7 @@ describe('Section tabs', () => {
     renderFeed();
     await waitFor(() => expect(screen.getByText('Latvian pay rises')).toBeTruthy());
 
-    fireEvent.click(screen.getByRole('button', { name: 'Energy' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'News topic' }), { target: { value: 'energy' } });
 
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'Elsewhere in the Baltics' })).toBeTruthy(),
@@ -108,7 +108,7 @@ describe('Section tabs', () => {
     expect(screen.queryByText('Latvian pay rises')).toBeNull();
   });
 
-  it('hides the tab strip when all our work sits in one section', async () => {
+  it('uses one compact selector instead of a second tab strip even for a single topic', async () => {
     stubIndex([
       { ...tierASummary(), id: 'a1', slug: 'a1', section: 'labour', headline: 'Only story' },
       ...Array.from({ length: 5 }, (_, n) => ({
@@ -123,5 +123,6 @@ describe('Section tabs', () => {
     await waitFor(() => expect(screen.getByText('Only story')).toBeTruthy());
 
     expect(screen.queryByRole('group', { name: 'Filter by section' })).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'News topic' }).querySelectorAll('option')).toHaveLength(2);
   });
 });

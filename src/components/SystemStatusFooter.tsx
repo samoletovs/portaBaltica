@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import type { SystemStatus, DataSourceCheck } from '../types';
 import { fetchSystemStatus } from '../api';
 
@@ -57,6 +57,7 @@ function freshnessLabel(ageMs: number): string {
 export function SystemStatusFooter() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
 
   useEffect(() => {
     fetchSystemStatus().then(setStatus).catch(() => {});
@@ -131,6 +132,8 @@ export function SystemStatusFooter() {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between w-full text-left"
         aria-label="Toggle system status details"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
       >
         <div className="flex items-center gap-3">
           <span className={`w-2 h-2 rounded-full ${status.status === 'healthy' ? 'dash-fill-positive' : status.status === 'degraded' ? 'dash-fill-warning' : 'dash-fill-negative'}`} />
@@ -153,8 +156,8 @@ export function SystemStatusFooter() {
         <span className="text-caption dash-subtle">{expanded ? '▲' : '▼'}</span>
       </button>
 
-      {expanded && (
-        <div className="mt-3 pt-3 border-t dash-edge">
+      <section id={detailsId} aria-label="Data source status details" hidden={!expanded} className="mt-3 pt-3 border-t dash-edge">
+        {expanded && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Data source health */}
             <div>
@@ -256,8 +259,8 @@ export function SystemStatusFooter() {
               )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 }
