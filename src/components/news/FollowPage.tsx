@@ -83,6 +83,31 @@ function measureCadence(articles: readonly ArticleSummary[], now: number): Caden
   return { articles: count, days: days.size };
 }
 
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  // A control that cannot work is not shown. `navigator.clipboard` is absent
+  // outside a secure context, and a Copy button that silently does nothing is
+  // worse than no button: the URL beside it is selectable either way.
+  const clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard;
+  if (!clipboard || typeof clipboard.writeText !== 'function') return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        clipboard.writeText(value).then(
+          () => setCopied(true),
+          () => setCopied(false),
+        );
+      }}
+      className="news-border news-panel news-hover-panel shrink-0 rounded border px-2 py-1 text-caption font-semibold uppercase tracking-widest"
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
 function FeedRow({
   path,
   name,
@@ -95,21 +120,6 @@ function FeedRow({
   carries: string;
 }) {
   const absolute = `${typeof window === 'undefined' ? '' : window.location.origin}${path}`;
-  const [copyState, setCopyState] = useState<'idle' | 'copying' | 'copied' | 'failed'>('idle');
-  const clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard;
-  const canCopy = typeof clipboard?.writeText === 'function';
-  const needsManualCopy = !canCopy || copyState === 'failed';
-
-  async function copy() {
-    if (!canCopy || copyState === 'copying') return;
-    setCopyState('copying');
-    try {
-      await clipboard.writeText(absolute);
-      setCopyState('copied');
-    } catch {
-      setCopyState('failed');
-    }
-  }
 
   return (
     <li className="news-border news-panel rounded-lg border px-4 py-4">
@@ -145,25 +155,8 @@ function FeedRow({
         >
           {absolute}
         </a>
-        {canCopy && (
-          <button
-            type="button"
-            onClick={() => void copy()}
-            disabled={copyState === 'copying'}
-            aria-label={`Copy ${name} URL`}
-            className="news-border news-panel news-hover-panel shrink-0 rounded border px-2 py-1 text-caption font-semibold uppercase tracking-widest"
-          >
-            {copyState === 'copied' ? 'Copied' : copyState === 'copying' ? 'Copying' : 'Copy'}
-          </button>
-        )}
+        <CopyButton value={absolute} />
       </div>
-      <p role="status" aria-atomic="true" className={needsManualCopy ? 'news-muted mt-2 text-ui' : 'sr-only'}>
-        {needsManualCopy
-          ? `Could not copy automatically. Select the ${name} URL above and copy it manually.`
-          : copyState === 'copied'
-            ? `${name} URL copied.`
-            : copyState === 'copying' ? `Copying ${name} URL…` : ''}
-      </p>
     </li>
   );
 }

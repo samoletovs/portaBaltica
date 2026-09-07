@@ -29,8 +29,7 @@ describe('unified site header', () => {
     expect(screen.getByRole('link', { name: 'News' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/data');
     expect(screen.getByLabelText(/Switch to .* theme/)).toBeTruthy();
-    expect(screen.queryByLabelText('Date range filter')).toBeNull();
-    expect(screen.getByRole('combobox', { name: 'Market country' })).toBeTruthy();
+    expect(screen.getByLabelText('Date range filter')).toBeTruthy();
   });
 
   it('keeps dashboard section URLs and active state', () => {
@@ -38,8 +37,6 @@ describe('unified site header', () => {
 
     expect(screen.getByRole('link', { name: 'Economy' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'News' }).getAttribute('href')).toBe('/');
-    expect(screen.getByLabelText('Date range filter')).toBeTruthy();
-    expect(screen.getByRole('group', { name: 'Country' })).toBeTruthy();
   });
 });
 

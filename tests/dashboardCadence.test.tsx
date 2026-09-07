@@ -194,10 +194,10 @@ describe('every Baltic comparison card says when it is from', () => {
     expect(text).toMatch(/latestPeriods[\s\S]{0,320}s\.value !== null/);
   });
 
-  it('budgets ticks from both the periods and available chart width', () => {
-    // The fixed six-label budget was too wide for quarterly dates on a phone.
-    // chartUi and responsiveChartTicks exercise the rendered result and spacing.
-    expect(text).toMatch(/periodAxisTicks\(sortedPeriods,\s*chartWidth/);
+  it('derives its tick interval rather than writing one', () => {
+    // A hardcoded interval is a claim about how many points the series
+    // carries, and it stops being true. `chartType.ts` owns the derivation.
+    expect(text).toMatch(/tickInterval\(chartData\.length\)/);
     expect(text).not.toMatch(/interval=\{\s*\d+\s*\}/);
   });
 });

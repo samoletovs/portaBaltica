@@ -80,7 +80,6 @@ const LIVE_CHECKS = new Map<string, string>([
   ['deployRecoveryReal.live.test.ts', 'the deploy-race recovery fires on a real chunk failure, in a real browser'],
   ['functionSecurityHeaders.live.test.ts', 'every deployed route carries the security headers'],
   ['headerOneRow.live.test.ts', 'the deployed header keeps its controls on one row'],
-  ['newsSearchInteraction.live.test.ts', 'editing a news query preserves the caret and every keystroke while the URL is updated'],
   ['historicalData.live.test.ts', 'every Latvian indicator the API advertises still returns data'],
   [
     'layoutStability.live.test.ts',

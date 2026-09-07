@@ -21,7 +21,7 @@
  * retained as an availability signal only".
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, act, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 
 const fetchSystemStatus = vi.fn();
 vi.mock('../src/api', () => ({
@@ -82,31 +82,6 @@ async function renderFooter() {
 
 beforeEach(() => { fetchSystemStatus.mockReset(); });
 afterEach(() => { cleanup(); });
-
-describe('system status disclosure', () => {
-  it('reports expansion and controls one stable, named region through toggles', async () => {
-    fetchSystemStatus.mockResolvedValue(payload('healthy', [...REQUIRED_OK, RIGA_DOWN]));
-    await renderFooter();
-    const toggle = screen.getByRole('button', { name: 'Toggle system status details' });
-    const id = toggle.getAttribute('aria-controls');
-    expect(id).toBeTruthy();
-    const region = document.getElementById(id!);
-    expect(region?.hidden).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByRole('region', { name: 'Data source status details' })).toBeNull();
-
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('region', { name: 'Data source status details' })).toBe(region);
-    expect(region?.hidden).toBe(false);
-    expect(region?.textContent).toContain('Nothing — retained as an availability signal only');
-
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(document.getElementById(id!)).toBe(region);
-    expect(region?.hidden).toBe(true);
-  });
-});
 
 describe('the headline count agrees with the badge', () => {
   it('reports the required sources, not the combined figure', async () => {

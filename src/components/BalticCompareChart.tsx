@@ -4,17 +4,14 @@ import { useTheme } from '../ThemeContext';
 import { useFilter } from '../FilterContext';
 import { SeriesSwatch } from './SeriesSwatch';
 import { formatValue } from '../utils/formatValue';
-import type { BalticCompareData } from '../api';
-import { fetchChartComparison } from '../utils/chartRequest';
-import { chartTick, chartTooltip, periodAxisTicks, CHART_MIN_TICK_GAP } from '../utils/chartType';
+import { fetchBalticCompare, type BalticCompareData } from '../api';
+import { chartTick, chartTooltip, tickInterval, CHART_TICK_SIZE } from '../utils/chartType';
 import { freshnessOf, periodCoverage, axisPeriodLabel } from '../dataFreshness';
 import { referenceSharesAxis } from '../utils/referenceScale';
 import { describeComparison } from '../utils/chartAccessibility';
 import { optionalString, type SeriesExport } from '../utils/exportSeries';
 import { DownloadMenu } from './DownloadMenu';
 import { FreshnessNotice } from './FreshnessNotice';
-import { IndicatorUnavailable } from './IndicatorUnavailable';
-import { finite, list } from '../utils/payload';
 
 /**
  * Each country's identity in a chart: its flag colour, a stroke pattern, an
@@ -117,9 +114,6 @@ interface BalticCompareChartProps {
 export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false, note }: BalticCompareChartProps) {
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const [chartWidth, setChartWidth] = useState(0);
   const { chartColors } = useTheme();
   const { years: filterYears, strokeStyle } = useFilter();
   const years = yearsProp ?? filterYears;
@@ -129,16 +123,14 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
 
     const load = async () => {
       setLoading(true);
-      setFailed(false);
       try {
-        const payload = await fetchChartComparison(indicator, years, attempt > 0);
+        const payload = await fetchBalticCompare(indicator, years);
         if (!cancelled) {
           setData(payload);
         }
       } catch {
         if (!cancelled) {
           setData(null);
-          setFailed(true);
         }
       } finally {
         if (!cancelled) {
@@ -152,12 +144,11 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     return () => {
       cancelled = true;
     };
-  }, [indicator, years, attempt]);
+  }, [indicator, years]);
 
   if (loading) {
     return (
       <div className={`rounded-xl p-4 animate-pulse ${compact ? 'h-40' : 'h-64'}`}
-        aria-busy="true" aria-label={`Loading ${title ?? indicator}`}
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
         <div className="h-3 rounded w-1/3 mb-4" style={{ background: 'var(--border-card)' }} />
         <div className="h-full rounded" style={{ background: 'var(--bg-raised)' }} />
@@ -165,17 +156,10 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
     );
   }
 
-  if (!data || !COUNTRY_ORDER.some((geo) =>
-    list<{ value: number | null }>(data.countries?.[geo]?.series).some((point) => finite(point.value) !== null),
-  )) {
+  if (!data || !data.countries || Object.keys(data.countries).length === 0) {
     return (
-      <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
-        <IndicatorUnavailable
-          title={title ?? data?.title ?? indicator.replaceAll('_', ' ')}
-          source={data?.source || 'Eurostat'}
-          failed={failed}
-          onRetry={() => setAttempt((current) => current + 1)}
-        />
+      <div className={`rounded-xl p-4 flex items-center justify-center ${compact ? 'h-40' : 'h-64'}`} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+        <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>No data available{title ? ` for ${title}` : ''}</p>
       </div>
     );
   }
@@ -255,7 +239,28 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   const coverage = periodCoverage(latestPeriods[0], latestPeriods[latestPeriods.length - 1]);
   const freshness = freshnessOf(latestPeriods[0]);
 
-  const axis = periodAxisTicks(sortedPeriods, chartWidth, axisPeriodLabel, compact ? 0 : 40);
+  // How many ticks, and how much room the outermost one needs.
+  //
+  // The interval came from `Math.floor(chartData.length / 6)` written out
+  // here, which is `tickInterval` spelled a second time — the shape
+  // `chartType.ts` names in its own docstring as the sibling that conceals the
+  // broken one. Two derivations of a rule can disagree; one cannot.
+  //
+  // The inset is the part that was actually broken, and it was broken on every
+  // compact chart on the site rather than on anything added here. recharts
+  // centres a tick label on its tick and the first tick sits at x=0, so half
+  // the label is drawn at negative x and clipped by the card. Photographed at
+  // 375px: the gas price axis opened with `21-S1` and weekly deaths with
+  // `1-W01`, both of which read as a rendering fault rather than as a date.
+  //
+  // Sized from the labels actually drawn rather than from a constant, because
+  // the widest one depends on the cadence — `2021-W01` is eight characters
+  // where `2026-Q2` is seven, and weekly arrived after this component was
+  // written. At `CHART_TICK_SIZE` a digit is about 0.62em.
+  const interval = tickInterval(chartData.length);
+  const drawnTicks = chartData.filter((_, i) => i % (interval + 1) === 0);
+  const widestTick = Math.max(0, ...drawnTicks.map((p) => axisPeriodLabel(String(p.period)).length));
+  const axisInset = Math.ceil((widestTick * CHART_TICK_SIZE * 0.62) / 2);
 
   // Where each country's line actually ends, which is not always the last
   // period on the chart: the three do not publish on the same schedule, and in
@@ -385,10 +390,10 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           `/data/economy`, where 10 of the 19 focusable chart surfaces were this
           component, every one unnamed inside a well-named wrapper. */}
       <div className={compact ? 'h-32' : 'h-52'}>
-        <ResponsiveContainer width="100%" height="100%" onResize={(width) => setChartWidth(width)}>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 4, right: axis.inset, bottom: 0, left: axis.inset }}
+            margin={{ top: 4, right: axisInset, bottom: 0, left: axisInset }}
             aria-label={describeComparison(
               title ?? data.title,
               COUNTRY_ORDER.map((geo) => ({
@@ -404,9 +409,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
               tick={chartTick(chartColors.axis)}
               tickLine={false}
               axisLine={{ stroke: chartColors.grid }}
-              ticks={axis.ticks}
-              interval="preserveStartEnd"
-              minTickGap={CHART_MIN_TICK_GAP}
+              interval={interval}
               tickFormatter={axisPeriodLabel}
             />
             {!compact && (

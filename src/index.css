@@ -575,13 +575,6 @@ button,
 
 /* Editorial surfaces use semantic tokens so every news route follows the theme. */
 .news-fg { color: var(--news-fg); }
-.news-search-input::-webkit-search-cancel-button {
-  appearance: none;
-}
-.news-search-input::placeholder {
-  color: var(--news-muted);
-  opacity: 1;
-}
 .news-muted { color: var(--news-muted); }
 .news-subtle { color: var(--news-subtle); }
 .news-accent { color: var(--news-accent); }

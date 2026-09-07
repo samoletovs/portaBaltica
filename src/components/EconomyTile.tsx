@@ -12,7 +12,6 @@ import { chartTick, chartTooltip, tickInterval } from '../utils/chartType';
 import { describeSeries } from '../utils/chartAccessibility';
 import { optionalString } from '../utils/exportSeries';
 import { DownloadMenu } from './DownloadMenu';
-import { formatPeriod } from '../dataFreshness';
 
 interface EconomyTileProps {
   data: EconomyData | null;
@@ -22,15 +21,11 @@ interface EconomyTileProps {
 export function EconomyTile({ data, loading }: EconomyTileProps) {
   const { chartColors } = useTheme();
   const { countryLabel, flag, country, timezone } = useCountry();
-  const pricesAvailable = list<{ price: number | null }>(data?.electricityPrices).some((price) => finite(price.price) !== null);
-  const ratesAvailable = list<{ rate: number | null }>(data?.exchangeRates).some((rate) => finite(rate.rate) !== null);
   return (
     <section>
       <TileHeader title="Economy & markets" meta={`${flag} ${countryLabel} · Eurostat + live feeds`} />
 
       <div className="space-y-6">
-
-      <IndicatorTable />
 
       {/* Key macro indicators */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -66,7 +61,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
               </p>
             )}
           </div>
-          {data && pricesAvailable ? (() => {
+          {data && list(data.electricityPrices).length > 0 ? (() => {
             // The day this chart shows and the hours it labels have to be the
             // same day.
             //
@@ -197,20 +192,8 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                 </div>
               </>
             );
-          })() : loading ? (
-            <div className="h-28 animate-pulse dash-raised rounded" aria-busy="true" aria-label="Loading electricity prices" />
-          ) : (
-            <p role="status" className="text-ui dash-muted py-4">
-              {data ? 'No electricity prices returned by Elering.' : 'Electricity prices are unavailable.'}
-            </p>
-          )}
-          {data && finite(data.electricityCurrent) === null && pricesAvailable && (
-            <p className="text-caption dash-muted mt-2">Current price unavailable; published intervals shown.</p>
-          )}
-          {data?.priceSchedule?.stale && (
-            <p className="text-caption dash-muted mt-2">
-              Cached price schedule{data.priceSchedule.retrievedAt ? ` · Retrieved ${formatPeriod(data.priceSchedule.retrievedAt.slice(0, 10))}` : ''}.
-            </p>
+          })() : (
+            <div className="h-28 animate-pulse dash-raised rounded" />
           )}
           <p className="text-caption dash-subtle mt-1">NordPool day-ahead · Elering API</p>
         </div>
@@ -218,7 +201,7 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
         {/* Exchange rates table */}
         <div className="dash-card border dash-edge rounded-xl p-4">
           <p className="text-caption dash-muted font-semibold uppercase tracking-widest mb-3">Exchange rates</p>
-          {data && ratesAvailable ? (
+          {data ? (
             <div className="space-y-1">
               {list<{ currency: string; name: string; rate: number }>(data.exchangeRates).map((rate) => (
                 <div key={rate.currency} className="flex items-center justify-between py-0.5">
@@ -230,14 +213,10 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
                 </div>
               ))}
             </div>
-          ) : loading ? (
-            <div className="space-y-2 animate-pulse" aria-busy="true" aria-label="Loading exchange rates">
+          ) : (
+            <div className="space-y-2 animate-pulse">
               {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-4 dash-skeleton rounded" />)}
             </div>
-          ) : (
-            <p role="status" className="text-ui dash-muted py-4">
-              {data ? 'No exchange rates returned by the ECB.' : 'Exchange rates are unavailable.'}
-            </p>
           )}
           <p className="text-caption dash-subtle mt-2">ECB official rates · Updated daily 16:00 CET</p>
         </div>
@@ -267,35 +246,22 @@ export function EconomyTile({ data, loading }: EconomyTileProps) {
       {/* Baltic comparison */}
       <div>
         <h3 className="text-callout font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Baltic comparison</h3>
-        <p className="text-ui dash-muted mb-3">Explore the detailed series for Latvia, Estonia and Lithuania.</p>
-        <div className="space-y-3">
-          <details className="dash-edge border rounded-xl">
-            <summary className="text-callout font-semibold dash-body p-3 cursor-pointer">Prices & inflation · 6 charts</summary>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-              <BalticCompareChart indicator="inflation" title="Inflation (HICP)" compact />
-              <BalticCompareChart indicator="core_inflation" title="Core inflation" compact />
-              <BalticCompareChart indicator="energy_inflation" title="Energy inflation" compact />
-              <BalticCompareChart indicator="food_inflation" title="Food inflation" compact />
-              <BalticCompareChart indicator="services_inflation" title="Services inflation" compact />
-              <BalticCompareChart indicator="goods_inflation" title="Goods inflation" compact />
-            </div>
-          </details>
-          <details className="dash-edge border rounded-xl">
-            <summary className="text-callout font-semibold dash-body p-3 cursor-pointer">Housing & production · 2 charts</summary>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-              <BalticCompareChart indicator="house_prices" title="House prices across the Baltics" compact />
-              <BalticCompareChart indicator="industrial" title="Industrial production" compact />
-            </div>
-          </details>
-          <details className="dash-edge border rounded-xl">
-            <summary className="text-callout font-semibold dash-body p-3 cursor-pointer">Business activity · 2 charts</summary>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-              <BalticCompareChart indicator="business_registrations" title="New business registrations" compact />
-              <BalticCompareChart indicator="bankruptcies" title="Bankruptcy declarations" compact />
-            </div>
-          </details>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <BalticCompareChart indicator="inflation" title="Inflation (HICP)" compact />
+          <BalticCompareChart indicator="core_inflation" title="Core inflation" compact />
+          <BalticCompareChart indicator="energy_inflation" title="Energy inflation" compact />
+          <BalticCompareChart indicator="food_inflation" title="Food inflation" compact />
+          <BalticCompareChart indicator="services_inflation" title="Services inflation" compact />
+          <BalticCompareChart indicator="goods_inflation" title="Goods inflation" compact />
+          <BalticCompareChart indicator="house_prices" title="House prices across the Baltics" compact />
+          <BalticCompareChart indicator="industrial" title="Industrial production" compact />
+          <BalticCompareChart indicator="business_registrations" title="New business registrations" compact />
+          <BalticCompareChart indicator="bankruptcies" title="Bankruptcy declarations" compact />
         </div>
       </div>
+
+      {/* Indicator table */}
+      <IndicatorTable />
       </div>
     </section>
   );

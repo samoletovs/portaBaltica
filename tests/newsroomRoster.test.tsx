@@ -135,19 +135,16 @@ describe('the editor is visible to readers', () => {
   });
 });
 
-describe('the newsroom avoids duplicating site navigation', () => {
-  it('keeps newsroom and policy resources in the footer', () => {
+describe('the masthead is one line and four destinations', () => {
+  it('offers exactly four places to go', () => {
     render(
       <MemoryRouter>
         <NewsroomLayout />
       </MemoryRouter>,
     );
 
-    const nav = screen.getByRole('navigation', { name: 'Newsroom resources' });
-    expect(nav.closest('footer')).not.toBeNull();
-    expect(nav.querySelector('a[href="/newsroom"]')).not.toBeNull();
-    expect(nav.querySelector('a[href="/about/ai"]')).not.toBeNull();
-    expect(screen.queryByRole('link', { name: 'Latest' })).toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'Sections' });
+    expect(nav.querySelectorAll('a')).toHaveLength(4);
   });
 
   it('points at the newsroom rather than at a list of writers', () => {
