@@ -70,6 +70,8 @@ describe('compact news controls', () => {
       String(input).endsWith('/index.json') ? pending : Promise.resolve(Response.json([]))));
     await mountNews();
     const input = screen.getByRole('searchbox');
+    const skeleton = document.querySelector('.news-skeleton');
+    expect(skeleton).not.toBeNull();
     input.focus();
     fireEvent.change(input, { target: { value: 'labour' } });
     await act(async () => { resolve(Response.json({ articles: stories })); });
@@ -77,6 +79,7 @@ describe('compact news controls', () => {
     expect(document.activeElement).toBe(input);
     expect(input.getAttribute('value')).toBe('labour');
     expect(screen.getByText('Estonia labour update 0')).toBeTruthy();
+    expect(document.contains(skeleton)).toBe(false);
   });
 
   it('retries a failed index without discarding the query', async () => {

@@ -166,7 +166,7 @@ export default function NewsFeed() {
         aria-label="Loading the front page"
       >
         {tools}
-        <div className="space-y-4">
+        <div key="front-page-skeleton" className="space-y-4">
           <div className="news-skeleton h-40 animate-pulse rounded-xl" />
           <div className="news-skeleton h-24 animate-pulse rounded-xl" />
           <div className="news-skeleton h-24 animate-pulse rounded-xl" />
@@ -210,7 +210,7 @@ export default function NewsFeed() {
         column definition at all, and at `lg` and above the 20rem rule still
         wins.
       */}
-      <div className="grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div key="front-page-results" className="grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div id="news-results">
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-12 text-center">
