@@ -71,4 +71,32 @@ describe('finding useful published reporting', () => {
     expect(screen.getByRole('heading', { name: 'Elsewhere in the Baltics' })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Help shape our business briefing pilot/ }).getAttribute('href')).toBe('/briefings');
   });
+
+  it('keeps the compact search named and its reporting scope accessible', async () => {
+    await renderFeed([tierASummary()]);
+    const search = screen.getByRole('searchbox', { name: 'Search headlines and summaries' });
+    expect(search.getAttribute('placeholder')).toBe('Search our reporting');
+    expect(document.getElementById(search.getAttribute('aria-describedby')!)?.textContent)
+      .toContain('not article bodies or other outlets');
+    expect(document.getElementById(search.getAttribute('aria-controls')!)).not.toBeNull();
+  });
+
+  it('clears text without clearing the selected topic and returns focus to search', async () => {
+    await renderFeed([
+      tierASummary({ id: 'wages', slug: 'wages', section: 'economy', headline: 'Wages rising' }),
+      tierASummary({ id: 'prices', slug: 'prices', section: 'economy', headline: 'Prices falling' }),
+      tierASummary({ id: 'energy', slug: 'energy', section: 'energy', headline: 'Power update' }),
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'Economy' }));
+    const search = screen.getByRole('searchbox');
+    fireEvent.change(search, { target: { value: 'wages' } });
+    expect(screen.queryByText('Prices falling')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByText('Wages rising')).toBeTruthy();
+    expect(screen.getByText('Prices falling')).toBeTruthy();
+    expect(screen.queryByText('Power update')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Economy' }).getAttribute('aria-pressed')).toBe('true');
+    expect(document.activeElement).toBe(search);
+    expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
+  });
 });

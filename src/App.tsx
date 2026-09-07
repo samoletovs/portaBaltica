@@ -4,7 +4,6 @@ import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSec
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
-import { SectionRail, type SectionLink } from './components/SectionRail';
 import { EconomyTile } from './components/EconomyTile';
 import { TradeTile } from './components/TradeTile';
 import { GovernmentTile } from './components/GovernmentTile';
@@ -30,26 +29,12 @@ interface PortWeatherData {
 
 const VALID_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS);
 
-/** The overview's sections, in the order they are rendered, for the rail. */
-const SECTION_LINKS: SectionLink[] = [
-  { id: 'economy', label: 'Economy' },
-  { id: 'trade', label: 'Trade' },
-  { id: 'government', label: 'Government' },
-  { id: 'labour', label: 'Labour' },
-  { id: 'energy', label: 'Energy' },
-  { id: 'property', label: 'Property' },
-  { id: 'environment', label: 'Environment' },
-  { id: 'business', label: 'Business' },
-  { id: 'maritime', label: 'Maritime' },
-];
-
 /**
  * The anchor a section is scrolled to.
  *
  * A wrapper rather than an id on the tile itself, because the tiles render
  * their own `<section>` and three of them belong to another workstream. The
- * `dash-section` class carries the `scroll-margin-top` that stops a jump
- * landing underneath the sticky rail (WCAG 2.2 SC 2.4.11).
+ * `dash-section` class leaves breathing room above a fragment-link target.
  *
  * It is also a blast radius. The only error boundary on this site is at the
  * root, so one tile that threw replaced the whole dashboard with "Something
@@ -303,11 +288,6 @@ export default function App() {
 
         {/* AI Insights */}
         <InsightsBanner />
-
-        {/* The rail only earns its place on the overview. On a single-section
-            route there is one thing to scroll through and nothing to jump to,
-            and a navigation control that offers a choice of one is noise. */}
-        {activeSection === 'all' && <SectionRail sections={SECTION_LINKS} />}
 
         {/* Dashboard sections.
             48px apart, `--space-2xl`, which DESIGN.md §1.2 names as the gap

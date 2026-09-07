@@ -86,7 +86,6 @@ vi.mock('../src/components/BalticCompareChart', () => ({
 // section description stayed green until this was added.
 vi.mock('../src/components/OnboardingTutorial', () => ({ OnboardingTutorial: () => null }));
 vi.mock('../src/components/InsightsBanner', () => ({ InsightsBanner: () => null }));
-vi.mock('../src/components/SectionRail', () => ({ SectionRail: () => null }));
 vi.mock('../src/components/EconomyTile', () => ({ EconomyTile: () => null }));
 vi.mock('../src/components/TradeTile', () => ({ TradeTile: () => null }));
 vi.mock('../src/components/GovernmentTile', () => ({ GovernmentTile: () => null }));

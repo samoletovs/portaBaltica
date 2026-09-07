@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const app = readFileSync(resolve('src/App.tsx'), 'utf8');
-const rail = readFileSync(resolve('src/components/SectionRail.tsx'), 'utf8');
 const css = readFileSync(resolve('src/index.css'), 'utf8');
 const html = readFileSync(resolve('index.html'), 'utf8');
 
@@ -34,37 +33,14 @@ describe('the dashboard as a page a reader can move through', () => {
     }
   });
 
-  it('clears the sticky rail when it jumps to one', () => {
-    // WCAG 2.2 SC 2.4.11: a target scrolled to must not end up underneath
-    // sticky chrome. `.dash-section` is the class the anchors carry.
+  it('keeps breathing room above a fragment-link target', () => {
     expect(css, '.dash-section needs a scroll-margin-top').toMatch(
       /\.dash-section\s*\{[^}]*scroll-margin-top:/,
     );
   });
 
-  it('does not offer a choice of one', () => {
-    // On a single-section route there is nothing to navigate between, and a
-    // navigation control listing one destination is noise.
-    expect(app).toMatch(/activeSection === 'all' && <SectionRail/);
-  });
-});
-
-describe('the section rail', () => {
-  it('uses real fragment links rather than click handlers', () => {
-    // A fragment link works with JavaScript disabled, survives being copied
-    // out of the address bar, and is keyboard-operable without any work.
-    expect(rail).toMatch(/href=\{`#\$\{id\}`\}/);
-  });
-
-  it('says where the reader is without claiming to be the page', () => {
-    // The masthead tab already carries aria-current="page". The rail describes
-    // a position within that page, which is what `location` is for.
-    expect(rail).toMatch(/aria-current=\{isActive \? 'location' : undefined\}/);
-    expect(rail, 'the rail needs a name of its own').toMatch(/aria-label="Jump to a dashboard section"/);
-  });
-
-  it('sticks, so a way out is always one tap away', () => {
-    expect(rail).toMatch(/className="sticky top-0/);
+  it('does not repeat the header destinations beneath Insights', () => {
+    expect(app).not.toContain('SectionRail');
   });
 });
 
@@ -90,7 +66,7 @@ describe('a horizontally scrolling strip', () => {
       expect(css, `${rule} is missing`).toContain(rule);
     }
 
-    for (const file of ['Header.tsx', 'InsightsBanner.tsx', 'SectionRail.tsx']) {
+    for (const file of ['Header.tsx', 'InsightsBanner.tsx']) {
       const text = readFileSync(resolve(`src/components/${file}`), 'utf8');
       expect(text, `${file} must measure its own overflow`).toContain('useOverflowFade');
       expect(text, `${file} must not use the unconditional fade`).not.toContain('edge-fade-x');

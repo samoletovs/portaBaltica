@@ -1030,9 +1030,9 @@ while doing it.
 
 This is also the reason the masthead is **not** sticky. Making it so would put
 130px of dashboard chrome above every article — a fifth of a phone viewport,
-permanently — and deepen the colonisation described in §7.4. The dashboard's
-own section rail costs 44px and appears only where there is something to
-navigate.
+permanently — and deepen the colonisation described in §7.4. The Overview no
+longer adds a second section menu below Insights: readers use the existing top
+navigation to open a subject. Existing fragment-link targets remain available.
 
 ### 3.10 A handler's scope is part of its correctness
 
@@ -1092,6 +1092,10 @@ work rather than here.
 - Everything below it is a divided list, not a grid of cards. Rules between
   items, no boxes — the Guardian's "container" model.
 - The section rail is secondary and visually quieter than the main column.
+- Keep the site navigation, four newsroom destinations and visible topic chips.
+  Search is one always-visible field, with its accessible label and scope
+  description retained. The briefing invitation sits beside it when there is
+  room and wraps below on a phone; neither becomes a dropdown or popover.
 
 ### 4.2 The article
 
@@ -1114,6 +1118,8 @@ work rather than here.
   which is the same inversion the type pass fixed one level up and left here.
 - Density is compact by default: this is a terminal, and Carbon's condensed
   row heights (32–40px) are the model.
+- Insights lead directly into the data sections, without repeating the top
+  navigation. Removing that menu does not remove any section or collapse charts.
 
 ### 4.4 A phone is not a small desktop
 

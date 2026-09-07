@@ -36,7 +36,6 @@ vi.mock('../src/components/BusinessTile', () => ({ BusinessTile: () => null }));
 vi.mock('../src/components/InsightsBanner', () => ({ InsightsBanner: () => null }));
 vi.mock('../src/components/OnboardingTutorial', () => ({ OnboardingTutorial: () => null }));
 vi.mock('../src/components/SystemStatusFooter', () => ({ SystemStatusFooter: () => null }));
-vi.mock('../src/components/SectionRail', () => ({ SectionRail: () => null }));
 
 const INTERVAL = 15 * 60_000;
 const RETRIEVED = '2026-09-05T06:14:00.000Z';

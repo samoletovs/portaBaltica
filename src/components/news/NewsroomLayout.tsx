@@ -1,4 +1,4 @@
-import { NavLink, Link, Outlet } from 'react-router-dom';
+import { NavLink, Link, Outlet, useLocation } from 'react-router-dom';
 import { ACCOUNTABLE_PUBLISHER } from '../../newsroom/editorial';
 import { useOverflowFade } from '../../utils/useOverflowFade';
 
@@ -35,6 +35,7 @@ function navClass({ isActive }: { isActive: boolean }) {
 
 export function NewsroomLayout() {
   const [navRef, navFade] = useOverflowFade<HTMLElement>();
+  const isFrontPage = useLocation().pathname === '/';
 
   return (
     <div>
@@ -69,7 +70,7 @@ export function NewsroomLayout() {
           </nav>
         </header>
 
-        <main id="main" className="py-8">
+        <main id="main" className={isFrontPage ? 'pb-8 pt-4' : 'py-8'}>
           <Outlet />
         </main>
 

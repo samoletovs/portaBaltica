@@ -436,10 +436,7 @@ article[id] {
   scroll-margin-top: 5rem;
 }
 
-/* A dashboard section, as a fragment link target. The rail that sits above it
-   is sticky and about 44px tall, so a jump has to clear that rail rather than
-   land underneath it — the same SC 2.4.11 requirement as above, measured for
-   this control rather than for the masthead. */
+/* Keep existing dashboard fragment links and their breathing room. */
 .dash-section {
   scroll-margin-top: 4rem;
 }

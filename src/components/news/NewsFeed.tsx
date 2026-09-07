@@ -8,6 +8,7 @@ import { ArticleCard, CorrectionsUnavailable, FeedItem } from './NewsCard';
 import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { useOverflowFade } from '../../utils/useOverflowFade';
+import { NewsSearch } from './NewsSearch';
 
 type Filter = 'all' | string;
 const PAGE_SIZE = 12;
@@ -244,29 +245,17 @@ export default function NewsFeed() {
 
   return (
     <div key="front-page-loaded">
-      <p className="news-muted mb-4 text-ui">
-        Using Baltic data at work?{' '}
-        <Link to="/briefings" className="news-link underline underline-offset-4">
+      <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+        {!failed && (
+          <NewsSearch value={search} onChange={(value) => {
+            setSearch(value);
+            setVisibleCount(PAGE_SIZE);
+          }} />
+        )}
+        <Link to="/briefings" className="news-link inline-flex min-h-11 items-center text-ui underline underline-offset-4">
           Help shape our business briefing pilot
-        </Link>.
-      </p>
-      {!failed && (
-        <div className="mb-4">
-          <label htmlFor="news-search" className="news-fg block text-ui font-semibold">
-            Search headlines and summaries
-          </label>
-          <input id="news-search" type="search" maxLength={200} value={search}
-            aria-describedby="news-search-scope" aria-controls="news-results"
-            className="news-border news-panel news-fg w-full rounded-lg border px-3 py-2 text-ui"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setVisibleCount(PAGE_SIZE);
-            }} />
-          <p id="news-search-scope" className="news-subtle mt-2 text-caption">
-            Searches the current published index, not article bodies or other outlets.
-          </p>
-        </div>
-      )}
+        </Link>
+      </div>
       {sections.length > 1 && (
         <SectionFilter sections={sections} filter={filter} onChange={(next) => {
           setFilter(next);
