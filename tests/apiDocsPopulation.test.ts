@@ -99,6 +99,21 @@ describe('the API docs page and the API agree', () => {
     expect(documentedEndpoints().length, 'no endpoints parsed from ApiDocsPage').toBeGreaterThan(10);
   });
 
+  it('registers every handler with the Functions HTTP runtime', () => {
+    // Calling index.js directly in a unit test does not prove Azure can route to it.
+    for (const name of existingEndpoints()) {
+      const registration = join(API_DIR, name, 'function.json');
+      expect(existsSync(registration), `${name} has a handler but no function.json`).toBe(true);
+      const config: unknown = JSON.parse(readFileSync(registration, 'utf8'));
+      expect(config, `${name} must bind the request and context.res`).toMatchObject({
+        bindings: expect.arrayContaining([
+          expect.objectContaining({ type: 'httpTrigger', direction: 'in', name: 'req' }),
+          expect.objectContaining({ type: 'http', direction: 'out', name: 'res' }),
+        ]),
+      });
+    }
+  });
+
   it('documents no endpoint that does not exist', () => {
     const existing = new Set(existingEndpoints());
     const ghosts = documentedEndpoints().filter((name) => !existing.has(name));
