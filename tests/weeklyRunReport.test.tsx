@@ -32,7 +32,7 @@
  * about the instrument before it is a claim about the code.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import WeeklyPage from '../src/components/news/WeeklyPage';
@@ -118,7 +118,16 @@ function renderPage() {
   );
 }
 
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => {
+  // The rendered page reads the clock itself; it must share the fixture's NOW.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('explainNoReview', () => {
   it('says unknown when there is no report, rather than guessing', () => {
