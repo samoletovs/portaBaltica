@@ -10,9 +10,9 @@ token generating prose we would not be allowed to publish. The validator runs
 after, and its verdict is written into the article's own provenance block, so an
 article can never be served without carrying the evidence that it was checked.
 
-There is no regeneration loop. A rejected article is dropped and logged. Paying
-the model twice to talk it out of a fabrication is both expensive and a way of
-selecting for outputs that happen to slip past the checks.
+Revisions are bounded and use the same validator. A retry receives the complete
+previous draft and a copy-editing task, not another invitation to expand the
+story. An article that never passes is dropped and logged.
 """
 
 from __future__ import annotations
@@ -47,6 +47,7 @@ from newsroom.pipeline.write.prompts import (
     PROMPT_VERSION,
     build_editor_revision_prompt,
     build_revision_prompt,
+    build_revision_system_prompt,
     build_system_prompt,
     build_user_prompt,
     paragraphs_for,
@@ -165,16 +166,16 @@ def generate_article(
     max_attempts: int = MAX_ATTEMPTS,
     editor_notes: Sequence[str] = (),
 ) -> GenerationResult:
-    """Generate, gate, and allow one bounded revision. Check ``publishable``.
+    """Generate, gate, and allow bounded copy-editing attempts. Check ``publishable``.
 
     A rejected first draft is usually a bookkeeping failure rather than a
     fabrication — the model wrote a correct figure in the prose and forgot to
     declare it, or described a movement without naming the comparison basis.
     Those are faults a writer can fix when told what they are, so the
-    validator's own complaint goes back once and the article is re-gated.
+    validator's own complaint goes back with the complete previous draft.
 
     The gate itself is untouched: the same checks run again at the same zero
-    tolerance, and a second failure discards the article. Nothing here can
+    tolerance, and exhausting the attempts discards the article. Nothing here can
     publish something the validator rejected.
 
     ``signal`` is expected to arrive already enriched by
@@ -334,6 +335,7 @@ def generate_article(
                 "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, faults
             )
             prompt = build_revision_prompt(user, faults, result.article)
+            system = build_revision_system_prompt()
 
     assert result is not None  # the loop runs at least once
     # A later attempt can be worse than an earlier one — the loop is asking a

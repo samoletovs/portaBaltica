@@ -128,6 +128,13 @@ convention.
 
 ### Why the depth stages exist
 
+Rejected drafts receive bounded copy-editing attempts, not a fresh reporting
+assignment. Each retry receives the complete editable draft, including its
+headline, standfirst and per-paragraph figures, so supported copy can survive
+while the reported faults are repaired. Explanations need support at sentence
+and clause level; a figure elsewhere or an attribution in the next sentence
+does not license a cause. The publication checks and retry budget are unchanged.
+
 The pipeline used to hand the writer **one series, alone**, and discard the
 other fifty it had just retrieved. On 2026-08-25 it published three separate
 articles reciting Latvian, Estonian and Lithuanian hourly labour costs while
