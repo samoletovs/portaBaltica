@@ -98,6 +98,8 @@ interface BalticCompareChartProps {
   title?: string;
   years?: number;
   compact?: boolean;
+  /** The research plane owns the title, readings, source and downloads. */
+  workspace?: boolean;
   /**
    * A caveat the figures cannot carry themselves, printed inside the card.
    *
@@ -111,7 +113,7 @@ interface BalticCompareChartProps {
   note?: string;
 }
 
-export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false, note }: BalticCompareChartProps) {
+export function BalticCompareChart({ indicator, title, years: yearsProp, compact = false, workspace = false, note }: BalticCompareChartProps) {
   const [data, setData] = useState<BalticCompareData | null>(null);
   const [loading, setLoading] = useState(true);
   const { chartColors } = useTheme();
@@ -301,7 +303,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
   };
 
   return (
-    <div className="rounded-xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
+    <div className={workspace ? 'lab-chart' : 'rounded-xl p-4'} style={workspace ? undefined : { background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}>
       {/* The header is two blocks — a title and a direct-labelling legend —
           and both must be able to give way.
 
@@ -324,7 +326,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           tablet width would remove the EU27 denominator exactly where a small
           chart is hardest to read (#125). Wrapping costs a line and keeps
           every number. */}
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-3">
+      {!workspace && <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-3">
         <div className="min-w-0">
           <p className="text-callout font-semibold" style={{ color: 'var(--text-primary)' }}>{title ?? data.title}</p>
           <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
@@ -381,7 +383,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* The name goes on the chart surface, not on a wrapper: that is the node
           focus lands on, and recharts' `accessibilityLayer` makes it a focusable
@@ -389,7 +391,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           browsing reader and nothing at all to a tabbing one — measured on
           `/data/economy`, where 10 of the 19 focusable chart surfaces were this
           component, every one unnamed inside a well-named wrapper. */}
-      <div className={compact ? 'h-32' : 'h-52'}>
+      <div className={workspace ? 'lab-chart-plot' : compact ? 'h-32' : 'h-52'}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
@@ -508,7 +510,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           a reader can tell a withheld benchmark from a missing one. */}
       {reference && !plotReference && (
         <p className="text-caption mt-2" style={{ color: 'var(--text-tertiary)' }}>
-          EU27 is off this chart&rsquo;s scale, so it is shown above but not drawn — plotting it would
+          EU27 is off this chart&rsquo;s scale, so it is {workspace ? 'included in the table and export' : 'shown above'} but not drawn — plotting it would
           flatten the three into one line.
         </p>
       )}
@@ -525,7 +527,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           because a reader looking for provenance is already reading this line.
           Nothing renders when no label parses: a chart that cannot say when it
           is from must not imply that it is from now. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
+      {!workspace && <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mt-2">
         <p className="text-caption" style={{ color: 'var(--text-tertiary)' }}>
           Source: {data.source}
           {coverage && (
@@ -537,7 +539,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           )}
         </p>
         {!compact && <DownloadMenu data={exportPayload} />}
-      </div>
+      </div>}
       {/* A source in arrears is normal and is stated above; a source that has
           stopped is a different message and gets a different weight. The
           thresholds are per-cadence, so a semi-annual price eight months
@@ -549,7 +551,7 @@ export function BalticCompareChart({ indicator, title, years: yearsProp, compact
           was false for whichever countries had published since. Measured on
           the built app: 47 cards pair a span with this notice, and the Baltic
           states routinely publish weeks apart. */}
-      <FreshnessNotice freshness={freshness} spans={coverage?.spans} className="mt-1" />
+      {!workspace && <FreshnessNotice freshness={freshness} spans={coverage?.spans} className="mt-1" />}
     </div>
   );
 }

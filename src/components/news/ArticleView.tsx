@@ -13,6 +13,12 @@ import { resolveChartRef } from '../../newsroom/chart-ref';
 import { soleCountry } from '../../newsroom/article-country';
 import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
+import { StoryEvidenceGraphic } from './StoryEvidenceGraphic';
+import { storyEvidence } from '../../newsroom/story-evidence';
+import { ArticleEvidenceRail } from './ArticleEvidenceRail';
+import './ArticleExperience.css';
+import { useRef } from 'react';
+import { useStoryProgress } from '../../motion/useScrollChoreography';
 
 /**
  * The refusal.
@@ -149,14 +155,14 @@ function Block({ block, country }: { block: ArticleBlock; country?: 'LV' | 'EE' 
 
     case 'quote':
       return (
-        <blockquote className="pretty-text news-border news-muted my-8 border-l-2 pl-6 text-lead italic">
+        <blockquote className="pretty-text news-fg text-lead">
           {block.text}
         </blockquote>
       );
 
     case 'callout':
       return (
-        <aside className="pretty-text news-border news-accent-panel news-muted my-6 rounded-lg border px-4 py-3 text-callout">
+        <aside className="folio-story-callout pretty-text news-muted text-callout">
           {formatFigures(block.text ?? '')}
         </aside>
       );
@@ -234,14 +240,15 @@ function KeepUp({ isWeekly }: { isWeekly: boolean }) {
 }
 
 export function ArticleView({ article }: { article: Article }) {
+  const root = useRef<HTMLElement>(null);
+  useStoryProgress(root, `${article.slug}:${article.status}`);
   // ─── The gate ───
   // Applied before anything about this article reaches the DOM. Do not move it
   // below a render of article content, and do not replace it with a check on
   // `status` alone: an article can be marked published and still have failed.
   //
-  // A retraction is a distinct refusal, not a softer one: it still renders no
-  // article content, but it says truthfully why the page is empty instead of
-  // telling a reader the piece failed checks it actually passed.
+  // A retraction keeps the marked historical text beneath its withdrawal
+  // notice, never the normal reading experience or a live chart.
   if (article.status === 'retracted') return <Retracted article={article} />;
   if (!isServable(article)) return <NotServable />;
 
@@ -267,117 +274,159 @@ export function ArticleView({ article }: { article: Article }) {
     );
   }
 
-  const chartRefs = (article.body ?? [])
-    .map((block) => block.chart_ref)
-    .filter((ref): ref is string => Boolean(ref));
+  const body = article.body ?? [];
+  const verbatim = article.tier === 'B' && Boolean(article.syndicated?.full_text);
+  const firstChartIndex = verbatim ? -1 : body.findIndex(
+    (block) => block.type === 'chart' && Boolean(resolveChartRef(block.chart_ref)),
+  );
+  const firstChartRef = firstChartIndex >= 0 ? body[firstChartIndex].chart_ref : undefined;
+  const country = soleCountry(article);
+  const seriesHref = firstChartRef ? checkItHref(article, firstChartRef) : undefined;
+  const evidence = storyEvidence(article);
 
   return (
-    <article className="mx-auto max-w-measure">
+    <article className="folio-story" aria-labelledby="article-title" ref={root}>
       <JsonLd data={newsArticleJsonLd(article)} />
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <TierBadge tier={article.tier} />
-        <FormatBadge format={article.format} />
-        {/* The section link is a real navigation target, not a chip inside a
-            larger one, so it takes the 44px floor rather than `target-inline`.
-            Measured 43–99×18 across eight articles at every width: the row is
-            `items-center`, so the target grows and the badges stay put. */}
-        <Link
-          to={`/data/${article.section}`}
-          className="news-link flex min-h-11 items-center text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
-        >
-          {SECTION_LABELS[article.section] ?? article.section}
-        </Link>
-      </div>
-
-      <h1 className="balance-text news-fg text-headline font-semibold tracking-tight sm:text-display">
-        {formatFigures(article.headline)}
-      </h1>
-
-      {article.dek && (
-        <Prose text={article.dek} className="pretty-text news-muted mt-4 text-lead" />
-      )}
-
-      <div className="news-border mt-6 border-y py-4">
-        {article.persona ? (
-          <Byline
-            persona={{ ...article.persona, beat: article.persona.beat }}
-            variant="full"
-            timestamp={article.published_at}
-          />
-        ) : (
-          <p className="news-muted text-ui">
-            Reproduced verbatim from {article.syndicated?.attribution ?? 'the original publisher'}. No
-            portaBaltica byline: we did not write this.
-          </p>
-        )}
-      </div>
-
-      {article.corrections && article.corrections.length > 0 && (
-        <section
-          aria-label="Corrections to this article"
-          className="news-border news-warning-panel mt-6 rounded-lg border px-4 py-3"
-        >
-          <h2 className="news-warning text-callout font-semibold">Corrected</h2>
-          <ul className="mt-2 space-y-2">
-            {article.corrections.map((correction) => (
-              <li key={correction.corrected_at} className="news-warning text-ui">
-                <time dateTime={correction.corrected_at}>
-                  {new Date(correction.corrected_at).toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-                </time>
-                {': '}
-                {correction.description}
-                {correction.previous_value && (
-                  <span className="block text-caption">
-                    Previously: {correction.previous_value}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <div className="mt-6">
-        {article.tier === 'B' && article.syndicated?.full_text ? (
-          <div className="news-border news-panel rounded-lg border p-6">
-            <p className="news-subtle mb-3 text-caption font-semibold uppercase tracking-widest">
-              Reproduced in full, unedited
-            </p>
-            <div className="pretty-text news-muted whitespace-pre-line text-prose">
-              {article.syndicated.full_text}
-            </div>
-          </div>
-        ) : (
-          (article.body ?? []).map((block, index) => (
-            <Block
-              key={`${block.type}-${index}`}
-              block={block}
-              country={soleCountry(article)}
-            />
-          ))
-        )}
-      </div>
-
-      {article.tier === 'A' && (
-        <p className="news-border news-panel news-muted mt-8 rounded-lg border px-4 py-3 text-ui">
-          Every figure above is on the dashboard, live.{' '}
-          <Link
-            to={checkItHref(article, chartRefs[0])}
-            className="news-link underline underline-offset-4"
+      <header className={`folio-story-hero${!evidence && article.tier === 'A' ? ' folio-story-typographic' : ''}`}>
+        <div className="folio-story-hero-copy">
+          <h1
+            id="article-title"
+            className="folio-story-headline balance-text news-fg text-display font-semibold tracking-tight sm:text-masthead xl:text-banner"
           >
-            Check it yourself →
-          </Link>
-        </p>
-      )}
+            {formatFigures(article.headline)}
+          </h1>
+          <div className="folio-story-classification">
+            <TierBadge tier={article.tier} />
+            <FormatBadge format={article.format} />
+            <Link
+              to={`/data/${article.section}`}
+              className="news-link flex min-h-11 items-center text-caption font-semibold uppercase tracking-widest underline underline-offset-4"
+            >
+              {SECTION_LABELS[article.section] ?? article.section}
+            </Link>
+          </div>
+          {article.dek && (
+            <Prose
+              text={article.dek}
+              className="folio-story-dek pretty-text news-muted mt-4 text-lead"
+            />
+          )}
+          <div className="folio-story-byline">
+            {article.tier === 'A' && article.persona ? (
+              <Byline persona={article.persona} variant="full" timestamp={article.published_at} />
+            ) : (
+              <p className="news-muted text-ui">
+                Reproduced verbatim from {article.syndicated?.attribution ?? 'the original publisher'}.
+                No portaBaltica byline: we did not write this.
+              </p>
+            )}
+          </div>
+        </div>
+        {evidence ? (
+          <StoryEvidenceGraphic evidence={evidence} sourceHref="#article-evidence" />
+        ) : article.tier === 'B' && article.syndicated && (
+          <div className="folio-story-original">
+            <p className="news-fg text-lead font-semibold">{article.syndicated.attribution}</p>
+            <p className="news-muted mt-3 text-ui">The original press release, not portaBaltica reporting.</p>
+            <a
+              href={article.syndicated.original_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="news-link mt-3 flex min-h-11 items-center text-ui underline underline-offset-4"
+            >
+              Read at the original publisher ↗
+            </a>
+          </div>
+        )}
+      </header>
 
-      <KeepUp isWeekly={article.format === 'weekly_wrap'} />
+      <nav className="folio-story-reading-nav text-ui" aria-label="Article reading navigation">
+        <a href="#article-story">Story <span aria-hidden="true">↓</span></a>
+        {firstChartIndex >= 0 && (
+          <a href="#article-live-data">Live data <span aria-hidden="true">↓</span></a>
+        )}
+        <a href="#article-evidence">Sources <span aria-hidden="true">↓</span></a>
+        <Link to="/">Latest reporting <span aria-hidden="true">↗</span></Link>
+      </nav>
 
-      <ProvenanceBlock provenance={article.provenance} />
+      <div className="folio-story-layout">
+        <section
+          id="article-story"
+          aria-label={verbatim ? 'The press release, as published' : 'The story'}
+          className="folio-story-text"
+          tabIndex={-1}
+        >
+          {article.corrections && article.corrections.length > 0 && (
+            <section
+              aria-label="Corrections to this article"
+              className="news-border news-warning-panel mb-8 rounded-lg border px-4 py-3"
+            >
+              <h2 className="news-warning text-title font-semibold">Corrected</h2>
+              <ul className="mt-2 space-y-2">
+                {article.corrections.map((correction) => (
+                  <li key={correction.corrected_at} className="news-warning text-ui">
+                    <time dateTime={correction.corrected_at}>
+                      {new Date(correction.corrected_at).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </time>
+                    {': '}
+                    {correction.description}
+                    {correction.previous_value && (
+                      <span className="block text-caption">
+                        Previously: {correction.previous_value}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {verbatim ? (
+            <div>
+              <p className="news-subtle mb-3 text-caption font-semibold uppercase tracking-widest">
+                Reproduced in full, unedited
+              </p>
+              <div className="pretty-text news-muted whitespace-pre-line text-prose">
+                {article.syndicated!.full_text}
+              </div>
+            </div>
+          ) : body.map((block, index) => (
+            index === firstChartIndex ? (
+              <div key={`${block.type}-${index}`} id="article-live-data" tabIndex={-1}>
+                <Block block={block} country={country} />
+              </div>
+            ) : (
+              <Block key={`${block.type}-${index}`} block={block} country={country} />
+            )
+          ))}
+
+          {article.tier === 'A' && (
+            <p className="news-border news-muted mt-8 border-t pt-4 text-ui">
+              {seriesHref
+                ? 'The figures in this story reflect the data available when it was written. The live series can change as new observations and revisions arrive. '
+                : 'The source record below preserves what this story was built from. Explore more data in this section. '}
+              <Link
+                to={checkItHref(article, firstChartRef)}
+                className="news-link underline underline-offset-4"
+              >
+                Check it yourself →
+              </Link>
+            </p>
+          )}
+          <KeepUp isWeekly={article.format === 'weekly_wrap'} />
+        </section>
+
+        <ArticleEvidenceRail article={article} seriesHref={seriesHref} />
+      </div>
+
+      <div id="article-evidence" className="folio-story-evidence" tabIndex={-1}>
+        <ProvenanceBlock provenance={article.provenance} />
+      </div>
     </article>
   );
 }

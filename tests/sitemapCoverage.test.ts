@@ -390,8 +390,12 @@ describe('a listed page has to claim to be a page', () => {
     // canonical, so listing them would have submitted 71 duplicates of one page.
     const page = readFileSync(resolve(ROOT, 'src/components/IndicatorPage.tsx'), 'utf-8');
 
-    expect(page, 'IndicatorPage must set its own head').toContain('usePageMeta(');
-    expect(page, 'and claim its own URL, not inherit /').toMatch(
+    const workspace = readFileSync(resolve(ROOT, 'src/components/ResearchWorkspace.tsx'), 'utf-8');
+    expect(page, 'the route must pass its id to the metadata-owning workspace').toContain('<ResearchWorkspace indicatorId={id');
+    expect(workspace, 'the workspace must render its metadata owner').toContain('<IndicatorMeta id={indicatorId}');
+    const metadata = workspace.slice(workspace.indexOf('function IndicatorMeta('), workspace.indexOf('function LoadingIndicator('));
+    expect(metadata, 'indicator metadata must set the head').toContain('usePageMeta(');
+    expect(metadata, 'and claim its own URL, not inherit /').toMatch(
       /canonicalPath:[^\n]*\/indicator\//,
     );
   });
@@ -401,10 +405,10 @@ describe('a listed page has to claim to be a page', () => {
     // this SPA — measured against production, `/utterly-invented-page` does
     // too — so a crawler has no status code to go on. `noindex` is the only
     // signal available, and the page has to send it on the dead-end branch.
-    const page = readFileSync(resolve(ROOT, 'src/components/IndicatorPage.tsx'), 'utf-8');
-
-    expect(page, 'the unknown-indicator branch must set index: false').toMatch(
-      /index:\s*known/,
+    const workspace = readFileSync(resolve(ROOT, 'src/components/ResearchWorkspace.tsx'), 'utf-8');
+    const metadata = workspace.slice(workspace.indexOf('function IndicatorMeta('), workspace.indexOf('function LoadingIndicator('));
+    expect(metadata, 'only a resolved entry or pending lookup may be indexable').toMatch(
+      /index:\s*Boolean\(entry\)\s*\|\|\s*loading/,
     );
   });
 });

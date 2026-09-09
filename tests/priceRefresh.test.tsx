@@ -96,13 +96,13 @@ afterEach(() => {
 
 async function mountSurfaces() {
   const view = render(
-    <MemoryRouter><ThemeProvider><CountryProvider>
+    <MemoryRouter initialEntries={['/data?view=tools']}><ThemeProvider><CountryProvider>
       <div data-testid="economy"><App /></div>
       <div data-testid="power"><PowerMarketCard /></div>
       <div data-testid="ticker"><DataTicker /></div>
     </CountryProvider></ThemeProvider></MemoryRouter>,
   );
-  await act(async () => {});
+  await act(async () => { await vi.dynamicImportSettled(); });
   return view;
 }
 

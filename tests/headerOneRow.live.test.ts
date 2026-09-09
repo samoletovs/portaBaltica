@@ -1,86 +1,90 @@
 import { describe, expect, it } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
 
-/**
- * Does the deployed header keep its controls on one row?
- *
- * The structural check in `siteHeader.test.tsx` asserts the classes that make
- * a single row possible, which is close to asserting that somebody wrote the
- * line they just wrote. jsdom does not lay out, so it cannot tell a row from a
- * stack. This measures the outcome in a real browser.
- *
- * The defect it guards, measured at 375px before the fix: the top bar wrapped
- * into **three** stacked rows — wordmark, the two segmented groups, then the
- * two toggles — and stood **148px** tall before a reader reached the section
- * tabs, let alone a figure. At 640 it was worse than tall: the row was pinned
- * to `h-14` and the wrapped controls overflowed it.
- *
- * Two things are asserted together, because either alone passes for the wrong
- * reason. One row is trivially true of a header that renders no controls, so
- * the count of controls found is asserted first — an instrument that sees
- * nothing must not report success. And a short bar is trivially true of a
- * clipped one, so the page is checked not to scroll sideways: the controls may
- * overflow *their own strip*, which scrolls, but never the document.
- */
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
+const WIDTHS = [320, 375, 390, 640, 900, 1366, 1440];
 
-/** Phone widths, plus the width where the wrapped row used to overflow `h-14`. */
-const WIDTHS = [320, 375, 390, 640];
-
-/** The bar is `h-14`. One row fits in it; two do not. */
-const ONE_ROW_MAX_PX = 56;
-
-describe('the deployed site header', () => {
-  it('keeps every top-bar control on a single row at phone widths', async () => {
+describe('the coherent site header', () => {
+  it('keeps mobile data controls and the active sector within reach on a direct visit', async () => {
     const browser = await launchForLiveCheck();
     if (!browser) return;
-
     try {
-      const context = await browser.newContext({ viewport: { width: WIDTHS[0], height: 800 } });
-      const page = await context.newPage();
-      await page.addInitScript(() => {
-        // The onboarding overlay is up on a first visit, and it renders its own
-        // buttons — which would be counted as header controls below.
-        localStorage.setItem('pb-onboarding-complete', 'true');
-      });
-      await page.goto(BASE + '/data', { waitUntil: 'domcontentloaded', timeout: 30_000 });
-      await page.waitForSelector('header');
-
-      for (const width of WIDTHS) {
-        await page.setViewportSize({ width, height: 800 });
-        await page.waitForTimeout(300);
-
-        const measured = await page.evaluate(() => {
-          const bar = document.querySelector('header > div > div');
-          if (!bar) return null;
-          const boxes = [...bar.querySelectorAll('a, button')]
-            .map((el) => el.getBoundingClientRect())
-            .filter((r) => r.width > 0 && r.height > 0);
+      const page = await browser.newPage({ viewport: { width: 375, height: 844 } });
+      for (const route of ['/data/energy', '/data/maritime']) {
+        await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded' });
+        await page.locator('.dashboard-sector-nav [aria-current="page"]').waitFor();
+        const layout = await page.evaluate(() => {
+          const nav = document.querySelector('.dashboard-sector-nav')!;
+          const active = nav.querySelector('[aria-current="page"]')!.getBoundingClientRect();
+          const bounds = nav.getBoundingClientRect();
+          const buttons = [...document.querySelectorAll('.desk-data-controls button')].map(el => el.getBoundingClientRect());
           return {
-            barHeight: Math.round(bar.getBoundingClientRect().height),
-            controls: boxes.length,
-            // One row means every control's vertical span overlaps every
-            // other's. Comparing `top` alone would call a 26px wordmark beside
-            // a 44px button two rows.
-            oneRow: boxes.every((a) => boxes.every((b) => a.top < b.bottom && b.top < a.bottom)),
-            documentScrolls: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            selectedVisible: active.left >= bounds.left && active.right <= bounds.right,
+            controls: buttons.length,
+            controlsVisible: buttons.every(rect => rect.left >= 0 && rect.right <= innerWidth),
           };
         });
+        expect(layout.selectedVisible, `${route}: the selected sector is offscreen`).toBe(true);
+        expect(layout.controls).toBe(8);
+        expect(layout.controlsVisible, `${route}: a global data control is clipped`).toBe(true);
+      }
+    } finally {
+      await browser.close();
+    }
+  });
 
-        expect(measured, `${width}px: no top bar found — the probe is measuring nothing`).not.toBeNull();
-        expect(
-          measured!.controls,
-          `${width}px: only ${measured!.controls} controls found; one row is trivially true of an empty bar`,
-        ).toBeGreaterThanOrEqual(9);
-        expect(measured!.oneRow, `${width}px: the top bar controls are on more than one row`).toBe(true);
-        expect(
-          measured!.barHeight,
-          `${width}px: the top bar is ${measured!.barHeight}px, which is more than one row`,
-        ).toBeLessThanOrEqual(ONE_ROW_MAX_PX);
-        expect(
-          measured!.documentScrolls,
-          `${width}px: the row fits by pushing the page sideways, which is not a fix`,
-        ).toBe(false);
+  it('keeps all four destinations visible on phones and laptops without a menu toggle', async () => {
+    const browser = await launchForLiveCheck();
+    if (!browser) return;
+    try {
+      const page = await browser.newPage({ viewport: { width: WIDTHS[0], height: 900 } });
+      await page.goto(BASE, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await page.waitForSelector('.desk-masthead');
+      for (const width of WIDTHS) {
+        await page.setViewportSize({ width, height: 900 });
+        const measured = await page.evaluate(() => {
+          const bar = document.querySelector('.desk-masthead')!;
+          const boxes = [...bar.querySelectorAll('a,button')].map(el => el.getBoundingClientRect()).filter(r => r.width && r.height);
+          return {
+            height: bar.getBoundingClientRect().height,
+            controls: boxes.length,
+            oneRow: boxes.every(a => boxes.every(b => a.top < b.bottom && b.top < a.bottom)),
+            contained: boxes.every(box => box.left >= 0 && box.right <= innerWidth),
+            overflow: document.documentElement.scrollWidth > innerWidth,
+          };
+        });
+        expect(measured.controls, `${width}px: missing masthead controls`).toBe(6);
+        if (width >= 1100) expect(measured.oneRow, `${width}px: desktop masthead wrapped`).toBe(true);
+        expect(measured.height, `${width}px: masthead is too tall`).toBeLessThanOrEqual(width < 480 ? 180 : width < 1100 ? 132 : 88);
+        expect(measured.contained, `${width}px: a destination is clipped`).toBe(true);
+        expect(measured.overflow, `${width}px: document scrolls horizontally`).toBe(false);
+        const directory = page.getByRole('navigation', { name: 'Primary' });
+        const paths = await directory.locator('a').evaluateAll(links => links.map(link => link.getAttribute('href')));
+        expect(paths).toEqual(['/', '/data', '/explore', '/briefings']);
+        expect(await page.getByRole('button', { name: /menu/i }).count()).toBe(0);
+        expect(await page.getByRole('link', { name: 'Data explorer', exact: true }).isVisible()).toBe(true);
+      }
+      await page.setViewportSize({ width: 1440, height: 900 });
+      for (const theme of ['light', 'dark']) {
+        const current = await page.locator('html').getAttribute('data-theme');
+        if (current !== theme) await page.getByRole('button', { name: `Switch to ${theme} theme` }).click();
+        const primary = page.getByRole('link', { name: 'Data explorer', exact: true });
+        await primary.hover();
+        await page.waitForTimeout(250);
+        const contrast = await primary.evaluate(link => {
+          const style = getComputedStyle(link);
+          const luminance = (color: string) => {
+            const channels = (color.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number).map(value => {
+              const channel = value / 255;
+              return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+            });
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+          };
+          if (style.backgroundColor !== 'rgba(0, 0, 0, 0)') return 0;
+          const [high, low] = [luminance(style.color), luminance(getComputedStyle(document.body).backgroundColor)].sort((a, b) => b - a);
+          return (high + 0.05) / (low + 0.05);
+        });
+        expect(contrast, `${theme}: the primary link disappears on hover`).toBeGreaterThanOrEqual(4.5);
       }
     } finally {
       await browser.close();

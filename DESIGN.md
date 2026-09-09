@@ -19,11 +19,82 @@ the point: the friction is the design system.
 
 ---
 
+## Baltic Perspective: the full-product direction
+
+The owner requested a full-product reimagination on 2026-09-09 after rejecting
+landing-only changes and a mostly cosmetic migration. This direction covers the
+journal, article, Dashboard, Data explorer and public briefing together. The
+historical measurements below explain constraints, not a requirement to retain
+the old compositions. Research references and their limits are recorded in
+`docs/design-references.md`.
+
+The organising idea is **read the finding, inspect the evidence**. The journal
+is a full-width editorial edition: a substantial illustrated lead and a varied
+story grid. An article opens expansively and pairs readable prose with its
+evidence. Dashboard is the broad scan: all sectors or one sector, with existing
+specialist capabilities retained. Data explorer is the workspace for one
+question at a useful scale; `/indicator/:id` is a permanent entry into that same
+tool. Country, period, source and export stay together. The public briefing
+assembles three source-backed measures, not a fictional client deliverable.
+
+The light scheme is ice-white and ink, with a **muted slate-blue** accent
+(`#3e6375`), not the strong cobalt in the first prototype. The dark scheme
+uses Baltic Observatory's **deep petrol** (`#102e34`) and **warm copper**
+(`#f2a67a`). Both retain the same layout and controls. Light is the default for
+a new reader; a saved dark preference still wins.
+
+The NauroLabs two-tone wordmark is retained: `porta` uses the primary foreground
+and `Baltica` the site accent. It is ink/slate-blue in light and pale ink/copper
+in dark, with the same split in the footer and public share artwork.
+
+One editorial family, Barlow Semi Condensed, is self-hosted as Latin and
+Latin-extended WOFF2 in regular and semibold. It is the same family in the
+journal, article and analytical UI, not a landing-page exception. The system
+stack is a fallback, and no reader requests a font from a third party.
+
+The lead and article hero use source-backed comparisons, not a recurring map.
+Graphics read only the article's frozen `published_observations`: either
+same-period country values or two recorded observations for one country.
+They never fetch today's figures to illustrate yesterday's claim. Missing,
+ambiguous, corrected or unsupported records get typography instead of invented
+artwork. The source record is one click away.
+
+The four primary destinations are peer links: The journal, Dashboard,
+Data explorer and Business briefings. They stay visible at every width: a single
+row on laptops, a second row below the brand at intermediate widths, and a
+two-column group on phones. There is no open/close menu control. One shared
+footer carries publication information. A local Suspense boundary keeps the
+masthead and skip link present while the next route loads.
+
+The journal's focal moment reveals the finding's measured bars from their zero
+baseline while labels remain visible and unchanged. Country colour identifies
+geography, never good or bad news. Articles use the same evidence language and
+a story-length progress rule; jumps clear the navigation's measured height.
+Dashboard rules draw across sectors and cards enter without delaying controls;
+Data explorer changes representation with a short transition. Briefing sections
+reveal as a document, and their printed form exposes every observation.
+Region-wide insights and the initially expanded market snapshot belong to the all-sector overview;
+individual sector routes start with that sector's own data. Compact data
+controls wrap rather than hiding the line-style switch, and sector navigation
+brings the current selection into view on entry.
+The market tape loops two complete, equally sized groups so short feeds do not
+leave a blank gap. It has an explicit pause/resume control, pauses offscreen and
+in hidden tabs, and stays static under reduced motion.
+
+There is no mandatory entrance, wheel replacement or numeric count-up.
+GSAP/ScrollTrigger runs only with real layout and a motion-enabled screen.
+Reduced-motion readers receive static content, and print removes reveal
+transforms even from unvisited sections.
+
+Country colours retain their established meanings rather than inheriting the
+interface accent. The dark series have been lightened for the petrol surfaces;
+colour-blind separation, non-text contrast and chroma guards still apply.
+
 ## 1. Foundations
 
 ### 1.1 Type
 
-Eight steps, one family, two weights. Defined in `src/index.css`, enforced by
+Ten steps, one self-hosted family, two weights. Defined in `src/index.css`, enforced by
 `tests/typography.test.ts`, and documented in `AGENTS.md`. Unchanged by this
 book except for one correction: **two weights means two.**
 
@@ -37,6 +108,12 @@ book except for one correction: **two weights means two.**
 | `text-title` | 28px | section headings |
 | `text-headline` | 34px | page headlines |
 | `text-display` | 40px | the lead story, article `h1`, page `h1` |
+| `text-masthead` | 56px | expanded editorial openings on medium screens |
+| `text-banner` | 76px | the regional opening on wide screens |
+
+The last two are opt-in composition sizes, not larger controls or reading
+prose. The homepage progresses from `text-display` through `text-masthead` to
+`text-banner`; article prose stays at `text-prose` in its existing measure.
 
 **Weights: regular (400) and semibold (600). Nothing else.** The book used to
 say this while the site used `font-medium` in thirty-two places and an inline
@@ -147,8 +224,8 @@ biggest reason it did not look finished. Surfaces are now opaque, so they
 compose predictably, and each layer is a real step.
 
 **Rules.**
-- Never pure black. Apple uses `#1C1C1E`, Carbon `#161616`, Fluent `#141414`;
-  the page here is `#0a0f1a`. Pure black produces halo artefacts at edges.
+- Never pure black. The current dark page is petrol `#102e34`; pure black
+  produces halo artefacts at edges.
 - Never pure white text on dark. Carbon caps at Gray 10 (`#F4F4F4`).
 - **Background step first, border second, shadow last.** A border is for an
   *interactive* boundary or where two layers are adjacent and the step alone is
@@ -660,10 +737,13 @@ on a three-country chart.
 
 | | Dark | Light |
 |---|---|---|
-| Latvia | `#bf5259` | `#c07173` |
-| Estonia | `#407cc0` | `#5580b4` |
-| Lithuania | `#a67300` | `#9c761f` |
-| Finland *(bidding zone only)* | `#9c5089` | `#96688c` |
+| Latvia | `#cf7f85` | `#c07173` |
+| Estonia | `#7aa2cf` | `#5580b4` |
+| Lithuania | `#c3a157` | `#9c761f` |
+| Finland *(bidding zone only)* | `#b27791` | `#96688c` |
+
+The table is current. The derivation and measured before/after figures below
+record the earlier palette work, before the Signal Desk dark-surface change.
 
 **The axis that decides these is chroma, and it is the one nobody was
 measuring.** Two generations of this palette were chosen against contrast,
@@ -1088,38 +1168,59 @@ work rather than here.
 
 ### 4.1 The front page
 
-- One lead, at `text-display`, in a bordered panel.
-- Everything below it is a divided list, not a grid of cards. Rules between
-  items, no boxes — the Guardian's "container" model.
+- One visible journal `h1`, followed by the original lead story and its
+  geographic illustration. It is an editorial page, not a marketing hero.
+- The lead is `text-headline` / `text-masthead`, separated by rules rather
+  than a card shell. Verbatim releases do not acquire invented geographic
+  evidence or a fictitious correspondent.
+- The remaining stories form a varied editorial grid, alternating paired and
+  spanning stories. Rules between items, not repeated rounded card containers.
 - The section rail is secondary and visually quieter than the main column.
-- Keep the site navigation, four newsroom destinations and visible topic chips.
+- Keep all research and publication destinations in the shared directory,
+  with visible topic chips within reporting.
   Search is one always-visible field, with its accessible label and scope
   description retained. The briefing invitation sits beside it when there is
   room and wraps below on a phone; neither becomes a dropdown or popover.
 
 ### 4.2 The article
 
-- The reading column is `max-w-measure` (38rem ≈ 68 characters at 18px).
+- Tier A articles open with an asymmetric headline/dek and geographic
+  illustration. The prose column is bounded by `min(68ch, --container-measure)`;
+  the full-width hero is not the reading measure.
   Bringhurst puts a comfortable line at 45–75 characters; WCAG SC 1.4.8 caps a
   block of text at 80. The Guardian's centre column is 620px, the NYT's about
   600–620px, and the FT's about 680px, so this sits deliberately at the tighter
   end because our prose is dense with figures.
 - Standfirst at `text-lead`, `--text-secondary`, narrower than the body.
 - Byline, timestamp and AI disclosure travel together and are never separated.
-- A chart embedded in an article always links to the same series on `/data`.
+- A sticky desktop evidence rail carries the recorded sources and a route into
+  research. It becomes an inline companion on narrow screens. Story, live data
+  and provenance are separate, real anchor targets, not invented chapters.
+- A chart embedded in an article links to its full indicator series, carrying
+  the article's country rather than whatever the switcher last selected.
+  The article header also exposes the underlying data and provenance.
   The article's claim and the reader's ability to check it are one object.
 
 ### 4.3 The dashboard
 
-- Page `h1` at `text-display`, sections at `text-title`. Both halves of the
-  site open the same way.
+- The default view is a research workspace: searchable live catalogue, a domain
+  selector and one analysis plane. It is not the previous wall of all charts.
+- Chart and table modes describe the same selected measure; a period inspector
+  makes like-for-like comparisons explicit. Per-country latest readings retain
+  their individual dates.
+- Country changes update the research URL without dropping its other parameters.
+  Indicator pages use the same workspace. Older route aliases and served metadata
+  resolve through `api/shared/researchAliases.json` to the displayed definition;
+  old descriptions must not claim a different unit or subject.
 - **A panel title is `text-callout`, not a 12px uppercase micro-label.** The
   dashboard headed its panels with text smaller than the content inside them,
   which is the same inversion the type pass fixed one level up and left here.
-- Density is compact by default: this is a terminal, and Carbon's condensed
-  row heights (32–40px) are the model.
-- Insights lead directly into the data sections, without repeating the top
-  navigation. Removing that menu does not remove any section or collapse charts.
+- Density is compact in working panels, but navigation and controls retain the
+  44px touch floor. The surrounding page is an editorial research desk, not a
+  simulated financial terminal.
+- Sector tools and existing single-country views remain available on demand.
+  They load when opened rather than forcing every reader through every feed.
+  The global menu still contains every research domain and publication route.
 
 ### 4.4 A phone is not a small desktop
 

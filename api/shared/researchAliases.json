@@ -1,0 +1,16 @@
+{
+  "cpi": "inflation",
+  "retail_sales": "retail",
+  "construction_output": "construction",
+  "biz_confidence": "economic_sentiment",
+  "wages_industry": "wages_mfg",
+  "energy_price_gas": "gas_price_household",
+  "unemployment_rate": "unemployment",
+  "labour.unemployment": "unemployment",
+  "hicp_annual_rate": "inflation",
+  "economy.inflation": "inflation",
+  "gov_debt": "gov_debt_gdp",
+  "renewable_share": "renewables",
+  "new_vehicles": "vehicles",
+  "tourist_arrivals": "tourism"
+}

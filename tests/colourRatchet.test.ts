@@ -182,11 +182,16 @@ describe('the compatibility layer', () => {
     // `prefers-reduced-motion` has to beat inline and utility animation, so it
     // earns the escape hatch. Colour no longer does: every colour rule now
     // declares a class of its own rather than fighting a generated one.
-    const important = [...cssCode.matchAll(/^[^\n]*!important[^\n]*$/gm)].map((m) => m[0].trim());
+    const important = [...cssCode.matchAll(/([\w-]+)\s*:\s*[^;{}]*!important/g)];
+    const allowed = new Set(['animation', 'animation-duration', 'animation-iteration-count', 'transition', 'transition-duration', 'scroll-behavior', 'opacity', 'transform']);
     expect(
-      important.filter((line) => !/animation|transition|scroll-behavior/.test(line)),
+      important.filter(match => !allowed.has(match[1])).map(match => match[0]),
       'colour should no longer need !important anywhere',
     ).toEqual([]);
+    const print = cssCode.match(/@media print\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    for (const declaration of important.filter(match => match[1] === 'opacity' || match[1] === 'transform')) {
+      expect(print, 'inline scroll animation overrides belong to the static print fallback').toContain(declaration[0]);
+    }
   });
 
   it('declares a named class for every step it replaced', () => {

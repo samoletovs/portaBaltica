@@ -1,96 +1,78 @@
 import { Link } from 'react-router-dom';
 import { usePageMeta } from '../../newsroom/usePageMeta';
 import { BriefingRequest } from './BriefingRequest';
-
-const QUESTIONS = [
-  {
-    title: 'Costs and hiring',
-    question: 'How are inflation and labour costs changing across the markets where we operate?',
-    path: '/data/labour',
-    link: 'Compare labour indicators',
-  },
-  {
-    title: 'Demand and trade',
-    question: 'Which demand and trade indicators should we check before our next planning meeting?',
-    path: '/data/trade',
-    link: 'Explore trade indicators',
-  },
-  {
-    title: 'Country comparison',
-    question: 'Are we comparing the same measure, unit and reporting period in Latvia, Estonia and Lithuania?',
-    path: '/data/economy',
-    link: 'Compare the three economies',
-  },
-] as const;
+import { PublicBriefingSample } from './PublicBriefingSample';
+import { useRef } from 'react';
+import { useScrollCollection } from '../../motion/useScrollChoreography';
 
 export default function BriefingsPage() {
+  const sample = useRef<HTMLDivElement>(null);
+  useScrollCollection(sample, '.public-briefing-measure', 'public-sample');
   const enquiriesOpen = import.meta.env.VITE_BRIEFING_ENQUIRIES_OPEN === 'true';
   usePageMeta({
     title: 'Business briefings | portaBaltica',
-    description: 'Help shape a Baltic business briefing for costs, hiring and demand decisions. Explore the free evidence and the scope of our discovery pilot.',
+    description: 'A public Baltic business briefing sample with source-linked observations on prices, labour costs and retail activity. Compare countries and inspect the evidence behind each reading.',
     canonicalPath: '/briefings',
   });
 
   return (
-    <div className="mx-auto max-w-measure">
-      <p className="news-subtle text-caption font-semibold uppercase tracking-widest">Business briefings / discovery pilot</p>
-      <h1 className="balance-text news-fg mt-3 text-display font-semibold tracking-tight">
-        Baltic context for your next business decision
-      </h1>
-      <p className="pretty-text news-muted mt-4 text-prose">
-        For analysts and small businesses comparing Latvia, Estonia and Lithuania.
-        We are testing whether a focused, source-linked brief can save you time preparing a
-        budget review, hiring plan or market comparison.
+    <div className="folio-briefings">
+      <header className="briefing-intro">
+        <div>
+          <h1 className="text-display md:text-masthead news-fg">The Baltic business briefing</h1>
+          <p className="text-prose news-muted">Costs, hiring and demand. A source-linked starting point for your next planning conversation.</p>
+          <div className="briefing-actions">
+            <a href="#public-sample" className="lab-link text-ui">Read the public sample ↓</a>
+            <button type="button" className="briefing-print text-ui" onClick={() => window.print()}>Print this briefing</button>
+          </div>
+        </div>
+        <dl className="briefing-scope text-ui">
+          <div><dt>Coverage</dt><dd>Latvia, Estonia and Lithuania</dd></div>
+          <div><dt>Focus</dt><dd>Prices, labour costs and retail activity</dd></div>
+          <div><dt>Format</dt><dd>Free, automated public sample</dd></div>
+        </dl>
+      </header>
+
+      <p className="briefing-method text-ui news-subtle">
+        This sample is assembled automatically from published observations, not reviewed by a human
+        editor. Each measure follows its own publication calendar; compare countries within a measure,
+        not across differently dated releases. The figures are evidence to investigate, not a forecast
+        or a recommendation for a particular business.
       </p>
-      <p className="news-muted mt-4 text-ui">
-        This is a research preview, not an established paid service. There is no checkout,
-        subscription or guaranteed delivery schedule. Our articles, dashboard, history and
-        CSV exports remain free.
-      </p>
-      <section className="mt-12" aria-labelledby="brief-questions">
-        <h2 id="brief-questions" className="news-fg text-title font-semibold">Start with a decision, not another dashboard</h2>
-        <ul className="mt-6 space-y-6">
-          {QUESTIONS.map((item) => (
-            <li key={item.title} className="news-border border-b pb-6">
-              <h3 className="news-fg text-callout font-semibold">{item.title}</h3>
-              <p className="news-muted mt-2 text-prose">{item.question}</p>
-              <p className="mt-3 text-ui"><Link to={item.path} className="news-link underline underline-offset-4">{item.link}</Link></p>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section className="mt-12" aria-labelledby="brief-scope">
-        <h2 id="brief-scope" className="news-fg text-title font-semibold">What a pilot would need to deliver</h2>
-        <ul className="news-muted mt-4 list-disc space-y-3 pl-6 text-prose">
-          <li>A concise answer to an agreed question, with a named human reviewer before delivery.</li>
-          <li>Source links, observation periods, units and comparisons you can check yourself.</li>
-          <li>A clear separation between measured changes, possible explanations and what the data cannot answer.</li>
-          <li>Agreed scope, timing and a one-off price before any paid work begins.</li>
-        </ul>
-        <p className="news-muted mt-4 text-ui">
-          We would charge for research, review and preparation, not ownership of public statistics.
-          Eurostat and ECB data are available free from their publishers. Source permissions must be
-          cleared before inclusion in a commercial brief. This is not investment, legal or tax advice.
-        </p>
-        <p className="mt-4 text-ui">
-          <Link to="/weekly" className="news-link underline underline-offset-4">Read the latest public weekly review</Link>
-        </p>
-        <p className="news-muted mt-2 text-ui">
-          The public review is an example of our current automated reporting, not a sample of a
-          human-reviewed client deliverable.{' '}
-          <Link to="/about/ai" className="news-link underline underline-offset-4">Read how we use AI</Link>.
+
+      <div id="public-sample" ref={sample}>
+        <PublicBriefingSample />
+      </div>
+
+      <section className="briefing-next" aria-labelledby="briefing-next-heading">
+        <h2 id="briefing-next-heading" className="text-title news-fg">Keep the context. Go deeper.</h2>
+        <div className="briefing-next-links">
+          <Link to="/data" className="lab-link text-ui">Scan the full dashboard ↗</Link>
+          <Link to="/explore" className="lab-link text-ui">Inspect a measure in Data explorer ↗</Link>
+          <Link to="/weekly" className="lab-link text-ui">Read the newsroom’s weekly review ↗</Link>
+        </div>
+        <p className="text-ui news-subtle">
+          The weekly review is separate AI-authored reporting, not a human-reviewed client deliverable.
+          Public articles, charts, history and CSV exports remain free.
         </p>
       </section>
-      <section className="mt-12" aria-labelledby="brief-enquiry">
-        <h2 id="brief-enquiry" className="news-fg text-title font-semibold">Help shape the pilot</h2>
+
+      <section className="briefing-bespoke" aria-labelledby="brief-enquiry">
+        <div>
+          <h2 id="brief-enquiry" className="news-fg text-title">Bespoke briefings</h2>
+          <p className="news-muted text-ui">
+            A tailored brief would need an agreed question, source permissions and a named human
+            reviewer before delivery. This public sample is not an established paid service: there is
+            no checkout, subscription or guaranteed delivery schedule.
+          </p>
+        </div>
         {enquiriesOpen ? <BriefingRequest /> : (
-          <div className="news-border news-panel mt-4 rounded-lg border p-4">
+          <div className="briefing-enquiry-state">
             <p className="news-fg text-callout font-semibold">Pilot enquiries are not open yet</p>
-            <p className="news-muted mt-2 text-ui">
-              We are setting up and testing the contact channel. No requests or payments are being
-              collected here. You can explore the evidence now and check this page for availability.
+            <p className="news-muted text-ui">
+              No requests or payments are being collected here. The public sample and its evidence
+              are available without an account.
             </p>
-            <p className="mt-3 text-ui"><Link to="/data" className="news-link underline underline-offset-4">Use the free dashboard</Link></p>
           </div>
         )}
       </section>

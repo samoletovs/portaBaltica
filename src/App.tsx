@@ -1,25 +1,31 @@
-import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { PORTS, DASHBOARD_SECTIONS } from './types';
 import type { MarineWeatherForecast, PortWeather, PortDataResponse, DashboardSection, EconomyData, PropertyData, EnvironmentData, EUFundsData } from './types';
 import { fetchAllWeather, fetchPortData, fetchEconomyData, fetchPropertyData, fetchEnvironmentData, fetchEUFunds } from './api';
 import { OnboardingTutorial } from './components/OnboardingTutorial';
 import { InsightsBanner } from './components/InsightsBanner';
-import { EconomyTile } from './components/EconomyTile';
-import { TradeTile } from './components/TradeTile';
-import { GovernmentTile } from './components/GovernmentTile';
-import { LabourTile } from './components/LabourTile';
-import { EnergyTile } from './components/EnergyTile';
-import { PropertyTile } from './components/PropertyTile';
-import { EnvironmentTile } from './components/EnvironmentTile';
-import { MaritimeTile } from './components/MaritimeTile';
-import { BusinessTile } from './components/BusinessTile';
 import { SystemStatusFooter } from './components/SystemStatusFooter';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RESEARCH_SECTIONS } from './utils/researchCatalog';
+import { DashboardNav } from './components/Header';
+import { useCountryFromQuery } from './hooks/useCountryFromQuery';
+import { useScrollCollection } from './motion/useScrollChoreography';
 
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link, Navigate } from 'react-router-dom';
 import { useCountry } from './CountryContext';
 import { usePageMeta } from './newsroom/usePageMeta';
 import { usePriceRefresh } from './hooks/usePriceRefresh';
+import { DataTicker } from './components/DataTicker';
+
+const EconomyTile = lazy(() => import('./components/EconomyTile').then(module => ({ default: module.EconomyTile })));
+const TradeTile = lazy(() => import('./components/TradeTile').then(module => ({ default: module.TradeTile })));
+const GovernmentTile = lazy(() => import('./components/GovernmentTile').then(module => ({ default: module.GovernmentTile })));
+const LabourTile = lazy(() => import('./components/LabourTile').then(module => ({ default: module.LabourTile })));
+const EnergyTile = lazy(() => import('./components/EnergyTile').then(module => ({ default: module.EnergyTile })));
+const PropertyTile = lazy(() => import('./components/PropertyTile').then(module => ({ default: module.PropertyTile })));
+const EnvironmentTile = lazy(() => import('./components/EnvironmentTile').then(module => ({ default: module.EnvironmentTile })));
+const MaritimeTile = lazy(() => import('./components/MaritimeTile').then(module => ({ default: module.MaritimeTile })));
+const BusinessTile = lazy(() => import('./components/BusinessTile').then(module => ({ default: module.BusinessTile })));
 
 interface PortWeatherData {
   port: typeof PORTS[0];
@@ -47,6 +53,7 @@ const VALID_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS);
 function Section({ id, children }: { id: string; children: ReactNode }) {
   return (
     <div id={id} className="dash-section">
+      <div className="dashboard-sector-rule" data-scroll-rule="" aria-hidden="true" />
       <ErrorBoundary
         fallback={() => (
           <div
@@ -57,7 +64,9 @@ function Section({ id, children }: { id: string; children: ReactNode }) {
           </div>
         )}
       >
-        {children}
+        <Suspense fallback={<div className="dashboard-section-loading text-ui" role="status">Loading this sector…</div>}>
+          {children}
+        </Suspense>
       </ErrorBoundary>
     </div>
   );
@@ -136,15 +145,19 @@ const SECTION_META: Record<DashboardSection, { title: string; description: strin
 const OVERVIEW_META = {
   title: 'The dashboard',
   description:
-    'Live Baltic open data: 71 indicators across economy, trade, energy, property, environment, government and maritime, for Latvia, Estonia and Lithuania. Every figure is traceable to the dataset it came from.',
+    'Baltic open data across economy, trade, energy, property, environment, government and maritime, for Latvia, Estonia and Lithuania. Every figure is traceable to the dataset it came from.',
 };
 
 export default function App() {
+  const root = useRef<HTMLElement>(null);
   const { section } = useParams<{ section?: string }>();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  useCountryFromQuery();
   const activeSection: DashboardSection | 'all' =
     section && VALID_SECTIONS.has(section) ? section as DashboardSection : 'all';
   const { country } = useCountry();
+  useScrollCollection(root, '.dash-card, [data-scroll-rule]', `${activeSection}:${country}`);
 
   // The canonical is the load-bearing half. `activeSection` falls back to
   // 'all' for an unknown section, so `/data/not-a-section` — which the SPA
@@ -157,10 +170,45 @@ export default function App() {
     canonicalPath: activeSection === 'all' ? '/data' : `/data/${activeSection}`,
   });
 
-  function setActiveSection(s: DashboardSection | 'all') {
-    navigate(s === 'all' ? '/data' : `/data/${s}`, { replace: true });
+  // Bookmarks from the earlier combined view still open the selected measure.
+  // An explicit tools view, however, now belongs to the dashboard.
+  if (params.has('indicator') && params.get('view') !== 'tools' && params.get('view') !== 'dashboard') {
+    const next = new URLSearchParams(params);
+    if (activeSection !== 'all') next.set('section', activeSection);
+    next.delete('view');
+    return <Navigate to={`/explore?${next.toString()}`} replace />;
   }
+  const explorerQuery = new URLSearchParams({ country });
+  if (activeSection !== 'all') explorerQuery.set('section', activeSection);
 
+  return (
+    <main id="main" className="dashboard-surface" ref={root}>
+      <header className="dashboard-heading">
+        <div>
+          <h1 className="text-display md:text-masthead news-fg">
+            {activeSection === 'all' ? 'The Baltic dashboard' : `${RESEARCH_SECTIONS[activeSection].title} dashboard`}
+          </h1>
+          <p className="text-prose news-muted">
+            {activeSection === 'all' ? 'All areas. One regional view.' : RESEARCH_SECTIONS[activeSection].tools}
+          </p>
+          <p className="text-ui news-subtle">Scan the latest available observations, or choose a sector. Dates and sources travel with each measure.</p>
+        </div>
+        <div className="dashboard-heading-actions">
+          <Link className="lab-link text-ui" to={`/explore?${explorerQuery.toString()}`}>Explore one measure ↗</Link>
+          <OnboardingTutorial autoOpen={false} activeSection={activeSection} onSectionChange={next =>
+            navigate(`/data${next === 'all' ? '' : `/${next}`}?country=${country}`)
+          } />
+        </div>
+      </header>
+      <DashboardNav active={activeSection} country={country} />
+      <SectorTools activeSection={activeSection} />
+    </main>
+  );
+}
+
+function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all' }) {
+  const { country } = useCountry();
+  const [marketOpen, setMarketOpen] = useState(true);
   // Maritime data (existing)
   const [portData, setPortData] = useState<PortWeatherData[]>([]);
   const [portStats, setPortStats] = useState<PortDataResponse | null>(null);
@@ -179,6 +227,7 @@ export default function App() {
   const [euLoading, setEuLoading] = useState(true);
 
   const refreshEconomy = useCallback(async (signal: AbortSignal, initial: boolean) => {
+    if (activeSection !== 'all' && activeSection !== 'economy') return;
     if (initial) { setEconomyData(null); setEconomyLoading(true); }
     else setEconomyData(previous => previous ? { ...previous, electricityCurrent: null } : null);
     try {
@@ -189,7 +238,7 @@ export default function App() {
       }
     } catch { /* Keep the current price absent; retain dated series and other indicators. */ }
     finally { if (!signal.aborted) setEconomyLoading(false); }
-  }, [country]);
+  }, [country, activeSection]);
   usePriceRefresh(refreshEconomy);
 
   // Load all data in parallel
@@ -245,49 +294,28 @@ export default function App() {
       }
     }
 
-    loadMaritime();
-    loadProperty();
-    loadEnvironment();
-    loadEUFunds();
+    if (activeSection === 'all' || activeSection === 'maritime') void loadMaritime();
+    if (activeSection === 'all' || activeSection === 'property') void loadProperty();
+    if (activeSection === 'all' || activeSection === 'environment') void loadEnvironment();
+    if (activeSection === 'all' || activeSection === 'business') void loadEUFunds();
 
     return () => { cancelled = true; };
-  }, [country]);
+  }, [country, activeSection]);
 
   const show = (section: DashboardSection) => activeSection === 'all' || activeSection === section;
 
-  // The dashboard had no page heading at all: it opened straight into a tile,
-  // so it began a level below where every news page begins, and the highlighted
-  // tab was the only thing telling you where you were. The h1 names the page and
-  // the tiles stay h2 beneath it, so both halves of the site now start the same
-  // way and at the same size.
-  //
-  // The dek deliberately does not name the active section. It did, and on a
-  // single-section route that put the word "Maritime" immediately above a
-  // heading reading "Maritime" — the section is already stated by the h2 below
-  // and by the tab above, so saying it a third time was noise.
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <main id="main" className="pt-6 pb-16">
+    <div className="desk-dashboard pt-6 pb-16">
 
-        <header className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <h1 className="balance-text text-headline sm:text-display font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Baltic data
-            </h1>
-            {/* The tour trigger rides in the heading row rather than in a strip
-                of its own above the page, so it costs no vertical space at all
-                — the version it replaces spent a full row on a button most
-                readers never press. */}
-            <OnboardingTutorial activeSection={activeSection} onSectionChange={setActiveSection} />
-          </div>
-          <p className="pretty-text mt-3 text-callout" style={{ color: 'var(--text-secondary)' }}>
-            Live open data for Latvia, Estonia and Lithuania — the same series our reporting is
-            written from, updated independently of it.
-          </p>
-        </header>
-
-        {/* AI Insights */}
-        <InsightsBanner />
+        {activeSection === 'all' && (
+          <>
+            <details className="desk-market-snapshot text-ui" open={marketOpen} onToggle={event => setMarketOpen(event.currentTarget.open)}>
+              <summary><span>Market snapshot</span> Prices, rates and headline indicators</summary>
+              {marketOpen && <DataTicker />}
+            </details>
+            <InsightsBanner />
+          </>
+        )}
 
         {/* Dashboard sections.
             48px apart, `--space-2xl`, which DESIGN.md §1.2 names as the gap
@@ -360,39 +388,14 @@ export default function App() {
         <SystemStatusFooter />
 
         {/* Footer */}
-        <footer className="mt-12 pt-6 border-t dash-edge text-caption dash-subtle">
+        <section aria-label="Dashboard data sources" className="mt-12 pt-6 border-t dash-edge text-caption dash-subtle">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1">
             <p>Economy — <a href="https://data.stat.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">CSP Latvia</a>, <a href="https://dashboard.elering.ee/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Elering</a>, <a href="https://www.ecb.europa.eu/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">ECB</a>, <a href="https://ec.europa.eu/eurostat" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Eurostat</a></p>
             <p>Business — <a href="https://data.gov.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">data.gov.lv</a> (VID, UBO, BVKB · CC0)</p>
             <p>Environment — <a href="https://open-meteo.com/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Open-Meteo</a>, <a href="https://opendata.riga.lv/" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Riga Open Data</a></p>
             <p>Maritime — <a href="https://open-meteo.com/en/docs/marine-weather-api" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Open-Meteo Marine</a>, <a href="https://ec.europa.eu/eurostat/web/transport/database" className="dash-hover-fg" target="_blank" rel="noopener noreferrer">Eurostat maritime</a></p>
           </div>
-          <p className="mt-4 dash-subtle">
-            Built by <a href="https://naurolabs.com" className="dash-hover-body">NauroLabs</a>
-            {' · '}
-            {/*
-              `Link`, not `<a>`. A bare anchor from here reloads the whole
-              application to reach a page the bundle already contains — measured
-              at 1 document request and ~1.4MB of assets re-fetched versus 0 and
-              one lazy chunk. It is the same fault this footer's `Follow` link
-              would have had if it had copied its neighbour.
-            */}
-            <Link to="/api-docs" className="dash-hover-body">API docs &amp; pricing</Link>
-            {' · '}
-            {/*
-              The dashboard's only route to a feed.
-
-              Measured before this existed, against production at
-              2026-08-28T12:25:08Z: `/follow` was three clicks from `/data`, and
-              `/weekly` and `/feed.json` were unreachable within three, because
-              every route out of the dashboard ran through the wordmark to the
-              front page and then through an article. This footer had a link to
-              every upstream data provider and none back to our own journalism.
-            */}
-            <Link to="/follow" className="dash-hover-body">Follow</Link>
-          </p>
-        </footer>
-      </main>
+        </section>
     </div>
   );
 }

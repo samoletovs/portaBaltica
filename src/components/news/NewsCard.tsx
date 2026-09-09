@@ -6,6 +6,8 @@ import { LinkOutCardFromSummary } from './LinkOutCard';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
+import { LeadStoryEvidence } from './StoryEvidenceGraphic';
+import { soleCountry } from '../../newsroom/article-country';
 
 interface CardProps {
   summary: ArticleSummary;
@@ -115,22 +117,17 @@ export function CorrectionsUnavailable() {
 export function ArticleCard({ summary, variant = 'standard', corrected = false }: CardProps) {
   const isLead = variant === 'lead';
   const section = SECTION_LABELS[summary.section as DashboardSection] ?? summary.section;
+  const country = soleCountry(summary);
+  const dashboardHref = `/data/${summary.section}${country ? `?country=${country}` : ''}`;
 
   return (
     <article
       data-tier={summary.tier}
       className={
-        isLead
-          ? // `p-4` below `sm`: 24px of inner padding each side is 15% of a
-            // 320px viewport, and the lead card is the one element whose
-            // content is set at 34px, so it pays for that padding in wrapped
-            // lines rather than in whitespace. Measured at 320px the headline
-            // box is 238px wide and the headline runs to 7 lines at 1.57 words
-            // per line.
-            'news-border news-panel rounded-xl border p-4 transition-colors sm:p-6'
-          : 'news-border border-b pb-6'
+        isLead ? 'folio-lead-story' : 'folio-story-item'
       }
     >
+      <div className="folio-story-copy">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {corrected && <CorrectionBadge />}
         <TierBadge tier={summary.tier} />
@@ -143,7 +140,7 @@ export function ArticleCard({ summary, variant = 'standard', corrected = false }
       <h2
         className={
           isLead
-            ? 'balance-text news-fg text-headline font-semibold tracking-tight sm:text-display'
+            ? 'balance-text news-fg text-headline font-semibold tracking-tight lg:text-masthead'
             : 'balance-text news-fg text-lead font-semibold'
         }
       >
@@ -178,6 +175,21 @@ export function ArticleCard({ summary, variant = 'standard', corrected = false }
           </p>
         )}
       </div>
+      {summary.tier === 'A' && !isLead && (
+        <Link to={dashboardHref} className="desk-evidence-link news-link text-caption underline underline-offset-4">
+          Explore {section.toLowerCase()} data →
+        </Link>
+      )}
+      {summary.tier === 'A' && isLead && (
+        <div className="folio-lead-links">
+          <Link to={`/article/${summary.slug}`} className="lab-link text-ui">Read the report ↗</Link>
+          <Link to={dashboardHref} className="lab-link text-ui">Open the {section.toLowerCase()} dashboard ↗</Link>
+        </div>
+      )}
+      </div>
+      {isLead && summary.tier === 'A' && !corrected && (
+        <LeadStoryEvidence summary={summary} />
+      )}
     </article>
   );
 }

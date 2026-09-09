@@ -69,7 +69,7 @@ describe('finding useful published reporting', () => {
     await renderFeed([tierASummary(), tierCSummary()]);
     fireEvent.change(screen.getByLabelText('Search headlines and summaries'), { target: { value: 'no-such-report' } });
     expect(screen.getByRole('heading', { name: 'Elsewhere in the Baltics' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: /Help shape our business briefing pilot/ }).getAttribute('href')).toBe('/briefings');
+    expect(screen.getByRole('link', { name: /Read the public business briefing/ }).getAttribute('href')).toBe('/briefings');
   });
 
   it('keeps the compact search named and its reporting scope accessible', async () => {

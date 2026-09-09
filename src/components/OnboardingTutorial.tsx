@@ -4,6 +4,7 @@ import type { DashboardSection } from '../types';
 interface OnboardingTutorialProps {
   activeSection: DashboardSection | 'all';
   onSectionChange: (section: DashboardSection | 'all') => void;
+  autoOpen?: boolean;
 }
 
 interface OnboardingStep {
@@ -47,7 +48,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'You are ready',
-    description: 'Use the section tabs anytime to jump between dashboard domains.',
+    description: 'Use the research directory to move between subjects. On a smaller screen, open Menu to find the same destinations.',
     section: 'all',
   },
 ];
@@ -118,8 +119,8 @@ function shouldOpenUninvited(): boolean {
  *
  * On a phone it does not open itself at all; see `shouldOpenUninvited`.
  */
-export function OnboardingTutorial({ activeSection, onSectionChange }: OnboardingTutorialProps) {
-  const [isOpen, setIsOpen] = useState(shouldOpenUninvited);
+export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = true }: OnboardingTutorialProps) {
+  const [isOpen, setIsOpen] = useState(() => autoOpen && shouldOpenUninvited());
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;

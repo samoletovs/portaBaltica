@@ -1,19 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="portaBaltica">
   <title>portaBaltica</title>
-  <!--
-    A harbour gate over water. "porta" is the gate; the Baltic is underneath it.
-
-    Drawn to survive 16px, which is the size that actually matters and the size
-    most marks are never checked at: three heavy shapes, no fine detail, no
-    gradients, and no text. The colours are the site's own — the page ground
-    #0a0f1a and the accent #38bdf8 — rather than a palette invented for the
-    icon, so a browser tab matches the site it opens.
-
-    Served from our own origin. The CSP is `img-src 'self' data:`, and a mark
-    fetched from anywhere else would disclose every reader's IP address to
-    whoever served it.
-  -->
-  <rect width="64" height="64" rx="14" fill="#0a0f1a"/>
-  <path d="M18 45V30a14 14 0 0 1 28 0v15" fill="none" stroke="#38bdf8" stroke-width="7"/>
-  <rect x="14" y="51" width="36" height="6" rx="3" fill="#7dd3fc"/>
+  <rect width="64" height="64" rx="12" fill="#f0f3f2"/>
+  <g fill="#3e6375">
+    <path d="M14 23 23 19V47L14 51Z" fill="#172d32"/>
+    <path d="M28 16 37 12V47L28 51Z"/>
+    <path d="M42 19 51 15V43L42 47Z"/>
+  </g>
 </svg>

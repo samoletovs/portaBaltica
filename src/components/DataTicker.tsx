@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { useCountry } from '../CountryContext';
 import { changeDescription, sentimentColor, sentimentOf } from '../utils/polarity';
 import { finite, list } from '../utils/payload';
@@ -67,6 +67,40 @@ function tickerItems<T>(source: T[], build: (entry: T) => TickerItem | null): Ti
   });
 }
 
+function TickerFrame({ children, loading = false }: { children: ReactNode; loading?: boolean }) {
+  const [paused, setPaused] = useState(false);
+  const [inactive, setInactive] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useEffect(() => {
+    let visible = true;
+    const update = () => setInactive(!visible || document.hidden);
+    const observer = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver(entries => {
+      visible = entries[0].isIntersecting;
+      update();
+    });
+    if (ref.current) observer?.observe(ref.current);
+    document.addEventListener('visibilitychange', update);
+    update();
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener('visibilitychange', update);
+    };
+  }, []);
+  return (
+    <div className="ticker-shell" ref={ref} data-paused={paused || inactive}>
+      <div className="ticker-viewport edge-fade-x" aria-hidden="true">
+        <div id={id} className="ticker-track flex whitespace-nowrap">{children}</div>
+      </div>
+      <button type="button" className="ticker-toggle text-caption" disabled={loading}
+        aria-label={`${paused ? 'Resume' : 'Pause'} market ticker`} aria-controls={id}
+        onClick={() => setPaused(value => !value)}>
+        {paused ? 'Resume' : 'Pause'}
+      </button>
+    </div>
+  );
+}
+
 export function DataTicker() {
   const [items, setItems] = useState<TickerItem[]>([]);
   /**
@@ -116,9 +150,8 @@ export function DataTicker() {
         //
         // So the unit of failure is now the **item**. An entry that cannot be
         // read costs that entry and nothing else, which is what "independent"
-        // meant all along. `Header` and `DataTicker` render above every route
-        // including the newsroom (DESIGN.md §3.9), so this chain's blast
-        // radius is the whole site.
+        // meant all along. The ticker now belongs to the Dashboard's expanded
+        // market snapshot rather than the global publication header.
         setItems([
           ...tickerItems<unknown>([d.electricityCurrent], (value) => {
             const electricity = finite(value);
@@ -169,15 +202,11 @@ export function DataTicker() {
     // is whatever the real strip's height is, rather than a number copied out
     // of a measurement that will rot the first time the type scale moves.
     return (
-      <div
-        className="ticker-viewport edge-fade-x"
-        style={{ borderBottom: '1px solid var(--border-card)' }}
-        aria-hidden="true"
-      >
-        <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
+      <TickerFrame loading>
+        <div className="ticker-group flex items-center gap-8 py-2">
           <span className="text-caption font-mono">&nbsp;</span>
         </div>
-      </div>
+      </TickerFrame>
     );
   }
 
@@ -187,13 +216,10 @@ export function DataTicker() {
        purely decorative: every figure in it appears again, in context and with
        its source, in the tiles below. So it is hidden from assistive
        technology entirely rather than announced once. */
-    <div
-      className="ticker-viewport edge-fade-x"
-      style={{ borderBottom: '1px solid var(--border-card)' }}
-      aria-hidden="true"
-    >
-      <div className="ticker-track flex items-center gap-8 py-2 whitespace-nowrap">
-          {[...items, ...items].map((item, i) => {
+    <TickerFrame>
+      {[0, 1].map(copy => (
+        <div key={copy} className="ticker-group flex items-center gap-8 py-2">
+          {items.map((item, i) => {
             // Direction is meaning, not arithmetic. The ticker used to render
             // every delta in flat grey because it could not tell whether a
             // rise was good news — true when it was written, and untrue since
@@ -227,7 +253,8 @@ export function DataTicker() {
               </span>
             );
           })}
-      </div>
-    </div>
+        </div>
+      ))}
+    </TickerFrame>
   );
 }
