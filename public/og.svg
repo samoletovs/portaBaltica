@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <title>portaBaltica | Baltic open data, reported</title>
+  <style>
+    @font-face { font-family: "Baltic Editorial"; font-weight: 400; src: url("/fonts/barlow-semi-condensed-latin-400.woff2") format("woff2"); }
+    @font-face { font-family: "Baltic Editorial"; font-weight: 600; src: url("/fonts/barlow-semi-condensed-latin-600.woff2") format("woff2"); }
+  </style>
+  <rect width="1200" height="630" fill="#f0f3f2"/>
+  <g fill="#3e6375" transform="translate(64 48)">
+    <path d="M0 14 9 10V38L0 42Z" fill="#172d32"/>
+    <path d="M14 7 23 3V38L14 42Z"/>
+    <path d="M28 10 37 6V34L28 38Z"/>
+  </g>
+  <g font-family="Baltic Editorial, sans-serif">
+    <text x="118" y="80" font-size="30" font-weight="600" fill="#172d32">porta<tspan fill="#3e6375">Baltica</tspan></text>
+    <text x="64" y="274" font-size="96" font-weight="600" fill="#172d32" letter-spacing="-2">THE BALTIC PERSPECTIVE.</text>
+    <text x="64" y="378" font-size="72" fill="#3e6375" letter-spacing="-1">Read the finding. Inspect the evidence.</text>
+    <text x="64" y="526" font-size="24" fill="#40585c">Latvia. Estonia. Lithuania. Baltic open data, reported.</text>
+  </g>
+  <path d="M64 128H1136M64 566H1136" stroke="#b4c4c1"/>
+</svg>

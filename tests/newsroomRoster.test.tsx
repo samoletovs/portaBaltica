@@ -12,7 +12,7 @@ import {
 import { publisherName } from '../src/newsroom/editorial';
 import { ArticleView } from '../src/components/news/ArticleView';
 import { NewsroomIndex } from '../src/components/news/NewsroomIndex';
-import { NewsroomLayout } from '../src/components/news/NewsroomLayout';
+import { SiteLayout } from '../src/components/SiteLayout';
 import { tierAArticle } from './fixtures/articles';
 
 vi.mock('../src/components/news/ChartEmbed', () => ({
@@ -96,7 +96,7 @@ describe('the editor is visible to readers', () => {
   it('appears in the masthead line on every page', () => {
     render(
       <MemoryRouter>
-        <NewsroomLayout />
+        <SiteLayout />
       </MemoryRouter>,
     );
 
@@ -135,22 +135,24 @@ describe('the editor is visible to readers', () => {
   });
 });
 
-describe('the masthead is one line and four destinations', () => {
-  it('offers exactly four places to go', () => {
+describe('publication navigation in the shared directory', () => {
+  it('keeps the publication destinations together without a second masthead', () => {
     render(
       <MemoryRouter>
-        <NewsroomLayout />
+        <SiteLayout />
       </MemoryRouter>,
     );
 
-    const nav = screen.getByRole('navigation', { name: 'Sections' });
-    expect(nav.querySelectorAll('a')).toHaveLength(4);
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'Publication' });
+    expect([...nav.querySelectorAll('a')].map(link => link.getAttribute('href')))
+      .toEqual(['/follow', '/newsroom', '/corrections', '/about/ai', '/api-docs']);
   });
 
   it('points at the newsroom rather than at a list of writers', () => {
     const { container } = render(
       <MemoryRouter>
-        <NewsroomLayout />
+        <SiteLayout />
       </MemoryRouter>,
     );
 

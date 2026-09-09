@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ArticleView } from '../src/components/news/ArticleView';
 import { FAILING_VERDICT, SECRET_PROSE, tierAArticle, tierCArticle } from './fixtures/articles';
@@ -133,7 +133,7 @@ describe('ArticleView — the provenance passport', () => {
 
     expect(screen.getByRole('heading', { name: 'Where this came from' })).toBeTruthy();
     expect(screen.getByText('Eurostat')).toBeTruthy();
-    expect(screen.getByText(/lc_lci_lev/)).toBeTruthy();
+    expect(within(document.getElementById('article-evidence')!).getByText(/lc_lci_lev/)).toBeTruthy();
     expect(screen.getByText('gpt-4o-mini@2024-07-18')).toBeTruthy();
     expect(screen.getByText('Andre Kõpu')).toBeTruthy();
     expect(screen.getByText(/Retrieved/)).toBeTruthy();
@@ -311,4 +311,3 @@ describe('ArticleView — a retracted article', () => {
     expect(screen.queryByText(/not passed the checks we run before publishing/i)).toBeNull();
   });
 });
-

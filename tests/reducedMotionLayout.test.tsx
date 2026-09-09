@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '../src/ThemeContext';
 import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
-import { Header } from '../src/components/Header';
+import { DataControls } from '../src/components/DataControls';
 
 const css = readFileSync(resolve('src/index.css'), 'utf8');
 
@@ -88,8 +88,8 @@ describe('a flex row that holds a fixed-size control', () => {
   });
 });
 
-describe('the masthead', () => {
-  it('renders its scrolling strip without asking the document to scroll', () => {
+describe('the research toolbar', () => {
+  it('wraps its controls instead of clipping one behind a horizontal scroll', () => {
     // jsdom cannot measure this, so it is asserted structurally: the nav is a
     // scroll container of its own, which is what keeps its overflowing tabs
     // out of the document's scrollable area.
@@ -98,15 +98,16 @@ describe('the masthead', () => {
         <ThemeProvider>
           <CountryProvider>
             <FilterProvider>
-              <Header />
+              <DataControls />
             </FilterProvider>
           </CountryProvider>
         </ThemeProvider>
       </MemoryRouter>,
     );
 
-    const nav = container.querySelector('nav[aria-label="Site sections"]');
-    expect(nav, 'the section nav is missing').not.toBeNull();
-    expect(nav!.className, 'the tab strip must scroll within itself').toContain('overflow-x-auto');
+    const controls = container.querySelector('.desk-data-controls');
+    expect(controls, 'the data controls are missing').not.toBeNull();
+    expect(controls!.className).not.toContain('overflow-x-auto');
+    expect(css).toMatch(/\.desk-data-controls\s*\{[^}]*flex-wrap:\s*wrap/);
   });
 });

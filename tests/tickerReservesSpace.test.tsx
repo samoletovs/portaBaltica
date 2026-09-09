@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from '../src/ThemeContext';
@@ -155,5 +155,27 @@ describe('the ticker while it does not yet know', () => {
 
     expect(container.textContent).toContain('Electricity');
     expect(container.textContent).toContain('GDP Growth');
+  });
+
+  it('offers a persistent pause control without hiding or changing the readings', async () => {
+    serve(WHOLE);
+    const view = mount(<DataTicker />);
+    await act(async () => {});
+    const readings = view.container.querySelector('.ticker-track')!.textContent;
+    fireEvent.click(view.getByRole('button', { name: 'Pause market ticker' }));
+    expect(view.container.querySelector('.ticker-shell')?.getAttribute('data-paused')).toBe('true');
+    expect(view.container.querySelector('.ticker-track')!.textContent).toBe(readings);
+    fireEvent.click(view.getByRole('button', { name: 'Resume market ticker' }));
+    expect(view.container.querySelector('.ticker-shell')?.getAttribute('data-paused')).toBe('false');
+  });
+
+  it('loops two identical complete groups rather than cutting a gap in half', async () => {
+    serve(WHOLE);
+    const { container } = mount(<DataTicker />);
+    await act(async () => {});
+    const groups = container.querySelectorAll('.ticker-group');
+    expect(groups).toHaveLength(2);
+    expect(groups[0].textContent).toContain('EUR/USD');
+    expect(groups[0].textContent).toBe(groups[1].textContent);
   });
 });

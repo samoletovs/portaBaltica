@@ -143,6 +143,8 @@ const STEPS = [
   'title',
   'headline',
   'display',
+  'masthead',
+  'banner',
 ] as const;
 
 describe('the type scale', () => {
@@ -193,7 +195,7 @@ describe('the type scale', () => {
 
     // Leading is proportional: the same ratio that reads as comfortable on a
     // caption reads as a gap on a headline.
-    for (const step of ['lead', 'title', 'headline', 'display'] as const) {
+    for (const step of ['lead', 'title', 'headline', 'display', 'masthead', 'banner'] as const) {
       expect(heights[step], `--text-${step}--line-height`).toBeLessThan(1.5);
     }
     expect(heights.display).toBeLessThanOrEqual(heights.headline);
@@ -545,7 +547,7 @@ describe('the typeface', () => {
     // face. Across a product a reader crosses constantly, that read as two
     // sites rather than as two registers.
     expect(css).not.toMatch(/--font-serif:/);
-    expect(css).toMatch(/--font-sans:\s*system-ui/);
+    expect(css).toMatch(/--font-sans:\s*"Baltic Editorial",\s*system-ui/);
     expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
   });
 
@@ -572,6 +574,17 @@ describe('the typeface', () => {
       'Cascadia Mono',
       'Segoe UI Mono',
     ]);
+    const servedFaces = new Set<string>();
+    for (const [, block] of css.matchAll(/@font-face\s*\{([^}]+)\}/g)) {
+      const family = block.match(/font-family:\s*"([^"]+)"/)?.[1];
+      const url = block.match(/url\("([^"]+)"\)/)?.[1];
+      expect(family, 'a font face has no family').toBeTruthy();
+      expect(url, 'font files must be served locally').toMatch(/^\/fonts\/.+\.woff2$/);
+      const binary = readFileSync(resolve('public', url!.slice(1)));
+      expect(binary.subarray(0, 4).toString(), `${url} is not a WOFF2 font`).toBe('wOF2');
+      servedFaces.add(family!);
+    }
+    expect(servedFaces.has('Baltic Editorial')).toBe(true);
 
     const families = [...css.matchAll(/^\s*--font-[a-z]+:\s*([^;]+);/gm)].map(
       (match) => match[1],
@@ -580,7 +593,7 @@ describe('the typeface', () => {
     for (const family of families) {
       for (const [, quoted] of family.matchAll(/"([^"]+)"/g)) {
         expect(
-          platformFaces.has(quoted),
+          platformFaces.has(quoted) || servedFaces.has(quoted),
           `${quoted} is named in a font stack but nothing serves it`,
         ).toBe(true);
       }

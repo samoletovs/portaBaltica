@@ -38,6 +38,10 @@ interface ThemeContextValue {
  * nonsense. These mirror the `--series-*` and `--chart-*` tokens in index.css,
  * and tests/design-system.test.ts asserts the two never drift apart.
  *
+ * The dark series are lightened for Signal Desk's petrol surfaces. The
+ * quantitative history below describes the preceding palette; current
+ * contrast, chroma and separation are asserted by design-system.test.ts.
+ *
  * ─── The country palette is the flags ───
  * Latvia carmine, Estonia blue, Lithuania gold. A reader who knows the flags
  * does not have to consult a legend at all, which is the cheapest legibility
@@ -88,36 +92,34 @@ interface ThemeContextValue {
  * appears only as a Nord Pool bidding zone, never as a Baltic state.
  */
 const DARK_CHART: ChartColors = {
-  grid: '#1e293b',
-  axis: '#9fb0c4',
-  tooltipBg: '#1c2740',
-  tooltipBorder: '#26344f',
-  series: { LV: '#bf5259', EE: '#407cc0', LT: '#a67300', FI: '#9c5089' },
-  seriesDefault: '#7dd3fc',
-  reference: '#9fb0c4',
+  grid: '#35565c',
+  axis: '#bfd3cf',
+  tooltipBg: '#21474e',
+  tooltipBorder: '#4f7478',
+  series: { LV: '#cf7f85', EE: '#7aa2cf', LT: '#c3a157', FI: '#b27791' },
+  seriesDefault: '#b0d1c6',
+  reference: '#bfd3cf',
   positive: '#3ddc97',
   negative: '#ff7a85',
 };
 
 const LIGHT_CHART: ChartColors = {
-  grid: '#e2e8f0',
-  axis: '#455468',
-  tooltipBg: '#ffffff',
-  tooltipBorder: '#dbe2ea',
-  series: { LV: '#c07173', EE: '#5580b4', LT: '#9c761f', FI: '#96688c' },
-  // Not #0369a1 — that is the link accent byte for byte, and DESIGN.md §1.5
-  // reserves the accent for links, the active nav indicator and the primary
-  // call to action. A chart line is none of those.
+  grid: '#c7d2ce',
+  axis: '#3d5559',
+  tooltipBg: '#fafcfb',
+  tooltipBorder: '#b4c4c1',
+  series: { LV: '#bb6d70', EE: '#5580b4', LT: '#9c761f', FI: '#96688c' },
+  // A single-series line remains separate from the interface accent.
   seriesDefault: '#0891b2',
-  reference: '#455468',
+  reference: '#3d5559',
   positive: '#047857',
   negative: '#be123c',
 };
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'dark',
+  theme: 'light',
   toggle: () => {},
-  chartColors: DARK_CHART,
+  chartColors: LIGHT_CHART,
 });
 
 export function useTheme() {
@@ -126,8 +128,8 @@ export function useTheme() {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    return (localStorage.getItem('pb-theme') as Theme) ?? 'dark';
+    if (typeof window === 'undefined') return 'light';
+    return localStorage.getItem('pb-theme') === 'dark' ? 'dark' : 'light';
   });
 
   useEffect(() => {

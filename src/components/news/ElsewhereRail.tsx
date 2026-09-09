@@ -62,7 +62,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
   const hidden = shown.length - visible;
 
   return (
-    <aside aria-labelledby="elsewhere-heading">
+    <aside className="folio-elsewhere" aria-labelledby="elsewhere-heading">
       <h2
         id="elsewhere-heading"
         className="news-border news-fg border-b pb-2 text-callout font-semibold"

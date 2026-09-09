@@ -248,7 +248,9 @@ describe('the API docs page states numbers that are true', () => {
     'TradePartnersPanel.tsx',
   ];
   // This page explains reporting periods; it maps business questions, not observations.
-  const PERIOD_EXPLANATIONS = ['BriefingsPage.tsx'];
+  const PERIOD_EXPLANATIONS: string[] = [];
+  // A frozen country comparison or two recorded observations, explicitly not a full series.
+  const RECORDED_COMPARISONS = ['StoryEvidenceGraphic.tsx'];
 
   it('backs "export on every series" with an export on every series', () => {
     // The Free tier sells "CSV and JSON export on every series". #187 shipped
@@ -297,12 +299,7 @@ describe('the API docs page states numbers that are true', () => {
       .sort();
 
     expect(periodic, 'a periodic surface that is neither a series nor a listed cross-section')
-      .toEqual([...CROSS_SECTIONS, ...PERIOD_EXPLANATIONS].sort());
+      .toEqual([...CROSS_SECTIONS, ...PERIOD_EXPLANATIONS, ...RECORDED_COMPARISONS].sort());
   });
 
-  it('does not mistake a newly charted briefing page for explanatory copy', () => {
-    const source = readFileSync(resolve('src/components/news/BriefingsPage.tsx'), 'utf8');
-    expect(source).not.toMatch(/<ResponsiveContainer\b|\.period\b/);
-    expect([...source.matchAll(/(\w+)\.map\(/g)].map((match) => match[1])).toEqual(['QUESTIONS']);
-  });
 });

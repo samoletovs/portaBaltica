@@ -27,6 +27,21 @@ function renderFeed() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('News feed', () => {
+  it('opens with the original story and typography when no recorded graphic is available', async () => {
+    const lead = tierASummary({ countries: ['EE'] });
+    stubIndex([lead]);
+    const { container } = renderFeed();
+    const headline = await screen.findByText(lead.headline);
+    const search = screen.getByRole('searchbox', { name: 'Search headlines and summaries' });
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('THE BALTIC JOURNAL.');
+    expect(headline.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /Geographic illustration/ })).toBeNull();
+    expect(container.querySelector('.region-artwork')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Read the report ↗' }).getAttribute('href')).toBe(`/article/${lead.slug}`);
+    expect(container.querySelectorAll('article[data-tier="A"]')).toHaveLength(1);
+    expect(screen.queryByText('Consumer price inflation', { selector: 'h2' })).toBeNull();
+  });
+
   it('leads with our own reporting', async () => {
     const lead = tierASummary();
     stubIndex([lead, tierCSummary()]);
@@ -121,6 +136,7 @@ describe('FormatBadge — what kind of piece this is', () => {
     );
 
     expect(screen.getByText('The week')).toBeTruthy();
-    expect(screen.getByText(/maritime/i)).toBeTruthy();
+    expect(screen.getByText('Maritime', { selector: 'span' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Explore maritime data →' }).getAttribute('href')).toBe('/data/maritime');
   });
 });

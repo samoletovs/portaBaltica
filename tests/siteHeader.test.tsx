@@ -1,87 +1,100 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { lazy, type ComponentType } from 'react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
 import { ThemeProvider } from '../src/ThemeContext';
-import { Header } from '../src/components/Header';
+import { SiteLayout } from '../src/components/SiteLayout';
 
-function renderHeader(path: string) {
+function Content() {
+  const location = useLocation();
+  return <main id="main" data-query={location.search}>{location.pathname}</main>;
+}
+
+function renderSite(path: string) {
   return render(
-    <ThemeProvider>
-      <CountryProvider>
-        <FilterProvider>
-          <MemoryRouter initialEntries={[path]}>
-            <Header />
-          </MemoryRouter>
-        </FilterProvider>
-      </CountryProvider>
-    </ThemeProvider>,
+    <ThemeProvider><CountryProvider><FilterProvider>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes><Route element={<SiteLayout />}><Route path="*" element={<Content />} /></Route></Routes>
+      </MemoryRouter>
+    </FilterProvider></CountryProvider></ThemeProvider>,
   );
 }
 
-describe('unified site header', () => {
-  it('shows News beside the dashboard sections on article routes', () => {
-    renderHeader('/article/example');
+beforeEach(() => localStorage.clear());
 
-    expect(screen.getByRole('link', { name: 'News' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/data');
-    expect(screen.getByLabelText(/Switch to .* theme/)).toBeTruthy();
-    expect(screen.getByLabelText('Date range filter')).toBeTruthy();
+describe('coherent site navigation', () => {
+  it('uses the two-tone wordmark in the masthead and footer', () => {
+    renderSite('/');
+    const brand = screen.getByRole('link', { name: 'portaBaltica home' });
+    expect(brand.textContent).toBe('portaBaltica');
+    expect(brand.querySelector('.news-accent')?.textContent).toBe('Baltica');
+    expect(screen.getByRole('contentinfo').querySelector('.news-accent')?.textContent).toBe('Baltica');
   });
 
-  it('keeps dashboard section URLs and active state', () => {
-    renderHeader('/data/economy');
-
-    expect(screen.getByRole('link', { name: 'Economy' }).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByRole('link', { name: 'News' }).getAttribute('href')).toBe('/');
-  });
-});
-
-/**
- * The top bar is one row, and stays one.
- *
- * A wiring guard, not a layout proof: jsdom does not lay out, so it cannot see
- * a stacked row. It holds the structure that makes a single row possible, and
- * `tests/headerOneRow.live.test.ts` measures that it works in a browser.
- *
- * Measured at 375px before this: the bar wrapped into three rows and stood
- * 148px tall, because nine controls held at 44×44 by the touch-target rule
- * cannot fit a phone however they are arranged. The surplus now scrolls
- * sideways instead of costing height.
- */
-describe('the header top bar', () => {
-  const source = readFileSync(resolve('src/components/Header.tsx'), 'utf8');
-  const topBar = source.match(/<div className="(flex items-center justify-between[^"]*)"/)?.[1];
-
-  it('does not wrap its controls onto a second row', () => {
-    expect(topBar, 'the top bar row was not found').toBeTruthy();
-    expect(topBar, 'a wrapping row buys the clip back in height').not.toContain('flex-wrap');
-    expect(topBar, 'the row needs a fixed single-row height').toMatch(/\bh-14\b/);
+  it('offers four peer destinations and one shared publication footer', () => {
+    renderSite('/article/example');
+    const primary = screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(primary).getAllByRole('link').map(link => [link.textContent, link.getAttribute('href')]))
+      .toEqual([['The journal', '/'], ['Dashboard', '/data'], ['Data explorer', '/explore'], ['Business briefings', '/briefings']]);
+    expect(screen.getAllByRole('contentinfo')).toHaveLength(1);
+    const footer = screen.getByRole('navigation', { name: 'Publication' });
+    expect(within(footer).getAllByRole('link').map(link => link.getAttribute('href')))
+      .toEqual(['/follow', '/newsroom', '/corrections', '/about/ai', '/api-docs']);
+    expect(screen.queryByRole('navigation', { name: 'Site sections' })).toBeNull();
   });
 
-  it('lets the control strip scroll rather than wrap or clip', () => {
-    const strip = source.match(/className=\{`(flex items-center[^`]*)`\}/)?.[1];
-    expect(strip, 'the control strip was not found').toBeTruthy();
-    expect(strip, 'the strip must be able to scroll').toContain('overflow-x-auto');
-    expect(strip, 'without min-w-0 a flex item refuses to shrink below its content').toContain('min-w-0');
-    // Overflow in a flex-end row spills off the start edge, where scrolling
-    // cannot reach it: measured at 375px, the country selector was clipped and
-    // unreachable while the strip reported no overflow at all.
-    expect(strip, 'justify-end puts the overflow where scrolling cannot reach').not.toContain('justify-end');
-    expect(strip, 'the strip fades its cut edge so a clip reads as more content').toContain('controlsFade');
+  it('writes country focus into the current explorer URL without dropping its selection', () => {
+    renderSite('/explore?indicator=gdp&country=EE&section=economy');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to Lithuania' }));
+    const query = new URLSearchParams(screen.getByRole('main').getAttribute('data-query')!);
+    expect(query.get('country')).toBe('LT');
+    expect(query.get('indicator')).toBe('gdp');
+    expect(query.get('section')).toBe('economy');
   });
 
-  it('keeps every control at its full size inside the strip', () => {
-    // A shrinking chip is how a 44px touch target quietly becomes a 20px one.
-    const strip = source.slice(source.indexOf('ref={controlsRef}'), source.indexOf('Section tabs'));
-    const children = strip.match(/className="[^"]*"/g) ?? [];
-    const groups = children.filter((c) => /rounded-lg/.test(c));
-    expect(groups.length, 'the segmented groups were not found').toBeGreaterThanOrEqual(3);
-    for (const group of groups) {
-      expect(group, `${group} may be squeezed by the row`).toContain('shrink-0');
-    }
+  it('keeps navigation and a real skip target available while a page is loading', () => {
+    const Pending = lazy(() => new Promise<{ default: ComponentType }>(() => {}));
+    render(<MemoryRouter><Routes><Route element={<SiteLayout />}><Route path="/" element={<Pending />} /></Route></Routes></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Skip to content' }).getAttribute('href')).toBe('#main');
+    expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('link', { name: 'portaBaltica home' })).toBeTruthy();
+  });
+
+  it.each(['/data', '/data/economy', '/explore', '/indicator/gdp'])('puts the data controls on %s', path => {
+    renderSite(path);
+    expect(within(screen.getByLabelText('Country')).getAllByRole('button')).toHaveLength(3);
+    expect(within(screen.getByLabelText('Date range filter')).getAllByRole('button')).toHaveLength(4);
+  });
+
+  it('does not put data controls above a news article', () => {
+    renderSite('/article/example');
+    expect(screen.queryByLabelText('Country')).toBeNull();
+    expect(screen.queryByLabelText('Date range filter')).toBeNull();
+  });
+
+  it('keeps primary navigation available without an open or close control', () => {
+    renderSite('/');
+    const primary = screen.getByRole('navigation', { name: 'Primary' });
+    expect(screen.queryByRole('button', { name: /menu/i })).toBeNull();
+    expect(primary.hasAttribute('hidden')).toBe(false);
+    fireEvent.click(within(primary).getByRole('link', { name: 'Data explorer' }));
+    expect(screen.getByRole('main').textContent).toBe('/explore');
+    expect(screen.getAllByRole('navigation', { name: 'Primary' })).toHaveLength(1);
+    fireEvent.keyDown(primary, { key: 'Escape' });
+    expect(within(primary).getAllByRole('link')).toHaveLength(4);
+    expect(screen.queryByRole('button', { name: /menu/i })).toBeNull();
+  });
+
+  it('honours and persists the alternative theme without changing destinations', () => {
+    const first = renderSite('/');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
+    expect(localStorage.getItem('pb-theme')).toBe('dark');
+    first.unmount();
+    renderSite('/explore');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(screen.getByRole('button', { name: 'Switch to light theme' })).toBeTruthy();
   });
 });

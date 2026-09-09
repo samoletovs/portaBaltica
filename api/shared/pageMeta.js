@@ -33,6 +33,7 @@
 
 const indicators = require('./indicators.js');
 const articleMeta = require('./articleMeta.js');
+const researchAliases = require('./researchAliases.json');
 
 const SITE_URL = 'https://portabaltica.naurolabs.com';
 
@@ -44,6 +45,10 @@ const SITE_URL = 'https://portabaltica.naurolabs.com';
  * character is a failing parity test rather than a discrepancy nobody sees.
  */
 const STATIC_PAGES = {
+  '/explore': {
+    title: 'Data explorer | portaBaltica',
+    description: 'Explore one Baltic indicator in depth: compare countries, inspect reporting periods, switch between charts and exact values, and download source-linked data.',
+  },
   '/': {
     title: 'portaBaltica | Baltic open data, reported',
     description:
@@ -56,7 +61,7 @@ const STATIC_PAGES = {
   },
   '/briefings': {
     title: 'Business briefings | portaBaltica',
-    description: 'Help shape a Baltic business briefing for costs, hiring and demand decisions. Explore the free evidence and the scope of our discovery pilot.',
+    description: 'A public Baltic business briefing sample with source-linked observations on prices, labour costs and retail activity. Compare countries and inspect the evidence behind each reading.',
   },
   '/weekly': {
     title: 'The weekly review | portaBaltica',
@@ -97,7 +102,7 @@ const STATIC_PAGES = {
 const OVERVIEW = {
   title: 'The dashboard | portaBaltica',
   description:
-    'Live Baltic open data: 71 indicators across economy, trade, energy, property, environment, government and maritime, for Latvia, Estonia and Lithuania. Every figure is traceable to the dataset it came from.',
+    'Baltic open data across economy, trade, energy, property, environment, government and maritime, for Latvia, Estonia and Lithuania. Every figure is traceable to the dataset it came from.',
 };
 
 const SECTIONS = {
@@ -149,7 +154,9 @@ const SECTIONS = {
 };
 
 /**
- * The 24 editorial indicator entries, mirrored from `IndicatorPage.tsx`.
+ * Legacy route inventory. Current metadata is derived below from the actual
+ * displayed definition. The discussion that follows records the former copy
+ * table, which preceded the research-workspace redesign.
  *
  * Every one carries its title, not only the ten the registry does not name.
  * `IndicatorPage` resolves `info?.title ?? registered?.title`, so the editorial
@@ -170,34 +177,34 @@ const SECTIONS = {
  * The other 47 need nothing here: their title and description are both derived
  * from the registry, which this module can read.
  */
-const INDICATOR_COPY = {
-  gdp: { title: "GDP Growth Rate", description: "Gross Domestic Product quarterly growth rate, seasonally adjusted. GDP measures the total economic output and is the broadest measure of economic activity." },
-  salary: { title: "Hourly Labour Cost", description: "Average hourly labour cost across all sectors (Eurostat lc_lci_lev). Covers compensation of employees plus taxes minus subsidies, business economy excluding public administration." },
-  cpi: { title: "CPI Inflation", description: "Consumer Price Index — 12-month average rate of change. Measures how fast prices are rising for goods and services purchased by households." },
-  unemployment: { title: "Unemployment Rate", description: "Share of economically active population aged 15-74 that is unemployed, seasonally adjusted. A key indicator of labor market health." },
-  house_prices: { title: "House Price Change", description: "Year-over-year change in residential property prices. A leading indicator for the real estate market and construction activity." },
-  retail_sales: { title: "Retail Sales Growth", description: "Year-over-year change in retail trade turnover. Reflects consumer spending patterns and economic confidence." },
-  industrial: { title: "Industrial Production Growth", description: "Year-over-year change in industrial output (mining, manufacturing, energy). A key indicator of the productive economy." },
-  population: { title: "Population", description: "Total population. All three Baltic states have experienced population decline due to emigration and low birth rates since EU accession." },
-  exports: { title: "Exports", description: "Total value of goods and services exported, seasonally adjusted. Key indicator of trade competitiveness and external demand." },
-  imports: { title: "Imports", description: "Total value of goods and services imported, seasonally adjusted. Reflects domestic demand and trade dependency." },
-  hotel_occupancy: { title: "Hotel occupancy rate", description: "Percentage of available hotel rooms occupied. A key indicator of tourism activity and service sector health." },
-  tourist_arrivals: { title: "Tourist arrivals", description: "Number of tourists arriving at accommodation establishments. Tourism is a significant contributor to the Latvian economy." },
-  gov_revenue: { title: "Government revenue", description: "Total general government revenue in million euros. Reflects tax collection effectiveness and economic activity." },
-  gov_debt: { title: "Government debt", description: "Total general government consolidated debt. A key metric for fiscal sustainability and credit risk assessment." },
-  biz_confidence: { title: "Economic sentiment", description: "Composite economic sentiment indicator (long-term average = 100). A leading indicator combining business and consumer surveys." },
-  construction_output: { title: "Construction output", description: "Volume index of construction production (2021=100, seasonally adjusted). Tracks the health of the building sector." },
-  building_permits: { title: "Building permits issued", description: "Number of building permits issued per quarter. A leading indicator for future construction activity." },
-  new_vehicles: { title: "New car registrations", description: "New passenger car registrations per quarter. A proxy for consumer confidence and economic health." },
-  wages_industry: { title: "Manufacturing Wages", description: "Labour cost index for the manufacturing sector (NACE C), base year 2020=100. Tracks how industrial labour costs evolve over time." },
-  wages_it: { title: "IT Sector Wages", description: "Labour cost index for the information and communication sector (NACE J), base year 2020=100. The Baltics' fastest-growing wage sector." },
-  energy_price_gas: { title: "Gas price (households)", description: "Average natural gas price for household consumers in EUR per gigajoule. A key cost-of-living indicator." },
-  renewable_share: { title: "Renewable Energy Share", description: "Share of renewable energy in total energy consumption. The Baltics have above-EU-average shares thanks to hydropower (Latvia), biomass, and wind expansion." },
-  ppi: { title: "Producer prices (PPI)", description: "Year-over-year change in producer prices for industrial products. A leading indicator for consumer inflation." },
-  trade_balance: { title: "Trade balance", description: "Difference between exports and imports (seasonally adjusted). A negative balance means the country imports more than it exports." },
-};
+const LEGACY_INDICATOR_IDS = [
+    "gdp",
+    "salary",
+    "cpi",
+    "unemployment",
+    "house_prices",
+    "retail_sales",
+    "industrial",
+    "population",
+    "exports",
+    "imports",
+    "hotel_occupancy",
+    "tourist_arrivals",
+    "gov_revenue",
+    "gov_debt",
+    "biz_confidence",
+    "construction_output",
+    "building_permits",
+    "new_vehicles",
+    "wages_industry",
+    "wages_it",
+    "energy_price_gas",
+    "renewable_share",
+    "ppi",
+    "trade_balance"
+];
 
-/** `Q` → "Quarterly". Mirrors `FREQ_WORD` in `IndicatorPage.tsx`. */
+/** `Q` → "Quarterly". Mirrors FREQUENCY_LABEL in researchCatalog.ts. */
 const FREQ_WORD = {
   A: 'Annual',
   S: 'Half-yearly',
@@ -208,7 +215,9 @@ const FREQ_WORD = {
 };
 
 /**
- * The head for one indicator, derived from the registry wherever it can be.
+ * The head for the measure actually displayed, including old route aliases.
+ * researchAliases.json is shared with the client; the historical explanation
+ * below describes the copy table that this registry-derived form replaces.
  *
  * Ten of the 24 editorial entries name ids the registry does NOT hold — `cpi`,
  * `retail_sales`, `gov_debt`, `construction_output` and six more, which are the
@@ -224,21 +233,25 @@ const FREQ_WORD = {
  * distinct 71 of 71.
  */
 function indicatorMeta(id) {
-  const definition = Object.prototype.hasOwnProperty.call(indicators, id) ? indicators[id] : null;
-  const copy = Object.prototype.hasOwnProperty.call(INDICATOR_COPY, id) ? INDICATOR_COPY[id] : null;
-  if (!definition && !copy) return null;
-
-  const title = (copy && copy.title) || (definition && definition.title) || null;
-  if (!title) return null;
-
-  const description = (copy && copy.description) || (
+  const resolved = Object.hasOwn(indicators, id) ? id
+    : Object.hasOwn(researchAliases, id) ? researchAliases[id]
+      : id.includes('.') ? id.split('.').at(-1) : id;
+  const definition = Object.hasOwn(indicators, resolved) ? indicators[resolved] : null;
+  if (!definition || !definition.title) return null;
+  const description =
     definition.title + ' for Latvia, Estonia and Lithuania. ' +
     (FREQ_WORD[definition.freq] || 'Periodic') + ' series in ' + definition.unit + ', ' +
-    'from Eurostat dataset ' + definition.dataset + ', downloadable as CSV or JSON.'
-  );
-
-  return { title: title + ' | portaBaltica', description: description };
+    'from Eurostat dataset ' + definition.dataset + ', downloadable as CSV or JSON.';
+  return { title: definition.title + ' | portaBaltica', description };
 }
+
+// Retain the legacy-route export used by parity checks, but derive its content:
+// a bookmark must not advertise an old unit or subject above a different chart.
+const INDICATOR_COPY = Object.fromEntries(LEGACY_INDICATOR_IDS.map(id => {
+  const meta = indicatorMeta(id);
+  if (!meta) throw new Error(`No registry definition for legacy indicator ${id}`);
+  return [id, { title: meta.title.replace(' | portaBaltica', ''), description: meta.description }];
+}));
 
 /**
  * What the page at `pathname` says about itself, or `null` when this module

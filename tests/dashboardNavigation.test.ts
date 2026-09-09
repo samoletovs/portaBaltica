@@ -60,7 +60,7 @@ describe('a horizontally scrolling strip', () => {
   it('fades only the end that is actually cut off', () => {
     // A fixed mask dims the first and last item whether or not anything is
     // hidden past them. The section tabs do not overflow at 1440, so an
-    // always-on fade would grey out "News" and "Maritime" permanently to solve
+    // always-on fade would grey out "All sectors" and "Maritime" permanently to solve
     // a problem that only exists on a phone.
     for (const rule of ['.edge-fade-start', '.edge-fade-end']) {
       expect(css, `${rule} is missing`).toContain(rule);
@@ -121,10 +121,10 @@ describe('brand metadata', () => {
     expect(html, 'no svg favicon').toMatch(/<link rel="icon"[^>]*href="\/favicon\.svg"/);
     expect(html, 'no apple touch icon').toMatch(/<link rel="apple-touch-icon"/);
     expect(html, 'no dark theme-color').toMatch(
-      /<meta name="theme-color" content="#0a0f1a" media="\(prefers-color-scheme: dark\)"/,
+      /<meta name="theme-color" content="#102e34" media="\(prefers-color-scheme: dark\)"/,
     );
     expect(html, 'no light theme-color').toMatch(
-      /<meta name="theme-color" content="#f6f8fb" media="\(prefers-color-scheme: light\)"/,
+      /<meta name="theme-color" content="#f0f3f2" media="\(prefers-color-scheme: light\)"/,
     );
     expect(html, 'no og:image').toMatch(/<meta property="og:image" content="[^"]+og\.png"/);
     expect(html, 'a cropped card cuts the wordmark in half').toMatch(
@@ -149,7 +149,7 @@ describe('brand metadata', () => {
     // some time ago.
     const favicon = readFileSync(resolve('public/favicon.svg'), 'utf8');
     expect(favicon, 'the scaffold mark is still there').not.toContain('#863bff');
-    expect(favicon, 'the mark should use the site accent').toContain('#38bdf8');
+    expect(favicon, 'the mark should use the restrained light-scheme accent').toContain('#3e6375');
     expect(html, 'the inline emoji icon is still there').not.toContain('%E2%9A%93');
     expect(html).not.toMatch(/<link rel="icon" href="data:/);
   });
