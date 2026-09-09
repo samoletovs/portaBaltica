@@ -13,6 +13,7 @@ import { resolveChartRef } from '../../newsroom/chart-ref';
 import { soleCountry } from '../../newsroom/article-country';
 import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
+import { FeedbackForm } from '../FeedbackForm';
 
 /**
  * The refusal.
@@ -119,6 +120,7 @@ function Retracted({ article }: { article: Article }) {
             ))}
         </div>
       </section>
+      <FeedbackForm slug={article.slug} />
     </div>
   );
 }
@@ -263,6 +265,7 @@ export function ArticleView({ article }: { article: Article }) {
             publishedAt={article.published_at}
           />
         )}
+        <FeedbackForm slug={article.slug} />
       </div>
     );
   }
@@ -376,6 +379,8 @@ export function ArticleView({ article }: { article: Article }) {
       )}
 
       <KeepUp isWeekly={article.format === 'weekly_wrap'} />
+
+      <FeedbackForm slug={article.slug} />
 
       <ProvenanceBlock provenance={article.provenance} />
     </article>

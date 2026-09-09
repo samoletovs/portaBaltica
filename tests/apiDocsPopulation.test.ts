@@ -72,6 +72,7 @@ const NOT_A_DOCUMENTED_ENDPOINT = new Map<string, string>([
   ['news-sitemap', 'served at /sitemap.xml; for crawlers, not readers'],
   ['article-page', 'SSR helper behind the /article/<slug> rewrite'],
   ['page-shell', 'SSR helper that serves the app shell with a page-specific head'],
+  ['article-feedback', 'write endpoint used by the article feedback form; not a public read API'],
 ]);
 
 /** Every `api/<name>/index.js` — the endpoints that actually exist. */

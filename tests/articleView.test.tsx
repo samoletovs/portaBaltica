@@ -28,6 +28,7 @@ describe('ArticleView — the render-time gate', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: article.headline })).toBeTruthy();
     expect(screen.getByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Feedback' })).toBeTruthy();
   });
 
   it('renders nothing of an article whose validator failed', () => {
@@ -311,4 +312,3 @@ describe('ArticleView — a retracted article', () => {
     expect(screen.queryByText(/not passed the checks we run before publishing/i)).toBeNull();
   });
 });
-
