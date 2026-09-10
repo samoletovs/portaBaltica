@@ -39,10 +39,8 @@ export interface BalticCompareData {
    * The upstream cube code on its own, e.g. `une_rt_m`.
    *
    * `source` already contains it, as `Eurostat (une_rt_m)`, but only as prose.
-   * A consumer that wants the code has to parse the parenthesis out, which is
-   * a second place the truth lives. The API has sent this field since
-   * `api/baltic-compare/index.js:157`; it was simply never declared, so every
-   * caller had to reach for it through a cast or re-derive it from `source`.
+   * A consumer that wants the code should not have to parse the parenthesis
+   * out. The shared comparison builder sends it alongside the prose.
    */
   dataset?: string;
   /** When the API read this from Eurostat. Sent by the API and, until now,
@@ -54,6 +52,21 @@ export interface BalticCompareData {
    *  correctly specified indicator — a non-empty value means the API had to
    *  guess which slice of the Eurostat cube to read. */
   assumptions?: { dimension: string; chosen: string; optionCount: number; reason: string }[];
+  years?: number;
+}
+
+export type BalticCompareBatchItem =
+  | {
+    indicator: string;
+    years: number;
+    status: 200;
+    data: BalticCompareData;
+    cache: { ageSeconds: number; state: 'hit' | 'miss' | 'stale' | 'revalidating' };
+  }
+  | { indicator: string; years: number; status: 400 | 502 | 503; error: string };
+
+export interface BalticCompareBatchResponse {
+  results: BalticCompareBatchItem[];
 }
 
 export interface PowerPriceZone {
@@ -435,13 +448,149 @@ export async function fetchSystemStatus(): Promise<SystemStatus> {
   return res.json();
 }
 
-export async function fetchBalticCompare(indicator: string, years = 5): Promise<BalticCompareData | null> {
-  const normalizedYears = Number.isFinite(years) && years >= 0 ? years : 5;
-  const encodedIndicator = encodeURIComponent(indicator);
-  return cachedFetch<BalticCompareData | null>(
-    `baltic_compare-${encodedIndicator}-${normalizedYears}`,
-    `/api/baltic-compare?indicator=${encodedIndicator}&years=${normalizedYears}`
-  );
+// Match the bounded server contract; the transport test checks the two limits.
+const COMPARISON_BATCH_SIZE = 8;
+const COMPARISON_BATCH_DELAY_MS = 20;
+const COMPARISON_MAX_BATCHES = 2;
+const COMPARISON_MAX_YEARS = 30;
+const COMPARISON_TIMEOUT_MS = 25000;
+
+interface ComparisonReader {
+  resolve: (value: BalticCompareData) => void;
+  reject: (reason: Error) => void;
+  cleanup: () => void;
+}
+interface ComparisonRequest {
+  indicator: string;
+  years: number;
+  key: string;
+  readers: Set<ComparisonReader>;
+  batch?: { controller: AbortController; entries: ComparisonRequest[] };
+}
+const comparisons = new Map<string, ComparisonRequest>();
+const comparisonQueue = new Map<number, ComparisonRequest[]>();
+let comparisonTimer: ReturnType<typeof setTimeout> | undefined;
+let activeComparisonBatches = 0;
+
+function finishComparison(entry: ComparisonRequest, data?: BalticCompareData, error?: Error) {
+  if (comparisons.get(entry.key) === entry) comparisons.delete(entry.key);
+  for (const reader of entry.readers) {
+    reader.cleanup();
+    if (data) reader.resolve(data);
+    else reader.reject(error ?? new Error('Comparison response missing'));
+  }
+  entry.readers.clear();
+}
+
+async function deliverComparisonBatch(entries: ComparisonRequest[], years: number) {
+  const controller = new AbortController();
+  const batch = { controller, entries };
+  for (const entry of entries) entry.batch = batch;
+  activeComparisonBatches++;
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, COMPARISON_TIMEOUT_MS);
+  try {
+    const ids = entries.map(entry => entry.indicator).join(',');
+    const response = await fetch(
+      `/api/baltic-compare-batch?indicators=${encodeURIComponent(ids)}&years=${years}`,
+      { signal: controller.signal, cache: 'no-store' },
+    );
+    if (!response.ok) throw new Error(`Comparison batch API failed: ${response.status}`);
+    const body: BalticCompareBatchResponse = await response.json();
+    if (!Array.isArray(body?.results)) throw new Error('Invalid comparison batch response');
+    for (const entry of entries) {
+      if (entry.readers.size === 0) continue;
+      // Resolve by identity, not array position. Reject missing/duplicate/wrong
+      // year items independently, without caching the failed item or its peers.
+      const matches = body.results.filter(item => item?.indicator === entry.indicator && item.years === years);
+      const item = matches.length === 1 ? matches[0] : undefined;
+      if (!item) {
+        finishComparison(entry, undefined, new Error(`Missing comparison: ${entry.indicator}`));
+      } else if (item.status !== 200) {
+        finishComparison(entry, undefined, new Error(`${entry.indicator} API failed: ${item.status}: ${item.error}`));
+      } else if (item.data?.indicator !== entry.indicator || item.data.years !== years ||
+        !item.data.countries || typeof item.data.source !== 'string' ||
+        !Number.isFinite(item.cache?.ageSeconds) || item.cache.ageSeconds < 0) {
+        finishComparison(entry, undefined, new Error(`Invalid comparison: ${entry.indicator}`));
+      } else {
+        // A warm server result must not buy another whole hour in the browser.
+        // A stale item is usable now but expired locally, so a later reader can
+        // obtain the server's revalidation. Price caches keep their own path.
+        writeCache(`${CACHE_PREFIX}${entry.key}`, item.data, Date.now() - item.cache.ageSeconds * 1000);
+        finishComparison(entry, item.data);
+      }
+    }
+  } catch (error) {
+    const failure = timedOut ? new Error('Comparison batch timed out. Please retry.')
+      : error instanceof Error ? error : new Error(String(error));
+    for (const entry of entries) finishComparison(entry, undefined, failure);
+  } finally {
+    clearTimeout(timeout);
+    activeComparisonBatches--;
+    pumpComparisonQueue();
+  }
+}
+
+function pumpComparisonQueue() {
+  for (const [years, queued] of [...comparisonQueue]) {
+    const waiting = queued.filter(entry => entry.readers.size > 0);
+    comparisonQueue.delete(years);
+    while (waiting.length > 0 && activeComparisonBatches < COMPARISON_MAX_BATCHES) {
+      void deliverComparisonBatch(waiting.splice(0, COMPARISON_BATCH_SIZE), years);
+    }
+    if (waiting.length > 0) comparisonQueue.set(years, waiting);
+  }
+}
+
+/**
+ * Same per-indicator cache and return type, but nearby cache misses travel
+ * together. No fallback to singles: before the new API is deployed a failed
+ * batch is an error, not the former 61-request burst against the public limit.
+ */
+export async function fetchBalticCompare(
+  indicator: string, years = 5, signal?: AbortSignal,
+): Promise<BalticCompareData | null> {
+  if (signal?.aborted) throw new DOMException('Request cancelled', 'AbortError');
+  if (!/^[a-z][a-z0-9_]{0,63}$/.test(indicator)) throw new Error('Invalid comparison indicator');
+  const normalizedYears = Number.isFinite(years) && years >= 1 ? Math.floor(years) : 5;
+  if (normalizedYears > COMPARISON_MAX_YEARS) throw new Error(`Comparison history is limited to ${COMPARISON_MAX_YEARS} years`);
+  const key = `baltic_compare-${encodeURIComponent(indicator)}-${normalizedYears}`;
+  const cached = readCache<BalticCompareData>(`${CACHE_PREFIX}${key}`, key);
+  if (cached !== null) return cached;
+  let entry = comparisons.get(key);
+  if (!entry) {
+    entry = { indicator, years: normalizedYears, key, readers: new Set() };
+    comparisons.set(key, entry);
+    const queued = comparisonQueue.get(normalizedYears) ?? [];
+    queued.push(entry);
+    comparisonQueue.set(normalizedYears, queued);
+  }
+  const request = entry;
+  const result = new Promise<BalticCompareData>((resolve, reject) => {
+    const reader: ComparisonReader = { resolve, reject, cleanup: () => signal?.removeEventListener('abort', abort) };
+    function abort() {
+      request.readers.delete(reader);
+      reader.cleanup();
+      reject(new DOMException('Request cancelled', 'AbortError'));
+      if (request.readers.size === 0) {
+        if (comparisons.get(key) === request) comparisons.delete(key);
+        const batch = request.batch;
+        if (batch && batch.entries.every(item => item.readers.size === 0)) batch.controller.abort();
+      }
+    }
+    request.readers.add(reader);
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+  if (comparisonTimer === undefined) {
+    comparisonTimer = setTimeout(() => {
+      comparisonTimer = undefined;
+      pumpComparisonQueue();
+    }, COMPARISON_BATCH_DELAY_MS);
+  }
+  return result;
 }
 
 export async function fetchPowerPrices(signal?: AbortSignal): Promise<PowerPriceData> {

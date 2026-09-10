@@ -5,14 +5,22 @@ const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 const WIDTHS = [320, 375, 390, 640, 900, 1366, 1440];
 
 describe('the coherent site header', () => {
-  it('keeps mobile data controls and the active sector within reach on a direct visit', async () => {
+  it('keeps data controls and the active sector within reach after narrowing a laptop view', async () => {
     const browser = await launchForLiveCheck();
     if (!browser) return;
     try {
-      const page = await browser.newPage({ viewport: { width: 375, height: 844 } });
+      const page = await browser.newPage({ viewport: { width: 1366, height: 844 } });
       for (const route of ['/data/energy', '/data/maritime']) {
+        await page.setViewportSize({ width: 1366, height: 844 });
         await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded' });
         await page.locator('.dashboard-sector-nav [aria-current="page"]').waitFor();
+        await page.setViewportSize({ width: 375, height: 844 });
+        await page.waitForFunction(() => {
+          const nav = document.querySelector('.dashboard-sector-nav')!;
+          const selected = nav.querySelector('[aria-current="page"]')!.getBoundingClientRect();
+          const bounds = nav.getBoundingClientRect();
+          return selected.left >= bounds.left && selected.right <= bounds.right;
+        });
         const layout = await page.evaluate(() => {
           const nav = document.querySelector('.dashboard-sector-nav')!;
           const active = nav.querySelector('[aria-current="page"]')!.getBoundingClientRect();

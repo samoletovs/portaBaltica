@@ -19,6 +19,26 @@ export interface LivePage {
   body: string;
 }
 
+export interface LiveDocumentResponse {
+  status(): number;
+  headers(): Record<string, string>;
+}
+
+/** Refused documents are HTTP failures, not missing UI or failed contrast checks. */
+export function requireLiveHtml(response: LiveDocumentResponse | null, url: string): void {
+  if (!response) throw new Error(`No document response for ${url}; UI could not be inspected.`);
+  const status = response.status();
+  const headers = response.headers();
+  const contentType = headers['content-type'] ?? 'not reported';
+  const retryAfter = headers['retry-after'];
+  if (status !== 200 || !/^text\/html(?:\s*;|$)/i.test(contentType)) {
+    throw new Error(
+      `Cannot inspect UI at ${url}: HTTP ${status}, Content-Type ${contentType}` +
+      (retryAfter ? `, Retry-After ${retryAfter}` : '') + '. Expected a successful HTML document.',
+    );
+  }
+}
+
 function retryDelay(value: string | null): number | null {
   if (value === null) return null;
   const header = value.trim();

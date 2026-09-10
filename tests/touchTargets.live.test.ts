@@ -3,6 +3,7 @@ import { launchForLiveCheck } from './liveBrowser';
 import { navigableRoutes } from './routes';
 import { revealAllFeedArticles } from './liveFeed';
 import type { FeedDriver } from './liveFeed';
+import { requireLiveHtml, type LiveDocumentResponse } from './liveHttp';
 
 /**
  * Every control on the deployed site is big enough to hit with a thumb.
@@ -135,7 +136,8 @@ const SELECTOR =
  * exemption and documents the dependency more precisely.
  */
 type Driver = FeedDriver & {
-  goto(url: string, opts: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<unknown>;
+  goto(url: string, opts: { waitUntil: 'domcontentloaded'; timeout: number }): Promise<LiveDocumentResponse | null>;
+  waitForSelector(selector: string, options: { state: 'attached'; timeout: number }): Promise<unknown>;
   setViewportSize(size: { width: number; height: number }): Promise<void>;
   waitForTimeout(ms: number): Promise<void>;
   evaluate<T, A>(fn: (arg: A) => T, arg: A): Promise<T>;
@@ -185,7 +187,9 @@ describe('touch targets on the deployed site', () => {
       for (const route of routes) {
         walked.push(route);
         await page.setViewportSize({ width: WIDTH, height: 812 });
-        await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        const response = await page.goto(BASE + route, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        requireLiveHtml(response, BASE + route);
+        await page.waitForSelector('a[href="#main"]', { state: 'attached', timeout: 15_000 });
         // Charts, the ticker and the feed all arrive after first paint, and a
         // control that has not rendered cannot be too small — measuring early
         // would pass for the wrong reason.

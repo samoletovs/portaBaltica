@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Article } from '../src/news-types';
 import { ArticleView } from '../src/components/news/ArticleView';
@@ -11,8 +11,8 @@ vi.mock('../src/components/news/ChartEmbed', () => ({
   ),
 }));
 
-function renderArticle(article: Article) {
-  return render(<MemoryRouter><ArticleView article={article} /></MemoryRouter>);
+function renderArticle(article: Article, hash = '') {
+  return render(<MemoryRouter initialEntries={[`/article/${article.slug}${hash}`]}><ArticleView article={article} /></MemoryRouter>);
 }
 
 function rail() {
@@ -20,6 +20,46 @@ function rail() {
 }
 
 describe('the article’s adjacent evidence record', () => {
+  it('opens the source record on a direct evidence link without changing ordinary arrival', () => {
+    renderArticle(tierAArticle(), '#article-evidence');
+    expect(document.querySelector<HTMLDetailsElement>('#article-evidence details')?.open).toBe(true);
+    expect(screen.getByRole('link', { name: /Open the dataset/ }).getAttribute('href'))
+      .toBe(tierAArticle().provenance.sources[0].url);
+  });
+
+  it('opens the record on Sources navigation, including another visit after closing it', () => {
+    renderArticle(tierAArticle());
+    const passport = document.querySelector<HTMLDetailsElement>('#article-evidence details')!;
+    const sources = within(screen.getByRole('navigation', { name: 'Article reading navigation' }))
+      .getByRole('link', { name: /^Sources/ });
+    expect(passport.open).toBe(false);
+    fireEvent.click(sources);
+    expect(passport.open).toBe(true);
+    expect(document.activeElement?.id).toBe('article-evidence');
+    expect(sources.getAttribute('aria-current')).toBe('location');
+    fireEvent.click(passport.querySelector('summary')!);
+    expect(passport.open).toBe(false);
+    fireEvent.click(sources);
+    expect(passport.open).toBe(true);
+    expect(document.activeElement?.id).toBe('article-evidence');
+  });
+
+  it.each([false, true])('prints the full source record and restores its previous open state (%s)', (wasOpen) => {
+    renderArticle(tierAArticle());
+    const passport = document.querySelector<HTMLDetailsElement>('#article-evidence details')!;
+    const checks = passport.querySelector<HTMLDetailsElement>('details')!;
+    expect(checks).not.toBeNull();
+    passport.open = wasOpen;
+    checks.open = !wasOpen;
+    fireEvent(window, new Event('beforeprint'));
+    expect(passport.open).toBe(true);
+    expect(checks.open).toBe(true);
+    fireEvent(window, new Event('beforeprint'));
+    fireEvent(window, new Event('afterprint'));
+    expect(passport.open).toBe(wasOpen);
+    expect(checks.open).toBe(!wasOpen);
+  });
+
   it('uses the recorded source URL, dataset version and retrieval instant for every source', () => {
     const article = tierAArticle();
     article.provenance.sources.push({
@@ -71,7 +111,7 @@ describe('the article’s adjacent evidence record', () => {
 
     const nav = screen.getByRole('navigation', { name: 'Article reading navigation' });
     const live = within(nav).getByRole('link', { name: /Live data/ });
-    const target = document.getElementById(live.getAttribute('href')!.slice(1))!;
+    const target = document.getElementById(live.getAttribute('href')!.split('#')[1])!;
     expect(target).not.toBeNull();
     const chart = within(target).getByTestId('chart-embed');
     expect(chart.getAttribute('data-indicator')).toBe('unemployment_rate');
@@ -84,8 +124,8 @@ describe('the article’s adjacent evidence record', () => {
     const nav = screen.getByRole('navigation', { name: 'Article reading navigation' });
     const storyLink = within(nav).getByRole('link', { name: /^Story/ });
     const sourcesLink = within(nav).getByRole('link', { name: /^Sources/ });
-    const story = document.getElementById(storyLink.getAttribute('href')!.slice(1))!;
-    const sources = document.getElementById(sourcesLink.getAttribute('href')!.slice(1))!;
+    const story = document.getElementById(storyLink.getAttribute('href')!.split('#')[1])!;
+    const sources = document.getElementById(sourcesLink.getAttribute('href')!.split('#')[1])!;
 
     expect(within(story).getByText(/Hourly labour cost in Latvia rose 8.4%/)).toBeTruthy();
     expect(within(sources).getByText(/5 of 5 checks passed/)).toBeTruthy();

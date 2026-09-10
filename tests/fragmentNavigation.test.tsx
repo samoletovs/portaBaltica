@@ -6,7 +6,7 @@ import { ScrollToTop } from '../src/components/ScrollToTop';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('cross-route evidence links', () => {
-  it('waits for an asynchronous article anchor, then scrolls and focuses it', async () => {
+  it('waits for an asynchronous anchor, then focuses before measuring its scroll position', async () => {
     const scroll = vi.fn();
     const focus = vi.fn();
     const { rerender } = render(<MemoryRouter initialEntries={['/article/a#article-evidence']}><ScrollToTop /></MemoryRouter>);
@@ -17,6 +17,7 @@ describe('cross-route evidence links', () => {
     });
     expect(scroll).toHaveBeenCalledWith({ block: 'start', behavior: 'instant' });
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(focus.mock.invocationCallOrder[0]).toBeLessThan(scroll.mock.invocationCallOrder[0]);
   });
 
   it('disconnects an unfinished jump when the route helper unmounts', async () => {

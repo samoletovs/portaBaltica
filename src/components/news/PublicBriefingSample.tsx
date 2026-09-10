@@ -8,6 +8,7 @@ import { freshnessOf, formatPeriod, periodCoverage } from '../../dataFreshness';
 import { freshnessLabelColor } from '../freshnessStyle';
 import { FreshnessNotice } from '../FreshnessNotice';
 import { DownloadMenu } from '../DownloadMenu';
+import './BriefingExperience.css';
 
 /**
  * A complete, source-linked public sample of the Baltic business briefing:
@@ -32,6 +33,7 @@ const COUNTRY_NAMES: Record<CountryCode, string> = { LV: 'Latvia', EE: 'Estonia'
 
 interface Measure {
   readonly id: string;
+  readonly navigationLabel: string;
   readonly fallbackTitle: string;
   readonly context: string;
 }
@@ -39,18 +41,21 @@ interface Measure {
 const MEASURES: readonly Measure[] = [
   {
     id: 'inflation',
+    navigationLabel: 'Prices',
     fallbackTitle: 'HICP Inflation',
     context:
       'This is the annual change in the whole consumer price basket: a headline inflation rate, not the price of any single good or service.',
   },
   {
     id: 'salary',
+    navigationLabel: 'Labour costs',
     fallbackTitle: 'Hourly labour cost',
     context:
       'This is average hourly employer labour cost within the statistical series, not take-home pay or a quote for a particular role.',
   },
   {
     id: 'retail',
+    navigationLabel: 'Retail activity',
     fallbackTitle: 'Retail sales growth',
     context:
       'This measures growth in overall retail trade activity as published by the statistical office. It is not a measure of profitability, and not a measure of any single business.',
@@ -214,129 +219,143 @@ function MeasureSection({ measure }: { measure: Measure }) {
   const href = datasetHref(data?.dataset);
 
   return (
-    <section aria-labelledby={headingId} className="public-briefing-measure">
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <h2 id={headingId} className="text-title font-semibold news-fg">{title}</h2>
-        {coverage && (
-          <span className="text-caption font-mono" style={{ color: freshnessLabelColor(freshness) }}>
-            {coverage.label}
-          </span>
+    <section id={`briefing-${measure.id}`} aria-labelledby={headingId} className="public-briefing-measure" tabIndex={-1}>
+      <div className="public-briefing-reading">
+        <div className="public-briefing-heading">
+          <h2 id={headingId} className="text-title font-semibold news-fg">{title}</h2>
+          {coverage && (
+            <span className="text-caption font-mono" style={{ color: freshnessLabelColor(freshness) }}>
+              {coverage.label}
+            </span>
+          )}
+        </div>
+
+        <p className="text-ui news-subtle mt-2">{measure.context}</p>
+
+        {phase === 'ready' && !empty && (
+          <>
+            <FreshnessNotice freshness={freshness} spans={coverage?.spans} className="mt-3" />
+            <p className="public-briefing-summary text-callout news-fg mt-4">{summary}</p>
+            {missing.length > 0 && (
+              <p className="text-caption news-subtle mt-2">
+                No reading available for {missing.map((code) => COUNTRY_NAMES[code]).join(' or ')} in the retrieved {YEARS}-year window.
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      <p className="text-ui news-subtle mt-1">{measure.context}</p>
-
-      {phase === 'loading' && (
-        <div role="status" aria-busy="true" aria-label={`Loading ${title}`} className="mt-4 space-y-2">
-          <div className="h-4 news-skeleton rounded w-1/2 animate-pulse" />
-          <div className="h-20 news-skeleton rounded animate-pulse" />
-        </div>
-      )}
-
-      {phase === 'error' && (
-        <div role="status" className="mt-4">
-          <p className="text-ui news-warning">This measure could not be loaded right now.</p>
-          <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {phase === 'ready' && empty && (
-        <div role="status" className="mt-4">
-          <p className="text-ui news-subtle">No published reading is available for this measure in the last {YEARS} years.</p>
-          <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
-            Retry
-          </button>
-        </div>
-      )}
-
-      {phase === 'ready' && !empty && (
-        <>
-          <FreshnessNotice freshness={freshness} spans={coverage?.spans} className="mt-2" />
-          <p className="text-callout news-fg mt-2">{summary}</p>
-          {missing.length > 0 && (
-            <p className="text-caption news-subtle mt-1">
-              No reading available for {missing.map((code) => COUNTRY_NAMES[code]).join(' or ')} in the retrieved {YEARS}-year window.
-            </p>
-          )}
-
-          <div className="overflow-x-auto mt-3" role="region" aria-label={`${title} by country`} tabIndex={0}>
-            <table className="w-full border-collapse text-ui">
-              <caption className="text-caption news-subtle text-left mb-2">
-                {common
-                  ? `${title} by country, ${formatPeriod(common.period)}${unit ? ` (${unit})` : ''}. An em dash means no published reading, not zero.`
-                  : `${title}, each country's own latest available reading${unit ? ` (${unit})` : ''}. No period has readings from all three countries in this window. An em dash means no available reading, not zero.`}
-              </caption>
-              <thead>
-                <tr className="news-border border-b">
-                  <th scope="col" className="text-left py-2 pr-2">Country</th>
-                  <th scope="col" className="text-right py-2 pr-2">Value</th>
-                  <th scope="col" className="text-right py-2 pr-2">Period</th>
-                  <th scope="col" className="text-right py-2">Evidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COUNTRY_CODES.map((code) => {
-                  const row = rowByCode.get(code);
-                  const rowFreshness = row ? freshnessOf(row.period) : null;
-                  return (
-                    <tr key={code} className="news-border border-b">
-                      <th scope="row" className="text-left py-2 pr-2 font-semibold news-fg">{COUNTRY_NAMES[code]}</th>
-                      <td className="text-right py-2 pr-2 text-lead tabular-nums news-fg">
-                        {row ? formatValue(row.value, unit) : <span aria-label={`No published reading for ${COUNTRY_NAMES[code]}`}>—</span>}
-                      </td>
-                      <td className="text-right py-2 pr-2 font-mono" style={{ color: freshnessLabelColor(rowFreshness) }}>
-                        {row ? formatPeriod(row.period) : '—'}
-                      </td>
-                      <td className="text-right py-2">
-                        <Link
-                          to={`/indicator/${measure.id}?country=${code}`}
-                          className="news-link inline-flex min-h-11 items-center text-ui"
-                        >
-                          View <span aria-hidden="true">→</span>
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="public-briefing-evidence">
+        {phase === 'loading' && (
+          <div role="status" aria-busy="true" aria-label={`Loading ${title}`} className="public-briefing-loading space-y-2">
+            <div className="h-4 news-skeleton rounded w-1/2 animate-pulse" />
+            <div className="h-20 news-skeleton rounded animate-pulse" />
           </div>
+        )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
-            <p className="text-caption news-subtle">
-              Source: {data?.source ?? 'Eurostat'}
-              {href && data?.dataset && (
-                <>
-                  {' '}·{' '}
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="news-link inline-flex min-h-11 items-center"
-                  >
-                    View dataset {data.dataset} <span aria-hidden="true">↗</span>
-                  </a>
-                </>
-              )}
-              {data?.fetchedAt && (
-                <>
-                  {' '}· Retrieved <time dateTime={data.fetchedAt}>{retrievedAtLabel(data.fetchedAt)}</time>
-                </>
-              )}
-            </p>
-            <DownloadMenu data={exportData} className="public-briefing-download" />
+        {phase === 'error' && (
+          <div role="status" className="mt-4">
+            <p className="text-ui news-warning">This measure could not be loaded right now.</p>
+            <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
+              Retry
+            </button>
           </div>
-        </>
-      )}
+        )}
+
+        {phase === 'ready' && empty && (
+          <div role="status" className="mt-4">
+            <p className="text-ui news-subtle">No published reading is available for this measure in the last {YEARS} years.</p>
+            <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {phase === 'ready' && !empty && (
+          <>
+            <div className="overflow-x-auto" role="region" aria-label={`${title} by country`} tabIndex={0}>
+              <table className="w-full border-collapse text-ui">
+                <caption className="text-caption news-subtle text-left mb-2">
+                  {common
+                    ? `${title} by country, ${formatPeriod(common.period)}${unit ? ` (${unit})` : ''}. An em dash means no published reading, not zero.`
+                    : `${title}, each country's own latest available reading${unit ? ` (${unit})` : ''}. No period has readings from all three countries in this window. An em dash means no available reading, not zero.`}
+                </caption>
+                <thead>
+                  <tr className="news-border border-b">
+                    <th scope="col" className="text-left py-2 pr-2">Country</th>
+                    <th scope="col" className="text-right py-2 pr-2">Value</th>
+                    <th scope="col" className="text-right py-2">Period</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COUNTRY_CODES.map((code) => {
+                    const row = rowByCode.get(code);
+                    const rowFreshness = row ? freshnessOf(row.period) : null;
+                    return (
+                      <tr key={code} className="news-border border-b">
+                        <th scope="row" className="text-left py-2 pr-2 font-semibold">
+                          <Link
+                            to={`/indicator/${measure.id}?country=${code}`}
+                            aria-label={`View ${title} for ${COUNTRY_NAMES[code]} in Data explorer`}
+                            className="public-briefing-country news-link inline-flex min-h-11 items-center gap-1 text-ui"
+                          >
+                            {COUNTRY_NAMES[code]} <span aria-hidden="true">→</span>
+                          </Link>
+                        </th>
+                        <td className="text-right py-2 pr-2 text-lead tabular-nums news-fg">
+                          {row ? formatValue(row.value, unit) : <span aria-label={`No published reading for ${COUNTRY_NAMES[code]}`}>—</span>}
+                        </td>
+                        <td className="text-right py-2 text-caption font-mono" style={{ color: freshnessLabelColor(rowFreshness) }}>
+                          {row ? formatPeriod(row.period) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-3">
+              <p className="text-caption news-subtle">
+                Source: {data?.source ?? 'Eurostat'}
+                {href && data?.dataset && (
+                  <>
+                    {' '}·{' '}
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="news-link inline-flex min-h-11 items-center"
+                    >
+                      View dataset {data.dataset} <span aria-hidden="true">↗</span>
+                    </a>
+                  </>
+                )}
+                {data?.fetchedAt && (
+                  <>
+                    {' '}· Retrieved <time dateTime={data.fetchedAt}>{retrievedAtLabel(data.fetchedAt)}</time>
+                  </>
+                )}
+              </p>
+              <DownloadMenu data={exportData} className="public-briefing-download" />
+            </div>
+          </>
+        )}
+      </div>
     </section>
   );
 }
 
 export function PublicBriefingSample() {
   return (
-    <div className="public-briefing-sample space-y-8">
+    <div className="public-briefing-sample">
+      <nav className="public-briefing-contents text-ui" aria-label="Briefing contents">
+        {MEASURES.map((measure) => (
+          <Link key={measure.id} to={`#briefing-${measure.id}`} className="news-link">
+            {measure.navigationLabel} <span aria-hidden="true">↓</span>
+          </Link>
+        ))}
+      </nav>
       {MEASURES.map((measure) => (
         <MeasureSection key={measure.id} measure={measure} />
       ))}

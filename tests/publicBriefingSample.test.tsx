@@ -135,6 +135,44 @@ afterEach(() => {
 });
 
 describe('a real-shaped fixture, fetched independently per measure', () => {
+  it('links its contents to the three actual, focusable measure sections even while loading', () => {
+    const pending = deferred<BalticCompareData | null>();
+    respondWith({ inflation: pending.promise, salary: pending.promise, retail: pending.promise });
+    renderSample();
+
+    const contents = screen.getByRole('navigation', { name: 'Briefing contents' });
+    const links = within(contents).getAllByRole('link');
+    const sections = [...document.querySelectorAll('section.public-briefing-measure')];
+    expect(links).toHaveLength(sections.length);
+    expect(sections).toHaveLength(3);
+    links.forEach((link, index) => {
+      expect(link.getAttribute('href')!.split('#')[1]).toBe(sections[index].id);
+      expect(sections[index].getAttribute('tabindex')).toBe('-1');
+      expect(sections[index].getAttribute('aria-labelledby'))
+        .toBe(sections[index].querySelector('h2')?.id);
+    });
+  });
+
+  it('makes each country the named research link without a fourth column of repeated View controls', async () => {
+    respondWith(REAL);
+    renderSample();
+    await settle();
+
+    for (const data of Object.values(REAL)) {
+      const section = sectionOf(data.title);
+      expect(within(section.getByRole('table')).getAllByRole('columnheader').map(cell => cell.textContent))
+        .toEqual(['Country', 'Value', 'Period']);
+      for (const [code, name] of [['LV', 'Latvia'], ['EE', 'Estonia'], ['LT', 'Lithuania']]) {
+        const row = section.getByRole('row', { name: new RegExp(name) });
+        const link = within(row).getByRole('link', {
+          name: `View ${data.title} for ${name} in Data explorer`,
+        });
+        expect(link.closest('th')?.getAttribute('scope')).toBe('row');
+        expect(link.getAttribute('href')).toBe(`/indicator/${data.indicator}?country=${code}`);
+      }
+    }
+  });
+
   it('orders own-latest readings by period rather than the payload array position', async () => {
     respondWith({
       ...REAL,

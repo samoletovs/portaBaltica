@@ -58,11 +58,18 @@ export function DashboardNav({ active, country }: { active: DashboardSection | '
   const [ref, fade] = useOverflowFade<HTMLElement>();
   useLayoutEffect(() => {
     const nav = ref.current;
-    const selected = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !selected || nav.scrollWidth <= nav.clientWidth) return;
-    const bounds = nav.getBoundingClientRect();
-    const item = selected.getBoundingClientRect();
-    nav.scrollLeft += item.left - bounds.left - (bounds.width - item.width) / 2;
+    if (!nav) return;
+    const centerSelected = () => {
+      const selected = nav.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!selected || nav.scrollWidth <= nav.clientWidth) return;
+      const bounds = nav.getBoundingClientRect();
+      const item = selected.getBoundingClientRect();
+      nav.scrollLeft += item.left - bounds.left - (bounds.width - item.width) / 2;
+    };
+    centerSelected();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(centerSelected);
+    observer?.observe(nav);
+    return () => observer?.disconnect();
   }, [active, ref]);
   return (
     <nav ref={ref} className={`dashboard-sector-nav text-ui ${fade}`} aria-label="Dashboard sectors">

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
-import { waitForLiveRateWindow } from './liveHttp';
+import { requireLiveHtml, waitForLiveRateWindow } from './liveHttp';
 
 /**
  * Does the deployed site load without throwing at the reader?
@@ -68,6 +68,12 @@ function watch(page: any): Findings {
     if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 200)}`);
   });
   page.on('pageerror', (e: unknown) => errors.push(`uncaught: ${String(e).slice(0, 200)}`));
+  page.on('response', (r: any) => {
+    if (r.status() >= 400) {
+      const retry = r.headers()['retry-after'];
+      errors.push(`HTTP ${r.status()}: ${r.url().slice(0, 240)}${retry ? `; Retry-After ${retry}` : ''}`);
+    }
+  });
   page.on('requestfailed', (r: any) => {
     failed.push(`${r.url().slice(0, 140)} ${r.failure()?.errorText ?? ''}`);
   });
@@ -91,7 +97,8 @@ describe('the deployed site loads without throwing at the reader', () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const seen = watch(page);
 
-    await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
+    const response = await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
+    requireLiveHtml(response, `${BASE}/data`);
     const baseline = seen.errors.length;
 
     await page.evaluate(() => console.error('planted console error'));
@@ -120,7 +127,8 @@ describe('the deployed site loads without throwing at the reader', () => {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const seen = watch(page);
 
-    await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle', timeout: 60_000 });
+    const response = await page.goto(`${BASE}${route}`, { waitUntil: 'networkidle', timeout: 60_000 });
+    requireLiveHtml(response, `${BASE}${route}`);
     // Charts mount lazily and the sea-state panel resolves after first paint,
     // so a check that stopped at `networkidle` would miss the errors most
     // likely to exist.

@@ -697,7 +697,7 @@ button,
 .desk-segments button { min-width: 44px; padding: var(--space-xs) var(--space-sm); cursor: pointer; color: var(--news-subtle); background: transparent; border-bottom: 2px solid transparent; }
 .desk-segments button[aria-pressed="true"] { color: var(--news-fg); font-weight: 600; border-bottom-color: var(--news-accent); background: var(--bg-raised); }
 .desk-segments button:hover { background: var(--bg-control-hover); }
-.desk-line-control { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; border: 1px solid var(--news-border); cursor: pointer; }
+.desk-line-control { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2xs); min-width: 56px; min-height: 44px; border: 1px solid var(--news-border); cursor: pointer; }
 .desk-line-control:hover { background: var(--bg-control-hover); }
 .desk-front-page, .desk-reading-page { padding-top: var(--space-xl); padding-bottom: var(--space-xl); }
 .desk-disclosure { color: var(--news-subtle); margin-bottom: var(--space-xl); max-width: 75ch; line-height: 1.6; }
@@ -884,7 +884,9 @@ button,
 @media (max-width: 767px) {
   .desk-data-toolbar { display: block; }
   .desk-data-toolbar > p { margin-bottom: var(--space-xs); }
-  .desk-data-controls { flex-wrap: wrap; }
+  .desk-data-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-xs); }
+  .desk-country-options { grid-column: 1 / -1; }
+  .desk-data-controls .desk-segments button { flex: 1; }
   .desk-intro { padding-bottom: var(--space-lg); }
   .desk-intro > div { display: block; }
   .desk-intro .desk-intro-disclosure { margin-top: var(--space-sm); }

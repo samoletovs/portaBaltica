@@ -19,17 +19,17 @@ export function DataControls() {
     <div className="desk-data-toolbar">
       <p className="text-caption">Country &amp; history</p>
       <div className="desk-data-controls flex min-w-0 items-center gap-3">
-        <div className="desk-segments flex shrink-0" role="group" aria-label="Country">
+        <div className="desk-segments desk-country-options flex shrink-0" role="group" aria-label="Country">
           {(Object.keys(COUNTRY_INFO) as Country[]).map(code => (
-            <button key={code} type="button" className="text-caption" onClick={() => chooseCountry(code)}
+            <button key={code} type="button" className="text-ui" onClick={() => chooseCountry(code)}
               aria-label={`Switch to ${COUNTRY_INFO[code].label}`} aria-pressed={country === code}>
               {code}
             </button>
           ))}
         </div>
-        <div className="desk-segments flex shrink-0" role="group" aria-label="Date range filter">
+        <div className="desk-segments desk-range-options flex shrink-0" role="group" aria-label="Date range filter">
           {YEAR_OPTIONS.map(year => (
-            <button key={year} type="button" className="text-caption" onClick={() => setYears(year)}
+            <button key={year} type="button" className="text-ui" onClick={() => setYears(year)}
               aria-label={`Show ${year} year${year > 1 ? 's' : ''} of data`} aria-pressed={years === year}>
               {year}Y
             </button>
@@ -44,6 +44,7 @@ export function DataControls() {
               strokeDasharray={strokeStyle === 'patterned' ? '5 3' : undefined} />
             {strokeStyle === 'plain' && <circle cx="20" cy="6" r="3" fill="currentColor" />}
           </svg>
+          <span aria-hidden="true">Lines</span>
           <span className="sr-only">Chart lines are currently {strokeStyle === 'patterned' ? 'dashed' : 'solid'}</span>
         </button>
       </div>
