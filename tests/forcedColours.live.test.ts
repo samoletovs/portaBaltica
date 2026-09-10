@@ -36,6 +36,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 
 import { launchForLiveCheck } from './liveBrowser';
+import { requireLiveHtml, waitForLiveRateWindow } from './liveHttp';
 
 /**
  * Typed from the helper's own return rather than imported from `playwright`.
@@ -46,7 +47,7 @@ import { launchForLiveCheck } from './liveBrowser';
  */
 type LiveBrowser = Awaited<ReturnType<typeof launchForLiveCheck>>;
 
-const BASE = 'https://portabaltica.naurolabs.com';
+const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 
 /** WCAG 2.2 SC 1.4.11: a graphical object needed to understand the content. */
 const NON_TEXT_FLOOR = 3;
@@ -105,10 +106,17 @@ type Painted = { group: string; value: string; surface: string };
 
 describe('chart series under a forced-colours palette (live)', () => {
   let browser: LiveBrowser | null = null;
+  let page: Awaited<ReturnType<NonNullable<LiveBrowser>['newPage']>>;
 
   beforeAll(async () => {
     browser = await launchForLiveCheck();
-  }, 120_000);
+    if (!browser) return;
+    await waitForLiveRateWindow();
+    page = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
+    const response = await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
+    requireLiveHtml(response, `${BASE}/data`);
+    await page.waitForSelector('.recharts-surface', { state: 'attached', timeout: 15_000 });
+  }, 155_000);
 
   afterAll(async () => {
     await browser?.close();
@@ -123,15 +131,12 @@ describe('chart series under a forced-colours palette (live)', () => {
    * one we are in.
    */
   async function paintedPairs(forcedColors: 'active' | 'none', colorScheme: 'light' | 'dark') {
-    const context = await browser!.newContext({
-      viewport: { width: 1440, height: 1200 },
-      forcedColors,
-      colorScheme,
-    });
-    try {
-      const page = await context.newPage();
-      await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
-      await page.waitForTimeout(2_500);
+      // Compare palettes against the same loaded data, not five cold API bursts.
+      await page.emulateMedia({ forcedColors, colorScheme });
+      if (await page.locator('html').getAttribute('data-theme') !== colorScheme) {
+        await page.getByRole('button', { name: `Switch to ${colorScheme} theme` }).click();
+      }
+      await page.waitForFunction(theme => document.documentElement.getAttribute('data-theme') === theme, colorScheme);
       return (await page.evaluate((groups) => {
         const surfaceOf = (element: Element): string => {
           let node: Element | null = element.parentElement;
@@ -154,9 +159,6 @@ describe('chart series under a forced-colours palette (live)', () => {
         }
         return out;
       }, PAINTED as unknown as { name: string; selector: string; property: string }[])) as Painted[];
-    } finally {
-      await context.close();
-    }
   }
 
   function failures(pairs: Painted[]) {

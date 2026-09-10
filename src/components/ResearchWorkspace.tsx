@@ -111,16 +111,16 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
     <section ref={root} className="lab-analysis" aria-label={`Analysis: ${entry.title}`}>
       <header className="lab-analysis-heading">
         <div>
-          <h2 className="text-title font-semibold">{focused ? 'Baltic comparison' : entry.title}</h2>
+          <h2 className="text-title font-semibold" data-analysis-title="" tabIndex={-1}>{focused ? 'Baltic comparison' : entry.title}</h2>
           <p className="text-ui lab-muted">{FREQUENCY_LABEL[entry.freq] ?? entry.freq} · {entry.unit} · {years}-year window</p>
         </div>
         <div className="lab-permalink">
           <button type="button" className="lab-link text-ui" onClick={copyMeasureLink}>Copy measure link</button>
-          {copyResult?.url === permalink && (
-            <p className="text-caption" role="status">
-              {copyResult.copied ? 'Measure link copied.' : <><span>Copy unavailable. </span><Link className="lab-link" to={permalink}>Open the permanent link</Link></>}
-            </p>
-          )}
+          <p className="text-caption" role="status" aria-atomic="true">
+            {copyResult?.url === permalink && (copyResult.copied
+              ? 'Measure link copied.'
+              : <><span>Copy unavailable. </span><Link className="lab-link" to={permalink}>Open the permanent link</Link></>)}
+          </p>
         </div>
       </header>
       <div className="lab-viewbar">
@@ -230,6 +230,8 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
   const [params] = useSearchParams();
   const [search, setSearch] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(() => typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 900px)').matches : true);
+  const analysisPlane = useRef<HTMLDivElement>(null);
+  const pendingSelectionFocus = useRef<string | null>(null);
 
   const scoped = entriesForSection(entries ?? [], section);
   const requested = indicatorId ?? params.get('indicator');
@@ -238,6 +240,20 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
     ? resolveResearchId(requested, entries ?? [])
     : scoped.find(entry => entry.id === preferred)?.id ?? scoped[0]?.id;
   const selected = entries?.find(entry => entry.id === selectedId);
+  useEffect(() => {
+    if (!selected || libraryOpen || pendingSelectionFocus.current !== selected.id) return;
+    const frame = requestAnimationFrame(() => {
+      const heading = analysisPlane.current?.querySelector<HTMLElement>('[data-analysis-title]');
+      if (!heading) return;
+      pendingSelectionFocus.current = null;
+      heading.focus({ preventScroll: true });
+      heading.scrollIntoView?.({
+        block: 'start',
+        behavior: window.matchMedia('(prefers-reduced-motion: no-preference)').matches ? 'smooth' : 'instant',
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected, libraryOpen]);
   // Searching deliberately crosses domains: an unclassified future entry is
   // reachable without waiting for a frontend release to add it to this list.
   const needle = search.trim().toLocaleLowerCase();
@@ -249,6 +265,10 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
     ? entriesForSection(entries, relatedSection ?? 'all').filter(entry => entry.id !== selected.id).slice(0, 4) : [];
 
   function selectIndicator(id: string) {
+    if (typeof window.matchMedia === 'function' && !window.matchMedia('(min-width: 900px)').matches) {
+      pendingSelectionFocus.current = id;
+      setLibraryOpen(false);
+    }
     const next = new URLSearchParams(params);
     next.set('country', country);
     if (indicatorId) {
@@ -308,7 +328,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
             )}
           </div>
         </details>
-        <div className="lab-plane">
+        <div className="lab-plane" ref={analysisPlane}>
           {!entries && !error && <LoadingIndicator />}
           {error && <div role="status" className="lab-empty text-ui">We could not verify the indicator catalogue. Retry the catalogue to continue; this is not an unknown-indicator result.</div>}
           {entries && !selected && <div className="lab-empty text-ui" role="status"><p>{requested !== null && requested !== undefined ? 'Unknown indicator.' : 'No indicators available in this domain.'}</p>{requested && <p>“{requested}” is not in the source catalogue.</p>}<p>Choose a measure from the library.</p></div>}

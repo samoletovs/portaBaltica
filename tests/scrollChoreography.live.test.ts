@@ -1,10 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { launchForLiveCheck } from './liveBrowser';
 import { tierAArticle } from './fixtures/articles';
+import { requireLiveHtml } from './liveHttp';
 
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 
 describe('motion and reading controls in the rendered experience', () => {
+  it('reveals an unvisited briefing section before aligning the jump target', async () => {
+    const browser = await launchForLiveCheck();
+    if (!browser) return;
+    try {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
+      const response = await page.goto(`${BASE}/briefings`, { waitUntil: 'domcontentloaded' });
+      requireLiveHtml(response, `${BASE}/briefings`);
+      await page.waitForFunction(() => document.querySelectorAll('.public-briefing-measure table').length === 3);
+      await page.getByRole('navigation', { name: 'Briefing contents' }).getByRole('link', { name: /Retail activity/ }).click();
+      await page.waitForFunction(() => document.activeElement?.id === 'briefing-retail');
+      const target = await page.locator('#briefing-retail').evaluate(el => ({
+        top: el.getBoundingClientRect().top,
+        opacity: getComputedStyle(el).opacity,
+        transform: getComputedStyle(el).transform,
+      }));
+      expect(target.top, 'focus removed the entrance offset after the jump was positioned').toBeGreaterThanOrEqual(0);
+      expect(target.top).toBeLessThan(844);
+      expect(target.opacity).toBe('1');
+      expect(target.transform).toBe('none');
+    } finally {
+      await browser.close();
+    }
+  });
+
   it('opens a moving market tape, lets readers pause it, and stops for reduced motion', async () => {
     const browser = await launchForLiveCheck();
     if (!browser) return;
@@ -73,6 +98,7 @@ describe('motion and reading controls in the rendered experience', () => {
           await page.locator('.folio-story-reading-nav').evaluate(el => el.getBoundingClientRect().bottom),
         );
         await page.getByRole('navigation', { name: 'Article reading navigation' }).getByRole('link', { name: /^Story/ }).click();
+        await page.waitForFunction(() => document.activeElement?.id === 'article-story' && location.hash === '#article-story');
         const clearance = await page.evaluate(() => ({
           target: document.querySelector('#article-story')!.getBoundingClientRect().top,
           navigation: document.querySelector('.folio-story-reading-nav')!.getBoundingClientRect().bottom,

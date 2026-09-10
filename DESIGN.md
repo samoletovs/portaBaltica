@@ -81,6 +81,24 @@ The market tape loops two complete, equally sized groups so short feeds do not
 leave a blank gap. It has an explicit pause/resume control, pauses offscreen and
 in hidden tabs, and stays static under reduced motion.
 
+On narrow screens, data settings use two deliberate rows: country first,
+history and the named Lines control second. Choosing a measure closes the mobile
+library and hands focus to its analysis; desktop keeps the library open for
+continued comparison. Clipboard feedback has a permanent live region rather
+than appearing only after an outcome.
+
+Sources links open the actual provenance record, including repeat visits.
+Printing exposes the record and nested checks, then restores the reader's
+disclosure states. Briefing commentary and its evidence share a row on wider
+screens; country names are the evidence links, rather than a repeated View
+column. Jump targets are revealed by focus before their scroll position is
+measured, so entrance transforms cannot clip the destination.
+
+Loading is part of this design contract. The Dashboard's comparisons travel
+in bounded batches, with independent item errors and the same source payloads
+and per-indicator caches. A reader must not lose data because the overview
+spends its own API allowance before it finishes loading.
+
 There is no mandatory entrance, wheel replacement or numeric count-up.
 GSAP/ScrollTrigger runs only with real layout and a motion-enabled screen.
 Reduced-motion readers receive static content, and print removes reveal

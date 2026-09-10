@@ -108,6 +108,7 @@ describe('the research toolbar', () => {
     const controls = container.querySelector('.desk-data-controls');
     expect(controls, 'the data controls are missing').not.toBeNull();
     expect(controls!.className).not.toContain('overflow-x-auto');
-    expect(css).toMatch(/\.desk-data-controls\s*\{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.desk-data-controls\s*\{[^}]*display:\s*grid/);
+    expect(css).toMatch(/\.desk-country-options\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
   });
 });

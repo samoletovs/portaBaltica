@@ -12,8 +12,9 @@ export function ScrollToTop() {
     const scrollToTarget = () => {
       const target = document.getElementById(hash.slice(1));
       if (!target) return false;
-      target.scrollIntoView({ block: 'start', behavior: 'instant' });
+      // Focus can remove an entrance transform; scroll against the final box.
       target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: 'start', behavior: 'instant' });
       return true;
     };
     if (scrollToTarget()) return;

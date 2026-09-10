@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { ContextFact, Provenance, ValidatorCheckName } from '../../news-types';
 import { analystLabel } from '../../news-types';
 import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
@@ -18,7 +18,8 @@ import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
  * back to their publishers so a claim can actually be checked, and the panel
  * opens by saying what it is for.
  *
- * It is collapsed on arrival. The record is longer than most of the articles it
+ * It is collapsed on ordinary arrival, opened by a direct source-record link
+ * or for printing. The record is longer than most of the articles it
  * accompanies, and a reader who has just finished the story should not have to
  * scroll past a wall of dataset cards to reach the next one. The header stays
  * visible with the check count on it, so the promise is still made in full on
@@ -83,6 +84,30 @@ const CONTEXT_KIND: Record<ContextFact['kind'], string> = {
 };
 
 export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
+  const record = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const details = record.current;
+    if (!details) return;
+    let previousOpen: Map<HTMLDetailsElement, boolean> | undefined;
+    const beforePrint = () => {
+      previousOpen ??= new Map(
+        [details, ...details.querySelectorAll<HTMLDetailsElement>('details')]
+          .map(disclosure => [disclosure, disclosure.open]),
+      );
+      for (const disclosure of previousOpen.keys()) disclosure.open = true;
+    };
+    const afterPrint = () => {
+      previousOpen?.forEach((open, disclosure) => { disclosure.open = open; });
+      previousOpen = undefined;
+    };
+    window.addEventListener('beforeprint', beforePrint);
+    window.addEventListener('afterprint', afterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', beforePrint);
+      window.removeEventListener('afterprint', afterPrint);
+    };
+  }, []);
+
   const {
     sources,
     validator,
@@ -105,7 +130,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
   return (
     <section aria-labelledby="provenance-heading" className="mt-12">
-      <details className="news-border news-accent-panel group/passport overflow-hidden rounded-xl border">
+      <details ref={record} className="news-border news-accent-panel group/passport overflow-hidden rounded-xl border">
         <summary className="news-border flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-6 py-3 group-open/passport:border-b [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2">
             <span

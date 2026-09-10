@@ -105,12 +105,12 @@ export function ArticleEvidenceRail({ article, seriesHref }: Props) {
           </div>
         )}
 
-        <a
-          href="#article-evidence"
+        <Link
+          to="#article-evidence"
           className="folio-story-record-link news-link flex min-h-11 items-center text-ui"
         >
           Full provenance &amp; checks <span aria-hidden="true">↓</span>
-        </a>
+        </Link>
       </div>
     </aside>
   );

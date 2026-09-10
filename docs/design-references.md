@@ -107,3 +107,25 @@ and exposes all observations, including content not yet scrolled into view.
 Scroll input stays native; the site does not replace the wheel or lock the
 cursor. These changes belong to the working product, not another standalone
 landing-page study.
+
+## Quality pass: 10 September 2026
+
+The follow-up evaluates task completion as well as appearance. The approved
+type, palette, two-tone wordmark and source-backed editorial identity remain.
+
+| Proposal | Decision | Reason |
+| --- | --- | --- |
+| Reduce the Dashboard's initial API fan-out | Implemented bounded comparison batches | A fully painted page can still have missing data. Request efficiency comes before decorative polish; production rate limits remain unchanged. |
+| Return mobile catalogue selection to the analysis | Implemented | Leaving the catalogue open puts the chosen result below the viewport. Desktop retains the open library for rapid comparison. |
+| Clarify and align data controls | Implemented | The former isolated line-style icon had no visible explanation. Country, history and Lines now form a deliberate narrow-screen arrangement. |
+| Make evidence access complete | Implemented | Sources links open the record, repeat visits work, and printing includes nested checks without leaving the page expanded afterward. |
+| Pair briefing commentary with its figures | Implemented | Wider screens support reading and checking side by side; phones retain a single reading order and full country-specific evidence links. |
+| Another decorative map, rebrand or repeated entrance sequence | Declined | These add visual activity without improving the question-to-evidence journey the owner selected. |
+
+[W3C ARIA22](https://www.w3.org/WAI/WCAG22/Techniques/aria/ARIA22)
+specifies that a status-message container is present before the message occurs;
+the copy-link feedback now follows that pattern. The
+[Web Vitals guidance](https://web.dev/articles/vitals) distinguishes loading,
+interactivity and visual stability and evaluates real-user results at the
+75th percentile. Local browser measurements guide this pass; they are not a
+claim of field-wide Core Web Vitals compliance or an award outcome.

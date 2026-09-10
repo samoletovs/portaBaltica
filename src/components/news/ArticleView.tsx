@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Article, ArticleBlock } from '../../news-types';
 import { isServable } from '../../news-types';
 import { newsArticleJsonLd } from '../../newsroom/structured-data';
@@ -17,7 +17,7 @@ import { StoryEvidenceGraphic } from './StoryEvidenceGraphic';
 import { storyEvidence } from '../../newsroom/story-evidence';
 import { ArticleEvidenceRail } from './ArticleEvidenceRail';
 import './ArticleExperience.css';
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useStoryProgress } from '../../motion/useScrollChoreography';
 
 /**
@@ -241,7 +241,19 @@ function KeepUp({ isWeekly }: { isWeekly: boolean }) {
 
 export function ArticleView({ article }: { article: Article }) {
   const root = useRef<HTMLElement>(null);
+  const { hash, key } = useLocation();
   useStoryProgress(root, `${article.slug}:${article.status}`);
+  useLayoutEffect(() => {
+    if (!['#article-story', '#article-live-data', '#article-evidence'].includes(hash)) return;
+    const target = root.current?.querySelector<HTMLElement>(hash);
+    if (!target) return;
+    // Open before ScrollToTop focuses the asynchronously mounted fragment.
+    // The location key also covers returning to a record the reader closed.
+    const record = hash === '#article-evidence' ? target.querySelector<HTMLDetailsElement>('details') : null;
+    if (record) record.open = true;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+  }, [hash, key, article.slug, article.status]);
   // ─── The gate ───
   // Applied before anything about this article reaches the DOM. Do not move it
   // below a render of article content, and do not replace it with a check on
@@ -342,11 +354,11 @@ export function ArticleView({ article }: { article: Article }) {
       </header>
 
       <nav className="folio-story-reading-nav text-ui" aria-label="Article reading navigation">
-        <a href="#article-story">Story <span aria-hidden="true">↓</span></a>
+        <Link to="#article-story" aria-current={hash === '#article-story' ? 'location' : undefined}>Story <span aria-hidden="true">↓</span></Link>
         {firstChartIndex >= 0 && (
-          <a href="#article-live-data">Live data <span aria-hidden="true">↓</span></a>
+          <Link to="#article-live-data" aria-current={hash === '#article-live-data' ? 'location' : undefined}>Live data <span aria-hidden="true">↓</span></Link>
         )}
-        <a href="#article-evidence">Sources <span aria-hidden="true">↓</span></a>
+        <Link to="#article-evidence" aria-current={hash === '#article-evidence' ? 'location' : undefined}>Sources <span aria-hidden="true">↓</span></Link>
         <Link to="/">Latest reporting <span aria-hidden="true">↗</span></Link>
       </nav>
 

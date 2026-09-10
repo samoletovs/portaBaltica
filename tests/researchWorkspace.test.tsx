@@ -159,7 +159,11 @@ describe('the research workspace', () => {
       : vi.fn().mockRejectedValue(new Error('clipboard denied'));
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     await mount('/explore?indicator=gdp&country=EE');
+    const announcement = document.querySelector('.lab-permalink [role="status"]');
+    expect(announcement, 'the live region must exist before it has an outcome to announce').not.toBeNull();
+    expect(announcement!.textContent).toBe('');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy measure link' })); });
+    expect(document.querySelector('.lab-permalink [role="status"]')).toBe(announcement);
     expect(writeText).toHaveBeenCalledWith(new URL('/indicator/gdp?country=EE', window.location.origin).href);
     if (copied) {
       expect(screen.getByText('Measure link copied.')).toBeTruthy();
@@ -278,6 +282,37 @@ describe('the research workspace', () => {
     await settle(() => disclosure.open && !disclosure.querySelector<HTMLElement>('.lab-library-content')!.hidden);
     expect(screen.getByRole('searchbox', { name: 'Find a measure' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /Future measure/ })).toBeTruthy();
+  });
+
+  it('hands a mobile selection back to the analysis instead of leaving it below the open library', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })));
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', vi.fn(callback => { frames.push(callback); return frames.length; }));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    await mount();
+    const disclosure = document.querySelector<HTMLDetailsElement>('.lab-library')!;
+    fireEvent.click(screen.getByText('Indicator library'));
+    await settle(() => disclosure.open && !disclosure.querySelector<HTMLElement>('.lab-library-content')!.hidden);
+    fireEvent.click(screen.getByRole('button', { name: /HICP Inflation/ }));
+    await settle(() => screen.queryByTestId('comparison')?.textContent === 'inflation' && !disclosure.open);
+    const heading = screen.getByRole('heading', { name: 'HICP Inflation' });
+    const scroll = vi.fn();
+    heading.scrollIntoView = scroll;
+    expect(frames.length).toBeGreaterThan(0);
+    await act(async () => { for (const callback of frames) callback(0); });
+    expect(document.activeElement).toBe(heading);
+    expect(scroll).toHaveBeenCalledWith({ block: 'start', behavior: 'instant' });
+    expect(disclosure.open).toBe(false);
+  });
+
+  it('keeps the desktop library open while browsing another measure', async () => {
+    await mount();
+    const button = screen.getByRole('button', { name: /HICP Inflation/ });
+    button.focus();
+    fireEvent.click(button);
+    await settle(() => screen.queryByTestId('comparison')?.textContent === 'inflation');
+    expect(document.querySelector<HTMLDetailsElement>('.lab-library')!.open).toBe(true);
+    expect(document.activeElement).toBe(button);
   });
 
   it('does not manufacture a shared reading when reporting periods do not overlap', async () => {
