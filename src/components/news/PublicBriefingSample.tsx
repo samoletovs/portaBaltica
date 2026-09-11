@@ -242,7 +242,7 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
     <section id={`briefing-${measure.id}`} aria-labelledby={headingId} className="public-briefing-measure" tabIndex={-1}>
       <div className="public-briefing-reading">
         <div className="public-briefing-heading">
-          <h2 id={headingId} className="text-title font-semibold news-fg">{title}</h2>
+          <h2 id={headingId} className="site-section-title text-title font-semibold news-fg">{title}</h2>
           {coverage && (
             <span className="text-caption font-mono" style={{ color: freshnessLabelColor(freshness) }}>
               {common ? 'Baltic comparison' : 'Available periods'} · {coverage.label}
@@ -290,7 +290,7 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
         {phase === 'error' && (
           <div role="status" className="mt-4">
             <p className="text-ui news-warning">This measure could not be loaded right now.</p>
-            <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
+            <button type="button" className="site-action text-ui" onClick={() => setAttempt((n) => n + 1)}>
               Retry
             </button>
           </div>
@@ -299,7 +299,7 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
         {phase === 'ready' && empty && (
           <div role="status" className="mt-4">
             <p className="text-ui news-subtle">No published reading is available for this measure in the retrieved window.</p>
-            <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
+            <button type="button" className="site-action text-ui" onClick={() => setAttempt((n) => n + 1)}>
               Retry
             </button>
           </div>
@@ -320,7 +320,7 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
               </p>
             )}
             <div className="overflow-x-auto" role="region" aria-label={`${title} by country`} tabIndex={0}>
-              <table className="w-full border-collapse text-ui">
+              <table className="site-table text-ui">
                 <caption className="text-caption news-subtle text-left mb-2">
                   {common
                     ? `${title} by country, ${formatPeriod(common.period)}${unit ? ` (${unit})` : ''}. An em dash means no published reading, not zero.`
@@ -427,7 +427,7 @@ export function PublicBriefingSample() {
       <div className="public-briefing-focus">
         <div className="public-briefing-focus-controls">
           <label htmlFor="briefing-focus-country" className="text-ui font-semibold news-fg">Planning focus</label>
-          <select id="briefing-focus-country" value={country} className="text-ui news-panel news-fg news-border border px-3 py-2"
+          <select id="briefing-focus-country" value={country} className="site-input text-ui px-3 py-2"
             onChange={event => {
               const next = new URLSearchParams(location.search);
               next.set('country', event.target.value);
@@ -435,7 +435,7 @@ export function PublicBriefingSample() {
             }}>
             {COUNTRY_CODES.map(code => <option key={code} value={code}>{COUNTRY_NAMES[code]}</option>)}
           </select>
-          <button type="button" className="briefing-print text-ui" onClick={copyLink}>Copy briefing link</button>
+          <button type="button" className="site-action briefing-print text-ui" onClick={copyLink}>Copy briefing link</button>
           <a href={sharePath} className="news-link text-ui public-briefing-share-link">Briefing link <span aria-hidden="true">↗</span></a>
         </div>
         <p role="status" className="text-ui news-muted">{copyResult?.url === shareUrl ? copyResult.message : ''}</p>

@@ -175,3 +175,20 @@ correction review. Cross-country own-base index semantics, complete cumulative
 revision accounting, paid offerings, outbound delivery and a new visual
 redesign are deferred. No stochastic model-quality improvement, customer
 demand, commercial readiness or award outcome is claimed.
+
+### Pre-merge consistency refinement
+
+The owner's four screenshots exposed a repeated-role mismatch, not a missing
+font. Rendered at 696px on `c3a54f4`, all four destinations used Baltic Editorial,
+but the journal title was 56px/600 with 0.94 leading and capitals; Dashboard and
+briefing titles were 40px/400, and the explorer was 40px/600. Title spacing also
+differed. The mechanical type scan alone reported no problem.
+
+The shared `PageIntro` and `PageTitle` now carry those roles, with data controls
+below the opening rather than above the title. Section titles,
+actions, filters, fields, evidence tables and inset panels also share type and
+geometry, while reading and analytical layouts retain their different jobs.
+The existing Barlow family, slate-blue/petrol-copper palette, source-backed
+graphics, two-tone wordmark, disclosures and data workflows are unchanged.
+The browser contract measures computed styles rather than accepting matching
+class names as proof; its original 696px case exposed 19 failing presentation assertions.

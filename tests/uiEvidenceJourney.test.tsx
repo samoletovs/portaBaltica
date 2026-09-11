@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ArticleView } from '../src/components/news/ArticleView';
-import { DataControls } from '../src/components/DataControls';
 import { DataExplorerPage } from '../src/components/DataExplorerPage';
 import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
@@ -59,7 +58,6 @@ function showArticle(article: Article) {
 async function showExplorer(search: string) {
   await act(async () => {
     render(<CountryProvider><FilterProvider><MemoryRouter initialEntries={[`/explore${search}`]}>
-      <DataControls />
       <Routes><Route path="/explore" element={<DataExplorerPage />} /></Routes>
     </MemoryRouter></FilterProvider></CountryProvider>);
   });

@@ -109,7 +109,7 @@ export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
           // screen reader user arriving at "CSV" by tabbing has no way to tell
           // which of the four charts on this page it belongs to.
           aria-label={`Download ${data.title} as ${extension.toUpperCase()}`}
-          className="dash-btn dash-body border dash-edge rounded-lg px-2 text-caption transition-colors"
+          className="site-action text-ui"
         >
           {extension.toUpperCase()}
         </button>

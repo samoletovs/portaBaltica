@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { usePageMeta } from '../newsroom/usePageMeta';
+import { PageTitle } from './PageIntro';
 
 const API_ENDPOINTS = [
   { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Electricity delivery-interval prices, ECB exchange rates, national and Eurostat macro indicators, business pulse', cache: 'Until the next electricity delivery interval (at most 15 min)' },
@@ -46,12 +47,12 @@ export function ApiDocsPage() {
   return (
     <div className="min-h-screen">
       <main id="main" className="py-8">
-        <button onClick={() => navigate('/data')} className="text-ui mb-4 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+        <button onClick={() => navigate('/data')} className="site-action text-ui mb-4">
           ← Back to dashboard
         </button>
 
-        <h1 className="balance-text text-headline sm:text-display font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>API documentation</h1>
-        <p className="text-ui mb-8" style={{ color: 'var(--text-secondary)' }}>
+        <PageTitle className="news-fg">API documentation</PageTitle>
+        <p className="text-ui mt-4 mb-8" style={{ color: 'var(--text-secondary)' }}>
           All endpoints are free and public. No authentication required. Source-specific terms apply;
           public API access is not a grant of commercial redistribution rights. There is no paid API or service-level agreement.
           Base URL: <code className="font-mono text-caption break-all px-1 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)' }}>https://portabaltica.naurolabs.com</code>

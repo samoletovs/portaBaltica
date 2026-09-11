@@ -66,14 +66,14 @@ export function FrozenEvidence({ article }: { article: Article }) {
       ) : (
         <>
           <div className="frozen-evidence-tools mt-3">
-            <button type="button" className="news-link text-ui" onClick={exportEvidence}>Download frozen evidence as JSON</button>
+            <button type="button" className="site-action text-ui" onClick={exportEvidence}>Download frozen evidence as JSON</button>
             <p className="news-muted text-caption" role="status" aria-atomic="true" data-testid="frozen-download-status">
               {download?.article === article.id ? download.message : ''}
             </p>
           </div>
           <p className="news-subtle mt-2 text-caption">Exact recorded values and units. Scroll the table horizontally if needed.</p>
           <div className="frozen-evidence-scroll mt-2" role="region" aria-label="Frozen observation values" tabIndex={0}>
-            <table className="frozen-evidence-table text-ui">
+            <table className="site-table frozen-evidence-table text-ui">
               <caption className="news-muted text-caption">Frozen observations · {observations.length} recorded entries</caption>
               <thead><tr>
                 <th scope="col">Measure</th><th scope="col">Country</th><th scope="col">Period</th>

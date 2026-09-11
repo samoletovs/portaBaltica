@@ -1,6 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Markdown } from '../src/newsroom/markdown';
 
 /**
  * The type scale, enforced across the whole site.
@@ -19,6 +22,16 @@ import { describe, expect, it } from 'vitest';
  */
 
 const css = readFileSync(resolve('src/index.css'), 'utf8');
+
+function markdownHeadingClasses(): Record<number, string> {
+  const container = document.createElement('div');
+  container.innerHTML = renderToStaticMarkup(createElement(Markdown, {
+    source: '# Page\n\n## Section\n\n### Subsection\n\n#### Label',
+  }));
+  const headings = [...container.querySelectorAll('h1, h2, h3, h4')];
+  expect(headings.map(heading => heading.tagName)).toEqual(['H1', 'H2', 'H3', 'H4']);
+  return Object.fromEntries(headings.map(heading => [Number(heading.tagName.slice(1)), heading.className]));
+}
 
 /** Every `--text-*` step, in rem. */
 function scale(): Record<string, number> {
@@ -306,14 +319,7 @@ describe('every page', () => {
 
   it('never sets a heading smaller than the prose it introduces', () => {
     const sizes = scale();
-    const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
-
-    const headings = Object.fromEntries(
-      [...markdown.matchAll(/^\s*(\d):\s*'([^']+)',$/gm)].map(([, level, classes]) => [
-        Number(level),
-        classes,
-      ]),
-    );
+    const headings = markdownHeadingClasses();
 
     function sizeOf(classes: string): number {
       const token = classes.match(/\btext-([a-z]+)\b/)?.[1];
@@ -333,13 +339,7 @@ describe('every page', () => {
     // them focus and prominence. Then as the headers descend in importance
     // they receive less space." A heading belongs to the content beneath it,
     // so it must sit closer to that than to whatever it follows.
-    const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
-    const headings = Object.fromEntries(
-      [...markdown.matchAll(/^\s*(\d):\s*'([^']+)',$/gm)].map(([, level, classes]) => [
-        Number(level),
-        classes,
-      ]),
-    );
+    const headings = markdownHeadingClasses();
 
     function step(classes: string, prefix: 'mt' | 'mb'): number {
       const value = classes.match(new RegExp(`\\b${prefix}-(\\d+)\\b`))?.[1];

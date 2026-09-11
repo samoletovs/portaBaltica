@@ -85,7 +85,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
             onClick={() => choose(ALL)}
             aria-pressed={outlet === ALL}
             className={[
-              'rounded-full border px-3 py-1 text-caption transition-colors',
+              'site-choice text-ui transition-colors',
               outlet === ALL ? 'news-tab-active' : 'news-tab-inactive news-hover',
             ].join(' ')}
           >
@@ -102,7 +102,7 @@ export default function ElsewhereRail({ items }: { items: ArticleSummary[] }) {
               // announces as "EUobserver2".
               aria-label={`${name}, ${count} ${count === 1 ? 'story' : 'stories'}`}
               className={[
-                'rounded-full border px-3 py-1 text-caption transition-colors',
+                'site-choice text-ui transition-colors',
                 outlet === name ? 'news-tab-active' : 'news-tab-inactive news-hover',
               ].join(' ')}
             >

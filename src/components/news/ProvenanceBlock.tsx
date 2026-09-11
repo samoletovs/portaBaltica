@@ -131,7 +131,7 @@ export function ProvenanceBlock({ provenance, article }: { provenance: Provenanc
 
   return (
     <section aria-labelledby="provenance-heading" className="mt-12">
-      <details ref={record} className="news-border news-accent-panel group/passport overflow-hidden rounded-xl border">
+      <details ref={record} className="site-panel group/passport overflow-hidden">
         <summary className="news-border flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-6 py-3 group-open/passport:border-b [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2">
             <span
@@ -140,7 +140,7 @@ export function ProvenanceBlock({ provenance, article }: { provenance: Provenanc
             >
               ›
             </span>
-            <h2 id="provenance-heading" className="news-fg text-title font-semibold">
+            <h2 id="provenance-heading" className="site-section-title news-fg text-title font-semibold">
               Where this came from
             </h2>
           </span>

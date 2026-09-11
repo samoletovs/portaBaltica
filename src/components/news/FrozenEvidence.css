@@ -1,16 +1,11 @@
 .frozen-evidence { min-width: 0; }
 .frozen-evidence-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-md); }
-.frozen-evidence-tools button { min-height: 44px; text-align: left; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .frozen-evidence-scroll { position: relative; max-width: 100%; overflow: auto; }
-.frozen-evidence-table { width: 100%; border-collapse: collapse; }
-.frozen-evidence-table caption { text-align: left; padding-bottom: var(--space-xs); }
-.frozen-evidence-table th, .frozen-evidence-table td { padding: var(--space-sm); text-align: left; vertical-align: top; border-bottom: 1px solid var(--news-border); }
-.frozen-evidence-table th { font-weight: 600; }
+.frozen-evidence-table th, .frozen-evidence-table td { text-align: left; }
 .frozen-evidence-table td:nth-child(3), .frozen-evidence-table td:nth-child(4) { white-space: nowrap; }
 .frozen-evidence-table td:nth-child(4) { text-align: right; }
 .frozen-evidence-table th:first-child { min-width: 12rem; }
 .frozen-evidence-table a { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 4px; }
-.frozen-evidence-scroll:focus-visible { outline: 2px solid var(--news-accent); outline-offset: 3px; }
 @media print {
   .frozen-evidence-tools { display: none; }
   .frozen-evidence-scroll { overflow: visible; }

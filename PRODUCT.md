@@ -49,6 +49,9 @@ be mandatory before using the research tools.
 ## Product principles
 
 - Offer both a broad sector scan and a focused investigation, clearly named.
+- Make those tasks feel like one site: shared page openings, heading roles,
+  controls, evidence tables and panel treatments, not a separate visual system
+  for each destination.
 - Keep country, period, measurement basis and source beside the evidence.
 - Preserve corrections and explicit AI disclosure.
 - Keep data and reporting connected, without claiming live charts are the exact

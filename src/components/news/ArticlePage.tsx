@@ -5,6 +5,7 @@ import { loadArticle } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
 import { syndicatedOriginalUrl } from '../../newsroom/canonical';
 import { ArticleView } from './ArticleView';
+import { PageTitle } from '../PageIntro';
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -108,7 +109,7 @@ export default function ArticlePage() {
   if (load.state === 'not-found') {
     return (
       <div className="news-border news-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center">
-        <h1 className="balance-text news-fg text-title font-semibold">Article not found</h1>
+        <PageTitle className="news-fg">Article not found</PageTitle>
         <p className="news-muted mt-3 text-callout">
           No article is published at this address.{' '}
           <Link
@@ -129,10 +130,10 @@ export default function ArticlePage() {
   if (load.state === 'error') {
     return (
       <div role="alert" className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8">
-        <h1 className="balance-text news-warning text-display font-semibold">The article could not be loaded</h1>
+        <PageTitle className="news-warning">The article could not be loaded</PageTitle>
         <p className="news-muted mt-3 text-callout">A connection or source error prevented us from retrieving this article. This is not a decision to withhold it.</p>
         <div className="mt-4 flex flex-wrap items-center gap-4 text-ui">
-          <button type="button" className="news-link min-h-11 underline underline-offset-4" onClick={() => { setLoaded(null); setAttempt(value => value + 1); }}>Retry article</button>
+          <button type="button" className="site-action text-ui" onClick={() => { setLoaded(null); setAttempt(value => value + 1); }}>Retry article</button>
           <Link to="/" className="news-link flex min-h-11 items-center underline underline-offset-4">Back to the front page</Link>
         </div>
       </div>
@@ -145,7 +146,7 @@ export default function ArticlePage() {
         role="alert"
         className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center"
       >
-        <h1 className="balance-text news-warning text-title font-semibold">This article is not available</h1>
+        <PageTitle className="news-warning">This article is not available</PageTitle>
         <p className="news-warning mt-3 text-callout">
           It has not passed the checks we run before publishing, so we will not show it.
         </p>

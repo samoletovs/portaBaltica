@@ -18,6 +18,8 @@ import './ResearchWorkspace.css';
 import { useCountryFromQuery } from '../hooks/useCountryFromQuery';
 import { useAnalysisTransition } from '../motion/useScrollChoreography';
 import { researchPermalink, researchYears } from '../utils/researchView';
+import { PageIntro } from './PageIntro';
+import { DataControls } from './DataControls';
 
 const BalticCompareChart = lazy(() => import('./BalticCompareChart').then(module => ({ default: module.BalticCompareChart })));
 const NationalChart = lazy(() => import('./IndicatorCard').then(module => ({ default: module.IndicatorChart })));
@@ -113,11 +115,11 @@ function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegis
     <section ref={root} className="lab-analysis" aria-label={`Analysis: ${entry.title}`}>
       <header className="lab-analysis-heading">
         <div>
-          <h2 className="text-title font-semibold" data-analysis-title="" tabIndex={-1}>{focused ? 'Baltic comparison' : entry.title}</h2>
+          <h2 className="site-section-title text-title font-semibold" data-analysis-title="" tabIndex={-1}>{focused ? 'Baltic comparison' : entry.title}</h2>
           <p className="text-ui lab-muted">{FREQUENCY_LABEL[entry.freq] ?? entry.freq} · {entry.unit} · {years}-year window</p>
         </div>
         <div className="lab-permalink">
-          <button type="button" className="lab-link text-ui" onClick={copyMeasureLink}>Copy measure link</button>
+          <button type="button" className="site-action text-ui" onClick={copyMeasureLink}>Copy measure link</button>
           <p className="text-caption" role="status" aria-atomic="true">
             {copyResult?.url === permalink && (copyResult.copied
               ? 'Measure link copied.'
@@ -137,7 +139,7 @@ function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegis
       {state === 'error' && (
         <div className="lab-empty text-ui" role="status">
           <p>The series could not be loaded. Your indicator selection is unchanged.</p>
-          <button type="button" className="lab-link" onClick={() => setAttempt(value => value + 1)}>Retry series</button>
+          <button type="button" className="site-action text-ui" onClick={() => setAttempt(value => value + 1)}>Retry series</button>
         </div>
       )}
       {state === 'ready' && !usable && <p className="lab-empty text-ui" role="status">No published observations in this window. Try a longer time range.</p>}
@@ -167,7 +169,7 @@ function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegis
             </Suspense>
           ) : (
             <div className="lab-table-scroll" role="region" aria-label="Indicator observations" tabIndex={0}>
-              <table className="lab-table text-ui">
+              <table className="site-table lab-table text-ui">
                 <caption className="text-caption lab-muted">Source values in {data.unit}. — means no published observation, not zero.</caption>
                 <thead><tr><th scope="col">Period</th>{COUNTRIES.map(geo => <th key={geo} scope="col">{COUNTRY_INFO[geo].label}</th>)}{data.reference && <th scope="col">{data.reference.label} average</th>}</tr></thead>
                 <tbody>{periods.map(label => (
@@ -186,7 +188,7 @@ function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegis
           <div className="lab-inspector">
             <div className="lab-inspector-heading">
               <label htmlFor="lab-period" className="text-ui font-semibold">Inspect one period</label>
-              <select id="lab-period" className="text-ui" value={inspectPeriod ?? ''} onChange={event => setPeriod(event.target.value)}>
+              <select id="lab-period" className="site-input text-ui" value={inspectPeriod ?? ''} onChange={event => setPeriod(event.target.value)}>
                 {periods.map(label => <option key={label} value={label}>{label}{label === commonPeriod ? ' · latest shared' : ''}</option>)}
               </select>
             </div>
@@ -294,22 +296,22 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
   return (
     <div className="lab-workspace">
       {indicatorId && <IndicatorMeta id={indicatorId} entry={selected} loading={!entries && !error} />}
-      <header className="lab-header">
-        <div>
-          {indicatorId && <Link className="lab-link text-ui" to={`/explore?indicator=${encodeURIComponent(selected?.id ?? indicatorId)}&country=${country}`}>← Data explorer</Link>}
-          <h1 className="text-display md:text-masthead font-semibold balance-text">{indicatorId ? selected?.title ?? 'Indicator' : 'Data explorer'}</h1>
-          <p className="text-prose lab-muted">{indicatorId ? 'One measure, in depth. Inspect its periods, definitions and source values.' : 'Choose a measure. Compare the Baltics. Follow the evidence.'}</p>
-        </div>
-      </header>
+      <PageIntro
+        className="lab-header"
+        title={indicatorId ? selected?.title ?? 'Indicator' : 'Data explorer'}
+        lead={indicatorId ? 'One measure, in depth. Inspect its periods, definitions and source values.' : 'Choose a measure. Compare the Baltics. Follow the evidence.'}
+        backLink={indicatorId && <Link className="lab-link text-ui" to={`/explore?indicator=${encodeURIComponent(selected?.id ?? indicatorId)}&country=${country}`}>← Data explorer</Link>}
+      />
+      <DataControls />
       <div className="lab-workbench">
         <details className="lab-library" open={libraryOpen} onToggle={event => setLibraryOpen(event.currentTarget.open)}>
-          <summary><span className="text-title font-semibold">Indicator library</span><span className="text-caption lab-muted">{entries ? `${entries.length} measures` : 'Official data'}</span></summary>
+          <summary><span className="site-section-title text-title font-semibold">Indicator library</span><span className="text-caption lab-muted">{entries ? `${entries.length} measures` : 'Official data'}</span></summary>
           <div className="lab-library-content" hidden={!libraryOpen}>
             <label className="lab-field text-ui font-semibold" htmlFor="lab-search">Find a measure
-            <input id="lab-search" type="search" className="text-ui" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search title, unit or dataset" />
+            <input id="lab-search" type="search" className="site-input text-ui" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search title, unit or dataset" />
             </label>
             <label className="lab-field text-caption lab-muted" htmlFor="lab-domain">Sector
-            <select id="lab-domain" className="text-ui" value={section} onChange={event => {
+            <select id="lab-domain" className="site-input text-ui" value={section} onChange={event => {
               setSearch('');
               const next = new URLSearchParams({ country });
               if (event.target.value !== 'all') next.set('section', event.target.value);
@@ -319,7 +321,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
               {DASHBOARD_SECTIONS.map(domain => <option key={domain} value={domain}>{RESEARCH_SECTIONS[domain].title}</option>)}
             </select>
             </label>
-            {error ? <div role="status" className="text-ui"><p>The indicator catalogue is unavailable.</p><button className="lab-link" type="button" onClick={retry}>Retry catalogue</button></div> : !entries ? <p role="status" className="text-ui">Loading the catalogue…</p> : (
+            {error ? <div role="status" className="text-ui"><p>The indicator catalogue is unavailable.</p><button className="site-action text-ui" type="button" onClick={retry}>Retry catalogue</button></div> : !entries ? <p role="status" className="text-ui">Loading the catalogue…</p> : (
               <>
                 <p className="text-caption lab-muted" role="status">{visible.length} {needle ? 'search results across all sectors' : 'measures in this view'}</p>
                 <ul className="lab-indicator-list">
@@ -344,7 +346,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
           {selected && <Analysis key={`${selected.id}:${params.get('view') ?? ''}:${params.get('period') ?? ''}`} entry={selected} years={analysisYears} focused={Boolean(indicatorId)} nationalId={indicatorId && NATIONAL_INDICATORS.has(indicatorId) ? indicatorId : undefined} />}
           {indicatorId && (
             <section className="lab-related">
-              <h2 className="text-title font-semibold">Continue researching</h2>
+              <h2 className="site-section-title text-title font-semibold">Continue researching</h2>
               <div className="lab-related-links text-ui">{related.map(entry => <Link key={entry.id} to={`/indicator/${entry.id}?country=${country}`}>{entry.title} ↗</Link>)}</div>
               <Link className="lab-link text-ui" to={`/data/${relatedSection ?? 'economy'}?country=${country}`}>View the sector dashboard ↗</Link>
             </section>

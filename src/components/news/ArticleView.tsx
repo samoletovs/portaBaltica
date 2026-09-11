@@ -19,6 +19,7 @@ import { ArticleEvidenceRail } from './ArticleEvidenceRail';
 import './ArticleExperience.css';
 import { useLayoutEffect, useRef } from 'react';
 import { useStoryProgress } from '../../motion/useScrollChoreography';
+import { PageTitle } from '../PageIntro';
 
 /**
  * The refusal.
@@ -34,7 +35,7 @@ function NotServable() {
       role="alert"
       className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8 text-center"
     >
-      <h1 className="news-warning text-title font-semibold">This article is not available</h1>
+      <PageTitle className="news-warning">This article is not available</PageTitle>
       <p className="news-warning mt-3 text-callout">
         It has not passed the checks we run before publishing, so we will not show it. Nothing is
         served from this portal without a passing validator verdict.
@@ -82,9 +83,9 @@ function Retracted({ article }: { article: Article }) {
         <p className="news-warning text-caption font-semibold tracking-widest uppercase">
           Retracted
         </p>
-        <h1 className="news-warning mt-3 text-title font-semibold">
+        <PageTitle className="news-warning mt-3">
           We have withdrawn this article
-        </h1>
+        </PageTitle>
         {notices.length > 0 ? (
           <ul className="mt-4 space-y-3">
             {notices.map((notice) => (
@@ -302,12 +303,12 @@ export function ArticleView({ article }: { article: Article }) {
 
       <header className={`folio-story-hero${!evidence && article.tier === 'A' ? ' folio-story-typographic' : ''}`}>
         <div className="folio-story-hero-copy">
-          <h1
+          <PageTitle
             id="article-title"
-            className="folio-story-headline balance-text news-fg text-display font-semibold tracking-tight sm:text-masthead xl:text-banner"
+            className="folio-story-headline news-fg"
           >
             {formatFigures(article.headline)}
-          </h1>
+          </PageTitle>
           <div className="folio-story-classification">
             <TierBadge tier={article.tier} />
             <FormatBadge format={article.format} />
