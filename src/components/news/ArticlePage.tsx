@@ -10,7 +10,8 @@ export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>();
   // Keyed by slug so a navigation between articles shows the loading state
   // without a synchronous reset inside the effect.
-  const [loaded, setLoaded] = useState<{ slug: string; result: ArticleLoad } | null>(null);
+  const [loaded, setLoaded] = useState<{ slug: string; result: ArticleLoad | { state: 'error' } } | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const load = loaded && loaded.slug === slug ? loaded.result : null;
 
   useEffect(() => {
@@ -19,11 +20,11 @@ export default function ArticlePage() {
     loadArticle(slug, controller.signal)
       .then((result) => setLoaded({ slug, result }))
       .catch(() => {
-        // Fail closed: a failed fetch is never an excuse to render something.
-        if (!controller.signal.aborted) setLoaded({ slug, result: { state: 'not-servable' } });
+        // A failed read says nothing about the article's editorial verdict.
+        if (!controller.signal.aborted) setLoaded({ slug, result: { state: 'error' } });
       });
     return () => controller.abort();
-  }, [slug]);
+  }, [slug, attempt]);
 
   const article = load?.state === 'ok' ? load.article : null;
   const withdrawn = load?.state === 'retracted' ? load.article : null;
@@ -123,6 +124,19 @@ export default function ArticlePage() {
 
   if (load.state === 'retracted') {
     return <ArticleView key="article-loaded" article={load.article} />;
+  }
+
+  if (load.state === 'error') {
+    return (
+      <div role="alert" className="news-border news-warning-panel mx-auto max-w-measure rounded-xl border px-6 py-8">
+        <h1 className="balance-text news-warning text-display font-semibold">The article could not be loaded</h1>
+        <p className="news-muted mt-3 text-callout">A connection or source error prevented us from retrieving this article. This is not a decision to withhold it.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-ui">
+          <button type="button" className="news-link min-h-11 underline underline-offset-4" onClick={() => { setLoaded(null); setAttempt(value => value + 1); }}>Retry article</button>
+          <Link to="/" className="news-link flex min-h-11 items-center underline underline-offset-4">Back to the front page</Link>
+        </div>
+      </div>
+    );
   }
 
   if (load.state === 'not-servable') {

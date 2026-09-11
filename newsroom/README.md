@@ -134,6 +134,15 @@ headline, standfirst and per-paragraph figures, so supported copy can survive
 while the reported faults are repaired. Explanations need support at sentence
 and clause level; a figure elsewhere or an attribution in the next sentence
 does not license a cause. The publication checks and retry budget are unchanged.
+The daily and weekly desk callbacks pass the exact copy the editor reviewed,
+even when no specific note was recorded. Notes without that draft are refused
+before generation; both desk edits and subsequent validator retries use the
+copy-editing instruction rather than commissioning another article.
+
+Peer-ranking context distinguishes joint highs, joint lows and equal readings
+across every country available for the same period. It uses the observations
+before equal-valued facts are removed to avoid ambiguous figure declarations.
+A missing country or a stale peer never becomes evidence of a Baltic-wide lead.
 
 The pipeline used to hand the writer **one series, alone**, and discard the
 other fifty it had just retrieved. On 2026-08-25 it published three separate
@@ -529,6 +538,15 @@ Three rules that are load-bearing rather than stylistic:
    is still an unpublish.
 3. **A source revision is not our error, and the wording says which it is.**
    Conflating them trains readers to discount both.
+
+The watch requires recorded, matching source and dataset identities as well as
+the same unit. It does not treat missing metadata as a wildcard or fetch an
+obsolete dataset after a collector is repinned. Such legacy observations remain
+unmonitored rather than becoming fabricated source revisions. In particular,
+`tourism` now reads arrivals from `tour_occ_arm`, not nights from `tour_occ_nim`;
+`tourism_foreign` remains nights. Historical mislabelled articles are unchanged
+and require a separately reviewed editorial correction, not a source-revision
+notice.
 
 ### Three remedies, and the one that was missing
 

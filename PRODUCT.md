@@ -24,7 +24,12 @@ Free articles, cross-country comparisons, historical series, exports and feeds.
 The Dashboard retains the broad all-sector overview and individual sector tools.
 Data explorer is the focused workspace; indicator permalinks open the same tool.
 Business briefings include a complete automated public sample with source-linked
-prices, labour costs and retail observations. Bespoke enquiries remain closed
+prices, labour costs and retail observations. A country-focused planning note
+states the dated change, comparison basis, limits and next measurable check.
+Research links preserve the selected history, representation and inspected
+period; they are live views, not frozen snapshots. Articles expose their
+recorded publication observations and a JSON evidence download when available.
+Bespoke enquiries remain closed
 unless explicitly enabled; there is no established paid subscription.
 The commercial boundaries remain in docs/launch-and-revenue-plan.md.
 

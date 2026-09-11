@@ -88,11 +88,30 @@ continued comparison. Clipboard feedback has a permanent live region rather
 than appearing only after an outcome.
 
 Sources links open the actual provenance record, including repeat visits.
+Within that record, original articles expose their frozen observations in a
+captioned table with exact values, units, periods and source links, plus a JSON
+download carrying source and correction context. Missing publication records
+are stated explicitly; current data never fills their place. Narrow screens
+scroll the table within its labelled, keyboard-focusable region.
 Printing exposes the record and nested checks, then restores the reader's
 disclosure states. Briefing commentary and its evidence share a row on wider
 screens; country names are the evidence links, rather than a repeated View
 column. Jump targets are revealed by focus before their scroll position is
 measured, so entrance transforms cannot clip the destination.
+
+An explorer link retains country, history, representation and inspected period.
+An unavailable shared period gets an explicit notice rather than silently
+changing the comparison. These are reproducible settings, not a promise that
+the upstream observations never change.
+
+The briefing's country focus adds a dated change against the immediately
+preceding calendar period, a reason to monitor, a limit and a measurable next
+check. Missing comparison periods withhold the delta. A country's newest
+reading and the Baltic table's common period remain separately labelled.
+Rate differences use percentage points; hourly costs retain their unit.
+Print includes the focus, source URLs and recorded retrieval instants, while
+shared links explicitly remain live views. No enquiry or payment activation
+is implied by the more useful public document.
 
 Loading is part of this design contract. The Dashboard's comparisons travel
 in bounded batches, with independent item errors and the same source payloads

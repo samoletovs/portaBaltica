@@ -437,7 +437,7 @@ export function ArticleView({ article }: { article: Article }) {
       </div>
 
       <div id="article-evidence" className="folio-story-evidence" tabIndex={-1}>
-        <ProvenanceBlock provenance={article.provenance} />
+        <ProvenanceBlock provenance={article.provenance} article={article} />
       </div>
     </article>
   );

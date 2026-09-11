@@ -10,6 +10,8 @@ These tests protect two things that are easy to break and expensive to lose:
 
 from __future__ import annotations
 
+from itertools import permutations
+
 import pytest
 
 from newsroom.pipeline import units
@@ -101,6 +103,80 @@ def test_the_ranking_observation_is_stated_in_words(labour_signal, baltic_labour
 
     assert any("lowest of the three Baltic states" in line for line in pack.observations)
     assert not any(any(ch.isdigit() for ch in line) for line in pack.observations)
+
+
+@pytest.mark.parametrize(
+    ("values", "geography", "expected"),
+    [
+        ((128.11979166666666, 103.15604166666667, 128.11979166666666), "LT",
+         "Lithuania is joint-highest with Latvia among the three Baltic states"),
+        ((-4.0, 2.0, -4.0), "LV",
+         "Latvia is joint-lowest with Lithuania among the three Baltic states"),
+        ((0.0, 0.0, 0.0), "EE",
+         "All three Baltic states have the same reading"),
+        ((16.3, 21.1, 17.8), "LT",
+         "Lithuania has second-highest of the three Baltic states"),
+        ((16.3, 21.1, 17.8), "LV",
+         "Latvia has the lowest of the three Baltic states"),
+        ((16.3, 21.1, 17.8), "EE",
+         "Estonia has the highest of the three Baltic states"),
+        ((16.300001, 21.1, 16.300002), "LT",
+         "Lithuania has second-highest of the three Baltic states"),
+    ],
+)
+def test_peer_rankings_preserve_ties_independently_of_series_order(
+    values, geography, expected
+):
+    countries = ("LV", "EE", "LT")
+    series = [
+        labour_cost_series(country, [value], periods=["2025"])
+        for country, value in zip(countries, values)
+    ]
+    signal = make_signal(
+        metric="hourly_labour_cost", metric_label="hourly labour cost",
+        geography=geography, period="2025", value=values[countries.index(geography)],
+        fields={"latest_value": values[countries.index(geography)]},
+    )
+    for ordered in permutations(series):
+        pack = build_context(signal, ordered)
+        assert pack.observations == (f"{expected} for hourly labour cost.",)
+        assert not any(char.isdigit() for char in pack.observations[0])
+        # Equal-valued peers still cannot introduce ambiguous figure bindings.
+        assert all(f.value != signal.value for f in pack.of_kind("peer"))
+
+
+def test_two_equal_available_countries_do_not_imply_all_three_reported():
+    series = [
+        labour_cost_series(country, [16.3], periods=["2025"])
+        for country in ("LV", "EE")
+    ]
+    signal = make_signal(
+        metric="hourly_labour_cost", metric_label="hourly labour cost",
+        geography="LV", period="2025", value=16.3, fields={"latest_value": 16.3},
+    )
+
+    pack = build_context(signal, series)
+
+    assert pack.observations == (
+        "The two Baltic states compared have the same reading for hourly labour cost.",
+    )
+    assert pack.of_kind("peer") == ()
+
+
+def test_peer_ranking_requires_the_subjects_same_period_observation():
+    series = [
+        labour_cost_series("LV", [16.3], periods=["2024"]),
+        labour_cost_series("EE", [21.1], periods=["2025"]),
+    ]
+    signal = make_signal(
+        metric="hourly_labour_cost", metric_label="hourly labour cost",
+        geography="LV", period="2025", value=16.3, fields={"latest_value": 16.3},
+    )
+
+    pack = build_context(signal, series)
+
+    assert pack.observations == ()
+    assert pack.of_kind("peer")[0].geography == "EE"
 
 
 def test_peers_are_skipped_for_a_geography_with_no_neighbours(baltic_labour_costs):

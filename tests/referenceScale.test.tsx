@@ -7,9 +7,9 @@
  * hand-written classification of sixty-six indicators and nothing upstream
  * checks that a classification is true.
  *
- * Every fixture below is a real reading, taken live from Eurostat over a
- * five-year window on 389d1f9, so the thresholds are held against observed data
- * rather than against invented data that agrees with them.
+ * The scale ranges below were taken live from Eurostat over a five-year
+ * window on 389d1f9. The component tests use source-confirmed June 2026
+ * arrivals and deliberately vary the benchmark to exercise the scale gate.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -32,7 +32,9 @@ const RUINED = {
   // The three charts in the bug report, and the two orders of magnitude that
   // made them useless. Retention measured at 0.002, 0.002 and 0.006.
   tourism_foreign: { baltic: [17_200, 530_523], eu: [5_556_793, 240_360_724] },
-  tourism: { baltic: [79_289, 1_220_439], eu: [29_668_841, 511_537_058] },
+  // The old tourism definition read nights, not arrivals. Keep the historical
+  // scale measurement, but do not label it as the corrected arrivals series.
+  accommodation_nights_snapshot: { baltic: [79_289, 1_220_439], eu: [29_668_841, 511_537_058] },
   air_passengers: { baltic: [84_838, 2_150_299], eu: [25_203_113, 337_989_035] },
   population: { baltic: [1_330_068, 2_890_664], eu: [445_891_011, 450_646_971] },
   // The mildest of the eleven, and still 0.034.
@@ -136,23 +138,23 @@ describe('the chart shows the figure even when it withholds the line', () => {
 
   function payload(euLow: number, euHigh: number): BalticCompareData {
     const series = (a: number, b: number) => [
-      { period: '2026-Q1', value: a },
-      { period: '2026-Q2', value: b },
+      { period: '2026-05', value: a },
+      { period: '2026-06', value: b },
     ];
     return {
       indicator: 'tourism', title: 'Tourist arrivals', unit: 'persons',
       countries: {
-        LV: { label: 'Latvia', series: series(528_988, 530_523) },
-        EE: { label: 'Estonia', series: series(718_385, 720_000) },
-        LT: { label: 'Lithuania', series: series(948_906, 950_000) },
+        LV: { label: 'Latvia', series: [{ period: '2026-06', value: 313_942 }] },
+        EE: { label: 'Estonia', series: [{ period: '2026-06', value: 395_333 }] },
+        LT: { label: 'Lithuania', series: [{ period: '2026-06', value: 410_171 }] },
       } as unknown as BalticCompareData['countries'],
       reference: {
         code: 'EU27_2020', label: 'EU27',
         fullLabel: 'European Union — 27 countries (from 2020)',
         series: series(euLow, euHigh),
-        latest: euHigh, latestPeriod: '2026-Q2',
+        latest: euHigh, latestPeriod: '2026-06',
       },
-      source: 'Eurostat (tour_occ_nim)',
+      source: 'Eurostat (tour_occ_arm)',
       assumptions: [],
     };
   }
@@ -180,7 +182,7 @@ describe('the chart shows the figure even when it withholds the line', () => {
     // The control. Same component, same reference shape, a benchmark that fits
     // — and the assertion above proves `SCALE_NOTE` can match, so this absence
     // is about the chart rather than about the pattern.
-    await renderWith(900_000, 910_000);
+    await renderWith(390_000, 400_000);
     expect(screen.queryByText(SCALE_NOTE)).toBeNull();
     const eu = screen.getByText('EU27').closest('div');
     expect(eu!.querySelector('.border-dashed')).toBeTruthy();

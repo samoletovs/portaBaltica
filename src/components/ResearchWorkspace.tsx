@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { COUNTRY_INFO, useCountry, type Country } from '../CountryContext';
-import { useFilter } from '../FilterContext';
+import { useFilter, type YearRange } from '../FilterContext';
 import { DASHBOARD_SECTIONS, type DashboardSection } from '../sections';
 import { useIndicatorRegistry, type IndicatorRegistryEntry } from '../hooks/useIndicatorRegistry';
 import { usePageMeta } from '../newsroom/usePageMeta';
@@ -17,6 +17,7 @@ import { DownloadMenu } from './DownloadMenu';
 import './ResearchWorkspace.css';
 import { useCountryFromQuery } from '../hooks/useCountryFromQuery';
 import { useAnalysisTransition } from '../motion/useScrollChoreography';
+import { researchPermalink, researchYears } from '../utils/researchView';
 
 const BalticCompareChart = lazy(() => import('./BalticCompareChart').then(module => ({ default: module.BalticCompareChart })));
 const NationalChart = lazy(() => import('./IndicatorCard').then(module => ({ default: module.IndicatorChart })));
@@ -43,17 +44,16 @@ function LoadingIndicator() {
   return <div className="lab-loading text-ui" role="status" aria-label="Loading the indicator" aria-busy="true">Loading the source series…</div>;
 }
 
-function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntry; nationalId?: string; focused: boolean }) {
+function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegistryEntry; nationalId?: string; focused: boolean; years: YearRange }) {
   const root = useRef<HTMLElement>(null);
   const { country } = useCountry();
-  const { years } = useFilter();
-  const [mode, setMode] = useState<'chart' | 'table'>('chart');
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'chart' | 'table'>(() => params.get('view') === 'table' ? 'table' : 'chart');
   const [result, setResult] = useState<{ key: string; data: BalticCompareData | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [nationalOpen, setNationalOpen] = useState(false);
-  const [period, setPeriod] = useState('');
+  const [period, setPeriod] = useState(() => params.get('period') ?? '');
   const [copyResult, setCopyResult] = useState<{ url: string; copied: boolean } | null>(null);
-  const permalink = `/indicator/${entry.id}?country=${country}`;
   async function copyMeasureLink() {
     try {
       await navigator.clipboard.writeText(new URL(permalink, window.location.origin).href);
@@ -91,6 +91,8 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
     series(geo).some(point => point.period === label && point.value !== null && Number.isFinite(point.value)),
   ));
   const inspectPeriod = periods.includes(period) ? period : commonPeriod ?? periods[0];
+  const permalink = researchPermalink(entry.id, country, years, mode, inspectPeriod);
+  const unavailableSharedPeriod = period && period === params.get('period') && !periods.includes(period);
   const usable = COUNTRIES.some(geo => series(geo).some(point => point.value !== null && Number.isFinite(point.value)));
   const sourceUrl = `https://ec.europa.eu/eurostat/databrowser/view/${encodeURIComponent(entry.dataset)}/default/table?lang=en`;
   const exportData: SeriesExport | null = data && usable ? {
@@ -188,6 +190,7 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
                 {periods.map(label => <option key={label} value={label}>{label}{label === commonPeriod ? ' · latest shared' : ''}</option>)}
               </select>
             </div>
+            {unavailableSharedPeriod && <p className="text-ui dash-warning" role="status">Shared period {period} is not available in this window. Showing {inspectPeriod} instead; choose another period or a longer history window.</p>}
             <p className="text-caption lab-muted">{commonPeriod ? `Latest period with a reading from all three: ${commonPeriod}.` : 'No shared period across all three countries in this window.'}</p>
             <dl className="lab-period-values text-ui">
               {COUNTRIES.map(geo => {
@@ -225,9 +228,15 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
 export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWorkspaceProps) {
   const { entries, error, retry } = useIndicatorRegistry();
   const { country } = useCountry();
+  const { years, setYears } = useFilter();
   useCountryFromQuery();
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const requestedYears = researchYears(params.get('years'));
+  const analysisYears = requestedYears ?? years;
+  useLayoutEffect(() => {
+    if (requestedYears !== undefined) setYears(requestedYears);
+  }, [requestedYears, setYears]);
   const [search, setSearch] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(() => typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 900px)').matches : true);
   const analysisPlane = useRef<HTMLDivElement>(null);
@@ -332,7 +341,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
           {!entries && !error && <LoadingIndicator />}
           {error && <div role="status" className="lab-empty text-ui">We could not verify the indicator catalogue. Retry the catalogue to continue; this is not an unknown-indicator result.</div>}
           {entries && !selected && <div className="lab-empty text-ui" role="status"><p>{requested !== null && requested !== undefined ? 'Unknown indicator.' : 'No indicators available in this domain.'}</p>{requested && <p>“{requested}” is not in the source catalogue.</p>}<p>Choose a measure from the library.</p></div>}
-          {selected && <Analysis key={selected.id} entry={selected} focused={Boolean(indicatorId)} nationalId={indicatorId && NATIONAL_INDICATORS.has(indicatorId) ? indicatorId : undefined} />}
+          {selected && <Analysis key={`${selected.id}:${params.get('view') ?? ''}:${params.get('period') ?? ''}`} entry={selected} years={analysisYears} focused={Boolean(indicatorId)} nationalId={indicatorId && NATIONAL_INDICATORS.has(indicatorId) ? indicatorId : undefined} />}
           {indicatorId && (
             <section className="lab-related">
               <h2 className="text-title font-semibold">Continue researching</h2>

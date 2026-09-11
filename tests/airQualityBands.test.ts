@@ -126,16 +126,12 @@ describe('both endpoints read the same scale', () => {
     expect(insights).not.toMatch(/pm2_5\s*\|\|\s*0/);
   });
 
-  it('compares PM2.5 against the WHO guideline it prints, not against the index', () => {
-    // The old line asserted "Well below WHO guidelines" from the AQI band while
-    // printing a PM2.5 figure beside it. Sampled over 6696 paired readings,
-    // PM2.5 exceeded the WHO 24-hour guideline eight times — and on all eight
-    // the line still read "Well below WHO guidelines", printing 16.9 µg/m³ and
-    // calling it well below 15.
+  it('does not compare the current PM2.5 estimate with a daily exposure guideline', () => {
+    // The former assertion demanded a comparison against the printed value.
+    // That still used the wrong averaging window: this endpoint fetches only
+    // current estimates, so neither the index nor PM2.5 establishes a daily mean.
     expect(insights).not.toMatch(/Well below WHO guidelines/);
-    expect(insights, 'the guideline must be a named figure').toMatch(/WHO_PM25_24H\s*=\s*15/);
-    expect(insights, 'and compared against the printed value')
-      .toMatch(/pm25\s*>\s*WHO_PM25_24H/);
+    expect(insights).not.toMatch(/pm25\s*[<>]=?\s*WHO/);
   });
 });
 
@@ -192,14 +188,12 @@ describe('the insight card never invents an index', () => {
     expect(cards[0].headline).not.toMatch(/Good/);
   });
 
-  it('does not call a PM2.5 above the WHO guideline "well below" it', async () => {
-    // Measured: on all eight occasions PM2.5 exceeded 15 µg/m³ in the sample,
-    // the old line still read "Well below WHO guidelines" — printing the
-    // contradicting number in the same sentence.
+  it('keeps a high current PM2.5 estimate without claiming daily guideline compliance', async () => {
     const cards = await insightsWith({ european_aqi: 45, pm2_5: 16.9 });
     expect(cards).toHaveLength(1);
-    expect(cards[0].description).toMatch(/above the WHO 24-hour guideline/);
-    expect(cards[0].description).not.toMatch(/[Ww]ell below/);
+    expect(cards[0].description).toContain('16.9 µg/m³');
+    expect(cards[0].description).toContain('WHO 24-hour guideline cannot be assessed');
+    expect(cards[0].description).not.toMatch(/(?:above|within|below) the WHO/);
   });
 
   it('reports PM2.5 as unavailable rather than as zero', async () => {

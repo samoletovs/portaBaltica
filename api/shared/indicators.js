@@ -733,7 +733,9 @@ const INDICATORS = {
     sanity: [-20000, 20000],
   },
   tourism: {
-    dataset: 'tour_occ_nim',
+    // Arrivals count check-ins, not nights: tour_occ_nim can be fully pinned
+    // and numerically plausible while measuring the length of those stays.
+    dataset: 'tour_occ_arm',
     params: 'nace_r2=I551-I553&unit=NR&c_resid=TOTAL&freq=M',
     freq: 'M',
     title: 'Tourist arrivals',

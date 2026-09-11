@@ -21,7 +21,7 @@ export function TradeTile() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <IndicatorCard id="hotel_occupancy" title="Hotel occupancy" unit="%" />
-          <IndicatorCard id="tourist_arrivals" title="Tourist arrivals" unit="thousands" />
+          <IndicatorCard id="tourist_arrivals" title="Tourist arrivals" unit="persons" />
         </div>
 
         {/* Partner and commodity detail behind the export and import headlines

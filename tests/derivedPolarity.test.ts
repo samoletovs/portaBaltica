@@ -50,7 +50,7 @@
  *
  * The rule above is general. The first version of this file enforced it with
  * `.filter(([, def]) => def.dataset === 'bop_c6_q')` — **one dataset**, while
- * the registry carries seven families where a part/whole relation exists. Six
+ * the registry then carried seven families where a part/whole relation existed. Six
  * were ungoverned while looking covered, which is the shape `AGENTS.md` records
  * three prior instances of, arriving here in the guard written to close the
  * third.
@@ -64,8 +64,8 @@
  * So the containment stays declared data, per the trap above, and the
  * **population** is derived: `compositionCapable()` asks the registry which
  * datasets could possibly hold a part/whole relation, and an equality requires
- * each to be placed in `FAMILIES` or in `NO_PART_WHOLE` with a reason. An
- * eighth family fails until someone decides which it is.
+ * each to be placed in `FAMILIES` or in `NO_PART_WHOLE` with a reason. A
+ * new family fails until someone decides which it is.
  *
  * ## Why this is a test and not a runtime module
  *
@@ -139,11 +139,6 @@ const FAMILIES: readonly Family[] = [
     dataset: 'sts_cobp_q',
     dimension: 'cpa2_1',
     contains: { CPA_F41001_41002: ['CPA_F41001', 'CPA_F41002'] },
-  },
-  {
-    dataset: 'tour_occ_nim',
-    dimension: 'c_resid',
-    contains: { TOTAL: ['FOR'] },
   },
   {
     dataset: 'nrg_cb_pem',
@@ -359,7 +354,7 @@ describe('the rule covers every family the registry has, not the one it was foun
   });
 
   it('places every code in every family, so a new one cannot slip past', () => {
-    // The equality the header promises, now over all seven families rather
+    // The equality the header promises, over all declared families rather
     // than over balance of payments alone.
     expect(
       unplacedIn(series),

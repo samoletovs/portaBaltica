@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { fetchBalticCompare, type BalticCompareData } from '../../api';
 import { finite } from '../../utils/payload';
 import { formatValue } from '../../utils/formatValue';
@@ -8,13 +8,14 @@ import { freshnessOf, formatPeriod, periodCoverage } from '../../dataFreshness';
 import { freshnessLabelColor } from '../freshnessStyle';
 import { FreshnessNotice } from '../FreshnessNotice';
 import { DownloadMenu } from '../DownloadMenu';
+import { briefingChange, briefingNextCheck } from './briefingPlanning';
 import './BriefingExperience.css';
 
 /**
  * A complete, source-linked public sample of the Baltic business briefing:
- * inflation, hourly labour cost and retail sales growth, each fetched
- * independently from `/api/baltic-compare` so one measure failing does not
- * take the other two with it.
+ * inflation, hourly labour cost and retail sales growth. Each has independent
+ * request state through `fetchBalticCompare`, so one measure failing does not
+ * take the other two with it, even when their reads travel in one batch.
  *
  * The rule every branch below serves: a reader must never be shown a
  * three-country range built from three different periods without being told
@@ -23,6 +24,10 @@ import './BriefingExperience.css';
  * Y") stated. Where the countries have not converged on one period, each
  * country's own latest reading is shown with its own period and no range is
  * computed across them.
+ *
+ * The selected country's planning note uses its own latest observation and
+ * only the immediately preceding calendar period. Questions and monitoring
+ * conditions are framing, not forecasts or evidence of a business outcome.
  */
 
 const YEARS = 3;
@@ -36,6 +41,9 @@ interface Measure {
   readonly navigationLabel: string;
   readonly fallbackTitle: string;
   readonly context: string;
+  readonly question: string;
+  readonly whyMonitor: string;
+  readonly nextCondition: string;
 }
 
 const MEASURES: readonly Measure[] = [
@@ -43,6 +51,9 @@ const MEASURES: readonly Measure[] = [
     id: 'inflation',
     navigationLabel: 'Prices',
     fallbackTitle: 'HICP Inflation',
+    question: 'Is annual consumer-price pressure changing?',
+    whyMonitor: 'Use this as background for consumer-price assumptions, then check the prices and product mix relevant to your business.',
+    nextCondition: 'A lower positive rate means slower annual price growth, not prices below a year earlier.',
     context:
       'This is the annual change in the whole consumer price basket: a headline inflation rate, not the price of any single good or service.',
   },
@@ -50,6 +61,9 @@ const MEASURES: readonly Measure[] = [
     id: 'salary',
     navigationLabel: 'Labour costs',
     fallbackTitle: 'Hourly labour cost',
+    question: 'Has the hourly labour-cost benchmark changed?',
+    whyMonitor: 'Use the national benchmark to frame a labour-budget discussion, alongside current role-specific quotes.',
+    nextCondition: 'An estimate above or below this level changes the national cost benchmark; it does not establish recruitment costs or worker availability.',
     context:
       'This is average hourly employer labour cost within the statistical series, not take-home pay or a quote for a particular role.',
   },
@@ -57,8 +71,11 @@ const MEASURES: readonly Measure[] = [
     id: 'retail',
     navigationLabel: 'Retail activity',
     fallbackTitle: 'Retail sales growth',
+    question: 'Is retail volume growing relative to a year earlier?',
+    whyMonitor: 'Check whether a sales-planning assumption fits the broad retail backdrop, then compare with your own category and orders.',
+    nextCondition: 'Crossing zero separates growth from contraction relative to the same month a year earlier, not a change in your company revenue.',
     context:
-      'This measures growth in overall retail trade activity as published by the statistical office. It is not a measure of profitability, and not a measure of any single business.',
+      'This is annual growth in calendar-adjusted retail sales volume, not nominal turnover, profit or any one business’s sales.',
   },
 ];
 
@@ -139,7 +156,7 @@ function datasetHref(dataset?: string): string | null {
 
 type Phase = 'loading' | 'error' | 'ready';
 
-function MeasureSection({ measure }: { measure: Measure }) {
+function MeasureSection({ measure, country }: { measure: Measure; country: CountryCode }) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ attempt: number; data: BalticCompareData | null; failed: boolean } | null>(null);
 
@@ -178,11 +195,14 @@ function MeasureSection({ measure }: { measure: Measure }) {
   const rowByCode = new Map(displayRows.map((row) => [row.code, row] as const));
   const missing = COUNTRY_CODES.filter((code) => !rowByCode.has(code));
   const empty = phase === 'ready' && displayRows.length === 0;
+  const focusedReading = ownRows.find(row => row.code === country);
+  const change = data && focusedReading
+    ? briefingChange(finiteReadings(data, country), focusedReading, COUNTRY_NAMES[country], unit)
+    : null;
+  const newerCountries = common ? ownRows.filter(row => row.period > common.period) : [];
 
-  // Freshness is judged on whatever is actually displayed: the single common
-  // period when there is one, or the oldest of the three own-latest readings
-  // when there is not — the same "judge on the laggard" rule as the ranked
-  // comparisons elsewhere on the dashboard.
+  // The table dates its shared comparison; the focus separately dates this
+  // country's latest reading. An old shared period is not a source freeze.
   const periods = [...displayRows.map((row) => row.period)].sort();
   const coverage = periods.length > 0 ? periodCoverage(periods[0], periods[periods.length - 1]) : null;
   const freshness = periods.length > 0 ? freshnessOf(periods[0]) : null;
@@ -225,24 +245,37 @@ function MeasureSection({ measure }: { measure: Measure }) {
           <h2 id={headingId} className="text-title font-semibold news-fg">{title}</h2>
           {coverage && (
             <span className="text-caption font-mono" style={{ color: freshnessLabelColor(freshness) }}>
-              {coverage.label}
+              {common ? 'Baltic comparison' : 'Available periods'} · {coverage.label}
             </span>
           )}
         </div>
 
-        <p className="text-ui news-subtle mt-2">{measure.context}</p>
+        <p className="public-briefing-question text-callout font-semibold news-fg mt-3">{measure.question}</p>
 
         {phase === 'ready' && !empty && (
           <>
-            <FreshnessNotice freshness={freshness} spans={coverage?.spans} className="mt-3" />
-            <p className="public-briefing-summary text-callout news-fg mt-4">{summary}</p>
-            {missing.length > 0 && (
-              <p className="text-caption news-subtle mt-2">
-                No reading available for {missing.map((code) => COUNTRY_NAMES[code]).join(' or ')} in the retrieved {YEARS}-year window.
+            {change && focusedReading ? (
+              <div className="public-briefing-focus-reading">
+                <p className="text-callout news-fg">{change.statement}</p>
+                {change.missingBasis && <p className="text-ui news-subtle mt-2">{change.missingBasis}</p>}
+                <FreshnessNotice freshness={freshnessOf(focusedReading.period)} className="mt-3" />
+              </div>
+            ) : (
+              <p className="text-ui news-subtle mt-3">
+                No planning reading is available for {COUNTRY_NAMES[country]} in this window.
               </p>
             )}
           </>
         )}
+        <dl className="public-briefing-planning text-ui">
+          <div><dt className="font-semibold news-fg">Why monitor</dt><dd className="news-muted">{measure.whyMonitor}</dd></div>
+          <div><dt className="font-semibold news-fg">Not established</dt><dd className="news-muted">{measure.context}</dd></div>
+          {focusedReading && (
+            <div><dt className="font-semibold news-fg">Next check</dt><dd className="news-muted">
+              {briefingNextCheck(focusedReading, unit, measure.nextCondition)}
+            </dd></div>
+          )}
+        </dl>
       </div>
 
       <div className="public-briefing-evidence">
@@ -250,6 +283,7 @@ function MeasureSection({ measure }: { measure: Measure }) {
           <div role="status" aria-busy="true" aria-label={`Loading ${title}`} className="public-briefing-loading space-y-2">
             <div className="h-4 news-skeleton rounded w-1/2 animate-pulse" />
             <div className="h-20 news-skeleton rounded animate-pulse" />
+            <p className="public-briefing-print-only text-ui">Loading {title}; observations are not included in this printout.</p>
           </div>
         )}
 
@@ -264,7 +298,7 @@ function MeasureSection({ measure }: { measure: Measure }) {
 
         {phase === 'ready' && empty && (
           <div role="status" className="mt-4">
-            <p className="text-ui news-subtle">No published reading is available for this measure in the last {YEARS} years.</p>
+            <p className="text-ui news-subtle">No published reading is available for this measure in the retrieved window.</p>
             <button type="button" className="news-link text-ui font-semibold" onClick={() => setAttempt((n) => n + 1)}>
               Retry
             </button>
@@ -273,6 +307,18 @@ function MeasureSection({ measure }: { measure: Measure }) {
 
         {phase === 'ready' && !empty && (
           <>
+            <p className="public-briefing-summary text-callout news-fg mb-3">{summary}</p>
+            {newerCountries.length > 0 && common && (
+              <p className="text-ui news-subtle mb-3">
+                The shared comparison is {formatPeriod(common.period)}. Newer own-country readings are available for{' '}
+                {newerCountries.map(row => COUNTRY_NAMES[row.code]).join(', ')}; the planning focus uses its own latest reading.
+              </p>
+            )}
+            {missing.length > 0 && (
+              <p className="text-caption news-subtle mb-3">
+                No reading available for {missing.map((code) => COUNTRY_NAMES[code]).join(' or ')} in the retrieved window.
+              </p>
+            )}
             <div className="overflow-x-auto" role="region" aria-label={`${title} by country`} tabIndex={0}>
               <table className="w-full border-collapse text-ui">
                 <caption className="text-caption news-subtle text-left mb-2">
@@ -339,6 +385,15 @@ function MeasureSection({ measure }: { measure: Measure }) {
               </p>
               <DownloadMenu data={exportData} className="public-briefing-download" />
             </div>
+            <p className="public-briefing-export-scope text-caption news-subtle mt-2">
+              CSV and JSON include all three countries and the full retrieved window, not just the displayed readings.
+            </p>
+            <p className="public-briefing-print-only text-caption">
+              Source table: {href ?? 'Dataset URL not supplied by the API.'}
+              {data?.fetchedAt
+                ? ` Retrieved from source: ${data.fetchedAt}.`
+                : ' Source retrieval time was not reported by the API.'}
+            </p>
           </>
         )}
       </div>
@@ -347,17 +402,59 @@ function MeasureSection({ measure }: { measure: Measure }) {
 }
 
 export function PublicBriefingSample() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
+  const selected = params.get('country')?.toUpperCase();
+  const country = COUNTRY_CODES.find(code => code === selected) ?? 'LV';
+  const [copyResult, setCopyResult] = useState<{ url: string; message: string } | null>(null);
+  const shareParams = new URLSearchParams(location.search);
+  shareParams.set('country', country);
+  const sharePath = `${location.pathname}?${shareParams}${location.hash}`;
+  const shareUrl = new URL(sharePath, window.location.origin).href;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyResult({ url: shareUrl, message: 'Briefing link copied. Readings may change when it is reopened.' });
+    } catch {
+      setCopyResult({ url: shareUrl, message: 'Copy is unavailable. Use the briefing link to copy its address.' });
+    }
+  }
+
   return (
     <div className="public-briefing-sample">
+      <div className="public-briefing-focus">
+        <div className="public-briefing-focus-controls">
+          <label htmlFor="briefing-focus-country" className="text-ui font-semibold news-fg">Planning focus</label>
+          <select id="briefing-focus-country" value={country} className="text-ui news-panel news-fg news-border border px-3 py-2"
+            onChange={event => {
+              const next = new URLSearchParams(location.search);
+              next.set('country', event.target.value);
+              navigate({ search: `?${next}`, hash: location.hash }, { preventScrollReset: true });
+            }}>
+            {COUNTRY_CODES.map(code => <option key={code} value={code}>{COUNTRY_NAMES[code]}</option>)}
+          </select>
+          <button type="button" className="briefing-print text-ui" onClick={copyLink}>Copy briefing link</button>
+          <a href={sharePath} className="news-link text-ui public-briefing-share-link">Briefing link <span aria-hidden="true">↗</span></a>
+        </div>
+        <p role="status" className="text-ui news-muted">{copyResult?.url === shareUrl ? copyResult.message : ''}</p>
+        <p className="text-ui news-subtle">
+          The focus uses each country’s own latest reading; the table keeps the Baltic comparison on a shared period when available.
+          {' '}Release dates are not supplied: next checks are conditions to revisit, not a delivery schedule.
+          {' '}A link retains the country and section, not a frozen snapshot. Print to keep this view.
+        </p>
+        <p className="public-briefing-print-only text-ui">Planning focus: {COUNTRY_NAMES[country]} · Briefing link: {shareUrl}</p>
+      </div>
       <nav className="public-briefing-contents text-ui" aria-label="Briefing contents">
         {MEASURES.map((measure) => (
-          <Link key={measure.id} to={`#briefing-${measure.id}`} className="news-link">
+          <Link key={measure.id} to={`${location.pathname}${location.search}#briefing-${measure.id}`} className="news-link">
             {measure.navigationLabel} <span aria-hidden="true">↓</span>
           </Link>
         ))}
       </nav>
       {MEASURES.map((measure) => (
-        <MeasureSection key={measure.id} measure={measure} />
+        <MeasureSection key={measure.id} measure={measure} country={country} />
       ))}
     </div>
   );

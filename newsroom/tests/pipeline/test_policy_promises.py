@@ -118,6 +118,8 @@ class TestTheRevisionPromise:
                     headline="h",
                     observed_at="2026-08-24T10:00:00Z",
                     published_at="2026-08-24T12:00:00Z",
+                    source_id="eurostat",
+                    dataset="une_rt_m",
                 )
             ]
         )
@@ -128,7 +130,10 @@ class TestTheRevisionPromise:
             unit="%",
             section="labour",
             observations=(Observation(period="2026-06", value=7.4),),
-            source=SourceRef(source_id="eurostat", retrieved_at="2026-09-24T10:00:00Z"),
+            source=SourceRef(
+                source_id="eurostat", retrieved_at="2026-09-24T10:00:00Z",
+                dataset="une_rt_m",
+            ),
         )
 
         description = find_revisions(ledger, [series])[0].description()
