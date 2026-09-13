@@ -9,14 +9,14 @@ from pathlib import Path
 from typing import Sequence
 
 from newsroom.pipeline.evidence.codec import json_bytes
-from newsroom.pipeline.evidence.store import DEFAULT_DIRECTORY, open_store, put_local
+from newsroom.pipeline.evidence.store import DEFAULT_DIRECTORY, EvidenceStore, open_store, put_local
 from newsroom.pipeline.evidence.workflow import EXPECTED_FAILURES, capture, compare, import_legacy, replay
 
 log = logging.getLogger(__name__)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Bounded Baltic evidence archive pilot (no publication or model calls)")
+    parser = argparse.ArgumentParser(description="Baltic evidence archive (no model calls)")
     parser.add_argument("--directory", type=Path, default=DEFAULT_DIRECTORY)
     parser.add_argument("--cloud", action="store_true", help="Use the existing private Blob container; no provisioning")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -32,11 +32,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     legacy = commands.add_parser("import-legacy", help="Import audited raw bytes and their original provenance")
     legacy.add_argument("raw_file", type=Path)
     legacy.add_argument("metadata_file", type=Path)
+    commands.add_parser("collect-only", help="Run the real unemployment collector and publish its checked evidence")
+    commands.add_parser("publish-audited", help="Publish only the approved legacy IDs from --directory")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     for name in ("azure", "httpx", "httpcore"):
         logging.getLogger(name).setLevel(logging.WARNING)
     try:
+        if args.command in ("collect-only", "publish-audited"):
+            from contextlib import nullcontext
+
+            from newsroom.pipeline.evidence.operations import collect_only, publish_audited
+            from newsroom.pipeline.evidence.production import EvidenceService, open_production
+
+            source = EvidenceStore(args.directory)
+            context = open_production(args.directory) if args.cloud else nullcontext(
+                EvidenceService(source, EvidenceStore(args.directory / "public")),
+            )
+            with context as evidence:
+                result = asyncio.run(collect_only(evidence)) if args.command == "collect-only" else publish_audited(evidence, source)
+            result["storage"] = "azure" if args.cloud else "local_preview"
+            log.info("%s", json_bytes(result).decode().rstrip())
+            return 1 if result.get("status") == "failed" else 0
         with open_store(args.directory, cloud=args.cloud) as store:
             if args.command == "capture":
                 result = asyncio.run(capture(store, previous=args.previous))

@@ -1,0 +1,51 @@
+.evidence-page { max-width: 76rem; margin: 0 auto; padding: var(--space-lg) var(--space-md) var(--space-3xl); }
+.evidence-page p { max-width: 72ch; }
+.evidence-page code, .evidence-checksum { overflow-wrap: anywhere; }
+.evidence-section { margin-top: var(--space-2xl); display: grid; gap: var(--space-md); }
+.evidence-health { display: grid; gap: var(--space-lg); padding-block: var(--space-lg); border-block: 1px solid var(--news-border); }
+.evidence-facts { display: grid; gap: var(--space-md); }
+.evidence-facts dt { color: var(--news-muted); }
+.evidence-facts dd { color: var(--news-fg); overflow-wrap: anywhere; margin-top: var(--space-2xs); }
+.evidence-section-heading { display: flex; gap: var(--space-lg); flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.evidence-control { display: grid; gap: var(--space-xs); color: var(--news-fg); }
+.evidence-control select { min-height: 44px; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--news-border); border-radius: var(--corner-control); background: var(--news-panel); color: var(--news-fg); max-width: 100%; }
+.evidence-captures { display: grid; }
+.evidence-captures li { display: grid; gap: var(--space-xs); padding-block: var(--space-md); border-bottom: 1px solid var(--news-border); }
+.evidence-capture-link { display: inline-flex; gap: var(--space-md); align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; }
+.evidence-counts, .evidence-table { font-variant-numeric: tabular-nums; }
+.evidence-actions { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+.evidence-page .site-action { justify-self: start; width: fit-content; min-height: 44px; }
+.evidence-page button:disabled { opacity: 0.45; cursor: not-allowed; }
+.evidence-page :is(a, button, select, summary):focus-visible { outline: 2px solid var(--news-accent); outline-offset: 4px; }
+.evidence-page :is(a, button, select, summary) { transition: color 100ms ease-out, background-color 100ms ease-out; }
+.evidence-page summary { min-height: 44px; padding-block: var(--space-sm); cursor: pointer; }
+.evidence-scroll { overflow-x: auto; border-block: 1px solid var(--news-border); }
+.evidence-scroll:focus-visible { outline: 2px solid var(--news-accent); outline-offset: 4px; }
+.evidence-table { width: 100%; border-collapse: collapse; text-align: left; color: var(--news-fg); }
+.evidence-table caption { text-align: left; padding-block: var(--space-sm); color: var(--news-muted); }
+.evidence-table th, .evidence-table td { padding: var(--space-sm); border-bottom: 1px solid var(--news-border); vertical-align: top; }
+.evidence-table th { font-weight: 600; }
+.evidence-table td:first-child { white-space: nowrap; }
+.evidence-table td { min-width: 7rem; }
+.evidence-downloads { display: grid; gap: var(--space-sm); }
+.evidence-downloads li { display: grid; gap: var(--space-xs); border-bottom: 1px solid var(--news-border); padding-bottom: var(--space-sm); }
+.evidence-checksum { color: var(--news-muted); }
+.evidence-notice { display: grid; justify-items: start; gap: var(--space-md); padding-block: var(--space-lg); }
+.evidence-loading { display: grid; gap: var(--space-md); padding-block: var(--space-xl); }
+.evidence-skeleton { height: 1.5rem; background: var(--news-panel-muted); animation: evidence-pulse 1.2s ease-in-out infinite alternate; }
+.evidence-skeleton:last-child { width: 60%; }
+@keyframes evidence-pulse { from { opacity: 0.5; } to { opacity: 1; } }
+@media (min-width: 768px) {
+  .evidence-page { padding: var(--space-xl) var(--space-xl) var(--space-3xl); }
+  .evidence-health { grid-template-columns: 1fr 1fr; }
+  .evidence-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .evidence-captures li { grid-template-columns: 1fr auto; align-items: center; gap: var(--space-lg); }
+  .evidence-downloads { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .evidence-page button:not(:disabled):hover, .evidence-page summary:hover { background: var(--news-panel-muted); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .evidence-skeleton { animation: none; }
+  .evidence-page :is(a, button, select, summary) { transition: none; }
+}

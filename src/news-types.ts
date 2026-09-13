@@ -74,6 +74,7 @@ export interface ProvenanceSource {
   dataset_version?: string;
   retrieved_at: string;
   url?: string;
+  evidence_snapshot_id?: string;
 }
 
 export interface ResearchSource {

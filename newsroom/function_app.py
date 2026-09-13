@@ -109,6 +109,31 @@ async def newsroom_edition(timer: func.TimerRequest) -> None:
     await _run_and_report("timer")
 
 
+@app.function_name(name="newsroom_evidence_collect")
+@app.route(route="evidence/collect", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
+async def newsroom_evidence_collect(req: func.HttpRequest) -> func.HttpResponse:
+    """Key-authenticated fixed-contract capture, without article generation."""
+    from newsroom.pipeline.evidence.operations import collect_only
+    from newsroom.pipeline.evidence.errors import EXPECTED_FAILURES
+    from newsroom.pipeline.evidence.production import PUBLIC_ERROR, enabled, open_production
+
+    if not enabled():
+        return func.HttpResponse(
+            json.dumps({"enabled": False, "status": "disabled"}), status_code=409, mimetype="application/json",
+        )
+    try:
+        with open_production() as evidence:
+            result = await collect_only(evidence)
+    except EXPECTED_FAILURES:
+        log.exception("archive-only operation failed")
+        return func.HttpResponse(
+            json.dumps({"status": "failed", "error": PUBLIC_ERROR}), status_code=503, mimetype="application/json",
+        )
+    return func.HttpResponse(
+        json.dumps(result), status_code=503 if result["status"] == "failed" else 200, mimetype="application/json",
+    )
+
+
 async def _wrap_and_report(trigger: str):
     """Run the weekly wrap and leave a record that it happened.
 

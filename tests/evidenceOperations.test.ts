@@ -75,6 +75,17 @@ describe('evidence health measures source capture, not changing monthly values',
     expect(() => evidenceObservation({ ...index(), last_success_at: time }, now)).toThrow(/retrieval time/);
   });
 
+  it.each(['2026-02-30T13:00:00Z', '2025-02-29T13:00:00Z', '2026-09-13T13:00:00', '2026-09-13T24:00:00Z'])(
+    'does not silently normalize impossible or unzoned timestamps: %s',
+    (time) => { expect(() => evidenceObservation({ ...index(), last_success_at: time }, now)).toThrow(/retrieval time/); },
+  );
+
+  it('accepts a real leap-day timestamp without changing its instant', () => {
+    const body = index();
+    body.last_success_at = '2024-02-29T13:00:00+02:00';
+    expect(evidenceObservation(body, now).at).toBe('2024-02-29T11:00:00.000Z');
+  });
+
   it('propagates an unreadable index as failure', async () => {
     vi.spyOn(es, 'httpJson').mockRejectedValue(new Error('HTTP 404 from the archive'));
     await expect(status.probe(check)).rejects.toThrow(/404/);

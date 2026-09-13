@@ -72,8 +72,18 @@ describe('deployed evidence preserves and serves the source behind real reportin
     });
     expect(binding.snapshot_id).toMatch(/^[a-f0-9]{32}$/);
     const bound = await (await response(`${BASE}/snapshots/${binding.snapshot_id}/manifest.json`)).json();
+    expect(bound.snapshot_id).toBe(binding.snapshot_id);
+    expect(bound.status).toBe('complete');
     expect(bound.provenance.retrieved_at).toBe(source.retrieved_at);
+    expect(bound.provenance.request_url).toBe(source.url);
     expect(bound.provenance.sha256).toBe(binding.raw_sha256);
+    const boundBase = `${BASE}/snapshots/${binding.snapshot_id}`;
+    const raw = new Uint8Array(await (await response(`${boundBase}/source.json`)).arrayBuffer());
+    expect(hash(raw)).toBe(binding.raw_sha256);
+    for (const filename of ['observations.csv', 'normalized.json', 'dictionary.json']) {
+      const bytes = new Uint8Array(await (await response(`${boundBase}/${filename}`)).arrayBuffer());
+      expect(hash(bytes), filename).toBe(bound.artifacts[filename].sha256);
+    }
   });
 
   it('reports recent successful source capture through the existing status endpoint', async () => {

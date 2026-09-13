@@ -78,6 +78,7 @@ export function DashboardNav({ active, country }: { active: DashboardSection | '
           {section.label}
         </Link>
       ))}
+      <Link to="/evidence">Evidence archive</Link>
     </nav>
   );
 }

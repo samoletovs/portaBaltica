@@ -15,6 +15,7 @@ written from stays available as the evidence behind them.
 | `/about/ai` | The AI-use policy |
 | `/corrections` | The public, append-only corrections log |
 | `/briefings` | Business briefing discovery pilot; enquiries stay closed until the contact channel is verified |
+| `/evidence`, `/evidence/:snapshotId` | Capture history and immutable source packs, with verified downloads and revision comparisons |
 | `/data`, `/data/:section` | The full indicator dashboard |
 | `/indicator/:id` | Indicator detail with the long series |
 | `/rss.xml`, `/sitemap.xml` | Feeds for our own articles |
@@ -117,14 +118,20 @@ npm run build
 deployed at [portabaltica.naurolabs.com](https://portabaltica.naurolabs.com).
 Source coverage and data reliability vary with upstream public APIs.
 
-## Evidence archive pilot
+## Evidence archive
 
-An opt-in CLI preserves and replays a precisely selected Baltic unemployment
-series, including missing observations, source flags and retrieval provenance.
-It can export a verified CSV/data dictionary and compare two observed versions.
-This is a local review pilot: no new production schedule, public endpoint,
-subscription or change to existing free exports. See
-[the pilot scope and commands](docs/evidence-archive-pilot.md).
+The archive preserves a precisely selected Baltic unemployment series, including
+missing observations, source flags and retrieval provenance. `/evidence` exposes
+capture history, checked downloads and revision comparisons. Eligible article
+sources link only to an exact matching original capture, never the nearest date.
+
+`NEWSROOM_EVIDENCE_ENABLED=true` enables capture of the existing collector's
+response on the existing newsroom schedule. It does not add a timer or model
+call. Checked public serving packs remain online in the articles container;
+other raw feeds remain private. Existing history and exports stay free.
+See [production design and operation](docs/design-evidence-production.md),
+[the original pilot](docs/evidence-archive-pilot.md), and
+[verified historical findings](docs/evidence-archive-results-2026-09-13.md).
 
 ## License
 

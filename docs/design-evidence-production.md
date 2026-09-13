@@ -146,3 +146,30 @@ An exact raw capture for the existing article
 Its exact URL and timestamp match the article source. Seed the audited response
 and binding to verify the real reader journey without editing or manufacturing
 an article.
+
+## Operator commands
+
+From the repository root with the existing non-secret `BLOB_ACCOUNT_URL`,
+`NEWSROOM_CONTAINER_RAW_FEEDS=raw-feeds` and
+`NEWSROOM_CONTAINER_ARTICLES=articles` settings in the process environment:
+
+```powershell
+python -m newsroom.pipeline.evidence --cloud publish-audited
+python -m newsroom.pipeline.evidence --cloud collect-only
+```
+
+The first command is restricted to the four explicitly approved local legacy
+snapshot IDs. It replays/hash-checks them before replication and public serving.
+The second exercises the real selected collector and returns its SourceRef,
+including the committed evidence ID. Neither invokes the model or changes the
+deployed feature flag. Without `--cloud`, these commands are local previews.
+
+On the deployed Function App, `POST /api/evidence/collect` is protected by
+function-key authentication and additionally refuses to run while the feature
+flag is disabled. Use only its function-specific key in an HTTP header, never
+the host master key, query strings, logs or committed files.
+
+Only the exact source tuple can mint a legacy binding. The source response may
+be the same bytes as another capture, but its original retrieval time still
+belongs to that capture. Never create a binding by copying a date or guessing
+which earlier blob probably backed an article.

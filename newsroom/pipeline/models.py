@@ -20,6 +20,7 @@ by which a number reaches an article without passing through here.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal, Mapping, Sequence
@@ -58,6 +59,14 @@ class SourceRef:
     dataset: str | None = None
     dataset_version: str | None = None
     url: str | None = None
+    evidence_snapshot_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.evidence_snapshot_id is not None and (
+            not isinstance(self.evidence_snapshot_id, str)
+            or not re.fullmatch(r"[a-f0-9]{32}", self.evidence_snapshot_id)
+        ):
+            raise ValueError("invalid evidence snapshot identifier")
 
     def to_json(self) -> dict[str, Any]:
         out: dict[str, Any] = {"source_id": self.source_id, "retrieved_at": self.retrieved_at}
@@ -67,6 +76,8 @@ class SourceRef:
             out["dataset_version"] = self.dataset_version
         if self.url:
             out["url"] = self.url
+        if self.evidence_snapshot_id:
+            out["evidence_snapshot_id"] = self.evidence_snapshot_id
         return out
 
 

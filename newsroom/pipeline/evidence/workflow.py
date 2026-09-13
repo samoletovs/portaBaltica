@@ -12,18 +12,17 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
-from azure.core.exceptions import AzureError
 
 from newsroom.pipeline.collect.httpclient import CollectorHttp, ConditionalState
 from newsroom.pipeline.evidence.codec import (
     FORMAT_VERSION, MAX_RAW_BYTES, compare_rows, csv_bytes, dictionary_bytes, digest, json_bytes, normalize,
 )
+from newsroom.pipeline.evidence.errors import EXPECTED_FAILURES
 from newsroom.pipeline.evidence.selection import SERIES_ID, capture_url, validate_source_url
 from newsroom.pipeline.evidence.store import EvidenceStore, put_local
 from newsroom.pipeline.models import RawItem, isoformat, utcnow
 
 log = logging.getLogger(__name__)
-EXPECTED_FAILURES = (OSError, ValueError, httpx.HTTPError, AzureError)
 
 
 def _timestamp(value: Any) -> datetime:
@@ -74,10 +73,13 @@ def _snapshot_key(snapshot_id: str, name: str) -> str:
 
 def commit_snapshot(
     store: EvidenceStore, item: RawItem, *, origin: dict[str, Any] | None = None,
+    snapshot_id: str | None = None,
 ) -> dict[str, Any]:
     provenance = _provenance(item)
     normalized = normalize(item.body)
-    snapshot_id = uuid4().hex
+    stable = snapshot_id is not None
+    snapshot_id = snapshot_id or uuid4().hex
+    _snapshot_key(snapshot_id, "manifest.json")
     raw_name = "raw/" + item.archive_name
     if store.read(raw_name) != item.body:
         raise ValueError("stored raw response differs from the captured bytes")
@@ -94,7 +96,7 @@ def commit_snapshot(
     manifest = {
         "format_version": FORMAT_VERSION, "series_id": SERIES_ID,
         "snapshot_id": snapshot_id, "status": "complete",
-        "created_at": isoformat(utcnow()), "provenance": provenance,
+        "created_at": item.retrieved_at if stable else isoformat(utcnow()), "provenance": provenance,
         "origin": origin or {"kind": "live_capture"}, "artifacts": hashes,
         "row_count": len(normalized["rows"]),
         "missing_count": sum(row["missing"] for row in normalized["rows"]),

@@ -77,6 +77,9 @@ class ConditionalState:
         last_modified: str | None,
         archive_name: str | None,
         retrieved_at: str | None = None,
+        request_url: str | None = None,
+        http_status: int | None = None,
+        content_type: str | None = None,
     ) -> None:
         entry = dict(self._data.get(url, {}))
         entry["fetched_at"] = isoformat(utcnow())
@@ -93,6 +96,12 @@ class ConditionalState:
             # the bytes now in the archive were served, and must not move when
             # the server tells us they are still current.
             entry["retrieved_at"] = retrieved_at
+        if request_url:
+            entry["request_url"] = request_url
+        if http_status is not None:
+            entry["http_status"] = http_status
+        if content_type is not None:
+            entry["content_type"] = content_type
         self._data[url] = entry
 
     def flush(self) -> None:
@@ -238,6 +247,9 @@ class CollectorHttp:
             last_modified=item.last_modified,
             archive_name=item.archive_name,
             retrieved_at=item.retrieved_at,
+            request_url=item.url,
+            http_status=item.http_status,
+            content_type=item.content_type,
         )
         return FetchResult(source_id, url, item)
 
@@ -275,10 +287,11 @@ class CollectorHttp:
             return None
         return RawItem(
             source_id=source_id,
-            url=url,
+            url=state.get("request_url") or url,
             retrieved_at=retrieved_at,
-            content_type="application/octet-stream",
+            content_type=state.get("content_type") or "application/octet-stream",
             body=body,
+            http_status=state.get("http_status", 200),
             from_cache=True,
             etag=state.get("etag"),
             last_modified=state.get("last_modified"),

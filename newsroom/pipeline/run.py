@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from typing import Callable, Sequence
 
@@ -42,7 +43,9 @@ from newsroom.pipeline.desk import DeskOutcome, Finding, run_desk
 from newsroom.pipeline import house_style
 from newsroom.pipeline.hypothesis import HypothesisPanel, consult_panel
 from newsroom.pipeline.detect.series import TimeSeries
-from newsroom.pipeline.models import Article, FeedItem, Signal
+from newsroom.pipeline.evidence.production import EvidenceService, PUBLIC_ERROR, enabled as evidence_enabled, open_production
+from newsroom.pipeline.evidence.errors import EXPECTED_FAILURES
+from newsroom.pipeline.models import Article, FeedItem, Signal, isoformat, utcnow
 from newsroom.pipeline.editor import EditorOutcome, edit_syndicated_articles
 from newsroom.pipeline.publish import ArticleStore, is_servable
 from newsroom.pipeline.rank import RankingReport, rank
@@ -116,6 +119,7 @@ class RunReport:
     #: revision is the system working, not the system failing.
     corrections: list[Revision] = field(default_factory=list)
     publication_ids: set[str] | None = None
+    evidence: dict = field(default_factory=lambda: {"enabled": False, "status": "disabled"})
 
     @property
     def published(self) -> list[Article]:
@@ -317,6 +321,7 @@ async def run_once(
     http: CollectorHttp | None = None,
     include_syndication: bool = True,
     max_articles: int | None = None,
+    evidence: EvidenceService | None = None,
 ) -> RunReport:
     report = RunReport()
     archive = archive or RawArchive()
@@ -330,7 +335,28 @@ async def run_once(
     try:
         # --- 1. collect --------------------------------------------------
         try:
-            report.series = await collect_open_data(client)
+            with ExitStack() as resources:
+                if evidence is None and evidence_enabled():
+                    try:
+                        evidence = resources.enter_context(open_production())
+                    except EXPECTED_FAILURES:
+                        log.exception("production evidence storage could not be opened")
+                        now = isoformat(utcnow())
+                        report.evidence = {
+                            "enabled": True, "status": "failed", "stale_after_hours": 26,
+                            "last_attempt": {
+                                "attempted_at": now, "finished_at": now, "status": "failed", "error": PUBLIC_ERROR,
+                            },
+                        }
+                try:
+                    report.series = await collect_open_data(client, evidence=evidence) if evidence is not None else await collect_open_data(client)
+                finally:
+                    if evidence is not None:
+                        if not evidence.outcomes:
+                            await asyncio.to_thread(evidence.record_failure)
+                        report.evidence = evidence.report()
+                if report.evidence["status"] == "failed":
+                    report.errors.append(PUBLIC_ERROR)
         except Exception as exc:  # noqa: BLE001
             log.exception("open-data collection failed")
             report.errors.append(f"collect_open_data: {exc}")
