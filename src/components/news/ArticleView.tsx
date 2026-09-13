@@ -13,6 +13,7 @@ import { resolveChartRef } from '../../newsroom/chart-ref';
 import { soleCountry } from '../../newsroom/article-country';
 import { FormatBadge } from './FormatBadge';
 import { TierBadge } from './TierBadge';
+import { FeedbackForm } from '../FeedbackForm';
 import { StoryEvidenceGraphic } from './StoryEvidenceGraphic';
 import { storyEvidence } from '../../newsroom/story-evidence';
 import { ArticleEvidenceRail } from './ArticleEvidenceRail';
@@ -126,6 +127,7 @@ function Retracted({ article }: { article: Article }) {
             ))}
         </div>
       </section>
+      <FeedbackForm slug={article.slug} />
     </div>
   );
 }
@@ -283,6 +285,7 @@ export function ArticleView({ article }: { article: Article }) {
             publishedAt={article.published_at}
           />
         )}
+        <FeedbackForm slug={article.slug} />
       </div>
     );
   }
@@ -439,6 +442,9 @@ export function ArticleView({ article }: { article: Article }) {
 
       <div id="article-evidence" className="folio-story-evidence" tabIndex={-1}>
         <ProvenanceBlock provenance={article.provenance} article={article} />
+      </div>
+      <div className="mx-auto max-w-measure">
+        <FeedbackForm key={article.slug} slug={article.slug} />
       </div>
     </article>
   );

@@ -48,6 +48,13 @@ log = logging.getLogger(__name__)
 
 app = func.FunctionApp()
 
+@app.function_name(name="article_feedback")
+@app.route(route="article-feedback", auth_level=func.AuthLevel.ANONYMOUS, methods=["POST"])
+async def article_feedback(req: func.HttpRequest) -> func.HttpResponse:
+    from newsroom.feedback import handle_feedback
+
+    return await handle_feedback(req)
+
 
 async def _run_and_report(trigger: str):
     """Run one edition and leave a record that it happened.
