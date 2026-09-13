@@ -251,7 +251,20 @@ describe('the API docs page states numbers that are true', () => {
   const PERIOD_EXPLANATIONS: string[] = [];
   // Publication evidence, explicitly not a full series. FrozenEvidence offers
   // its own JSON record export rather than the current-series DownloadMenu.
-  const RECORDED_COMPARISONS = ['FrozenEvidence.tsx', 'StoryEvidenceGraphic.tsx'];
+  const RECORDED_COMPARISONS = [
+    'FrozenEvidence.tsx', 'StoryEvidenceGraphic.tsx',
+    'EvidenceObservations.tsx', 'EvidencePage.tsx', 'EvidenceRevisions.tsx',
+  ];
+
+  it('keeps frozen archive tables beside their checksum-verified export controls', () => {
+    const page = readFileSync(resolve('src/components/news/EvidencePage.tsx'), 'utf8');
+    expect(page).toMatch(/<EvidenceObservations\b/);
+    expect(page).toMatch(/<EvidenceRevisions\b/);
+    expect(page).toMatch(/<EvidenceDownloads\b/);
+    const downloads = readFileSync(resolve('src/components/news/EvidenceDownloads.tsx'), 'utf8');
+    expect(downloads).toContain('observations.csv');
+    expect(downloads).toContain('normalized.json');
+  });
 
   it('backs "export on every series" with an export on every series', () => {
     // The Free tier sells "CSV and JSON export on every series". #187 shipped

@@ -72,13 +72,15 @@ export function DashboardNav({ active, country }: { active: DashboardSection | '
     return () => observer?.disconnect();
   }, [active, ref]);
   return (
+    <>
     <nav ref={ref} className={`dashboard-sector-nav text-ui ${fade}`} aria-label="Dashboard sectors">
       {SECTIONS.filter(section => section.id !== 'news').map(section => (
         <Link key={section.id} to={`${section.path}?country=${country}`} aria-current={active === section.id ? 'page' : undefined}>
           {section.label}
         </Link>
       ))}
-      <Link to="/evidence">Evidence archive</Link>
     </nav>
+    <Link className="site-action text-ui" to="/evidence">Evidence archive</Link>
+    </>
   );
 }

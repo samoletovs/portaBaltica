@@ -1,7 +1,7 @@
 import { createHash, webcrypto } from 'node:crypto';
 import { Blob as NodeBlob } from 'node:buffer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
   evidenceBindingKey, evidenceFileUrl, evidenceHealth, fetchEvidencePack, resolveEvidenceSource,
@@ -20,6 +20,19 @@ import { DashboardNav } from '../src/components/Header';
 import { tierAArticle } from './fixtures/articles';
 
 const ID = 'a'.repeat(32);
+
+async function eventually<T>(read: () => T): Promise<T> {
+  let failure: unknown;
+  for (let turn = 0; turn < 200; turn += 1) {
+    try {
+      return read();
+    } catch (error) {
+      failure = error;
+    }
+    await act(async () => { await new Promise<void>(resolve => setImmediate(resolve)); });
+  }
+  throw failure;
+}
 const BEFORE = 'b'.repeat(32);
 const RETRIEVED = '2026-09-13T10:00:00Z';
 const URL = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_m?geo=EE&geo=LV&geo=LT&freq=M&s_adj=SA&age=TOTAL&sex=T&unit=PC_ACT';
@@ -291,7 +304,7 @@ describe('exact article binding', () => {
   it('does not fall back to the latest or nearest capture on a missing binding', async () => {
     responses.set('/articles/evidence/v1/index.json', JSON.stringify(index()));
     render(<MemoryRouter><EvidenceSourceLink source={source} /></MemoryRouter>);
-    expect(await screen.findByText('No exact frozen source match is published.')).toBeTruthy();
+    expect(await eventually(() => screen.getByText('No exact frozen source match is published.'))).toBeTruthy();
     expect(screen.queryByRole('link', { name: 'Open exact frozen source' })).toBeNull();
     expect(request).toHaveBeenCalledTimes(1);
   });
@@ -299,7 +312,7 @@ describe('exact article binding', () => {
   it('renders only the verified exact link and never changes source identity', async () => {
     binding();
     render(<MemoryRouter><EvidenceSourceLink source={source} /></MemoryRouter>);
-    const link = await screen.findByRole('link', { name: 'Open exact frozen source' });
+    const link = await eventually(() => screen.getByRole('link', { name: 'Open exact frozen source' }));
     expect(link.getAttribute('href')).toBe(`/evidence/${ID}`);
     expect(source.url).toBe(URL);
   });
@@ -320,7 +333,7 @@ describe('exact article binding', () => {
     const disclosure = screen.getByText('Where this came from').closest('summary');
     if (!disclosure) throw new Error('Missing source disclosure');
     fireEvent.click(disclosure);
-    expect((await screen.findByRole('link', { name: 'Open exact frozen source' })).getAttribute('href')).toBe(`/evidence/${ID}`);
+    expect((await eventually(() => screen.getByRole('link', { name: 'Open exact frozen source' }))).getAttribute('href')).toBe(`/evidence/${ID}`);
     expect(screen.getAllByRole('table')).toHaveLength(1);
     const table = screen.getByRole('table', { name: /Frozen observations/ });
     expect(within(table).getByText('7.31234')).toBeTruthy();
@@ -333,7 +346,7 @@ describe('archive reader behaviour', () => {
   it('keeps observation, retrieval and import dates distinct, including missing and flags', async () => {
     pack();
     showPage();
-    expect(await screen.findByText('Observation and capture dates')).toBeTruthy();
+    expect(await eventually(() => screen.getByText('Observation and capture dates'))).toBeTruthy();
     expect(screen.getByText('2026-06 to 2026-07')).toBeTruthy();
     expect(screen.getByText('Source retrieved').nextElementSibling?.textContent).toContain('10:00');
     expect(screen.getByText('Archive pack created').nextElementSibling?.textContent).toContain('12:00');
@@ -356,7 +369,7 @@ describe('archive reader behaviour', () => {
     })));
     pack(normalized);
     showPage();
-    const table = await screen.findByRole('table', { name: /Latvia/ });
+    const table = await eventually(() => screen.getByRole('table', { name: /Latvia/ }));
     expect(within(table).getAllByRole('row')).toHaveLength(13);
     fireEvent.click(screen.getByRole('button', { name: 'Show all 24 months' }));
     expect(within(table).getAllByRole('row')).toHaveLength(25);
@@ -366,7 +379,7 @@ describe('archive reader behaviour', () => {
   it('separates actual revisions, flag changes, missing values, new months and newly included history', async () => {
     comparisonPack();
     showPage();
-    const selector = await screen.findByLabelText('Change category');
+    const selector = await eventually(() => screen.getByLabelText('Change category'));
     expect(screen.getByRole('option', { name: 'Revised reading (1)' })).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Flag change (1)' })).toBeTruthy();
     expect(screen.getByRole('option', { name: 'Missing value filled (1)' })).toBeTruthy();
@@ -395,12 +408,12 @@ describe('archive reader behaviour', () => {
     const old = Array.from({ length: 25 }, (_, n) => summary(n.toString(16).padStart(32, '0'), `2025-01-01T10:${String(n).padStart(2, '0')}:00Z`));
     responses.set('/articles/evidence/v1/months/2025-01.json', JSON.stringify({ version: 1, month: '2025-01', snapshots: old }));
     showPage('/evidence');
-    const selector = await screen.findByLabelText('Retrieval month');
+    const selector = await eventually(() => screen.getByLabelText('Retrieval month'));
     fireEvent.change(selector, { target: { value: '2025-01' } });
-    const older = await screen.findByRole('button', { name: 'Older captures' });
+    const older = await eventually(() => screen.getByRole('button', { name: 'Older captures' }));
     fireEvent.click(older);
     fireEvent.click(older);
-    await waitFor(() => expect(screen.getByRole('link', { name: /Retrieved 1 Jan 2025, 10:00 UTC/ }).getAttribute('href')).toBe(`/evidence/${'0'.repeat(32)}`));
+    await eventually(() => expect(screen.getByRole('link', { name: /Retrieved 1 Jan 2025, 10:00 UTC/ }).getAttribute('href')).toBe(`/evidence/${'0'.repeat(32)}`));
     expect(older.hasAttribute('disabled')).toBe(true);
   });
 
@@ -440,7 +453,7 @@ describe('archive reader behaviour', () => {
   it('keeps frozen detail metadata aligned with the shared non-indexable page policy', async () => {
     pack();
     showPage();
-    await screen.findByRole('heading', { name: 'Observation and capture dates' });
+    await eventually(() => screen.getByRole('heading', { name: 'Observation and capture dates' }));
     expect(document.title).toBe('Frozen evidence | portaBaltica');
     expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, nofollow');
     expect(document.head.querySelector('meta[name="description"]')?.getAttribute('content')).toBe(
@@ -452,12 +465,12 @@ describe('archive reader behaviour', () => {
   it('presents verified download addresses and verifies raw, CSV and dictionary bytes on demand', async () => {
     pack();
     showPage();
-    const download = await screen.findByRole('link', { name: 'Download original source JSON' });
+    const download = await eventually(() => screen.getByRole('link', { name: 'Download original source JSON' }));
     expect(download.getAttribute('href')).toBe(path('source.json'));
     expect(download.hasAttribute('download')).toBe(true);
     expect(screen.getByRole('link', { name: 'Download data dictionary' }).getAttribute('href')).toBe(path('dictionary.json'));
     fireEvent.click(screen.getByRole('button', { name: 'Verify all downloads' }));
-    expect(await screen.findByText(/Source, CSV and dictionary bytes match/)).toBeTruthy();
+    expect(await eventually(() => screen.getByText(/Source, CSV and dictionary bytes match/))).toBeTruthy();
     expect(request.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([path('source.json'), path('observations.csv'), path('dictionary.json')]));
   });
 
@@ -474,8 +487,8 @@ describe('archive reader behaviour', () => {
     const clicked: string[] = [];
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicked.push(this.download); });
     showPage();
-    fireEvent.click(await screen.findByRole('link', { name: 'Download original source JSON' }));
-    expect(await screen.findByText('Checksum matched. Download started.')).toBeTruthy();
+    fireEvent.click(await eventually(() => screen.getByRole('link', { name: 'Download original source JSON' })));
+    expect(await eventually(() => screen.getByText('Checksum matched. Download started.'))).toBeTruthy();
     expect(await saved[0].text()).toBe(responses.get(path('source.json')));
     expect(clicked).toEqual([`portabaltica-${ID}-source.json`]);
   });
@@ -485,8 +498,8 @@ describe('archive reader behaviour', () => {
     responses.set(path('source.json'), '{"tampered":true}');
     const create = vi.spyOn(globalThis.URL, 'createObjectURL');
     showPage();
-    fireEvent.click(await screen.findByRole('link', { name: 'Download original source JSON' }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('Download withheld'));
+    fireEvent.click(await eventually(() => screen.getByRole('link', { name: 'Download original source JSON' })));
+    expect(await eventually(() => screen.getByRole('alert'))).toHaveProperty('textContent', expect.stringContaining('Download withheld'));
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -494,8 +507,8 @@ describe('archive reader behaviour', () => {
     pack();
     responses.set(path('source.json'), '{"changed":true}');
     showPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Verify all downloads' }));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', expect.stringContaining('Downloads could not all be verified'));
+    fireEvent.click(await eventually(() => screen.getByRole('button', { name: 'Verify all downloads' })));
+    expect(await eventually(() => screen.getByRole('alert'))).toHaveProperty('textContent', expect.stringContaining('Downloads could not all be verified'));
     expect(screen.queryByText(/Source, CSV and dictionary bytes match/)).toBeNull();
   });
 
@@ -505,7 +518,7 @@ describe('archive reader behaviour', () => {
   ])('offers recovery for HTTP $status without displaying observations', async ({ status, heading }) => {
     responses.set(path('manifest.json'), status);
     showPage();
-    expect(await screen.findByRole('heading', { name: heading })).toBeTruthy();
+    expect(await eventually(() => screen.getByRole('heading', { name: heading }))).toBeTruthy();
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
     expect(screen.getByRole('link', { name: '← Browse capture history' }).getAttribute('href')).toBe('/evidence');
@@ -515,7 +528,7 @@ describe('archive reader behaviour', () => {
     pack();
     responses.set(path('normalized.json'), '{}');
     showPage();
-    expect(await screen.findByRole('heading', { name: 'Evidence could not be verified' })).toBeTruthy();
+    expect(await eventually(() => screen.getByRole('heading', { name: 'Evidence could not be verified' }))).toBeTruthy();
     expect(screen.queryByRole('table')).toBeNull();
   });
 
@@ -529,6 +542,7 @@ describe('archive reader behaviour', () => {
   it('makes the archive discoverable from the existing data navigation', () => {
     render(<MemoryRouter><DashboardNav active="all" country="LV" /></MemoryRouter>);
     const navigation = screen.getByRole('navigation', { name: 'Dashboard sectors' });
-    expect(within(navigation).getByRole('link', { name: 'Evidence archive' }).getAttribute('href')).toBe('/evidence');
+    expect(screen.getByRole('link', { name: 'Evidence archive' }).getAttribute('href')).toBe('/evidence');
+    expect(within(navigation).queryByRole('link', { name: 'Evidence archive' })).toBeNull();
   });
 });
