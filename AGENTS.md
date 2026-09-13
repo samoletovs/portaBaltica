@@ -12,6 +12,11 @@ discovery page; its enquiry form is disabled unless
 mail and branded replies before enabling it. Never record the private
 forwarding destination in this repository.
 
+The opt-in [evidence archive pilot](docs/evidence-archive-pilot.md) lives in
+`newsroom/pipeline/evidence/`. It is a separate CLI, not a publication stage.
+Keep `.newsroom-evidence/` artifacts out of git; never imply that a local capture
+enabled ongoing production collection. Existing public history and exports stay free.
+
 ## Tech stack
 
 - **Frontend:** React 19, TypeScript 5.9, Tailwind CSS 4.2, Vite 8

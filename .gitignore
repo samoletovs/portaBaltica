@@ -61,6 +61,7 @@ venv/
 # Local pipeline output (blob stand-in for local runs)
 .newsroom-articles/
 .newsroom-archive/
+.newsroom-evidence/
 
 # Agent and reviewer scratch.
 #
@@ -93,4 +94,3 @@ scratch-*
 # can be eyeballed against production data, which is a desk convenience rather
 # than a repository artefact.
 vite.preview-check.ts
-

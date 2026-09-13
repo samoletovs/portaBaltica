@@ -117,6 +117,15 @@ npm run build
 deployed at [portabaltica.naurolabs.com](https://portabaltica.naurolabs.com).
 Source coverage and data reliability vary with upstream public APIs.
 
+## Evidence archive pilot
+
+An opt-in CLI preserves and replays a precisely selected Baltic unemployment
+series, including missing observations, source flags and retrieval provenance.
+It can export a verified CSV/data dictionary and compare two observed versions.
+This is a local review pilot: no new production schedule, public endpoint,
+subscription or change to existing free exports. See
+[the pilot scope and commands](docs/evidence-archive-pilot.md).
+
 ## License
 
 MIT
