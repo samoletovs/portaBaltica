@@ -6,6 +6,9 @@ An opt-in, command-line proof inside portaBaltica, not a paid service or a new
 public API. Production collection, article publication, schedules and infrastructure
 are unchanged. No model calls, new dependencies or paid services are required.
 
+See the [verified pilot results](evidence-archive-results-2026-09-13.md) for real
+capture coverage, replay hashes and revisions recovered from the existing archive.
+
 The first selection is Eurostat `une_rt_m`: monthly (`M`), seasonally adjusted
 (`SA`) unemployment, total age (`TOTAL`) and sex (`T`), percent of active population
 (`PC_ACT`), for EE, LV and LT, with observation periods from January 2020.

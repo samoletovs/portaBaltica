@@ -55,6 +55,67 @@ Replay does not contact Eurostat. Unit tests forbid network access during replay
 and compare the CSV against separately constructed expected bytes, rather than
 merely asserting that the implementation agrees with itself.
 
+## Existing archive: genuine revisions recovered
+
+A bounded read-only audit inspected **246 Blob metadata entries** across three
+dates and downloaded only **three matching raw responses**. Their full SHA-256
+hashes matched the original archive metadata. No source data, permissions,
+credentials or lifecycle settings were changed.
+
+The first SDK download failed to invoke the Azure CLI; this was not an observed
+authorization denial. A normal direct invocation of the already installed Azure
+CLI, using the same signed-in account, recovered the three named blobs without
+another listing or a sign-in/account change. Both the initial failure and successful
+recovery remain recorded in local audit artifacts.
+
+| Original capture (UTC) | Imported snapshot | Selected coordinates | Original raw SHA-256 |
+|------------------------|-------------------|----------------------|---------------------|
+| 2026-08-30 14:00:02 | `85e48db98f634d12af47a7324b1cd4dd` | 180 | `45010b8155cea48d66c67ca211727779f728b79b4cdb02923729593007758694` |
+| 2026-09-05 14:00:02 | `811c9fbc583e42cebf24e477b8519ecf` | 240 | `c5bcf72f8d1f9bd63a31446fa15726ff1b886cb37578620e334f4b04c1842ab4` |
+| 2026-09-12 14:00:04 | `5d0a588eac784e0ea34a703f32bc4220` | 240 | `c5bcf72f8d1f9bd63a31446fa15726ff1b886cb37578620e334f4b04c1842ab4` |
+
+The imports retain those original retrieval times; September 13 is recorded
+separately as import/audit time. These are recovered real captures, not fabricated
+historical vintages.
+
+**August 30 versus September 5: 64 numeric changes at matched country/month
+coordinates.** The pilot comparison independently reproduced the audit's result:
+
+| Country | Changed existing readings | June 2026 reading in August capture | June 2026 reading in September capture |
+|---------|---------------------------|-------------------------------------|---------------------------------------|
+| Estonia | 49 | 6.6% | 6.9% |
+| Latvia | 12 | 6.8% | 7.1% |
+| Lithuania | 3 | 6.9% | 6.2% |
+
+These examples are the same dataset, age, sex, seasonal-adjustment and unit
+coordinates. We observed the source responses changing between captures; this
+does not establish the exact time or reason for an official revision.
+
+Three July readings changed from missing to available. There were **no flag
+changes**. Sixty newly returned coordinates were kept separate from the 64 numeric
+revisions: 57 came from expanding the earlier 60-month request window back to
+January 2020, and three were the new, still-missing August coordinates. They are
+not sixty newly published readings.
+
+September 5 and September 12 are byte-identical. Their normalized Baltic values
+also match the new September 13 captures, despite the historical raw response
+including older periods and the EU aggregate.
+
+Review files:
+
+- `.newsroom-evidence/revision-review.zip`: replay-verified August and September
+  packs, full comparison JSON, and a 64-row numeric-change CSV for review.
+- `.newsroom-evidence/historical-comparison.json`: verified August-to-September diff.
+- `.newsroom-evidence/september-comparison.json`: verified unchanged September pair.
+- `.newsroom-evidence/legacy-audit/audit-semantic-provenance.json`: exact Blob
+  references, request URLs, hashes, original timestamps and bounded audit findings.
+- `.newsroom-evidence/legacy-audit/payloads/`: three unchanged source responses and
+  their original-provenance sidecars.
+
+This is sample evidence, not a claim of complete historical coverage. The earlier
+capture's observation window begins in August 2021, and only three archive dates
+were audited.
+
 ## Verification and review
 
 The targeted command:
@@ -71,6 +132,7 @@ An independent reviewer and independently authored tests found that the initial
 normalizer rejected an entirely missing country's observations. The fix preserves
 those coordinates and flags, validating coordinate presence separately from numeric
 availability. This is material: a withdrawn reading is itself evidence worth retaining.
+The independent reviewer rechecked the fix and confirmed the finding resolved.
 
 Tests cover sparse and dense reordered cubes, zero versus missing, flags,
 sub-threshold numeric changes, new versus removed periods, tampered artifacts,
@@ -81,7 +143,8 @@ stage. Failed captures leave a failed attempt instead of an unchanged-data relea
 ## Commercial interpretation
 
 The prototype demonstrates reproducible evidence, not willingness to pay.
-No genuine source revision has yet been demonstrated by the two new captures.
+The recovered captures demonstrate genuine differences in earlier source readings,
+whereas the same-day captures demonstrate correct unchanged-data handling.
 An original historical snapshot must retain its original provenance; today's
 historical observations cannot be relabelled as observations captured years ago.
 
