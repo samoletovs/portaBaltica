@@ -91,7 +91,9 @@ export function ApiDocsPage() {
         </p>
         <div className="flex flex-wrap gap-2 mb-12">
           {INDICATORS.map((ind) => (
-            <Link key={ind} to={`/indicator/${ind}`} className="inline-flex min-h-11 min-w-11 items-center justify-center text-caption font-mono px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}>
+            <Link key={ind} to={ind === 'tourist_arrivals' ? '/api/historical-data?indicator=tourist_arrivals' : `/indicator/${ind}`}
+              reloadDocument={ind === 'tourist_arrivals'}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-caption font-mono px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}>
               {ind}
             </Link>
           ))}

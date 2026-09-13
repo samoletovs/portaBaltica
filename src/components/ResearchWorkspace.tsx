@@ -213,13 +213,16 @@ function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegis
           <div><dt>Retrieved by API</dt><dd>{data?.fetchedAt ? <time dateTime={data.fetchedAt}>{data.fetchedAt}</time> : 'Not reported'}</dd></div>
         </dl>
         <p className="text-caption lab-muted">Official statistics follow their own publication calendars. The retrieval time is not the observation period.</p>
+        {entry.id === 'tourism' && <p className="text-ui lab-muted">Guest nights in tourist accommodation, including domestic and foreign visitors. This counts nights stayed, not accommodation check-ins or unique people.</p>}
         {data?.assumptions && data.assumptions.length > 0 && <p className="text-ui dash-warning">Source selection includes assumptions: {data.assumptions.map(assumption => `${assumption.dimension}: ${assumption.chosen}`).join('; ')}.</p>}
         <a className="lab-link text-ui" href={`/api/baltic-compare?indicator=${encodeURIComponent(entry.id)}&years=${years}`} target="_blank" rel="noopener noreferrer">View the API response ↗</a>
       </details>
       {nationalId && (
         <details className="lab-definition" onToggle={event => setNationalOpen(event.currentTarget.open)}>
           <summary className="text-ui font-semibold">National source series</summary>
-          <p className="text-ui lab-muted">The existing national-data view, with its own source and definition. National and harmonised series may use different bases.</p>
+          <p className="text-ui lab-muted">{nationalId === 'tourist_arrivals'
+            ? 'This separate Latvian series counts accommodation arrivals, not nights. It is a different measure from the overnight-stays comparison above.'
+            : 'The existing national-data view, with its own source and definition. National and harmonised series may use different bases.'}</p>
           {nationalOpen && <Suspense fallback={<LoadingIndicator />}><NationalChart id={nationalId} /></Suspense>}
         </details>
       )}
@@ -300,6 +303,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
         className="lab-header"
         title={indicatorId ? selected?.title ?? 'Indicator' : 'Data explorer'}
         lead={indicatorId ? 'One measure, in depth. Inspect its periods, definitions and source values.' : 'Choose a measure. Compare the Baltics. Follow the evidence.'}
+        description={indicatorId === 'tourist_arrivals' ? 'This older tourism link opens the Baltic overnight-stays comparison. The separate Latvian arrivals series remains available under National source series.' : undefined}
         backLink={indicatorId && <Link className="lab-link text-ui" to={`/explore?indicator=${encodeURIComponent(selected?.id ?? indicatorId)}&country=${country}`}>← Data explorer</Link>}
       />
       <DataControls />

@@ -9,7 +9,7 @@
  *
  * The scale ranges below were taken live from Eurostat over a five-year
  * window on 389d1f9. The component tests use source-confirmed June 2026
- * arrivals and deliberately vary the benchmark to exercise the scale gate.
+ * overnight stays and deliberately vary the benchmark to exercise the scale gate.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -32,8 +32,7 @@ const RUINED = {
   // The three charts in the bug report, and the two orders of magnitude that
   // made them useless. Retention measured at 0.002, 0.002 and 0.006.
   tourism_foreign: { baltic: [17_200, 530_523], eu: [5_556_793, 240_360_724] },
-  // The old tourism definition read nights, not arrivals. Keep the historical
-  // scale measurement, but do not label it as the corrected arrivals series.
+  // A historical overnight-stays scale, distinct from the June fixture below.
   accommodation_nights_snapshot: { baltic: [79_289, 1_220_439], eu: [29_668_841, 511_537_058] },
   air_passengers: { baltic: [84_838, 2_150_299], eu: [25_203_113, 337_989_035] },
   population: { baltic: [1_330_068, 2_890_664], eu: [445_891_011, 450_646_971] },
@@ -142,11 +141,11 @@ describe('the chart shows the figure even when it withholds the line', () => {
       { period: '2026-06', value: b },
     ];
     return {
-      indicator: 'tourism', title: 'Tourist arrivals', unit: 'persons',
+      indicator: 'tourism', title: 'Overnight stays', unit: 'nights',
       countries: {
-        LV: { label: 'Latvia', series: [{ period: '2026-06', value: 313_942 }] },
-        EE: { label: 'Estonia', series: [{ period: '2026-06', value: 395_333 }] },
-        LT: { label: 'Lithuania', series: [{ period: '2026-06', value: 410_171 }] },
+        LV: { label: 'Latvia', series: [{ period: '2026-06', value: 528_988 }] },
+        EE: { label: 'Estonia', series: [{ period: '2026-06', value: 718_385 }] },
+        LT: { label: 'Lithuania', series: [{ period: '2026-06', value: 948_906 }] },
       } as unknown as BalticCompareData['countries'],
       reference: {
         code: 'EU27_2020', label: 'EU27',
@@ -154,21 +153,21 @@ describe('the chart shows the figure even when it withholds the line', () => {
         series: series(euLow, euHigh),
         latest: euHigh, latestPeriod: '2026-06',
       },
-      source: 'Eurostat (tour_occ_arm)',
+      source: 'Eurostat (tour_occ_nim)',
       assumptions: [],
     };
   }
 
   async function renderWith(euLow: number, euHigh: number) {
     fetchBalticCompare.mockResolvedValue(payload(euLow, euHigh));
-    render(<BalticCompareChart indicator="tourism" title="Tourist arrivals" />);
-    await screen.findByText('Tourist arrivals');
+    render(<BalticCompareChart indicator="tourism" title="Overnight stays" />);
+    await screen.findByText('Overnight stays');
   }
 
   it('keeps the EU figure beside the three and says why it is not drawn', async () => {
     await renderWith(287_000_000, 287_500_000);
     expect(screen.getByText('EU27')).toBeTruthy();
-    expect(screen.getByText('288m')).toBeTruthy();
+    expect(screen.getByText('288m nights')).toBeTruthy();
     expect(screen.getByText(SCALE_NOTE)).toBeTruthy();
   });
 

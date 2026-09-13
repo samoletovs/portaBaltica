@@ -201,6 +201,8 @@ const POLARITY: Record<string, Polarity> = {
  * dependency, and a rise in passengers is tourism or it is emigration.
  */
 export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
+  // Accommodation activity alone does not establish its economic or local benefit.
+  'tourism',
   'house_prices',
   'population',
   'imports',
@@ -232,6 +234,7 @@ export const DELIBERATELY_NEUTRAL: ReadonlySet<string> = new Set([
  * asserts that correspondence as an equality rather than trusting it.
  */
 export const ABSTENTION_NOTE: Record<string, string> = {
+  tourism: 'Not graded: overnight stays measure activity, not its benefit',
   ppi: 'Not graded: a fall is disinflation or it is contraction',
   trade_balance: 'Not graded: derived from imports, which is not graded',
   house_prices: 'Not graded: good if you own, bad if you are buying',

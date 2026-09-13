@@ -473,9 +473,9 @@ let comparisonTimer: ReturnType<typeof setTimeout> | undefined;
 let activeComparisonBatches = 0;
 
 function comparisonDefinitionMatches(indicator: string, data: BalticCompareData): boolean {
-  // The old tourism id held overnight stays. Neither a warm browser cache nor
-  // an older API worker may supply those as arrivals after this correction.
-  return indicator !== 'tourism' || data.dataset === 'tour_occ_arm';
+  // Reject both former arrivals and night counts carrying the old persons unit,
+  // including responses from an older worker during deployment.
+  return indicator !== 'tourism' || (data.dataset === 'tour_occ_nim' && data.unit === 'nights');
 }
 
 function finishComparison(entry: ComparisonRequest, data?: BalticCompareData, error?: Error) {

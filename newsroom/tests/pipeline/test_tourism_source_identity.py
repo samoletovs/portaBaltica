@@ -38,7 +38,7 @@ def _payload(dataset):
 
 
 @pytest.mark.asyncio
-async def test_the_collector_requests_arrivals_and_preserves_their_source_identity(tmp_path):
+async def test_the_collector_requests_overnight_stays_with_their_label_and_unit(tmp_path):
     requested = []
 
     def handler(request):
@@ -52,14 +52,17 @@ async def test_the_collector_requests_arrivals_and_preserves_their_source_identi
         )
 
     assert {s.geography: s.latest.value for s in collected} == {
-        "LV": 313942, "EE": 395333, "LT": 410171,
+        "LV": 528988, "EE": 718385, "LT": 948906,
     }
     assert len(requested) == len(archive.stored) == 1
-    assert requested[0].url.path.endswith("/tour_occ_arm")
+    assert requested[0].url.path.endswith("/tour_occ_nim")
     assert requested[0].url.params["c_resid"] == "TOTAL"
     assert requested[0].url.params["nace_r2"] == "I551-I553"
     assert requested[0].url.params["unit"] == "NR"
-    assert all(s.source.dataset == "tour_occ_arm" and s.unit == "arrivals" for s in collected)
+    assert all(
+        s.source.dataset == "tour_occ_nim" and s.unit == "nights"
+        and s.metric_label == "overnight stays" for s in collected
+    )
     assert all(s.source.source_id == "eurostat" for s in collected)
 
 
@@ -70,12 +73,13 @@ def test_foreign_visitor_nights_remain_a_separate_measure():
     )
 
 
-def _arrivals():
+def _nights():
     return TimeSeries(
-        metric="tourism", metric_label="tourist arrivals", geography="EE",
-        unit="arrivals", section="business", frequency="monthly",
-        observations=(Observation("2026-06", 395333),),
-        source=SourceRef("eurostat", "2026-09-11T13:10:08Z", dataset="tour_occ_arm"),
+        metric="tourism", metric_label="overnight stays", geography="EE",
+        unit="nights", section="business", frequency="monthly",
+        # A changed reading gives every exclusion an opportunity to fail.
+        observations=(Observation("2026-06", 719000),),
+        source=SourceRef("eurostat", "2026-09-13T09:07:10Z", dataset="tour_occ_nim"),
     )
 
 
@@ -92,41 +96,45 @@ def _published():
 
 
 @pytest.mark.parametrize(
-    ("source_id", "dataset", "raw_source"),
+    ("source_id", "dataset", "raw_source", "unit"),
     [
-        ("eurostat", "tour_occ_nim", True),
-        ("eurostat", None, True),
-        ("", "tour_occ_arm", True),
-        ("", None, False),  # The sole tourism row in the sampled public ledger.
-        ("another-source", "tour_occ_arm", True),
+        ("eurostat", "tour_occ_nim", True, "arrivals"),
+        ("eurostat", "tour_occ_arm", True, "nights"),
+        ("eurostat", None, True, "nights"),
+        ("", "tour_occ_nim", True, "nights"),
+        ("", None, False, "arrivals"),  # The legacy row in the sampled public ledger.
+        ("another-source", "tour_occ_nim", True, "nights"),
     ],
 )
 def test_old_or_unidentified_observations_are_not_relabelled_as_source_revisions(
-    source_id, dataset, raw_source
+    source_id, dataset, raw_source, unit
 ):
     previous = replace(
-        _published(), source_id=source_id, dataset=dataset, raw_source=raw_source
+        _published(), source_id=source_id, dataset=dataset, raw_source=raw_source, unit=unit
     )
     before = previous.to_json()
 
-    assert find_revisions(VintageLedger([previous]), [_arrivals()]) == []
+    assert find_revisions(VintageLedger([previous]), [_nights()]) == []
     assert previous.to_json() == before
 
 
-def test_a_real_restatement_of_the_same_arrivals_dataset_is_still_detected():
-    previous = replace(_published(), value=395000, dataset="tour_occ_arm")
+def test_a_real_restatement_of_the_same_nights_dataset_and_unit_is_still_detected():
+    previous = replace(
+        _published(), unit="nights", metric_label="overnight stays",
+        headline="Overnight stays in Estonia",
+    )
 
-    found = find_revisions(VintageLedger([previous]), [_arrivals()])
+    found = find_revisions(VintageLedger([previous]), [_nights()])
 
     assert len(found) == 1
     assert found[0].figure == previous
-    assert found[0].current_value == 395333
+    assert found[0].current_value == 719000
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("dataset", "raw_source"),
-    [("tour_occ_nim", True), (None, True), (None, False)],
+    [("tour_occ_nim", True), ("tour_occ_arm", True), (None, True), (None, False)],
 )
 async def test_the_watch_leaves_old_tourism_article_index_and_ledger_unchanged(
     tmp_path, dataset, raw_source
@@ -149,9 +157,10 @@ async def test_the_watch_leaves_old_tourism_article_index_and_ledger_unchanged(
     await vintages.save(VintageLedger([previous]))
     paths = [previous.slug + ".json", ArticleStore.INDEX_BLOB, "vintages.json"]
     before = {name: (tmp_path / name).read_bytes() for name in paths}
-    report = RunReport(series=[_arrivals()])
+    report = RunReport(series=[_nights()])
 
     await _watch_revisions(store, report, vintages=vintages)
 
     assert report.corrections == []
+    assert report.errors == []
     assert {name: (tmp_path / name).read_bytes() for name in paths} == before

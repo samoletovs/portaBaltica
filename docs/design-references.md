@@ -132,6 +132,15 @@ claim of field-wide Core Web Vitals compliance or an award outcome.
 
 ## Evidence and usefulness pass: 11 September 2026
 
+**Release decision, 13 September:** the owner selected **overnight stays** for
+the main tourism view. The prospective arrivals change described in this
+earlier evaluation was not released. The final `tourism` definition uses
+`tour_occ_nim`, title "Overnight stays" and unit "nights" throughout the
+Dashboard, explorer, exports and future newsroom reporting. Latvia's separate
+`historical-data?indicator=tourist_arrivals` API continues to count arrivals in
+persons. Old browser entries with either the arrivals cube or the old persons
+label on night counts are invalidated; historical articles are not rewritten.
+
 Baseline: `c5964be6dba591e3741913681a5afd7a14a52528`. The approved visual
 identity is retained. This pass prioritises accurate evidence and complete
 reader tasks over another palette, type or animation change.

@@ -984,10 +984,10 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
         params={'bop_item': 'CA', 'currency': 'MIO_EUR', 'partner': 'WRL_REST', 'sector10': 'S1', 'sectpart': 'S1', 'stk_flow': 'BAL'},
     ),
     EurostatDataset(
-        dataset="tour_occ_arm",
+        dataset="tour_occ_nim",
         metric="tourism",
-        metric_label="tourist arrivals",
-        unit="arrivals",
+        metric_label="overnight stays",
+        unit="nights",
         section="business",
         frequency="monthly",
         chart_ref="tourism",

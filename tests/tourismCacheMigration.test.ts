@@ -6,8 +6,8 @@ const fetchMock = vi.fn<typeof fetch>();
 
 function comparison(indicator: string, dataset: string, years = 5): BalticCompareData {
   return {
-    indicator, dataset, years, title: 'Tourist arrivals', unit: 'persons',
-    countries: { LV: { label: 'Latvia', series: [{ period: '2026-06', value: 313942 }] } },
+    indicator, dataset, years, title: 'Overnight stays', unit: 'nights',
+    countries: { LV: { label: 'Latvia', series: [{ period: '2026-06', value: 528988 }] } },
     source: `Eurostat (${dataset})`,
   };
 }
@@ -25,7 +25,7 @@ beforeEach(async () => {
     return Response.json({
       results: url.searchParams.get('indicators')!.split(',').map(indicator => ({
         indicator, years, status: 200,
-        data: comparison(indicator, 'tour_occ_arm', years),
+        data: comparison(indicator, 'tour_occ_nim', years),
         cache: { ageSeconds: 0, state: 'miss' },
       })),
     });
@@ -41,67 +41,76 @@ afterEach(() => {
 });
 
 describe('tourism browser-cache definition migration', () => {
-  it.each([5, 10])('replaces warm nights-based %i-year tourism through the bounded transport', async years => {
-    cache(comparison('tourism', 'tour_occ_nim', years));
+  it.each([5, 10])('replaces warm arrivals-based %i-year tourism through the bounded transport', async years => {
+    cache({ ...comparison('tourism', 'tour_occ_arm', years), title: 'Tourist arrivals', unit: 'persons' });
     const [first, second] = await Promise.all([
       api.fetchBalticCompare('tourism', years),
       api.fetchBalticCompare('tourism', years),
     ]);
-    expect(first?.dataset).toBe('tour_occ_arm');
+    expect(first?.dataset).toBe('tour_occ_nim');
+    expect(first?.unit).toBe('nights');
     expect(second).toEqual(first);
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/baltic-compare-batch?');
     const saved = JSON.parse(localStorage.getItem(`portabaltica_baltic_compare-tourism-${years}`)!);
-    expect(saved.data.dataset).toBe('tour_occ_arm');
+    expect(saved.data.dataset).toBe('tour_occ_nim');
     await api.fetchBalticCompare('tourism', years);
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it('does not assume an older cache without a dataset identifies arrivals', async () => {
+  it('does not assume an older cache without a dataset identifies nights', async () => {
     const old = comparison('tourism', 'tour_occ_nim');
     delete old.dataset;
     cache(old);
-    expect((await api.fetchBalticCompare('tourism'))?.dataset).toBe('tour_occ_arm');
+    expect((await api.fetchBalticCompare('tourism'))?.dataset).toBe('tour_occ_nim');
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it('retains correct arrivals and separately named overnight-stay caches', async () => {
-    const arrivals = comparison('tourism', 'tour_occ_arm');
+  it('retains correctly identified total and foreign overnight-stay caches', async () => {
+    const total = comparison('tourism', 'tour_occ_nim');
     const nights = {
       ...comparison('tourism_foreign', 'tour_occ_nim'),
       title: 'Nights spent by foreign visitors', unit: 'nights',
     };
-    cache(arrivals);
+    cache(total);
     cache(nights);
-    expect(await api.fetchBalticCompare('tourism')).toEqual(arrivals);
+    expect(await api.fetchBalticCompare('tourism')).toEqual(total);
     expect(await api.fetchBalticCompare('tourism_foreign')).toEqual(nights);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('reports a failed migration rather than falling back to a different statistic', async () => {
-    cache(comparison('tourism', 'tour_occ_nim'));
+    cache(comparison('tourism', 'tour_occ_arm'));
     fetchMock.mockRejectedValue(new Error('Source unavailable'));
     await expect(api.fetchBalticCompare('tourism')).rejects.toThrow('Source unavailable');
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
-  it('isolates an older API worker response without caching its nights as arrivals', async () => {
+  it('isolates an older worker whose night counts still claim a persons unit', async () => {
     fetchMock.mockResolvedValue(Response.json({
       results: [
         { indicator: 'tourism', years: 5, status: 200,
-          data: comparison('tourism', 'tour_occ_nim'), cache: { ageSeconds: 0, state: 'miss' } },
+          data: { ...comparison('tourism', 'tour_occ_nim'), title: 'Tourist arrivals', unit: 'persons' },
+          cache: { ageSeconds: 0, state: 'miss' } },
         { indicator: 'tourism_foreign', years: 5, status: 200,
           data: { ...comparison('tourism_foreign', 'tour_occ_nim'), unit: 'nights' },
           cache: { ageSeconds: 0, state: 'miss' } },
       ],
     }));
-    const [arrivals, nights] = await Promise.allSettled([
+    const [total, nights] = await Promise.allSettled([
       api.fetchBalticCompare('tourism'), api.fetchBalticCompare('tourism_foreign'),
     ]);
-    expect(arrivals.status).toBe('rejected');
+    expect(total.status).toBe('rejected');
     expect(nights.status).toBe('fulfilled');
     expect(localStorage.getItem('portabaltica_baltic_compare-tourism-5')).toBeNull();
     expect(localStorage.getItem('portabaltica_baltic_compare-tourism_foreign-5')).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('replaces the pre-release nights cache that was labelled as arrivals', async () => {
+    cache({ ...comparison('tourism', 'tour_occ_nim'), title: 'Tourist arrivals', unit: 'persons' });
+    const data = await api.fetchBalticCompare('tourism');
+    expect(data).toMatchObject({ title: 'Overnight stays', unit: 'nights', dataset: 'tour_occ_nim' });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

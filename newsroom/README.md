@@ -543,8 +543,10 @@ The watch requires recorded, matching source and dataset identities as well as
 the same unit. It does not treat missing metadata as a wildcard or fetch an
 obsolete dataset after a collector is repinned. Such legacy observations remain
 unmonitored rather than becoming fabricated source revisions. In particular,
-`tourism` now reads arrivals from `tour_occ_arm`, not nights from `tour_occ_nim`;
-`tourism_foreign` remains nights. Historical mislabelled articles are unchanged
+`tourism` reads overnight stays from `tour_occ_nim`, labelled and measured in
+nights; `tourism_foreign` is the foreign-visitor subset. Arrivals count check-ins
+and are a different measure. The owner selected overnight stays for the main
+tourism view on 2026-09-13, before release. Historical mislabelled articles are unchanged
 and require a separately reviewed editorial correction, not a source-revision
 notice.
 

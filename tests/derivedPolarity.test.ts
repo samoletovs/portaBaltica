@@ -141,6 +141,11 @@ const FAMILIES: readonly Family[] = [
     contains: { CPA_F41001_41002: ['CPA_F41001', 'CPA_F41002'] },
   },
   {
+    dataset: 'tour_occ_nim',
+    dimension: 'c_resid',
+    contains: { TOTAL: ['FOR'] },
+  },
+  {
     dataset: 'nrg_cb_pem',
     dimension: 'siec',
     contains: { TOTAL: ['RA000'] },

@@ -10,7 +10,10 @@ interface Comparison {
   title: string; unit: string; dataset: string; assumptions: unknown[];
   countries: Record<string, { series: Point[] }>;
 }
-const es: { httpJson: (url: string, options: { deadlineMs: number }) => Promise<unknown> } =
+const es: {
+  httpJson: (url: string, options: { deadlineMs: number }) => Promise<unknown>;
+  parseJsonStat: (payload: unknown) => { countries: Record<string, { series: Point[] }> };
+} =
   require('../api/shared/eurostat.js');
 const cache: { clear: () => void } = require('../api/shared/cache.js');
 const rateLimit: { reset: () => void } = require('../api/shared/rateLimit.js');
@@ -19,7 +22,7 @@ const https: {
 } = require('node:https');
 
 // Subsets of the official responses read on 2026-09-11. The two cubes have the
-// same pins and plausible magnitudes; only arrivals answer the published title.
+// same pins and plausible magnitudes; only nights answer "Overnight stays".
 function tourismCube(arrivals: boolean) {
   const periods = arrivals ? ['2026-04', '2026-05', '2026-06', '2026-07'] : ['2026-06', '2026-07'];
   return {
@@ -79,17 +82,18 @@ afterEach(() => {
   rateLimit.reset();
 });
 
-describe('tourist arrivals identify arrivals, not overnight stays', () => {
-  it('returns genuine arrivals through the single and bounded batch handlers', async () => {
+describe('overnight stays and arrivals remain different statistics', () => {
+  it('returns guest nights through the single and bounded batch handlers', async () => {
     const single = await call<Comparison>('baltic-compare', { indicator: 'tourism', years: '5' });
     const batch = await call<{ results: { status: number; data: Comparison }[] }>('baltic-compare-batch', {
       indicators: 'tourism', years: '5',
     });
     expect(single.status).toBe(200);
-    expect(single.data.dataset).toBe('tour_occ_arm');
-    expect(single.data.unit).toBe('persons');
+    expect(single.data.dataset).toBe('tour_occ_nim');
+    expect(single.data.title).toBe('Overnight stays');
+    expect(single.data.unit).toBe('nights');
     expect(single.data.assumptions).toEqual([]);
-    for (const [geo, value] of Object.entries({ LV: 313942, EE: 395333, LT: 410171 })) {
+    for (const [geo, value] of Object.entries({ LV: 528988, EE: 718385, LT: 948906 })) {
       expect(single.data.countries[geo].series.find(point => point.period === '2026-06')?.value).toBe(value);
       expect(single.data.countries[geo].series.at(-1)?.value).toBeNull();
     }
@@ -97,15 +101,15 @@ describe('tourist arrivals identify arrivals, not overnight stays', () => {
     expect(es.httpJson).toHaveBeenCalledOnce();
   });
 
-  it('exports the same arrival observations and source rather than the old night counts', async () => {
+  it('exports the same overnight-stay observations with their actual unit and source', async () => {
     const result = await call<{ dataset: string; unit: string; series: { label: string; observations: Point[] }[] }>(
       'data-export', { indicator: 'tourism', years: '5', format: 'json' },
     );
     expect(result.status).toBe(200);
-    expect(result.data.dataset).toBe('tour_occ_arm');
-    expect(result.data.unit).toBe('persons');
+    expect(result.data.dataset).toBe('tour_occ_nim');
+    expect(result.data.unit).toBe('nights');
     expect(result.data.series.find(country => country.label === 'Latvia')?.observations)
-      .toContainEqual({ period: '2026-06', value: 313942 });
+      .toContainEqual({ period: '2026-06', value: 528988 });
   });
 
   it('keeps the national quarterly count in persons and equal to the same-period monthly arrivals', async () => {
@@ -129,7 +133,6 @@ describe('tourist arrivals identify arrivals, not overnight stays', () => {
     const national = await call<{ unit: string; series: Point[] }>('historical-data', {
       indicator: 'tourist_arrivals', years: '5',
     });
-    const comparison = await call<Comparison>('baltic-compare', { indicator: 'tourism', years: '5' });
     expect(national.status).toBe(200);
     expect(national.data.unit).toBe('persons');
     expect(JSON.parse(submitted).query).toEqual(expect.arrayContaining([
@@ -137,7 +140,8 @@ describe('tourist arrivals identify arrivals, not overnight stays', () => {
       { code: 'ContentsCode', selection: { filter: 'item', values: ['TUV020c'] } },
     ]));
     const quarter = national.data.series.find(point => point.period === '2026Q2')?.value;
-    const months = comparison.data.countries.LV.series.filter(point => ['2026-04', '2026-05', '2026-06'].includes(point.period));
+    const months = es.parseJsonStat(tourismCube(true)).countries.LV.series
+      .filter(point => ['2026-04', '2026-05', '2026-06'].includes(point.period));
     expect(months).toHaveLength(3);
     expect(quarter).toBe(749999);
     expect(months.reduce((sum, point) => sum + point.value!, 0)).toBe(quarter);

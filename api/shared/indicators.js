@@ -733,13 +733,12 @@ const INDICATORS = {
     sanity: [-20000, 20000],
   },
   tourism: {
-    // Arrivals count check-ins, not nights: tour_occ_nim can be fully pinned
-    // and numerically plausible while measuring the length of those stays.
-    dataset: 'tour_occ_arm',
+    // Guest nights include the duration of stays, not just accommodation check-ins.
+    dataset: 'tour_occ_nim',
     params: 'nace_r2=I551-I553&unit=NR&c_resid=TOTAL&freq=M',
     freq: 'M',
-    title: 'Tourist arrivals',
-    unit: 'persons',
+    title: 'Overnight stays',
+    unit: 'nights',
     euAggregation: 'sum',
     sanity: [1000, 10000000],
   },
