@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Block } from './markdown-parse';
 import { headingId, parseMarkdown } from './markdown-parse';
+import { PageTitle } from '../components/PageIntro';
 
 // ─── A small markdown renderer ───
 //
@@ -111,13 +112,15 @@ function renderInline(text: string, keyPrefix = ''): ReactNode[] {
  * by treatment rather than by being another notch down an already short ramp.
  */
 const HEADING_CLASSES: Record<number, string> = {
-  1: 'balance-text news-fg text-headline font-semibold tracking-tight sm:text-display',
-  2: 'balance-text news-fg mt-12 mb-4 text-title font-semibold tracking-tight',
-  3: 'balance-text news-fg mt-8 mb-3 text-lead font-semibold',
+  2: 'site-section-title balance-text news-fg mt-12 mb-4 text-title font-semibold',
+  3: 'site-section-title balance-text news-fg mt-8 mb-3 text-lead font-semibold',
   4: 'news-subtle mt-6 mb-2 text-caption font-semibold uppercase tracking-widest',
 };
 
 function Heading({ level, text }: { level: number; text: string }) {
+  if (level === 1) {
+    return <PageTitle id={headingId(text)} className="news-fg">{renderInline(text, `h-${text}`)}</PageTitle>;
+  }
   const Tag = `h${Math.min(level, 6)}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
   return (
     <Tag id={headingId(text)} className={HEADING_CLASSES[level] ?? HEADING_CLASSES[4]}>
@@ -189,7 +192,7 @@ function BlockView({ block, index }: { block: Block; index: number }) {
       // reliably. Above `sm` those labels are hidden and the table is a table.
       return (
         <div className="news-border my-6 overflow-hidden rounded-lg border sm:overflow-x-auto">
-          <table className="block w-full border-collapse text-left text-ui sm:table">
+          <table className="site-table block text-left text-ui sm:table">
             <thead className="hidden sm:table-header-group">
               <tr className="news-border news-panel border-b">
                 {block.header.map((cell, position) => (

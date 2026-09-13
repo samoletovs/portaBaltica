@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import Sequence
 
 from newsroom.pipeline.models import Article, Signal
 from newsroom.pipeline import units
@@ -29,7 +30,7 @@ from newsroom.pipeline.hypothesis import HypothesisPanel
 from newsroom.pipeline.research import ResearchContext
 from newsroom.pipeline.safety import fence, instruction_for, voice_card, voice_reminder
 
-PROMPT_VERSION = "tierA-depth-v8"
+PROMPT_VERSION = "tierA-depth-v9"
 
 _CLAIM_GUIDANCE = """EXPLANATIONS: no_unsupported_mechanism checks EACH SENTENCE AND CLAUSE,
 including the headline and dek, not merely the paragraph's figures array.
@@ -579,6 +580,8 @@ WHAT YOU PRODUCED LAST TIME WAS REJECTED FOR:
 
 {failures}
 
+{editor_notes}
+
 {previous}
 HOW TO READ THAT:
 - "'N' not in figures" means the numeral N appeared in your prose but was not
@@ -659,14 +662,15 @@ def _previous_draft(article: Article | None) -> str:
     return "\n".join((
         "PREVIOUS DRAFT: all editable prose, including headline and dek.",
         "body_index maps each paragraph to body[N] in the failure report; charts are omitted.",
-        "This draft failed validation. Its claims are not additional verified evidence.",
+        "This draft is editable copy. Its claims are not additional verified evidence.",
         instruction_for(fenced),
         fenced.render(),
     ))
 
 
 def build_revision_prompt(
-    original_user_prompt: str, failure_summary: str, article: Article | None = None
+    original_user_prompt: str, failure_summary: str, article: Article | None = None,
+    *, editor_notes: Sequence[str] = (),
 ) -> str:
     """Hand the model the validator's own complaint and ask it to fix it.
 
@@ -678,6 +682,10 @@ def build_revision_prompt(
     return _REVISION_TEMPLATE.format(
         original=original_user_prompt,
         failures=failure_summary or "failed the article shape checks",
+        editor_notes=(
+            "The desk's notes still apply:\n" + _editor_notes(editor_notes)
+            if editor_notes else ""
+        ),
         previous=_previous_draft(article),
         claim_guidance=_CLAIM_GUIDANCE,
     )
@@ -685,8 +693,8 @@ def build_revision_prompt(
 
 def build_revision_system_prompt() -> str:
     """A revision is a copy-edit, not another attempt at the drafting outline."""
-    return """You are the copy editor for portaBaltica. Repair the supplied rejected
-draft against its verified figures and the listed publication failures.
+    return """You are the copy editor for portaBaltica. Repair the supplied
+draft against its verified figures and the listed publication failures or editor notes.
 This is NOT a new reporting assignment. Do not follow the original brief's
 paragraph outline or expand the story to meet its requested length.
 
@@ -717,7 +725,11 @@ THE EDITOR READ YOUR DRAFT AND SENT IT BACK. Their notes:
 
 {notes}
 
-Rewrite the piece so those notes no longer apply.
+{previous}
+
+Edit the supplied draft so those notes no longer apply. Preserve its supported
+copy and figure declarations; do not start a new story or expand to meet the
+original brief's paragraph count.
 
 WHAT THE EDITOR IS ASKING FOR, AND WHAT THEY ARE NOT.
 
@@ -769,8 +781,14 @@ how this wire ended up publishing four paragraphs that restated the lead.
 """
 
 
-def build_editor_revision_prompt(original_user_prompt: str, notes) -> str:
-    """Rewrite the piece against the desk's notes.
+def _editor_notes(notes: Sequence[str]) -> str:
+    return "\n".join(f"- {note}" for note in notes if str(note).strip())
+
+
+def build_editor_revision_prompt(
+    original_user_prompt: str, notes: Sequence[str], article: Article
+) -> str:
+    """Edit the complete piece against the desk's notes.
 
     The editor's decision to send something back is only a decision if the
     rewrite starts from what they said. Without this the "revise" verdict
@@ -778,10 +796,10 @@ def build_editor_revision_prompt(original_user_prompt: str, notes) -> str:
     article was held on the second read -- an editorial loop that could not
     converge and cost two model calls to find that out.
     """
-    listed = "\n".join(f"- {note}" for note in notes if str(note).strip())
     return _EDITOR_REVISION_TEMPLATE.format(
         original=original_user_prompt,
-        notes=listed or "- the editor did not record a specific note",
+        notes=_editor_notes(notes) or "- the editor did not record a specific note",
+        previous=_previous_draft(article),
     )
 
 

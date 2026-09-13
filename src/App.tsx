@@ -16,6 +16,8 @@ import { useCountry } from './CountryContext';
 import { usePageMeta } from './newsroom/usePageMeta';
 import { usePriceRefresh } from './hooks/usePriceRefresh';
 import { DataTicker } from './components/DataTicker';
+import { PageIntro } from './components/PageIntro';
+import { DataControls } from './components/DataControls';
 
 const EconomyTile = lazy(() => import('./components/EconomyTile').then(module => ({ default: module.EconomyTile })));
 const TradeTile = lazy(() => import('./components/TradeTile').then(module => ({ default: module.TradeTile })));
@@ -183,23 +185,19 @@ export default function App() {
 
   return (
     <main id="main" className="dashboard-surface" ref={root}>
-      <header className="dashboard-heading">
-        <div>
-          <h1 className="text-display md:text-masthead news-fg">
-            {activeSection === 'all' ? 'The Baltic dashboard' : `${RESEARCH_SECTIONS[activeSection].title} dashboard`}
-          </h1>
-          <p className="text-prose news-muted">
-            {activeSection === 'all' ? 'All areas. One regional view.' : RESEARCH_SECTIONS[activeSection].tools}
-          </p>
-          <p className="text-ui news-subtle">Scan the latest available observations, or choose a sector. Dates and sources travel with each measure.</p>
-        </div>
-        <div className="dashboard-heading-actions">
-          <Link className="lab-link text-ui" to={`/explore?${explorerQuery.toString()}`}>Explore one measure ↗</Link>
+      <PageIntro
+        className="dashboard-heading"
+        title={activeSection === 'all' ? 'The Baltic dashboard' : `${RESEARCH_SECTIONS[activeSection].title} dashboard`}
+        lead={activeSection === 'all' ? 'All areas. One regional view.' : RESEARCH_SECTIONS[activeSection].tools}
+        description="Scan the latest available observations, or choose a sector. Dates and sources travel with each measure."
+        actions={<>
+          <Link className="site-action site-action-primary text-ui" to={`/explore?${explorerQuery.toString()}`}>Explore one measure ↗</Link>
           <OnboardingTutorial autoOpen={false} activeSection={activeSection} onSectionChange={next =>
             navigate(`/data${next === 'all' ? '' : `/${next}`}?country=${country}`)
           } />
-        </div>
-      </header>
+        </>}
+      />
+      <DataControls />
       <DashboardNav active={activeSection} country={country} />
       <SectorTools activeSection={activeSection} />
     </main>

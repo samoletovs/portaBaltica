@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { downloadText } from '../utils/downloadText';
 import {
   exportFilename,
   toCsv,
@@ -41,40 +42,6 @@ const JSON_TYPE = 'application/json;charset=utf-8';
  * rather than to the act of formatting one.
  */
 const BOM = '\uFEFF';
-
-/**
- * Hand a string to the browser as a file.
- *
- * Returns whether it managed it. `URL.createObjectURL` is absent in jsdom and
- * in any environment without a Blob URL store, and a control that throws on
- * click is worse than one that reports it could not.
- *
- * Not exported: a file that exports both a component and a helper breaks React
- * Fast Refresh, and eslint's `react-refresh/only-export-components` says so.
- * It is reached through the component in `tests/downloadMenu.test.tsx`, which
- * is the only way it is reached in production either.
- */
-function downloadText(filename: string, type: string, text: string): boolean {
-  if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return false;
-
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  try {
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.rel = 'noopener';
-    // Not appended to the document: a detached anchor still activates, and
-    // appending one briefly puts an element in the page that a screen reader
-    // may announce and a layout may reflow around.
-    anchor.click();
-    return true;
-  } finally {
-    // Revoked on the next frame rather than immediately. Safari has been
-    // observed to cancel the download when the URL is released inside the same
-    // task as the click.
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-  }
-}
 
 interface DownloadMenuProps {
   /**
@@ -142,7 +109,7 @@ export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
           // screen reader user arriving at "CSV" by tabbing has no way to tell
           // which of the four charts on this page it belongs to.
           aria-label={`Download ${data.title} as ${extension.toUpperCase()}`}
-          className="dash-btn dash-body border dash-edge rounded-lg px-2 text-caption transition-colors"
+          className="site-action text-ui"
         >
           {extension.toUpperCase()}
         </button>

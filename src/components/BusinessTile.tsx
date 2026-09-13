@@ -87,7 +87,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
             <button
               onClick={handleSearch}
               disabled={searching || query.length < 3}
-              className="dash-btn dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
+              className="site-action text-ui"
               aria-label="Search"
             >
               {searching ? '...' : '🔍'}
@@ -236,7 +236,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
             <button
               onClick={handleAddrSearch}
               disabled={addrSearching || addrQuery.length < 3}
-              className="dash-btn dash-fg text-ui px-4 py-2 rounded-lg transition-colors"
+              className="site-action text-ui"
               aria-label="Search addresses"
             >
               {addrSearching ? '...' : '📍'}

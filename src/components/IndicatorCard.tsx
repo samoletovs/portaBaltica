@@ -31,7 +31,7 @@ const EUROSTAT_FALLBACK: Record<string, string> = {
   salary: 'salary',
   retail_sales: 'retail',
   population: 'population',
-  tourist_arrivals: 'tourism',
+  tourism: 'tourism',
   hotel_occupancy: 'hotel_occupancy',
   construction_output: 'construction',
   biz_confidence: 'economic_sentiment',
@@ -81,6 +81,19 @@ interface IndicatorData {
   fetchedAt?: string;
   series: TimeSeriesPoint[];
   summary: IndicatorSummary;
+}
+
+async function fetchNationalSeries(id: string, years: number): Promise<IndicatorData | null> {
+  const url = `/api/historical-data?indicator=${encodeURIComponent(id)}&years=${years}`;
+  const response = id === 'tourist_arrivals'
+    ? await fetch(url, { cache: 'no-cache' })
+    : await fetch(url);
+  const data: IndicatorData | null = response.ok ? await response.json() : null;
+  if (id === 'tourist_arrivals' && data && data.unit !== 'persons') {
+    console.warn('National arrivals response has an unsupported unit:', data.unit);
+    throw new Error('National arrivals must be reported in persons.');
+  }
+  return data;
 }
 
 /**
@@ -199,8 +212,7 @@ export function IndicatorCard({ id, title, unit, loading: externalLoading }: Ind
       // No Eurostat mapping — use Latvia PxWeb (only for LV, show null for EE/LT)
       if (country === 'LV') {
         try {
-          const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
-          const d = response.ok ? await response.json() : null;
+          const d = await fetchNationalSeries(id, years);
           if (!cancelled) {
             setData(d);
           }
@@ -516,8 +528,7 @@ export function IndicatorChart({
       if (country === 'LV') {
         // Latvia-only indicators via PxWeb
         try {
-          const response = await fetch(`/api/historical-data?indicator=${id}&years=${years}`);
-          const d = response.ok ? await response.json() : null;
+          const d = await fetchNationalSeries(id, years);
           if (!cancelled) {
             setData(d);
           }

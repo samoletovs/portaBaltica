@@ -689,7 +689,8 @@ def _wrap_revision(signal: Signal, writer: Any, corpus: WeeklyCorpus) -> Any:
     def revise(article: Any, notes: Any) -> Any:
         try:
             revised = generate_article(
-                signal, writer, paragraphs=5, editor_notes=tuple(notes)
+                signal, writer, paragraphs=5, editor_notes=tuple(notes),
+                editor_draft=article,
             )
         except Exception:  # noqa: BLE001
             log.exception("weekly wrap: revision failed")

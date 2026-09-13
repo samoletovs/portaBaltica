@@ -129,3 +129,75 @@ the copy-link feedback now follows that pattern. The
 interactivity and visual stability and evaluates real-user results at the
 75th percentile. Local browser measurements guide this pass; they are not a
 claim of field-wide Core Web Vitals compliance or an award outcome.
+
+## Evidence and usefulness pass: 11 September 2026
+
+**Release decision, 13 September:** the owner selected **overnight stays** for
+the main tourism view. The prospective arrivals change described in this
+earlier evaluation was not released. The final `tourism` definition uses
+`tour_occ_nim`, title "Overnight stays" and unit "nights" throughout the
+Dashboard, explorer, exports and future newsroom reporting. Latvia's separate
+`historical-data?indicator=tourist_arrivals` API continues to count arrivals in
+persons. Old browser entries with either the arrivals cube or the old persons
+label on night counts are invalidated; historical articles are not rewritten.
+
+Baseline: `c5964be6dba591e3741913681a5afd7a14a52528`. The approved visual
+identity is retained. This pass prioritises accurate evidence and complete
+reader tasks over another palette, type or animation change.
+
+| Perspective | Observed problem | Selected change and value | Effort / risk |
+| --- | --- | --- | --- |
+| UI / evidence | A sampled article stored four publication observations but displayed none in its Sources panel; its graphic used only two primary points. | Show the full usable frozen record and download it with sources and corrections. Keep current series separate. | Medium; bind each row to the article and handle absent records explicitly. |
+| UI / handoff | Copying a table view at an inspected period retained only country. | Preserve history, view and period, and explain an unavailable shared period. Distinguish a failed article fetch from an editorial refusal and offer retry. | Medium; avoid an extra default-window fetch and preserve keyboard access. |
+| APIs / meaning | `tourism` asked for nights under an arrivals label; national arrivals were labelled thousands rather than persons. | Read actual arrivals, retain genuine overnight-stay series, and refuse obsolete browser definitions. | Medium; historical newsroom vintages must retain their original source identity. |
+| APIs / reliability | A successful HTTP response with no Baltic observations could replace good cached data; current weather estimates carried unsupported daily or seasonal comparisons. | Refuse empty comparisons while retaining partial countries and zeros; keep observation wording within its actual time basis. | Low; no quota increases, new provider or request fan-out. |
+| Newsroom / editing | The daily and weekly desk revision paths supplied notes without the draft they referred to. | Supply the complete fenced editable draft, keep notes through retries and retain the existing validation budget. | Medium; deterministic flow is tested, but net model cost and prose-quality gains are unmeasured. |
+| Newsroom / comparison | A same-period power-price tie was described as an unqualified highest reading. | Rank the original observations and name joint-highest, joint-lowest and equal readings explicitly. | Low; optional ranking is omitted when the subject observation is unavailable. |
+| Briefings / planning | Country ranges did not tell a reader what changed locally or what to check next. | Add country-focused costs, labour and retail questions, label-addressed changes, limits and next-reading conditions; retain common-period Baltic evidence. | Medium; these are planning prompts, not forecasts or validated customer demand. |
+| Briefings / reuse | A printout or shared link needed the focus and evidence scope stated. | Preserve focus and section in the link; print source URLs and retrieval instants; label exports as the full retrieved window. | Low; sharing a live view is not freezing its values. |
+
+The transferable reference principles remain source/context proximity from
+[Our World in Data](https://ourworldindata.org/faqs),
+[Datawrapper's question-led chart guidance](https://www.datawrapper.de/blog/better-charts)
+rather than reusable decoration, and the
+[GOV.UK table component's captions and scoped headings](https://design-system.service.gov.uk/components/table/)
+for inspection. Existing [W3C status-message guidance](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html)
+informs persistent copy/download feedback. The
+[Web Vitals distinction between lab and field measurements](https://web.dev/articles/optimize-cls)
+continues to bound the performance claims: a local browser check is not a
+field-wide accessibility or performance certification.
+
+Two useful source candidates were probed but deferred. Eurostat
+`tour_occ_mnor` offered monthly hotel bed occupancy for all three countries
+through June 2026; it is hotels-only, not the full accommodation scope of
+arrivals. `nrg_pc_203` offered ten populated half-years of non-household gas
+prices for each country through 2025-S2, for the 10,000-99,999 GJ band excluding
+taxes. Both could support narrower planning questions, but neither outranked
+correcting existing information. They are not added to the product by this
+document. [Eurostat reuse conditions](https://ec.europa.eu/eurostat/help/copyright-notice)
+require acknowledgement and attention to exceptions; existing Elering,
+Open-Meteo and third-party-news commercial clearance remains unresolved.
+
+No historical article is rewritten or republished by this pass. The editorial
+sample found older scope, time and subject claims needing a separate publisher
+correction review. Cross-country own-base index semantics, complete cumulative
+revision accounting, paid offerings, outbound delivery and a new visual
+redesign are deferred. No stochastic model-quality improvement, customer
+demand, commercial readiness or award outcome is claimed.
+
+### Pre-merge consistency refinement
+
+The owner's four screenshots exposed a repeated-role mismatch, not a missing
+font. Rendered at 696px on `c3a54f4`, all four destinations used Baltic Editorial,
+but the journal title was 56px/600 with 0.94 leading and capitals; Dashboard and
+briefing titles were 40px/400, and the explorer was 40px/600. Title spacing also
+differed. The mechanical type scan alone reported no problem.
+
+The shared `PageIntro` and `PageTitle` now carry those roles, with data controls
+below the opening rather than above the title. Section titles,
+actions, filters, fields, evidence tables and inset panels also share type and
+geometry, while reading and analytical layouts retain their different jobs.
+The existing Barlow family, slate-blue/petrol-copper palette, source-backed
+graphics, two-tone wordmark, disclosures and data workflows are unchanged.
+The browser contract measures computed styles rather than accepting matching
+class names as proof; its original 696px case exposed 19 failing presentation assertions.

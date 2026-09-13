@@ -226,7 +226,8 @@ describe('the part/whole graph, before anything is asserted with it', () => {
     // over an empty list and reports a clean sheet. That is the failure this
     // whole file is about, one level up.
     const families = declaredFamilies();
-    expect(families.length, 'no families parsed out of derivedPolarity.test.ts').toBeGreaterThanOrEqual(7);
+    // Total overnight stays now contain the separately reported foreign nights.
+    expect(families, 'every current containment family must be parsed').toHaveLength(7);
     expect(families.map((f) => f.dataset)).toContain('une_rt_m');
     expect(families.map((f) => f.dataset)).toContain('prc_hicp_minr');
   });

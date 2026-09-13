@@ -8,6 +8,7 @@ import {
 } from '../../newsroom/correspondents';
 import { PUBLISHER_ROLE } from '../../newsroom/editorial';
 import { CorrespondentAvatar } from './CorrespondentAvatar';
+import { PageTitle } from '../PageIntro';
 
 /**
  * The masthead: everyone who touches a story before it reaches a reader.
@@ -24,7 +25,7 @@ import { CorrespondentAvatar } from './CorrespondentAvatar';
 export function NewsroomIndex() {
   return (
     <div className="mx-auto max-w-measure">
-      <h1 className="balance-text news-fg text-headline font-semibold tracking-tight sm:text-display">The newsroom</h1>
+      <PageTitle className="news-fg">The newsroom</PageTitle>
       <p className="pretty-text news-muted mt-4 text-lead">
         Five AI correspondents, one AI editor, and one accountable human. Everyone here carries the
         surname of a Baltic lighthouse. It is a house style, not a disguise: what each one is is stated

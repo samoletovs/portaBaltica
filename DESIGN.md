@@ -52,6 +52,37 @@ Latin-extended WOFF2 in regular and semibold. It is the same family in the
 journal, article and analytical UI, not a landing-page exception. The system
 stack is a fallback, and no reader requests a font from a third party.
 
+Different tasks use one presentation system, not four page-specific styles.
+`PageIntro` owns the opening of the journal, Dashboard, explorer and briefing:
+the same title, explanatory-copy rhythm, action row and optional context column.
+Country and history controls follow that opening on the data surfaces; they do
+not displace the title below a separate toolbar-first page frame.
+`PageTitle` also serves articles, policies, API documentation and utility pages.
+Interface page labels use sentence case and natural wrapping, not an all-caps
+journal masthead with a forced break. Published headlines keep their wording.
+
+The repeated roles are shared in `src/index.css`, not overridden per route:
+
+| Role | Shared treatment |
+| --- | --- |
+| Page title | 40px below 768px, 56px from 768px; semibold, 1.1 leading, -0.02em tracking |
+| Page opening | 24px vertical padding on narrow screens, 32px above; 16px between copy blocks |
+| Opening prose | 18px, 1.6 leading, at most 68ch; explanatory detail stays 14px |
+| Section / panel title | Named 28px / 22px steps, semibold, 1.2 leading |
+| Actions and fields | 14px, at least 44px high, 8px control radius; primary actions use the existing accent panel |
+| Filter choices | The same control radius and type, with an explicit selected border/background and weight |
+| Evidence tables | 14px, 12px cell padding, semibold column headers on the raised surface |
+| Data / evidence panels | Card surface, shared border and 12px card radius |
+
+`site-*` classes express these cross-site roles; the existing `dash-*` and
+`news-*` colour aliases retain their meanings. Editorial lists can use rules
+while charts use panels: the role, not the route, determines the treatment.
+Do not reintroduce route-specific title weights, leading or control shapes.
+The emergency root error fallback remains self-contained when styling fails.
+`sitePresentation.live.test.ts` checks the computed styles on every primary
+navigation destination at phone, intermediate and laptop widths in both themes,
+with non-empty opportunities for every role it asserts.
+
 The lead and article hero use source-backed comparisons, not a recurring map.
 Graphics read only the article's frozen `published_observations`: either
 same-period country values or two recorded observations for one country.
@@ -88,11 +119,30 @@ continued comparison. Clipboard feedback has a permanent live region rather
 than appearing only after an outcome.
 
 Sources links open the actual provenance record, including repeat visits.
+Within that record, original articles expose their frozen observations in a
+captioned table with exact values, units, periods and source links, plus a JSON
+download carrying source and correction context. Missing publication records
+are stated explicitly; current data never fills their place. Narrow screens
+scroll the table within its labelled, keyboard-focusable region.
 Printing exposes the record and nested checks, then restores the reader's
 disclosure states. Briefing commentary and its evidence share a row on wider
 screens; country names are the evidence links, rather than a repeated View
 column. Jump targets are revealed by focus before their scroll position is
 measured, so entrance transforms cannot clip the destination.
+
+An explorer link retains country, history, representation and inspected period.
+An unavailable shared period gets an explicit notice rather than silently
+changing the comparison. These are reproducible settings, not a promise that
+the upstream observations never change.
+
+The briefing's country focus adds a dated change against the immediately
+preceding calendar period, a reason to monitor, a limit and a measurable next
+check. Missing comparison periods withhold the delta. A country's newest
+reading and the Baltic table's common period remain separately labelled.
+Rate differences use percentage points; hourly costs retain their unit.
+Print includes the focus, source URLs and recorded retrieval instants, while
+shared links explicitly remain live views. No enquiry or payment activation
+is implied by the more useful public document.
 
 Loading is part of this design contract. The Dashboard's comparisons travel
 in bounded batches, with independent item errors and the same source payloads
@@ -124,14 +174,14 @@ book except for one correction: **two weights means two.**
 | `text-prose` | 18px | article and policy prose |
 | `text-lead` | 22px | standfirsts, feed headlines, indicator values |
 | `text-title` | 28px | section headings |
-| `text-headline` | 34px | page headlines |
+| `text-headline` | 34px | prominent story headlines |
 | `text-display` | 40px | the lead story, article `h1`, page `h1` |
-| `text-masthead` | 56px | expanded editorial openings on medium screens |
-| `text-banner` | 76px | the regional opening on wide screens |
+| `text-masthead` | 56px | shared page titles on wider screens |
+| `text-banner` | 76px | reserved exceptional editorial display, not page openings |
 
-The last two are opt-in composition sizes, not larger controls or reading
-prose. The homepage progresses from `text-display` through `text-masthead` to
-`text-banner`; article prose stays at `text-prose` in its existing measure.
+Page titles progress together from `text-display` to `text-masthead`; a route
+does not choose its own size or weight. `text-banner` is not a navigation-page
+default. Article prose stays at `text-prose` in its existing measure.
 
 **Weights: regular (400) and semibold (600). Nothing else.** The book used to
 say this while the site used `font-medium` in thirty-two places and an inline

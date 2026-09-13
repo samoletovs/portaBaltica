@@ -802,7 +802,9 @@ def _trajectory(signal: Signal, series: TimeSeries) -> list[ContextFact]:
     return facts
 
 
-def _peer_observations(signal: Signal, peers: Sequence[ContextFact]) -> list[str]:
+def _peer_observations(
+    signal: Signal, peers: Sequence[ContextFact], current: Observation | None
+) -> list[str]:
     """Rank the signal's geography among its peers, in words and no numerals.
 
     ONLY when every peer reading is from the signal's own period. This sentence
@@ -818,7 +820,7 @@ def _peer_observations(signal: Signal, peers: Sequence[ContextFact]) -> list[str
     downstream able to catch it. So a mixed-period comparison produces no
     ranking sentence at all. That costs colour, not correctness.
     """
-    if not peers:
+    if not peers or current is None:
         return []
     if any(fact.period != signal.period for fact in peers):
         log.debug(
@@ -828,7 +830,7 @@ def _peer_observations(signal: Signal, peers: Sequence[ContextFact]) -> list[str
         )
         return []
     ranked = sorted(
-        [(signal.value, signal.geography), *[(f.value, f.geography or "") for f in peers]],
+        [(current.value, signal.geography), *[(f.value, f.geography or "") for f in peers]],
         key=lambda pair: -pair[0],
     )
     position = next(
@@ -838,6 +840,28 @@ def _peer_observations(signal: Signal, peers: Sequence[ContextFact]) -> list[str
         return []
     country = COUNTRY_NAMES.get(signal.geography, signal.geography)
     total = len(ranked)
+    tied = sorted(
+        COUNTRY_NAMES.get(fact.geography or "", fact.geography or "")
+        for fact in peers
+        if fact.value == current.value
+    )
+    # Rank the observations before numeric collision removal. An equal-valued
+    # peer may not be declarable as a second figure, but it still establishes a
+    # tie. Use the subject's observation too, not Signal.value's six-significant-
+    # figure copy: rounding only one country can also invent or break a tie.
+    if tied:
+        if len(tied) == len(peers):
+            population = (
+                "All three Baltic states"
+                if total == len(BALTIC_STATES)
+                else f"The {_number_word(total)} Baltic states compared"
+            )
+            return [f"{population} have the same reading for {signal.metric_label}."]
+        extreme = "highest" if current.value == ranked[0][0] else "lowest"
+        return [
+            f"{country} is joint-{extreme} with {' and '.join(tied)} "
+            f"among the {_number_word(total)} Baltic states for {signal.metric_label}."
+        ]
     if position == 0:
         rank_phrase = f"the highest of the {_number_word(total)} Baltic states"
     elif position == total - 1:
@@ -933,7 +957,8 @@ def build_context(signal: Signal, series: Sequence[TimeSeries]) -> ContextPack:
         trajectory = _trajectory(signal, own)
         denominator = _denominator(signal, own, by_metric)
 
-    observations = [*_peer_observations(signal, peers), *notes]
+    current = own.at(signal.period) if own is not None else None
+    observations = [*_peer_observations(signal, peers, current), *notes]
     facts = _without_collisions(
         [*peers, *companions, *placement, *trajectory, *denominator], signal.fields
     )

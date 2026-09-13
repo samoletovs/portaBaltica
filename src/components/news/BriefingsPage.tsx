@@ -4,6 +4,7 @@ import { BriefingRequest } from './BriefingRequest';
 import { PublicBriefingSample } from './PublicBriefingSample';
 import { useRef } from 'react';
 import { useScrollCollection } from '../../motion/useScrollChoreography';
+import { PageIntro } from '../PageIntro';
 
 export default function BriefingsPage() {
   const sample = useRef<HTMLDivElement>(null);
@@ -17,21 +18,20 @@ export default function BriefingsPage() {
 
   return (
     <div className="folio-briefings">
-      <header className="briefing-intro">
-        <div>
-          <h1 className="text-display md:text-masthead news-fg">The Baltic business briefing</h1>
-          <p className="text-prose news-muted">Costs, hiring and demand. A source-linked starting point for your next planning conversation.</p>
-          <div className="briefing-actions">
-            <a href="#public-sample" className="lab-link text-ui">Read the public sample ↓</a>
-            <button type="button" className="briefing-print text-ui" onClick={() => window.print()}>Print this briefing</button>
-          </div>
-        </div>
-        <dl className="briefing-scope text-ui">
+      <PageIntro
+        className="briefing-intro"
+        title="The Baltic business briefing"
+        lead="Costs, hiring and demand. A source-linked starting point for your next planning conversation."
+        actions={<>
+          <a href="#public-sample" className="site-action site-action-primary text-ui">Read the public sample ↓</a>
+          <button type="button" className="site-action briefing-print text-ui" onClick={() => window.print()}>Print this briefing</button>
+        </>}
+        aside={<dl className="briefing-scope text-ui">
           <div><dt>Coverage</dt><dd>Latvia, Estonia and Lithuania</dd></div>
           <div><dt>Focus</dt><dd>Prices, labour costs and retail activity</dd></div>
           <div><dt>Format</dt><dd>Free, automated public sample</dd></div>
-        </dl>
-      </header>
+        </dl>}
+      />
 
       <p className="briefing-method text-ui news-subtle">
         This sample is assembled automatically from published observations, not reviewed by a human
@@ -45,7 +45,7 @@ export default function BriefingsPage() {
       </div>
 
       <section className="briefing-next" aria-labelledby="briefing-next-heading">
-        <h2 id="briefing-next-heading" className="text-title news-fg">Keep the context. Go deeper.</h2>
+        <h2 id="briefing-next-heading" className="site-section-title text-title font-semibold news-fg">Keep the context. Go deeper.</h2>
         <div className="briefing-next-links">
           <Link to="/data" className="lab-link text-ui">Scan the full dashboard ↗</Link>
           <Link to="/explore" className="lab-link text-ui">Inspect a measure in Data explorer ↗</Link>
@@ -59,7 +59,7 @@ export default function BriefingsPage() {
 
       <section className="briefing-bespoke" aria-labelledby="brief-enquiry">
         <div>
-          <h2 id="brief-enquiry" className="news-fg text-title">Bespoke briefings</h2>
+          <h2 id="brief-enquiry" className="site-section-title news-fg text-title font-semibold">Bespoke briefings</h2>
           <p className="news-muted text-ui">
             A tailored brief would need an agreed question, source permissions and a named human
             reviewer before delivery. This public sample is not an established paid service: there is
@@ -67,7 +67,7 @@ export default function BriefingsPage() {
           </p>
         </div>
         {enquiriesOpen ? <BriefingRequest /> : (
-          <div className="briefing-enquiry-state">
+          <div className="site-panel briefing-enquiry-state">
             <p className="news-fg text-callout font-semibold">Pilot enquiries are not open yet</p>
             <p className="news-muted text-ui">
               No requests or payments are being collected here. The public sample and its evidence

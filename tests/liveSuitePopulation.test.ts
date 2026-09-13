@@ -111,6 +111,10 @@ const LIVE_CHECKS = new Map<string, string>([
   ],
   ['seriesContrast.live.test.ts', 'no text on the deployed site sits below its contrast floor'],
   [
+    'sitePresentation.live.test.ts',
+    'all primary navigation destinations share computed title, section, action, field, table and panel styles at three widths in both themes; each role must have rendered opportunities, and data toolbars follow the same page opening',
+  ],
+  [
     'forcedColours.live.test.ts',
     'chart series stay above the non-text floor when a reader forces a high-contrast palette',
   ],

@@ -69,6 +69,16 @@ async function buildResponse(indicator, years) {
     GEOS.forEach(function (geo) {
       if (parsed.countries[geo]) countries[geo] = withFreshness(parsed.countries[geo]);
     });
+    // Match the export contract: an EU-only or empty cube cannot answer a
+    // Baltic comparison. Failing here preserves the last good cached response;
+    // a partial country series and a measured zero remain legitimate data.
+    if (!GEOS.some(function (geo) {
+      return countries[geo] && countries[geo].series.some(function (point) {
+        return Number.isFinite(point.value);
+      });
+    })) {
+      throw new Error('The source returned no observations for any Baltic country.');
+    }
     return {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },

@@ -1,9 +1,6 @@
-.lab-workspace { color: var(--text-primary); padding-block: var(--space-lg) var(--space-3xl); }
-.lab-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-lg); padding-bottom: var(--space-lg); }
-.lab-header h1 { max-width: 20ch; line-height: 1; margin: 0 0 var(--space-md); }
-.lab-header p { margin: 0; max-width: 68ch; }
+.lab-workspace { color: var(--text-primary); padding-bottom: var(--space-3xl); }
 .lab-muted { color: var(--text-secondary); }
-.lab-workbench { display: grid; grid-template-columns: 260px minmax(0, 1fr); border-top: 1px solid var(--border-card); }
+.lab-workbench { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
 .lab-library { min-width: 0; border-right: 1px solid var(--border-card); padding: var(--space-lg) var(--space-lg) var(--space-lg) 0; }
 .lab-library > summary { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-xs); cursor: pointer; min-height: 44px; }
 .lab-library > summary::after { content: '−'; color: var(--news-accent); }
@@ -11,7 +8,7 @@
 .lab-library-content { padding-top: var(--space-lg); display: flex; flex-direction: column; gap: var(--space-sm); }
 .lab-library-content[hidden] { display: none; }
 .lab-field { display: flex; flex-direction: column; gap: var(--space-xs); }
-.lab-workspace input, .lab-workspace select { width: 100%; min-width: 0; min-height: 44px; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border-card); border-radius: var(--corner-chip); color: var(--text-primary); background: var(--bg-card); }
+.lab-workspace input, .lab-workspace select { width: 100%; min-width: 0; padding: var(--space-xs) var(--space-sm); }
 .lab-workspace input::placeholder { color: var(--text-secondary); }
 .lab-domains { display: flex; flex-wrap: wrap; gap: 0 var(--space-sm); padding-bottom: var(--space-sm); border-bottom: 1px solid var(--border-card); }
 .lab-domains a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-secondary); }
@@ -41,12 +38,11 @@
 .lab-chart { background: transparent; }
 .lab-chart-plot { height: 360px; min-width: 0; }
 .lab-table-scroll { max-height: 420px; max-width: 100%; overflow: auto; scrollbar-width: thin; }
-.lab-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lab-table caption { text-align: left; padding: var(--space-sm) 0; white-space: normal; }
-.lab-table th, .lab-table td { text-align: right; padding: var(--space-sm); border-bottom: 1px solid var(--border-card); }
-.lab-table th { font-weight: 600; }
+.lab-table { white-space: nowrap; }
+.lab-table caption { white-space: normal; }
+.lab-table th, .lab-table td { text-align: right; }
 .lab-table th:first-child { text-align: left; }
-.lab-table thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-page); }
+.lab-table thead th { position: sticky; top: 0; z-index: 1; background: var(--bg-raised); }
 .lab-inspector { border-block: 1px solid var(--border-card); padding: var(--space-md) 0; margin-top: var(--space-lg); }
 .lab-inspector-heading { display: flex; align-items: center; gap: var(--space-lg); }
 .lab-inspector-heading select { width: auto; max-width: 100%; }
@@ -68,7 +64,6 @@
 .lab-related h2 { margin-top: 0; }
 .lab-related-links { display: flex; flex-wrap: wrap; gap: var(--space-sm) var(--space-lg); }
 .lab-related-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--news-accent); text-decoration: underline; }
-.lab-workspace :is(button, input, select, a, summary, [tabindex]):focus-visible { outline: 2px solid var(--news-accent); outline-offset: 3px; }
 @media (max-width: 899px) {
   .lab-workbench { grid-template-columns: minmax(0, 1fr); }
   .lab-library { border-right: 0; border-bottom: 1px solid var(--border-card); padding: var(--space-md) 0; }
@@ -77,7 +72,7 @@
   .lab-plane { padding: var(--space-lg) 0 0; }
 }
 @media (max-width: 599px) {
-  .lab-header, .lab-analysis-heading { flex-direction: column; }
+  .lab-analysis-heading { flex-direction: column; }
   .lab-readings { gap: var(--space-sm); }
   .lab-reading .text-title { font-size: var(--text-lead); }
   .lab-chart-plot { height: 300px; }
