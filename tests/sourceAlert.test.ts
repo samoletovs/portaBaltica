@@ -355,6 +355,68 @@ describe('evaluate', () => {
     expect(text).toContain('budget of 4');
   });
 
+  it.each([
+    ['timeout', 'Deadline 3000ms exceeded for https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c', 6203],
+    ['HTTP', 'HTTP 404 from https://data.stat.gov.lv/api/v1/en/OSP_PUB/VEK/IS/ISI/ISI010c', 130],
+    ['schema', 'PxWeb answered without table metadata', 112],
+  ])('keeps %s failure evidence after the raw payload is discarded', async (_kind, error, latency) => {
+    const { payload, ...report } = await run({
+      fetchImpl: fakeFetch(() => jsonResponse(withCheck('CSP PxWeb', {
+        status: 'unhealthy', freshness: 'unknown', error, latency,
+      }))),
+    });
+
+    expect(payload).toBeDefined();
+    expect(report.alert).toBe(true);
+    expect(renderText(report)).toContain(`probe ${latency}ms`);
+    expect(renderText(report)).toContain(`error: ${error}`);
+    expect(JSON.stringify(report)).toContain(`probe ${latency}ms`);
+    expect(JSON.stringify(report)).toContain(error);
+    expect(JSON.stringify(report)).not.toContain('"traffic"');
+  });
+
+  it('keeps a long upstream error bounded and on one readable line', () => {
+    const prefix = 'Deadline 3000ms exceeded ';
+    const verdict = evaluate(withCheck('CSP PxWeb', {
+      status: 'unhealthy', freshness: 'unknown', latency: 6203,
+      error: `${prefix}\r\n\u001b\u202e${'x'.repeat(500)} hidden-tail`,
+    }));
+    const problem = verdict.problems[0];
+
+    expect(verdict.alert).toBe(true);
+    expect(problem).toContain(`error: ${prefix}${'x'.repeat(239 - prefix.length)}…`);
+    expect(problem).not.toContain('hidden-tail');
+    expect(problem).not.toMatch(/[\p{Cc}\p{Cf}]/u);
+  });
+
+  it.each([
+    { error: undefined, latency: undefined },
+    { error: null, latency: 'slow' },
+    { error: 404, latency: NaN },
+    { error: {}, latency: Infinity },
+    { error: '\r\n ', latency: -1 },
+  ])('omits unusable diagnostics without suppressing the failure: %j', (diagnostics) => {
+    const verdict = evaluate(withCheck('CSP PxWeb', {
+      status: 'unhealthy', freshness: 'unknown', ...diagnostics,
+    }));
+
+    expect(verdict.alert).toBe(true);
+    expect(verdict.problems[0]).not.toContain('probe ');
+    expect(verdict.problems[0]).not.toContain('error:');
+  });
+
+  it('keeps an optional timeout diagnostic in notes without alerting', () => {
+    const verdict = evaluate(withCheck('Riga Open Data', {
+      status: 'unhealthy', freshness: 'unknown', latency: 6203,
+      error: 'Deadline 3000ms exceeded',
+    }));
+
+    expect(verdict.alert).toBe(false);
+    expect(verdict.problems).toEqual([]);
+    expect(verdict.notes.join('\n')).toContain('probe 6203ms');
+    expect(verdict.notes.join('\n')).toContain('error: Deadline 3000ms exceeded');
+  });
+
   it('alerts when freshness says stale but status still claims healthy', () => {
     // These cannot disagree today -- the endpoint derives one from the other --
     // so this fires only on a genuine internal contradiction. Reading `status`

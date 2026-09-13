@@ -21,7 +21,7 @@ export function TradeTile() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <IndicatorCard id="hotel_occupancy" title="Hotel occupancy" unit="%" />
-          <IndicatorCard id="tourist_arrivals" title="Tourist arrivals" unit="thousands" />
+          <IndicatorCard id="tourism" title="Overnight stays" unit="nights" />
         </div>
 
         {/* Partner and commodity detail behind the export and import headlines
@@ -49,7 +49,7 @@ export function TradeTile() {
           <BalticCompareChart indicator="transport_services" title="Transport services balance" compact />
           <BalticCompareChart indicator="financial_services" title="Financial services balance" compact />
           <BalticCompareChart indicator="tourism_foreign" title="Nights spent by foreign visitors" compact />
-          <BalticCompareChart indicator="tourism" title="Tourist arrivals across the Baltics" compact />
+          <BalticCompareChart indicator="tourism" title="Overnight stays across the Baltics" compact />
           <BalticCompareChart indicator="air_passengers" title="Air passengers carried" compact />
         </div>
       </div>

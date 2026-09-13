@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { createRequire } from 'node:module';
 
 /**
  * The API docs page must not advertise an endpoint that does not exist, and
@@ -100,6 +101,21 @@ describe('the API docs page and the API agree', () => {
     expect(documentedEndpoints().length, 'no endpoints parsed from ApiDocsPage').toBeGreaterThan(10);
   });
 
+  it('registers every handler with the Functions HTTP runtime', () => {
+    // Calling index.js directly in a unit test does not prove Azure can route to it.
+    for (const name of existingEndpoints()) {
+      const registration = join(API_DIR, name, 'function.json');
+      expect(existsSync(registration), `${name} has a handler but no function.json`).toBe(true);
+      const config: unknown = JSON.parse(readFileSync(registration, 'utf8'));
+      expect(config, `${name} must bind the request and context.res`).toMatchObject({
+        bindings: expect.arrayContaining([
+          expect.objectContaining({ type: 'httpTrigger', direction: 'in', name: 'req' }),
+          expect.objectContaining({ type: 'http', direction: 'out', name: 'res' }),
+        ]),
+      });
+    }
+  });
+
   it('documents no endpoint that does not exist', () => {
     const existing = new Set(existingEndpoints());
     const ghosts = documentedEndpoints().filter((name) => !existing.has(name));
@@ -135,5 +151,16 @@ describe('the API docs page and the API agree', () => {
 
     const source = readFileSync(DOCS, 'utf8');
     expect(source, 'the export entry should state its parameters').toContain('format=csv|json');
+  });
+
+  it('documents the actual comparison batch bounds and independent outcomes', () => {
+    const require = createRequire(import.meta.url);
+    const { MAX_BATCH_SIZE, MAX_YEARS } = require('../api/shared/balticCompare.js');
+    const source = readFileSync(DOCS, 'utf8');
+    const row = source.split(/\r?\n/).find(line => line.includes("path: '/api/baltic-compare-batch'"));
+    expect(row).toContain(`1 to ${MAX_BATCH_SIZE} unique indicator IDs`);
+    expect(row).toContain(`integer years from 1 to ${MAX_YEARS}`);
+    expect(row).toContain('Each result carries its own status');
+    expect(row).toContain('no-store');
   });
 });

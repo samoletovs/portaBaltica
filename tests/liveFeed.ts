@@ -11,13 +11,17 @@ export interface FeedDriver {
   };
 }
 
+export const FEED_ARTICLES = '#main article[data-tier="A"], #main article[data-tier="B"]';
+
 /** Walk the real pagination control so a whole-feed check still covers every card. */
 export async function revealAllFeedArticles(page: FeedDriver): Promise<number> {
   const status = await page.locator('[role="status"]:has-text("matching articles")').textContent();
   const match = /^Showing \d+ of (\d+) matching articles$/.exec(status?.trim() ?? '');
   if (!match) throw new Error(`The feed did not declare its population: ${status}`);
   const total = Number(match[1]);
-  const cards = page.locator('#news-results article');
+  // The lead is deliberately outside the continuing grid, but still counts
+  // toward the displayed total. Third-party link-outs do not.
+  const cards = page.locator(FEED_ARTICLES);
   const more = page.getByRole('button', { name: 'Show more articles', exact: true });
   let visible = await cards.count();
 

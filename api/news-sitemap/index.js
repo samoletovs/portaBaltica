@@ -125,6 +125,7 @@ const handler = async function (context, req) {
 
     add('/', today, '1.0');
     add('/data', today, '0.8');
+    add('/explore', today, '0.8');
     // How to keep up, and the stable address for the latest weekly review.
     // `/weekly` is listed even when no review is currently published: the page
     // is a real page that answers the question either way, and de-listing it on

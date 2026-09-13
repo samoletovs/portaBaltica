@@ -15,7 +15,7 @@ import type { Article } from '../news-types';
  * whereas a confidently wrong series costs them the ability to tell that the
  * chart and the sentence above it disagree.
  */
-export function soleCountry(article: Article): 'LV' | 'EE' | 'LT' | undefined {
+export function soleCountry(article: Pick<Article, 'countries'>): 'LV' | 'EE' | 'LT' | undefined {
   const baltic = (article.countries ?? []).filter(
     (c): c is 'LV' | 'EE' | 'LT' => c === 'LV' || c === 'EE' || c === 'LT',
   );

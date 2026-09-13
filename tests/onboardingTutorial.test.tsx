@@ -16,6 +16,13 @@ describe('OnboardingTutorial', () => {
     setViewportWidth(DESKTOP_WIDTH);
   });
 
+  it('can be offered on demand without an unsolicited desktop overlay', () => {
+    render(<OnboardingTutorial autoOpen={false} activeSection="all" onSectionChange={vi.fn()} />);
+    expect(screen.queryByLabelText('Dashboard onboarding tutorial')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Restart guided tour' }));
+    expect(screen.getByLabelText('Dashboard onboarding tutorial')).toBeTruthy();
+  });
+
   it('renders for first-time users', () => {
     render(<OnboardingTutorial activeSection="all" onSectionChange={vi.fn()} />);
     expect(screen.getByText('Welcome to portaBaltica')).toBeTruthy();

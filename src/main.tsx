@@ -12,10 +12,11 @@ import { NewsroomLayout } from './components/news/NewsroomLayout.tsx'
 import { SiteLayout } from './components/SiteLayout.tsx'
 import { DASHBOARD_SECTIONS } from './sections.ts'
 
-// The dashboard and everything chart-shaped stays behind a lazy boundary so
-// recharts and d3 never load for a reader who only came for the front page.
+// Dashboard charts stay behind a lazy boundary. Journal artwork does not
+// import the analytical charting library.
 const App = lazy(() => import('./App.tsx'))
 const IndicatorPage = lazy(() => import('./components/IndicatorPage.tsx').then((module) => ({ default: module.IndicatorPage })))
+const DataExplorerPage = lazy(() => import('./components/DataExplorerPage.tsx').then((module) => ({ default: module.DataExplorerPage })))
 const ApiDocsPage = lazy(() => import('./components/ApiDocsPage.tsx').then((module) => ({ default: module.ApiDocsPage })))
 
 const NewsFeed = lazy(() => import('./components/news/NewsFeed.tsx'))
@@ -80,6 +81,7 @@ createRoot(document.getElementById('root')!).render(
                       <Route path="/briefings" element={<BriefingsPage />} />
                     </Route>
                     <Route path="/data/:section?" element={<App />} />
+                    <Route path="/explore" element={<DataExplorerPage />} />
                     <Route path="/indicator/:id" element={<IndicatorPage />} />
                     <Route path="/api-docs" element={<ApiDocsPage />} />
                     <Route path="/:section" element={<LegacySectionRedirect />} />

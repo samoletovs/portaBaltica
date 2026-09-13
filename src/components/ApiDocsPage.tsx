@@ -1,11 +1,13 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { usePageMeta } from '../newsroom/usePageMeta';
+import { PageTitle } from './PageIntro';
 
 const API_ENDPOINTS = [
   { method: 'GET', path: '/api/economy-data', params: '?country=lv|ee|lt', description: 'Electricity delivery-interval prices, ECB exchange rates, national and Eurostat macro indicators, business pulse', cache: 'Until the next electricity delivery interval (at most 15 min)' },
   { method: 'GET', path: '/api/environment-data', params: '?country=lv|ee|lt', description: 'Weather for 4 cities, air quality, capital-region population', cache: '15 min' },
   { method: 'GET', path: '/api/historical-data', params: '?indicator=gdp&years=5', description: '24 Latvian indicators with time series from CSP PxWeb, falling back to Eurostat where a national table is unavailable. The `source` field always names the provider that answered.', cache: '1 hour' },
   { method: 'GET', path: '/api/baltic-compare', params: '?indicator=gdp&years=5', description: 'Latvia vs Estonia vs Lithuania from Eurostat across 72 indicators. Add ?list=1 for the full catalogue. Responses carry an `assumptions` array, which is empty unless the API had to guess which slice of a Eurostat cube to read.', cache: '1 hour' },
+  { method: 'GET', path: '/api/baltic-compare-batch', params: '?indicators=gdp,inflation&years=5', description: '1 to 8 unique indicator IDs, with integer years from 1 to 30. Each result carries its own status and either the original comparison data or an error; a successful batch response does not mean every item succeeded. Catalogue metadata stays on /api/baltic-compare?list=1.', cache: 'Per indicator: 1 hour; batch response: no-store' },
   { method: 'GET', path: '/api/power-prices', params: '', description: 'Nord Pool day-ahead prices for all four Baltic-region bidding zones (EE, LV, LT, FI) with the spread between them and whether the market is currently coupled', cache: '15 min' },
   { method: 'GET', path: '/api/live-grid', params: '', description: 'Estonian grid state from Elering in MW: metered production, consumption and renewables, plus the forecast beyond `meteredTo`. Readings after that timestamp are a plan, not a measurement, and the two are labelled separately.', cache: '5 min' },
   { method: 'GET', path: '/api/sea-state', params: '', description: 'Marine and surface weather for Riga, Ventspils and Liepāja from Open-Meteo in one response. A port that could not be fetched is named in `unavailable` rather than omitted.', cache: '15 min' },
@@ -44,13 +46,13 @@ export function ApiDocsPage() {
 
   return (
     <div className="min-h-screen">
-      <main id="main" className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        <button onClick={() => navigate('/data')} className="text-ui mb-4 inline-flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+      <main id="main" className="py-8">
+        <button onClick={() => navigate('/data')} className="site-action text-ui mb-4">
           ← Back to dashboard
         </button>
 
-        <h1 className="balance-text text-headline sm:text-display font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>API documentation</h1>
-        <p className="text-ui mb-8" style={{ color: 'var(--text-secondary)' }}>
+        <PageTitle className="news-fg">API documentation</PageTitle>
+        <p className="text-ui mt-4 mb-8" style={{ color: 'var(--text-secondary)' }}>
           All endpoints are free and public. No authentication required. Source-specific terms apply;
           public API access is not a grant of commercial redistribution rights. There is no paid API or service-level agreement.
           Base URL: <code className="font-mono text-caption break-all px-1 py-0.5 rounded" style={{ background: 'var(--bg-card-hover)' }}>https://portabaltica.naurolabs.com</code>
@@ -89,7 +91,9 @@ export function ApiDocsPage() {
         </p>
         <div className="flex flex-wrap gap-2 mb-12">
           {INDICATORS.map((ind) => (
-            <Link key={ind} to={`/indicator/${ind}`} className="inline-flex min-h-11 min-w-11 items-center justify-center text-caption font-mono px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}>
+            <Link key={ind} to={ind === 'tourist_arrivals' ? '/api/historical-data?indicator=tourist_arrivals' : `/indicator/${ind}`}
+              reloadDocument={ind === 'tourist_arrivals'}
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-caption font-mono px-2 py-1 rounded" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-card)', color: 'var(--text-body)' }}>
               {ind}
             </Link>
           ))}

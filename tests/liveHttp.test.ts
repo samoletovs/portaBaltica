@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchLivePage, waitForLiveRateWindow } from './liveHttp';
+import { fetchLivePage, requireLiveHtml, waitForLiveRateWindow } from './liveHttp';
 
 const pause = vi.hoisted(() => vi.fn<(ms: number) => Promise<void>>());
 vi.mock('node:timers/promises', () => ({ setTimeout: pause, default: { setTimeout: pause } }));
@@ -21,6 +21,33 @@ afterEach(() => {
 });
 
 describe('live HTTP checks respect the production rate limit without hiding failures', () => {
+  it('admits a successful HTML document without making another request', () => {
+    expect(() => requireLiveHtml({ status: () => 200, headers: () => ({ 'content-type': 'text/html; charset=utf-8' }) }, URL)).not.toThrow();
+    expect(request).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it('names the HTTP rejection before an accessibility assertion can mistake JSON for the app', () => {
+    expect(() => requireLiveHtml({
+      status: () => 429,
+      headers: () => ({ 'content-type': 'application/json', 'retry-after': '59' }),
+    }, URL)).toThrow(`HTTP 429, Content-Type application/json, Retry-After 59`);
+    expect(pause).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 'application/json', 'text/plain'])('refuses an unverified document type: %s', contentType => {
+    const headers: Record<string, string> = {};
+    if (contentType) headers['content-type'] = contentType;
+    expect(() => requireLiveHtml({
+      status: () => 200, headers: () => headers,
+    }, URL)).toThrow('Expected a successful HTML document');
+  });
+
+  it('does not treat a missing navigation response as a rendered page', () => {
+    expect(() => requireLiveHtml(null, URL)).toThrow('No document response');
+  });
+
   it('waits out the complete request window before a new browser dashboard burst', async () => {
     await waitForLiveRateWindow();
     expect(pause).toHaveBeenCalledExactlyOnceWith(60_250);

@@ -4,6 +4,7 @@ import type { DashboardSection } from '../types';
 interface OnboardingTutorialProps {
   activeSection: DashboardSection | 'all';
   onSectionChange: (section: DashboardSection | 'all') => void;
+  autoOpen?: boolean;
 }
 
 interface OnboardingStep {
@@ -47,7 +48,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'You are ready',
-    description: 'Use the section tabs anytime to jump between dashboard domains.',
+    description: 'Use the research directory to move between subjects. On a smaller screen, open Menu to find the same destinations.',
     section: 'all',
   },
 ];
@@ -118,8 +119,8 @@ function shouldOpenUninvited(): boolean {
  *
  * On a phone it does not open itself at all; see `shouldOpenUninvited`.
  */
-export function OnboardingTutorial({ activeSection, onSectionChange }: OnboardingTutorialProps) {
-  const [isOpen, setIsOpen] = useState(shouldOpenUninvited);
+export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = true }: OnboardingTutorialProps) {
+  const [isOpen, setIsOpen] = useState(() => autoOpen && shouldOpenUninvited());
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
   const isLastStep = stepIndex === STEPS.length - 1;
@@ -163,8 +164,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
     return (
       <button
         onClick={restartTutorial}
-        className="text-caption px-3 py-2 rounded transition-colors shrink-0"
-        style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+        className="site-action text-ui shrink-0"
         aria-label="Restart guided tour"
       >
         Take a tour
@@ -201,8 +201,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
               minimum. */}
           <button
             onClick={closeTutorial}
-            className="text-caption px-2 py-1 rounded transition-colors shrink-0"
-            style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card)' }}
+            className="site-action text-ui shrink-0"
           >
             Skip tour
           </button>
@@ -215,8 +214,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
           <div className="flex items-center gap-2">
             <button
               onClick={() => goToStep(Math.max(0, stepIndex - 1))}
-              className="text-caption px-3 py-2 rounded transition-colors disabled:opacity-40"
-              style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)' }}
+              className="site-action text-ui"
               disabled={stepIndex === 0}
             >
               Back
@@ -229,7 +227,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange }: Onboardin
                 to action. */}
             <button
               onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
-              className="news-accent-panel news-fg text-caption font-semibold px-3 py-2 rounded transition-colors"
+              className="site-action site-action-primary text-ui"
             >
               {isLastStep ? 'Finish' : 'Next'}
             </button>

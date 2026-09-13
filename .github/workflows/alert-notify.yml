@@ -66,6 +66,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Normalise the verdict
         id: verdict
         env:
@@ -156,11 +164,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Every `gh` call names the repository explicitly, because this job
-          # deliberately does not check the code out — it needs a verdict, not
-          # a working tree. Without `--repo`, `gh` looks for a git remote in the
-          # current directory and fails with `not a git repository`, which is
-          # how the first run of this workflow lost its alert entirely.
+          # Keep every `gh` call scoped explicitly even if the working directory
+          # changes. Checkout is needed only for the shared Telegram sender.
           # The label is what makes this idempotent. Opening a fresh issue every
           # morning would turn one stuck feed into thirty issues nobody reads,
           # which is how an alert channel becomes wallpaper.
@@ -202,7 +207,7 @@ jobs:
           NAURO_CHAT_ID: ${{ secrets.NAURO_CHAT_ID }}
           MESSAGE: ${{ steps.verdict.outputs.message }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           # Fails loudly on a delivery failure, exactly as telegram-check.yml
           # does and for the same reason: every other Telegram send in the fleet
@@ -220,21 +225,9 @@ jobs:
             echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > telegram.txt
 
-          # Plain text, no parse_mode: nothing here is trusted markup, and an
-          # unescaped entity in a publisher's name must never fail a delivery.
-          resp=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
-            --data-urlencode "text@telegram.txt" \
-            --data-urlencode "disable_web_page_preview=true")
-
-          if [ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]; then
-            code=$(printf '%s' "$resp" | jq -r '.error_code // "?"')
-            desc=$(printf '%s' "$resp" | jq -r '.description // "no description"')
-            echo "::error::sendMessage failed (${code}): ${desc}"
-            exit 1
-          fi
-
-          echo "Delivered message $(printf '%s' "$resp" | jq -r '.result.message_id')"
+          # Plain text, split losslessly after the run link has been added.
+          # A full-fleet failure exceeds Telegram's single-message limit.
+          node scripts/telegram-send.mjs < telegram.txt
           echo "- telegram: delivered" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Close the alert issue on recovery
@@ -305,7 +298,7 @@ jobs:
           SUBJECT: ${{ inputs.subject }}
           CLOSED: ${{ steps.recovery.outputs.closed }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
 
           # Fails loudly, exactly as the alert send does and for the same reason.
           # A stand-down that silently did not arrive leaves a reader believing
@@ -325,21 +318,7 @@ jobs:
             echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } > recovery-telegram.txt
 
-          # Plain text, no parse_mode: nothing here is trusted markup, and an
-          # unescaped entity in a publisher name must never fail a delivery.
-          resp=$(curl -s -X POST "https://api.telegram.org/bot${NAURO_BOT_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${NAURO_CHAT_ID}" \
-            --data-urlencode "text@recovery-telegram.txt" \
-            --data-urlencode "disable_web_page_preview=true")
-
-          if [ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]; then
-            code=$(printf '%s' "$resp" | jq -r '.error_code // "?"')
-            desc=$(printf '%s' "$resp" | jq -r '.description // "no description"')
-            echo "::error::sendMessage failed (${code}): ${desc}"
-            exit 1
-          fi
-
-          echo "Delivered recovery $(printf '%s' "$resp" | jq -r '.result.message_id')"
+          node scripts/telegram-send.mjs < recovery-telegram.txt
           echo "- telegram: recovery delivered" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail the run on an alert

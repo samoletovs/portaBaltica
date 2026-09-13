@@ -3,6 +3,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import BriefingsPage from '../src/components/news/BriefingsPage';
 
+vi.mock('../src/components/news/PublicBriefingSample', () => ({
+  PublicBriefingSample: () => <div data-testid="public-sample">Source-backed sample</div>,
+}));
+
 function renderPage(open = '') {
   vi.stubEnv('VITE_BRIEFING_ENQUIRIES_OPEN', open);
   return render(<MemoryRouter><BriefingsPage /></MemoryRouter>);
@@ -19,14 +23,22 @@ describe('business briefing discovery pilot', () => {
     expect(screen.getByText('Pilot enquiries are not open yet')).toBeTruthy();
     expect(container.querySelector('form')).toBeNull();
     expect(container.querySelector('a[href^="mailto:"]')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Use the free dashboard' }).getAttribute('href')).toBe('/data');
+    expect(screen.getByRole('link', { name: 'Scan the full dashboard ↗' }).getAttribute('href')).toBe('/data');
+    expect(screen.getByTestId('public-sample')).toBeTruthy();
   });
 
   it('distinguishes the free automated review from a proposed human-reviewed deliverable', () => {
     renderPage();
-    expect(screen.getByText(/research preview, not an established paid service/)).toBeTruthy();
-    expect(screen.getByText(/not a sample of a human-reviewed client deliverable/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /latest public weekly review/ }).getAttribute('href')).toBe('/weekly');
+    expect(screen.getByText(/not an established paid service/)).toBeTruthy();
+    expect(screen.getByText(/not reviewed by a human editor/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /newsroom’s weekly review/ }).getAttribute('href')).toBe('/weekly');
+  });
+
+  it('prints the public briefing rather than simulating a download', () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Print this briefing' }));
+    expect(print).toHaveBeenCalledOnce();
   });
 
   it('prepares an editable-mail enquiry without sending or storing customer data', () => {

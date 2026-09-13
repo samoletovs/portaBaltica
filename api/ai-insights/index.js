@@ -7,16 +7,6 @@ const priceIntervals = require('../shared/priceIntervals.js');
 const countries = require('../shared/country.js');
 
 /**
- * WHO 2021 global air quality guideline for PM2.5, 24-hour mean, in µg/m³.
- *
- * Named rather than inlined because it is a published figure with a date, and
- * because the claim this file makes about it must be checked against the value
- * it prints rather than inferred from an index band.
- * @see https://www.who.int/publications/i/item/9789240034228
- */
-const WHO_PM25_24H = 15;
-
-/**
  * How much recent market history to fetch, so today can be described against
  * the distribution it belongs to rather than against a constant.
  *
@@ -519,21 +509,17 @@ const handler = async function (context, req) {
             ? 'Sensitive groups may wish to limit prolonged outdoor exertion.'
             : 'Consider limiting outdoor activity, particularly for sensitive groups.';
 
-        // The WHO comparison is made against the number we are about to print,
-        // rather than inferred from the index band. Those two disagree: sampled
-        // over 6696 hourly readings, every single occasion PM2.5 exceeded the
-        // WHO 24-hour guideline the old line still read "Well below WHO
-        // guidelines" — printing 16.9 µg/m³ and calling it well below 15.
+        // Open-Meteo's current PM2.5 estimate is not a 24-hour mean. Comparing
+        // either its value or the index band with WHO's daily guideline would
+        // judge a different exposure window from the one this request holds.
         var whoNote = pm25 === null
           ? ''
-          : pm25 > WHO_PM25_24H
-            ? ' PM2.5 is above the WHO 24-hour guideline of ' + WHO_PM25_24H + ' \u00b5g/m\u00b3.'
-            : ' PM2.5 is within the WHO 24-hour guideline of ' + WHO_PM25_24H + ' \u00b5g/m\u00b3.';
+          : ' The WHO 24-hour guideline cannot be assessed from this current estimate.';
 
         insights.push({
           headline: capital.name + ' air quality: ' + band.label,
           description: 'European AQI ' + aqi
-            + (pm25 === null ? '. PM2.5 unavailable.' : '. PM2.5: ' + pm25.toFixed(1) + ' \u00b5g/m\u00b3.')
+            + (pm25 === null ? '. PM2.5 unavailable.' : '. PM2.5 model estimate: ' + pm25.toFixed(1) + ' \u00b5g/m\u00b3.')
             + whoNote + ' ' + advice,
           level: band.rank <= 2 ? 'routine' : band.rank === 3 ? 'notable' : 'significant',
           category: 'environment',
@@ -602,10 +588,10 @@ const handler = async function (context, req) {
           // band. Dropping the whole card here would discard a temperature we
           // actually hold — an over-correction in the opposite direction.
           description: 'Wind ' + (wind === null ? 'unavailable' : wind.toFixed(0) + ' km/h') + '. '
-            + (temp < -10 ? 'Severe cold — expect elevated heating demand.'
+            + (temp < -10 ? 'Below −10°C — monitor heating needs.'
               : temp < 0 ? 'Below freezing — monitor transport and energy costs.'
-                : temp > 30 ? 'Heat wave — increased cooling demand.'
-                  : 'Conditions within seasonal range.'),
+                : temp > 30 ? 'High temperature — monitor cooling needs.'
+                  : 'Current forecast conditions; no seasonal comparison.'),
           // `wind !== null` is spelled out rather than left to `null > 80`.
           // Both are false, so this is a readability change and not a
           // behavioural one — and it is not asserted anywhere, because a test

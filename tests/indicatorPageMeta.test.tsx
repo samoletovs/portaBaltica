@@ -30,9 +30,8 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { IndicatorPage } from '../src/components/IndicatorPage';
@@ -54,6 +53,19 @@ vi.mock('../src/components/BalticCompareChart', () => ({
   BalticCompareChart: ({ indicator }: { indicator: string }) => (
     <div data-testid="baltic-compare">{indicator}</div>
   ),
+}));
+vi.mock('../src/api', () => ({
+  fetchBalticCompare: vi.fn(async (indicator: string) => ({
+    indicator,
+    title: registry[indicator]?.title ?? indicator,
+    unit: registry[indicator]?.unit ?? '',
+    source: 'Eurostat',
+    countries: {
+      LV: { label: 'Latvia', series: [{ period: '2026-Q1', value: 1 }] },
+      EE: { label: 'Estonia', series: [{ period: '2026-Q1', value: 2 }] },
+      LT: { label: 'Lithuania', series: [{ period: '2026-Q1', value: 3 }] },
+    },
+  })),
 }));
 
 /** The catalogue endpoint, answering with the real registry. */
@@ -134,7 +146,7 @@ describe('a page claims its own URL', () => {
     stubRegistry();
     renderAt('/indicator/salary');
 
-    await settle(() => document.title.includes('Hourly Labour Cost'));
+    await settle(() => document.title.includes(registry.salary.title));
     expect(canonical()).toContain('/indicator/salary');
     // The defect this replaces: the page inherited the shell's canonical, which
     // names the home page, so 71 URLs would have been 71 duplicates of one page.
@@ -177,12 +189,15 @@ describe('a page claims its own URL', () => {
     expect(screen.getByTestId('baltic-compare').textContent).toBe('gov_debt_gdp');
   });
 
-  it('shows the Latvian series only where one is served', async () => {
+  it('offers the national series on request only where one is served', async () => {
     // `/api/historical-data?indicator=road_freight` answers 400 while the
     // comparison endpoint answers 200 — measured. An empty chart frame on 57
     // pages is worse than no chart.
     stubRegistry();
     const withSeries = renderAt('/indicator/gdp');
+    await settle(() => screen.queryByText('National source series') !== null);
+    expect(screen.queryByTestId('national-series')).toBeNull();
+    fireEvent.click(screen.getByText('National source series'));
     await settle(() => screen.queryByTestId('national-series') !== null);
     withSeries.unmount();
 
@@ -233,14 +248,14 @@ describe('a dead end says so, and says it to a crawler', () => {
     expect(screen.getByLabelText('Loading the indicator')).toBeTruthy();
   });
 
-  it('falls back to the editorial entry when the registry cannot be read', async () => {
-    // A failed catalogue must not take down the 24 pages that never needed it.
+  it('reports a catalogue failure without inventing an old indicator definition', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     renderAt('/indicator/gdp');
 
-    await settle(() => document.title.includes('GDP Growth Rate'));
+    await settle(() => screen.queryByText(/We could not verify the indicator catalogue/) !== null);
     expect(screen.queryByText('Unknown indicator.')).toBeNull();
     expect(canonical()).toContain('/indicator/gdp');
+    expect(document.title).toBe('Indicator | portaBaltica');
   });
 });
 
@@ -255,9 +270,6 @@ describe('the description is distinct on every page', () => {
    * the duplicate-content problem one level down from the canonical one this
    * change is about. `title` is distinct 71 of 71.
    */
-  const source = readFileSync(resolve(ROOT, 'src/components/IndicatorPage.tsx'), 'utf-8')
-    .replace(/\r\n/g, '\n');
-
   it('proves the collision the composition is written to avoid', () => {
     const triples = Object.values(registry).map((d) => `${d.freq}|${d.unit}|${d.dataset}`);
     const titles = Object.values(registry).map((d) => d.title);
@@ -270,21 +282,22 @@ describe('the description is distinct on every page', () => {
     expect(new Set(titles).size).toBe(Object.keys(registry).length);
   });
 
-  it('leads the composed description with the title', () => {
-    const composed = source.slice(source.indexOf('const description'), source.indexOf('usePageMeta('));
-
-    expect(composed).toMatch(/\$\{registered\.title\}/);
+  it('leads the composed description with the live registry title', async () => {
+    stubRegistry();
+    renderAt('/indicator/core_inflation');
+    await settle(() => document.title.includes(registry.core_inflation.title));
+    expect(document.head.querySelector('meta[name="description"]')?.getAttribute('content'))
+      .toMatch(new RegExp(`^${registry.core_inflation.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   });
 
-  it('uses the editorial description verbatim where there is one', () => {
-    expect(source).toMatch(/info\?\.description/);
-  });
-
-  it('keeps the 24 editorial descriptions distinct', () => {
-    const info = source.slice(source.indexOf('const INDICATOR_INFO'), source.indexOf('export function IndicatorPage'));
-    const descriptions = [...info.matchAll(/description: '([^']*)'/g)].map((m) => m[1]);
-
-    expect(descriptions.length, 'the parser found no descriptions').toBeGreaterThan(20);
-    expect(new Set(descriptions).size).toBe(descriptions.length);
+  it.each([['cpi', 'inflation'], ['new_vehicles', 'vehicles'], ['energy_price_gas', 'gas_price_household']])('describes %s as the measure actually shown, %s', async (legacy, actual) => {
+    stubRegistry();
+    renderAt(`/indicator/${legacy}`);
+    await settle(() => document.title === `${registry[actual].title} | portaBaltica`);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(registry[actual].title);
+    const description = document.head.querySelector('meta[name="description"]')?.getAttribute('content');
+    expect(description).toContain(registry[actual].title);
+    expect(description).toContain(registry[actual].unit);
+    expect(description).toContain(registry[actual].dataset);
   });
 });

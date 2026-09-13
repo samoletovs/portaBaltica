@@ -103,7 +103,8 @@ var staticWebAppName = '${projectName}-swa'
 //               actually received (newsroom/README.md, step 1).
 //   articles  — validated article JSON; the SWA serves these statically.
 //   approvals — pending tier B/C items awaiting a human Telegram decision.
-var newsroomContainers = ['articles', 'raw-feeds', 'approvals']
+var newsroomContainers = ['articles', 'raw-feeds', 'approvals', 'feedback']
+var feedbackRetention = loadJsonContent('../newsroom/feedback-retention.json')
 
 // Flex Consumption deploys the function package from a blob container using the
 // app's own identity, so it needs a container of its own.
@@ -279,6 +280,7 @@ resource storageLifecycle 'Microsoft.Storage/storageAccounts/managementPolicies@
             }
           }
         }
+        feedbackRetention
       ]
     }
   }

@@ -73,9 +73,11 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
   );
 
   return (
-    <figure className="news-border news-panel my-8 rounded-xl border p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="news-subtle text-caption font-semibold uppercase tracking-widest">Live data</p>
+    <figure className="folio-story-chart">
+      <div className="folio-story-chart-header">
+        <p className="news-fg text-callout font-semibold">
+          Live data{country ? ` · ${COUNTRY_NAMES[country]}` : ''}
+        </p>
         {/* `flex min-h-11 items-center` for the same reason the masthead
             wordmark carries it: the 44px rule in `index.css` reaches `nav a`,
             and this is a standalone link outside any nav, so no rule touched
@@ -92,15 +94,20 @@ export function ChartEmbed({ indicatorId, country, caption }: Props) {
 
       <Suspense
         fallback={
-          <div className="news-skeleton h-64 animate-pulse rounded-lg" aria-label="Loading chart" />
+          <div className="folio-story-chart-loading news-subtle text-ui" role="status">
+            Loading the live series…
+          </div>
         }
       >
         <IndicatorChart id={resolved} country={country} fallback={fallback} />
       </Suspense>
 
-      <figcaption className="news-subtle mt-2 text-caption">
-        {caption ??
-          'This chart updates independently of the article. It is the same series the story was written from.'}
+      <figcaption className="folio-story-chart-caption news-subtle text-caption">
+        {caption && <p className="news-muted mb-2 text-ui">{caption}</p>}
+        <p>
+          This chart updates independently of the article. New observations and source revisions
+          may differ from the figures published in the story.
+        </p>
       </figcaption>
     </figure>
   );

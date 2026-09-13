@@ -1,6 +1,9 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Markdown } from '../src/newsroom/markdown';
 
 /**
  * The type scale, enforced across the whole site.
@@ -19,6 +22,16 @@ import { describe, expect, it } from 'vitest';
  */
 
 const css = readFileSync(resolve('src/index.css'), 'utf8');
+
+function markdownHeadingClasses(): Record<number, string> {
+  const container = document.createElement('div');
+  container.innerHTML = renderToStaticMarkup(createElement(Markdown, {
+    source: '# Page\n\n## Section\n\n### Subsection\n\n#### Label',
+  }));
+  const headings = [...container.querySelectorAll('h1, h2, h3, h4')];
+  expect(headings.map(heading => heading.tagName)).toEqual(['H1', 'H2', 'H3', 'H4']);
+  return Object.fromEntries(headings.map(heading => [Number(heading.tagName.slice(1)), heading.className]));
+}
 
 /** Every `--text-*` step, in rem. */
 function scale(): Record<string, number> {
@@ -143,6 +156,8 @@ const STEPS = [
   'title',
   'headline',
   'display',
+  'masthead',
+  'banner',
 ] as const;
 
 describe('the type scale', () => {
@@ -193,7 +208,7 @@ describe('the type scale', () => {
 
     // Leading is proportional: the same ratio that reads as comfortable on a
     // caption reads as a gap on a headline.
-    for (const step of ['lead', 'title', 'headline', 'display'] as const) {
+    for (const step of ['lead', 'title', 'headline', 'display', 'masthead', 'banner'] as const) {
       expect(heights[step], `--text-${step}--line-height`).toBeLessThan(1.5);
     }
     expect(heights.display).toBeLessThanOrEqual(heights.headline);
@@ -304,14 +319,7 @@ describe('every page', () => {
 
   it('never sets a heading smaller than the prose it introduces', () => {
     const sizes = scale();
-    const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
-
-    const headings = Object.fromEntries(
-      [...markdown.matchAll(/^\s*(\d):\s*'([^']+)',$/gm)].map(([, level, classes]) => [
-        Number(level),
-        classes,
-      ]),
-    );
+    const headings = markdownHeadingClasses();
 
     function sizeOf(classes: string): number {
       const token = classes.match(/\btext-([a-z]+)\b/)?.[1];
@@ -331,13 +339,7 @@ describe('every page', () => {
     // them focus and prominence. Then as the headers descend in importance
     // they receive less space." A heading belongs to the content beneath it,
     // so it must sit closer to that than to whatever it follows.
-    const markdown = readFileSync(resolve('src/newsroom/markdown.tsx'), 'utf8');
-    const headings = Object.fromEntries(
-      [...markdown.matchAll(/^\s*(\d):\s*'([^']+)',$/gm)].map(([, level, classes]) => [
-        Number(level),
-        classes,
-      ]),
-    );
+    const headings = markdownHeadingClasses();
 
     function step(classes: string, prefix: 'mt' | 'mb'): number {
       const value = classes.match(new RegExp(`\\b${prefix}-(\\d+)\\b`))?.[1];
@@ -545,7 +547,7 @@ describe('the typeface', () => {
     // face. Across a product a reader crosses constantly, that read as two
     // sites rather than as two registers.
     expect(css).not.toMatch(/--font-serif:/);
-    expect(css).toMatch(/--font-sans:\s*system-ui/);
+    expect(css).toMatch(/--font-sans:\s*"Baltic Editorial",\s*system-ui/);
     expect(css).toMatch(/body\s*\{[^}]*font-family:\s*var\(--font-sans\)/);
   });
 
@@ -572,6 +574,17 @@ describe('the typeface', () => {
       'Cascadia Mono',
       'Segoe UI Mono',
     ]);
+    const servedFaces = new Set<string>();
+    for (const [, block] of css.matchAll(/@font-face\s*\{([^}]+)\}/g)) {
+      const family = block.match(/font-family:\s*"([^"]+)"/)?.[1];
+      const url = block.match(/url\("([^"]+)"\)/)?.[1];
+      expect(family, 'a font face has no family').toBeTruthy();
+      expect(url, 'font files must be served locally').toMatch(/^\/fonts\/.+\.woff2$/);
+      const binary = readFileSync(resolve('public', url!.slice(1)));
+      expect(binary.subarray(0, 4).toString(), `${url} is not a WOFF2 font`).toBe('wOF2');
+      servedFaces.add(family!);
+    }
+    expect(servedFaces.has('Baltic Editorial')).toBe(true);
 
     const families = [...css.matchAll(/^\s*--font-[a-z]+:\s*([^;]+);/gm)].map(
       (match) => match[1],
@@ -580,7 +593,7 @@ describe('the typeface', () => {
     for (const family of families) {
       for (const [, quoted] of family.matchAll(/"([^"]+)"/g)) {
         expect(
-          platformFaces.has(quoted),
+          platformFaces.has(quoted) || servedFaces.has(quoted),
           `${quoted} is named in a font stack but nothing serves it`,
         ).toBe(true);
       }

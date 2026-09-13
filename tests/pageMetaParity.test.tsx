@@ -47,6 +47,7 @@ import AiPolicyPage from '../src/components/news/AiPolicyPage';
 import CorrespondentPage from '../src/components/news/CorrespondentPage';
 import { ApiDocsPage } from '../src/components/ApiDocsPage';
 import { IndicatorPage } from '../src/components/IndicatorPage';
+import { DataExplorerPage } from '../src/components/DataExplorerPage';
 import App from '../src/App';
 import { ThemeProvider } from '../src/ThemeContext';
 import { CountryProvider } from '../src/CountryContext';
@@ -86,7 +87,6 @@ vi.mock('../src/components/BalticCompareChart', () => ({
 // section description stayed green until this was added.
 vi.mock('../src/components/OnboardingTutorial', () => ({ OnboardingTutorial: () => null }));
 vi.mock('../src/components/InsightsBanner', () => ({ InsightsBanner: () => null }));
-vi.mock('../src/components/SectionRail', () => ({ SectionRail: () => null }));
 vi.mock('../src/components/EconomyTile', () => ({ EconomyTile: () => null }));
 vi.mock('../src/components/TradeTile', () => ({ TradeTile: () => null }));
 vi.mock('../src/components/GovernmentTile', () => ({ GovernmentTile: () => null }));
@@ -193,6 +193,7 @@ describe('the mirror agrees with the page, route by route', () => {
     ['/', '/', () => <NewsFeed />],
     ['/follow', '/follow', () => <FollowPage />],
     ['/briefings', '/briefings', () => <BriefingsPage />],
+    ['/explore', '/explore', () => <DataExplorerPage />],
     ['/weekly', '/weekly', () => <WeeklyPage />],
     ['/corrections', '/corrections', () => <CorrectionsPage />],
     ['/about/ai', '/about/ai', () => <AiPolicyPage />],
@@ -257,27 +258,19 @@ describe('the mirror covers what the app declares', () => {
       .toEqual(CORRESPONDENTS.map((c) => c.id).sort());
   });
 
-  it('carries editorial copy for exactly the ids that have it in the component', () => {
-    // 24 in `IndicatorPage.tsx`, every one carrying a title. Ten name ids the
-    // registry does not hold — the PxWeb family — and of the fourteen it does,
-    // NINE have an editorial title that differs from the registry's. The client
-    // resolves `info?.title ?? registered?.title`, so a mirror preferring the
-    // registry would serve nine crawlers a headline the page does not print.
+  it('derives legacy-route metadata from the registry rather than stale editorial descriptions', () => {
     expect(Object.keys(pageMeta.INDICATOR_COPY).length).toBe(24);
 
     const untitled = Object.entries(pageMeta.INDICATOR_COPY)
       .filter(([, entry]) => (entry as { title?: string }).title === undefined)
       .map(([id]) => id);
-    expect(untitled, 'every editorial entry must carry its own title').toEqual([]);
+    expect(untitled, 'every legacy route must resolve to a titled measure').toEqual([]);
 
     const disagreeing = Object.entries(pageMeta.INDICATOR_COPY).filter(([id, entry]) => {
       const definition = registry[id] as { title?: string } | undefined;
       return definition !== undefined && definition.title !== (entry as { title: string }).title;
     });
-    // The control: if these ever agreed, the rule above would be guarding
-    // nothing and the mirror could safely be simplified.
-    expect(disagreeing.length, 'editorial and registry titles no longer disagree anywhere')
-      .toBeGreaterThan(0);
+    expect(disagreeing, 'the head must describe the displayed measure').toEqual([]);
   });
 });
 

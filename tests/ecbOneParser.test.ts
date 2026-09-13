@@ -278,11 +278,12 @@ describe('the probe cannot report green while the ticker would be empty', () => 
       // CONTROL: the ordinary document publishes healthy, so the red below is
       // about this document rather than about the probe refusing everything.
       es.httpText = () => Promise.resolve(SINGLE_QUOTED);
-      const good = await status.runRegistryCheck(ecbCheck, new Date(), Date.now());
+      const assessedAt = new Date('2026-09-03T12:00:00Z');
+      const good = await status.runRegistryCheck(ecbCheck, assessedAt, Date.now());
       expect(good.status, 'CONTROL: the live shape is healthy').toBe('healthy');
 
       es.httpText = () => Promise.resolve(datedButEmpty);
-      const bad = await status.runRegistryCheck(ecbCheck, new Date(), Date.now());
+      const bad = await status.runRegistryCheck(ecbCheck, assessedAt, Date.now());
 
       expect(bad.status, 'a document the ticker cannot use is not healthy').toBe('unhealthy');
       expect(status.overallStatus([bad]), 'and it reaches the published verdict')

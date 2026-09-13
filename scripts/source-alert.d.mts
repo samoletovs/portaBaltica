@@ -30,6 +30,7 @@ export interface StatusCheck {
   status?: unknown;
   freshness?: unknown;
   latency?: unknown;
+  error?: unknown;
   /** Whether a failure here matters. Absence is an alert, never `false`. */
   required?: unknown;
   powers?: unknown;

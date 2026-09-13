@@ -551,7 +551,72 @@ def test_the_recovery_message_uses_the_same_channel_as_the_alert() -> None:
 
     assert "NAURO_BOT_TOKEN" in send["env"]
     assert "NAURO_CHAT_ID" in send["env"]
-    assert "sendMessage" in send["run"]
+    assert "node scripts/telegram-send.mjs" in send["run"]
+
+
+@pytest.mark.skipif(not BASH, reason="no usable bash on this machine; see _usable_bash")
+@pytest.mark.parametrize("step_name", ["Send the Telegram message", "Send the recovery message"])
+@pytest.mark.parametrize("sender_exit", [0, 1])
+def test_delivery_steps_pass_the_whole_report_to_the_chunked_sender(
+    step_name: str, sender_exit: int,
+) -> None:
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    send = next(step for step in steps if step.get("name") == step_name)
+    message = "A full source report\n" + "diagnostic " * 600
+    with tempfile.TemporaryDirectory() as tmp:
+        recorded = Path(tmp, "sent-text")
+        args = Path(tmp, "sender-args")
+        summary = Path(tmp, "summary")
+        env = {
+            **os.environ,
+            "MESSAGE": message,
+            "SUBJECT": "Data sources",
+            "CLOSED": "335",
+            "NAURO_BOT_TOKEN": "test-only",
+            "NAURO_CHAT_ID": "test-chat",
+            "GITHUB_STEP_SUMMARY": str(summary),
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_REPOSITORY": "samoletovs/portaBaltica",
+            "GITHUB_RUN_ID": "34028865632",
+            "RECORDED": str(recorded),
+            "SENDER_ARGS": str(args),
+            "SENDER_EXIT": str(sender_exit),
+        }
+        # Stub the send boundary, and explicitly prevent the old curl path
+        # from opening a socket if the workflow regresses to its former sender.
+        boundary = (
+            'node() { printf "%s" "$*" > "$SENDER_ARGS"; '
+            'cat > "$RECORDED"; return "$SENDER_EXIT"; }\n'
+            'curl() { echo "unexpected direct send" >&2; return 99; }\n'
+        )
+        done = subprocess.run(
+            [BASH, "-c", boundary + send["run"]], cwd=tmp, env=env,
+            capture_output=True, text=True, timeout=120,
+        )
+        assert recorded.exists(), f"the chunked sender was not called: {done.stderr}"
+        body = recorded.read_text(encoding="utf-8")
+        assert args.read_text(encoding="utf-8") == "scripts/telegram-send.mjs"
+        assert message in body
+        assert body.endswith(
+            "https://github.com/samoletovs/portaBaltica/actions/runs/34028865632\n"
+        )
+        if sender_exit:
+            assert done.returncode != 0, "a failed part must not be reported as delivered"
+            assert not summary.exists() or "delivered" not in summary.read_text(encoding="utf-8")
+        else:
+            assert done.returncode == 0, done.stderr
+            assert "delivered" in summary.read_text(encoding="utf-8")
+
+
+def test_chunked_sender_is_available_before_either_delivery_step() -> None:
+    steps = _notifier()["jobs"]["notify"]["steps"]
+    checkout = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("actions/checkout@"))
+    setup = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("actions/setup-node@"))
+    for i, step in enumerate(steps):
+        if step.get("name") in {"Send the Telegram message", "Send the recovery message"}:
+            assert checkout < i and setup < i
+            assert "node scripts/telegram-send.mjs" in step["run"]
+            assert "curl " not in step["run"]
 
 # ── the stand-down leg ──────────────────────────────────────────────────────
 #

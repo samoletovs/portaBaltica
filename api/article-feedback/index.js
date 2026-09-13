@@ -1,98 +1,83 @@
 'use strict';
 
-const { promises: fs } = require('node:fs');
-const path = require('node:path');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const rateLimit = require('../shared/rateLimit.js');
 
-const MAX_MESSAGE = 2000;
-const MAX_CONTACT = 200;
-const DB_PATH = process.env.FEEDBACK_DB_PATH || '/tmp/portabaltica-feedback.ndjson';
+const SERVICE_URL = 'https://portabaltica-func.azurewebsites.net/api/article-feedback';
+const MAX_RELAY_BYTES = 16384;
+const DEADLINE_MS = 20000;
+const FIELDS = ['id', 'slug', 'kind', 'message', 'contact'];
 
-function badRequest(context, message) {
+function reply(context, status, body, headers) {
   context.res = {
-    status: 400,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ error: message }),
+    status,
+    headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, headers),
+    body: JSON.stringify(body),
   };
-}
-
-function parseBody(req) {
-  if (!req || req.body == null) return null;
-  if (typeof req.body === 'string') {
-    try { return JSON.parse(req.body); } catch { return null; }
-  }
-  if (typeof req.body === 'object') return req.body;
-  return null;
-}
-
-async function appendFeedback(record) {
-  await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-  await fs.appendFile(DB_PATH, JSON.stringify(record) + '\n', 'utf8');
 }
 
 const handler = async function (context, req) {
-  const rl = rateLimit.check(req);
-  if (rl) { context.res = rl; return; }
-
+  const limited = rateLimit.check(req);
+  if (limited) {
+    context.res = limited;
+    context.res.headers = Object.assign({}, limited.headers, { 'Cache-Control': 'no-store' });
+    return;
+  }
   if (req.method !== 'POST') {
-    context.res = {
-      status: 405,
-      headers: { Allow: 'POST', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Method not allowed' }),
-    };
+    reply(context, 405, { error: 'Method not allowed.' }, { Allow: 'POST' });
     return;
   }
-
-  const payload = parseBody(req);
-  if (!payload) return badRequest(context, 'Invalid JSON body');
-
-  const slug = typeof payload.slug === 'string' ? payload.slug.trim() : '';
-  const kind = payload.kind === 'issue' ? 'issue' : payload.kind === 'comment' ? 'comment' : '';
-  const message = typeof payload.message === 'string' ? payload.message.trim() : '';
-  const contact = typeof payload.contact === 'string' ? payload.contact.trim() : '';
-
-  if (!slug) return badRequest(context, 'Missing article slug');
-  if (!kind) return badRequest(context, 'Feedback kind must be comment or issue');
-  if (message.length < 5 || message.length > MAX_MESSAGE) {
-    return badRequest(context, `Feedback message must be 5 to ${MAX_MESSAGE} characters`);
+  const type = req.headers && (req.headers['content-type'] || req.headers['Content-Type']);
+  if (typeof type !== 'string' || type.split(';')[0].trim().toLowerCase() !== 'application/json') {
+    reply(context, 415, { error: 'Content-Type must be application/json.' });
+    return;
   }
-  if (contact.length > MAX_CONTACT) {
-    return badRequest(context, `Contact must be at most ${MAX_CONTACT} characters`);
-  }
-
-  const now = new Date().toISOString();
-  const id = `${slug}-${Date.now().toString(36)}`;
-  const record = {
-    id,
-    slug,
-    kind,
-    message,
-    contact: contact || null,
-    created_at: now,
-    ip:
-      (req.headers && (req.headers['x-forwarded-for'] || req.headers['x-client-ip'])) ||
-      null,
-    user_agent: (req.headers && req.headers['user-agent']) || null,
-  };
-
+  let payload;
   try {
-    await appendFeedback(record);
-  } catch (error) {
-    context.log && context.log.error && context.log.error('feedback write failed', error);
-    context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Could not store feedback' }),
-    };
+    const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (!raw || Buffer.byteLength(raw, 'utf8') > MAX_RELAY_BYTES) {
+      reply(context, 413, { error: 'Feedback request is missing or too large.' });
+      return;
+    }
+    payload = JSON.parse(raw);
+  } catch {
+    reply(context, 400, { error: 'Invalid JSON body.' });
     return;
   }
-
-  context.res = {
-    status: 202,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ok: true, id }),
-  };
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    reply(context, 400, { error: 'A JSON object is required.' });
+    return;
+  }
+  const clean = Object.fromEntries(FIELDS.filter(field => Object.hasOwn(payload, field)).map(field => [field, payload[field]]));
+  try {
+    const upstream = await fetch(SERVICE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(clean),
+      signal: AbortSignal.timeout(DEADLINE_MS),
+      redirect: 'error',
+    });
+    if (![202, 400, 404, 409, 413, 415, 429, 503].includes(upstream.status)) {
+      throw new Error(`Feedback service returned HTTP ${upstream.status}`);
+    }
+    const body = await upstream.json();
+    if (upstream.status === 202) {
+      if (body?.ok !== true || typeof body.id !== 'string' || body.id !== clean.id) {
+        throw new Error('Feedback service did not confirm this submission.');
+      }
+      reply(context, 202, { ok: true, id: body.id });
+      return;
+    }
+    if (typeof body?.error !== 'string' || body.error.length > 250) {
+      throw new Error('Invalid feedback error response.');
+    }
+    const retry = upstream.headers.get('retry-after');
+    reply(context, upstream.status, { error: body.error },
+      retry && /^\d{1,6}$/.test(retry) ? { 'Retry-After': retry } : undefined);
+  } catch (error) {
+    if (context.log && context.log.error) context.log.error('Feedback receipt not confirmed', error);
+    reply(context, 503, { error: 'Could not confirm feedback was saved. Please retry.' });
+  }
 };
 
 module.exports = withSecurity(handler);

@@ -14,6 +14,7 @@ import { CorrespondentAvatar } from './CorrespondentAvatar';
 import { ArticleCard } from './NewsCard';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { NewsroomIndex } from './NewsroomIndex';
+import { PageTitle } from '../PageIntro';
 
 /**
  * The bio page.
@@ -67,7 +68,7 @@ export default function CorrespondentPage() {
             to={`/newsroom/${entry.id}`}
             className={({ isActive }) =>
               [
-                'rounded-full border px-4 py-2 text-caption transition-colors',
+                'site-choice text-ui transition-colors',
                 '',
                 isActive
                   ? 'news-tab-active'
@@ -83,7 +84,7 @@ export default function CorrespondentPage() {
       <header className="flex flex-wrap items-center gap-6">
         <CorrespondentAvatar id={correspondent.id} size={88} />
         <div>
-          <h1 className="balance-text news-fg text-headline font-semibold tracking-tight">{correspondent.name}</h1>
+          <PageTitle className="news-fg">{correspondent.name}</PageTitle>
           <p className="news-accent mt-1 text-ui">{renderByline(correspondent)}</p>
         </div>
       </header>

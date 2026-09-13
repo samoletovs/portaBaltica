@@ -189,6 +189,11 @@ def find_revisions(
     — because the collector asks for a rolling range, not all history — must not
     be read as a restatement to nothing, so a figure whose period is not present
     in the current series is skipped rather than reported.
+
+    Missing source identity is not permission to compare. A collector may be
+    repinned to correct its subject (tourist arrivals once read overnight stays);
+    that is our reporting error, never a restatement by the statistical office.
+    Known mismatches and unidentified legacy observations remain unmonitored.
     """
     by_key = {(s.metric, s.geography): s for s in series_list}
     revisions: list[Revision] = []
@@ -198,9 +203,11 @@ def find_revisions(
         series = by_key.get(figure.series_key)
         if series is None:
             continue
-        if figure.source_id and figure.source_id != series.source.source_id:
+        if not figure.source_id or not figure.dataset:
             continue
-        if figure.dataset and figure.dataset != series.source.dataset:
+        if figure.source_id != series.source.source_id:
+            continue
+        if figure.dataset != series.source.dataset:
             continue
         if figure.unit != series.unit:
             continue

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
 import { correctedSlugs, fetchArticleIndex, fetchCorrections } from '../../news-api';
@@ -8,6 +8,9 @@ import { ArticleCard, CorrectionsUnavailable, FeedItem } from './NewsCard';
 import ElsewhereRail from './ElsewhereRail';
 import { SECTION_LABELS } from '../../newsroom/sections';
 import { useOverflowFade } from '../../utils/useOverflowFade';
+import { NewsSearch } from './NewsSearch';
+import { SignalDeskIntro } from './SignalDeskIntro';
+import { useScrollCollection } from '../../motion/useScrollChoreography';
 
 type Filter = 'all' | string;
 const PAGE_SIZE = 12;
@@ -58,7 +61,7 @@ function SectionFilter({
           onClick={() => onChange(section)}
           aria-pressed={filter === section}
           className={[
-            'shrink-0 rounded-full border px-4 py-2 text-caption transition-colors',
+            'site-choice shrink-0 text-ui transition-colors',
             '',
             filter === section ? 'news-tab-active' : 'news-tab-inactive news-hover',
           ].join(' ')}
@@ -75,12 +78,30 @@ function byNewestFirst(a: ArticleSummary, b: ArticleSummary): number {
 }
 
 export default function NewsFeed() {
+  return (
+    <>
+      <SignalDeskIntro />
+      <section className="folio-reporting" aria-label="Latest reporting">
+        <ReportingFeed />
+      </section>
+      <div className="folio-question-links">
+        <Link to="/data/labour"><h2 className="site-section-title text-lead font-semibold">The cost of hiring ↗</h2><p className="text-ui">Wages, labour costs and unemployment in their regional context.</p></Link>
+        <Link to="/data/energy"><h2 className="site-section-title text-lead font-semibold">The cost of energy ↗</h2><p className="text-ui">Electricity prices and the differences between Baltic markets.</p></Link>
+        <Link to="/briefings"><h2 className="site-section-title text-lead font-semibold">A better business briefing ↗</h2><p className="text-ui">Explore the discovery pilot. Public reporting, charts and exports remain free.</p></Link>
+      </div>
+    </>
+  );
+}
+
+function ReportingFeed() {
   const [articles, setArticles] = useState<ArticleSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [corrections, setCorrections] = useState<CorrectionState>({ state: 'loading' });
+  const collection = useRef<HTMLDivElement>(null);
+  useScrollCollection(collection, '.folio-story-item', `${filter}:${search}:${visibleCount}:${articles === null}`);
 
   usePageMeta({
     title: 'portaBaltica | Baltic open data, reported',
@@ -188,6 +209,7 @@ export default function NewsFeed() {
       */
       <div
         key="front-page-loading"
+        ref={collection}
         className="min-h-screen"
         aria-busy="true"
         aria-label="Loading the front page"
@@ -219,7 +241,7 @@ export default function NewsFeed() {
               key={label}
               type="button"
               disabled
-              className="news-skeleton shrink-0 animate-pulse rounded-full border px-4 py-2 text-caption text-transparent"
+              className="site-choice news-skeleton shrink-0 animate-pulse text-ui"
             >
               {label}
             </button>
@@ -239,40 +261,31 @@ export default function NewsFeed() {
   }
 
   const [lead, ...rest] = ours.slice(0, visibleCount);
+  const promoted = Boolean(lead && filter === 'all' && !search.trim());
   const isCorrected = (summary: ArticleSummary) =>
     corrections.state === 'ok' && corrections.slugs.has(summary.slug);
 
   return (
-    <div key="front-page-loaded">
-      <p className="news-muted mb-4 text-ui">
-        Using Baltic data at work?{' '}
-        <Link to="/briefings" className="news-link underline underline-offset-4">
-          Help shape our business briefing pilot
-        </Link>.
-      </p>
-      {!failed && (
-        <div className="mb-4">
-          <label htmlFor="news-search" className="news-fg block text-ui font-semibold">
-            Search headlines and summaries
-          </label>
-          <input id="news-search" type="search" maxLength={200} value={search}
-            aria-describedby="news-search-scope" aria-controls="news-results"
-            className="news-border news-panel news-fg w-full rounded-lg border px-3 py-2 text-ui"
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setVisibleCount(PAGE_SIZE);
-            }} />
-          <p id="news-search-scope" className="news-subtle mt-2 text-caption">
-            Searches the current published index, not article bodies or other outlets.
-          </p>
-        </div>
-      )}
-      {sections.length > 1 && (
+    <div key="front-page-loaded" ref={collection}>
+      {ours.length > 0 && corrections.state === 'failed' && <CorrectionsUnavailable />}
+      {promoted && <ArticleCard summary={lead} variant="lead" corrected={isCorrected(lead)} />}
+      <div className="folio-news-toolbar mb-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+        {!failed && (
+          <NewsSearch value={search} onChange={(value) => {
+            setSearch(value);
+            setVisibleCount(PAGE_SIZE);
+          }} />
+        )}
+        <Link to="/briefings" className="news-link inline-flex min-h-11 items-center text-ui underline underline-offset-4">
+          Read the public business briefing
+        </Link>
+      </div>
+      <div className="folio-filter-row">{sections.length > 1 && (
         <SectionFilter sections={sections} filter={filter} onChange={(next) => {
           setFilter(next);
           setVisibleCount(PAGE_SIZE);
         }} />
-      )}
+      )}</div>
       {!failed && (
         <p role="status" className="news-subtle mb-4 text-ui">
           Showing {Math.min(visibleCount, ours.length)} of {ours.length} matching articles
@@ -303,13 +316,13 @@ export default function NewsFeed() {
         column definition at all, and at `lg` and above the 20rem rule still
         wins.
       */}
-      <div className="grid grid-cols-1 gap-12 md:grid-cols-[minmax(0,1fr)_16rem] lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="folio-news-grid">
         <div id="news-results">
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-12 text-center">
-              <h1 className="balance-text news-fg text-title font-semibold">
+              <h2 className="site-section-title balance-text news-fg text-title font-semibold">
                 {failed ? 'The front page could not be loaded' : search.trim() ? 'No matching articles' : 'Nothing to report yet today'}
-              </h1>
+              </h2>
               <p className="pretty-text news-muted mx-auto mt-3 max-w-md text-callout">
                 {failed
                   ? 'Published articles are served as static files. If this persists, the dashboard is unaffected.'
@@ -318,7 +331,7 @@ export default function NewsFeed() {
                     : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
               </p>
               {search.trim() && (
-                <button type="button" className="news-link mt-4 px-3 py-2 text-ui underline underline-offset-4"
+                <button type="button" className="site-action mt-4 text-ui"
                   onClick={() => {
                     setSearch('');
                     setFilter('all');
@@ -349,10 +362,8 @@ export default function NewsFeed() {
             </div>
           ) : (
             <>
-              <h1 className="sr-only">Front page</h1>
-              {corrections.state === 'failed' && <CorrectionsUnavailable />}
-              <ArticleCard summary={lead} variant="lead" corrected={isCorrected(lead)} />
-              <div className="mt-8 space-y-6">
+              {!promoted && <ArticleCard summary={lead} corrected={isCorrected(lead)} />}
+              <div className="folio-story-grid">
                 {rest.map((summary) => (
                   <FeedItem
                     key={summary.id ?? summary.slug}
@@ -371,7 +382,7 @@ export default function NewsFeed() {
             </>
           )}
 
-          <section className="news-border news-accent-panel mt-12 rounded-xl border px-6 py-4">
+          <section className="folio-callout news-accent-panel mt-12">
             <h2 className="news-fg text-callout font-semibold">The dashboard is the evidence</h2>
             <p className="news-muted mt-2 text-ui">
               Every figure in our reporting comes from a series you can open, filter and check
@@ -400,7 +411,7 @@ export default function NewsFeed() {
             subscriber who hears nothing for a fortnight should be able to tell
             a quiet fortnight from a dead site.
           */}
-          <section className="news-border news-panel mt-6 rounded-xl border px-6 py-4">
+          <section className="folio-callout mt-6">
             <h2 className="news-fg text-callout font-semibold">Keep up with this</h2>
             <p className="news-muted mt-2 text-ui">
               Some days carry several stories and some carry none, so a feed is the only reliable

@@ -6,7 +6,8 @@ import aiUseSource from '../newsroom/policy/ai-use.md?raw';
 import correctionsSource from '../newsroom/policy/corrections.md?raw';
 import AiPolicyPage from '../src/components/news/AiPolicyPage';
 import CorrectionsPage from '../src/components/news/CorrectionsPage';
-import { NewsroomLayout } from '../src/components/news/NewsroomLayout';
+import { SiteLayout } from '../src/components/SiteLayout';
+import { SignalDeskIntro } from '../src/components/news/SignalDeskIntro';
 import { CorrespondentAvatar } from '../src/components/news/CorrespondentAvatar';
 import { Byline } from '../src/components/news/Byline';
 import { CORRESPONDENTS, renderByline } from '../src/newsroom/correspondents';
@@ -141,7 +142,7 @@ describe('/about/ai renders the published policy, not a paraphrase of it', () =>
 
 describe('newsroom masthead disclosure', () => {
   it('distinguishes AI editing from human accountability above the fold', () => {
-    const { container } = renderPage(<NewsroomLayout />);
+    const { container } = renderPage(<SignalDeskIntro />);
     const text = container.textContent ?? '';
 
     // Three claims, and the reader has to be able to tell them apart: a machine
@@ -160,13 +161,12 @@ describe('newsroom masthead disclosure', () => {
     );
   });
 
-  it('keeps the masthead to one line and four destinations', () => {
-    // It previously ran to three sentences and a second row of links, which
-    // pushed the lead story most of the way down the first screen.
-    renderPage(<NewsroomLayout />);
-
-    const nav = screen.getByRole('navigation', { name: 'Sections' });
-    expect(nav.querySelectorAll('a')).toHaveLength(4);
+  it('keeps policy destinations in the directory instead of repeating a newsroom masthead', () => {
+    renderPage(<SiteLayout />);
+    expect(screen.queryByRole('navigation', { name: 'Sections' })).toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'Publication' });
+    expect([...nav.querySelectorAll('a')].map(link => link.getAttribute('href')))
+      .toEqual(['/follow', '/newsroom', '/corrections', '/about/ai', '/api-docs']);
   });
 });
 

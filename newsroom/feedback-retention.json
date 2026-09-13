@@ -1,0 +1,22 @@
+{
+  "name": "feedback-expiry",
+  "enabled": true,
+  "type": "Lifecycle",
+  "definition": {
+    "filters": {
+      "blobTypes": ["blockBlob"],
+      "prefixMatch": ["feedback/"]
+    },
+    "actions": {
+      "baseBlob": {
+        "delete": { "daysAfterModificationGreaterThan": 90 }
+      },
+      "snapshot": {
+        "delete": { "daysAfterCreationGreaterThan": 90 }
+      },
+      "version": {
+        "delete": { "daysAfterCreationGreaterThan": 90 }
+      }
+    }
+  }
+}

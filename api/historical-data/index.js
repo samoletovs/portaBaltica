@@ -148,11 +148,13 @@ var INDICATORS = {
   tourist_arrivals: {
     path: '/NOZ/TU/TUV/TUV020c',
     query: [
+      { code: 'C_RESID', selection: { filter: 'item', values: ['TOTAL'] } },
       { code: 'ACCOMMODATION', selection: { filter: 'item', values: ['I551-I553'] } },
       { code: 'ContentsCode', selection: { filter: 'item', values: ['TUV020c'] } },
     ],
     transform: null,
-    unit: 'thousands',
+    // TUV020c publishes whole arrivals (unit.base = Number), not thousands.
+    unit: 'persons',
     title: 'Tourist arrivals',
     source: 'CSP Latvia (PxWeb)',
   },

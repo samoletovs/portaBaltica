@@ -74,6 +74,8 @@ const OVERALL_STATUS = new Set(['healthy', 'stale', 'degraded', 'unhealthy']);
 /** A check in one of these states is a problem, if it is required. */
 const BAD_STATUS = new Set(['stale', 'unhealthy']);
 
+const MAX_PROBE_ERROR_CHARS = 240;
+
 /** Exit codes. Anything non-zero must reach a human. */
 export const EXIT = {
   /** Every required source is healthy and fresh. Say nothing. */
@@ -364,7 +366,7 @@ export function evaluate(payload, { source = STATUS_URL, now = new Date() } = {}
   };
 }
 
-/** The lag detail on a failing check, when it carries enough to say something. */
+/** Keep probe failures diagnosable even after the raw payload is discarded. */
 function describeCheck(check) {
   const bits = [];
   if (typeof check.dataPeriod === 'string' && check.dataPeriod !== '') {
@@ -373,6 +375,18 @@ function describeCheck(check) {
   if (typeof check.ageInCadenceUnits === 'number' && typeof check.maxLag === 'number') {
     const unit = typeof check.cadence === 'string' ? check.cadence : '?';
     bits.push(`age ${check.ageInCadenceUnits}${unit} against a budget of ${check.maxLag}`);
+  }
+  if (Number.isFinite(check.latency) && check.latency >= 0) {
+    bits.push(`probe ${check.latency}ms`);
+  }
+  if (typeof check.error === 'string') {
+    const error = check.error.replace(/[\p{Cc}\p{Cf}\s]+/gu, ' ').trim();
+    if (error) {
+      const chars = Array.from(error);
+      bits.push(`error: ${chars.length > MAX_PROBE_ERROR_CHARS
+        ? chars.slice(0, MAX_PROBE_ERROR_CHARS - 1).join('') + '…'
+        : error}`);
+    }
   }
   if (typeof check.powers === 'string' && check.powers !== '') {
     bits.push(`powers ${check.powers}`);

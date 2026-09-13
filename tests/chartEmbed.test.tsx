@@ -49,7 +49,7 @@ function CountryProbe() {
   return <span data-testid="dashboard-country">{useCountry().country}</span>;
 }
 
-function renderEmbed(props: { indicatorId: string; country?: 'LV' | 'EE' | 'LT' }) {
+function renderEmbed(props: { indicatorId: string; country?: 'LV' | 'EE' | 'LT'; caption?: string }) {
   return render(
     <MemoryRouter>
       <CountryProvider>
@@ -100,5 +100,18 @@ describe('ChartEmbed', () => {
 
     const link = screen.getByRole('link', { name: /Open the full series/ });
     expect(link.getAttribute('href')).toBe('/indicator/unemployment');
+  });
+
+  it('keeps the published caption and identifies the chart as live even when a caption is supplied', async () => {
+    const caption = 'Estonian unemployment, as discussed in the published story.';
+    renderEmbed({ indicatorId: 'unemployment', country: 'EE', caption });
+    const chart = await screen.findByTestId('chart');
+    const figure = chart.closest('figure')!;
+
+    expect(figure.querySelector('figcaption')?.textContent).toContain(caption);
+    expect(figure.querySelector('figcaption')?.textContent)
+      .toContain('New observations and source revisions may differ');
+    expect(figure.textContent).toContain('Live data · Estonia');
+    expect(chart.getAttribute('data-country')).toBe('EE');
   });
 });

@@ -106,7 +106,9 @@ async function measure(page: PageUnderMeasurement): Promise<Measurement> {
     const rail = heading ? heading.closest('aside') : null;
 
     const links = [...document.querySelectorAll('a[href^="/article/"]')];
-    const main = links.length ? links[0].closest('div[class*="grid"] > div') : null;
+    // The illustrated lead now precedes the list. The secondary outlet rail
+    // belongs beside the continuing reporting, not beside the lead artwork.
+    const main = document.getElementById('news-results');
 
     const top = (el: Element | null) =>
       el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : null;

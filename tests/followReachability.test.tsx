@@ -29,7 +29,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { NewsroomLayout } from '../src/components/news/NewsroomLayout';
+import { SiteLayout } from '../src/components/SiteLayout';
+import { SiteFooter } from '../src/components/SiteFooter';
 import NewsFeed from '../src/components/news/NewsFeed';
 import { tierASummary } from './fixtures/articles';
 
@@ -50,7 +51,7 @@ describe('the standing chrome', () => {
   function renderChrome() {
     return render(
       <MemoryRouter>
-        <NewsroomLayout />
+        <SiteLayout />
       </MemoryRouter>,
     );
   }
@@ -79,26 +80,11 @@ describe('the standing chrome', () => {
     expect(hrefs).toContain('/follow');
   });
 
-  it('keeps the section nav at the four items it fits', () => {
-    // Measured against production at 2026-08-28T12:2xZ, this nav ALREADY
-    // scrolls sideways on a phone with four items: scrollWidth 371 against
-    // clientWidth 288 at 320px, and 371 against 343 at 375px. At 768px it is
-    // exactly 720 of 720. A fifth item would therefore push "How we use AI"
-    // further out of reach in order to make one more thing easier to find,
-    // which is a net loss — so the follow affordance went in the footer.
-    //
-    // This is not a rule against ever adding a nav item. It is a marker that
-    // the row is at its limit, so the next addition has to remove something.
-    const { container } = renderChrome();
-    const nav = container.querySelector('nav[aria-label="Sections"]');
-
-    expect(nav).toBeTruthy();
-    expect([...(nav as HTMLElement).querySelectorAll('a')].map((a) => a.textContent)).toEqual([
-      'Latest',
-      'Newsroom',
-      'Corrections',
-      'How we use AI',
-    ]);
+  it('offers Follow in the same directory on desktop and in the compact menu', () => {
+    render(<MemoryRouter><SiteFooter /></MemoryRouter>);
+    const nav = screen.getByRole('navigation', { name: 'Publication' });
+    expect(within(nav).getByRole('link', { name: 'Follow' }).getAttribute('href')).toBe('/follow');
+    expect(within(nav).getByRole('link', { name: 'How we use AI' }).getAttribute('href')).toBe('/about/ai');
   });
 });
 
