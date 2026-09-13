@@ -2,7 +2,7 @@ import type { ProvenanceSource } from './news-types';
 import type { EvidenceFile, EvidenceIndex, EvidenceManifest, EvidencePack } from './evidence-types';
 import { categorizeEvidenceComparison } from './evidence-comparison';
 import {
-  EvidenceError, isEvidenceMonth, isEvidenceSourceUrl, isSnapshotId, parseEvidenceBinding,
+  EvidenceError, isEvidenceMonth, isEvidenceSourceUrl, isEvidenceTimestamp, isSnapshotId, parseEvidenceBinding,
   parseEvidenceComparison, parseEvidenceIndex, parseEvidenceManifest, parseEvidenceMonth, parseEvidenceNormalized,
 } from './evidence-validation';
 
@@ -97,8 +97,7 @@ export async function verifyEvidenceDownloads(manifest: EvidenceManifest, signal
 
 export function isEligibleEvidenceSource(source: ProvenanceSource): boolean {
   return source.source_id === 'eurostat' && source.dataset === 'une_rt_m'
-    && typeof source.retrieved_at === 'string' && !/[\r\n]/.test(source.retrieved_at)
-    && Number.isFinite(Date.parse(source.retrieved_at)) && isEvidenceSourceUrl(source.url);
+    && isEvidenceTimestamp(source.retrieved_at) && isEvidenceSourceUrl(source.url);
 }
 export async function evidenceBindingKey(source: ProvenanceSource): Promise<string | null> {
   if (!isEligibleEvidenceSource(source)) return null;
@@ -148,8 +147,9 @@ export function evidenceHealth(index: EvidenceIndex, now = Date.now()): { label:
   const moments = [index.last_attempt.attempted_at, index.last_attempt.finished_at, index.last_success_at, latest?.observed_at];
   const staleHours = Math.min(index.stale_after_hours, 26);
   const invalid = !Number.isFinite(staleHours) || staleHours <= 0
-    || moments.some(value => !value || !Number.isFinite(Date.parse(value)) || Date.parse(value) > now)
-    || Date.parse(index.last_attempt.finished_at) < Date.parse(index.last_attempt.attempted_at);
+    || moments.some(value => !isEvidenceTimestamp(value) || Date.parse(value) > now)
+    || Date.parse(index.last_attempt.finished_at) < Date.parse(index.last_attempt.attempted_at)
+    || Date.parse(index.last_success_at) > Date.parse(index.last_attempt.finished_at);
   if (invalid) return { label: 'Archive timing invalid', detail: 'The archive reported malformed, future or inconsistent timing. Its freshness cannot be confirmed.', warning: true };
   const overdue = [index.last_attempt.finished_at, index.last_success_at]
     .some(value => now - Date.parse(value) > staleHours * 3_600_000);

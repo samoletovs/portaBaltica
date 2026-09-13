@@ -10,7 +10,7 @@ import {
   EVIDENCE_SELECTION, EVIDENCE_SERIES, type EvidenceIndex, type EvidenceManifest,
   type EvidenceComparison, type EvidenceNormalized, type EvidenceSummary,
 } from '../src/evidence-types';
-import { parseEvidenceIndex, parseEvidenceManifest, parseEvidenceMonth } from '../src/evidence-validation';
+import { isEvidenceTimestamp, parseEvidenceIndex, parseEvidenceManifest, parseEvidenceMonth } from '../src/evidence-validation';
 import type { ProvenanceSource } from '../src/news-types';
 import { EvidenceCatalogue } from '../src/components/news/EvidenceCatalogue';
 import { EvidencePage } from '../src/components/news/EvidencePage';
@@ -145,9 +145,65 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('untrusted archive contracts', () => {
+  it.each([
+    { status: ['failed'] }, { status: ['captured'] }, { status: { state: 'failed' } },
+    { status: null }, { status: 0 },
+  ])('rejects a non-string capture status: $status', ({ status }) => {
+    const original = index();
+    expect(() => parseEvidenceIndex({
+      ...original, last_attempt: { ...original.last_attempt, status },
+    })).toThrow();
+  });
+
   it('accepts the pinned contract including Eurostat source timezone syntax', () => {
     expect(parseEvidenceIndex(index()).recent[0].source_updated_at).toContain('+0200');
     expect(parseEvidenceManifest(pack(), ID).snapshot_id).toBe(ID);
+  });
+
+  it.each([
+    '2026-02-30T10:00:00Z', '2026-02-29T10:00:00Z', '1900-02-29T10:00:00Z',
+    '2026-04-31T10:00:00Z', '2026-13-01T10:00:00Z', '2026-00-01T10:00:00Z',
+    '2026-01-00T10:00:00Z', '0000-01-01T10:00:00Z', '2026-09-13T24:00:00Z',
+    '2026-09-13T10:60:00Z', '2026-09-13T10:00:60Z', '2026-09-13T10:00:00+24:00',
+    '2026-09-13T10:00:00+02:60', '2026-09-13T10:00:00', '2026-09-13',
+  ])('rejects impossible or timezone-free evidence timestamp %s', value => {
+    expect(isEvidenceTimestamp(value)).toBe(false);
+    expect(() => parseEvidenceIndex({ ...index(), last_success_at: value })).toThrow();
+    expect(evidenceHealth({ ...index(), last_success_at: value }, Date.parse(RETRIEVED)).label).toBe('Archive timing invalid');
+  });
+
+  it.each([
+    '2024-02-29T23:59:59Z', '2000-02-29T10:00:00+0200',
+    '2026-09-13T10:00:00.123456+02:00', '2026-01-01T00:00:00-05:30',
+  ])('accepts real calendar dates with explicit timezone without rewriting %s', value => {
+    expect(isEvidenceTimestamp(value)).toBe(true);
+    const manifest = pack();
+    expect(parseEvidenceManifest({
+      ...manifest, provenance: { ...manifest.provenance, retrieved_at: value },
+    }, ID).provenance.retrieved_at).toBe(value);
+  });
+
+  it('refuses impossible source-update and monthly capture dates, not just health dates', async () => {
+    const impossible = '2026-02-30T10:00:00+0200';
+    expect(() => parseEvidenceMonth({
+      version: 1, month: '2026-02', snapshots: [summary(ID, impossible)],
+    }, '2026-02')).toThrow();
+    expect(() => parseEvidenceIndex({
+      ...index(), recent: [{ ...summary(), source_updated_at: impossible }],
+    })).toThrow();
+    pack({ ...data(), source_updated_at: impossible });
+    await expect(fetchEvidencePack(ID)).rejects.toMatchObject({ kind: 'integrity' });
+  });
+
+  it('cannot label a normalized February 30 retrieval fresh on March 2', () => {
+    const impossible = '2026-02-30T10:00:00Z';
+    const forged: EvidenceIndex = {
+      ...index(), last_success_at: impossible,
+      last_attempt: { attempted_at: impossible, finished_at: impossible, status: 'captured' },
+      recent: [summary(ID, impossible)], months: ['2026-02'],
+    };
+    expect(() => parseEvidenceIndex(forged)).toThrow();
+    expect(evidenceHealth(forged, Date.parse('2026-03-02T11:00:00Z')).label).toBe('Archive timing invalid');
   });
 
   it.each(['../private', 'A'.repeat(32), ID + '?file=secret', '//evil.example'])('refuses unsafe snapshot ID %s before any network call', async id => {
@@ -223,6 +279,12 @@ describe('exact article binding', () => {
 
   it('does not infer a match for old sources missing the original URL', async () => {
     expect(await resolveEvidenceSource({ ...source, url: undefined })).toBeNull();
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('does not calculate a legacy binding for an impossible or timezone-free retrieval', async () => {
+    expect(await resolveEvidenceSource({ ...source, retrieved_at: '2026-02-30T10:00:00Z' })).toBeNull();
+    expect(await resolveEvidenceSource({ ...source, retrieved_at: '2026-09-13T10:00:00' })).toBeNull();
     expect(request).not.toHaveBeenCalled();
   });
 

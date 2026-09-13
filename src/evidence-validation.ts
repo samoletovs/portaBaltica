@@ -28,15 +28,21 @@ function record(value: unknown): value is Record<string, unknown> {
 function text(value: unknown, max = 2000): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= max;
 }
-function timestamp(value: unknown): value is string {
-  return text(value, 64) && /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+export function isEvidenceTimestamp(value: unknown): value is string {
+  if (!text(value, 64)) return false;
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-](\d{2}):?(\d{2}))$/.exec(value);
+  if (!parts) return false;
+  const [year, month, day, hour, minute, second] = parts.slice(1, 7).map(Number);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  // Date.parse alone normalizes impossible dates such as February 30 into March.
+  return year >= 1 && month >= 1 && month <= 12 && day >= 1 && day <= days[month - 1]
+    && hour <= 23 && minute <= 59 && second <= 59
+    && (parts[7] === 'Z' || (Number(parts[8]) <= 23 && Number(parts[9]) <= 59))
     && Number.isFinite(Date.parse(value));
 }
 function optionalTimestamp(value: unknown): boolean {
-  return value === null || timestamp(value);
-}
-function sourceTimestamp(value: unknown): boolean {
-  return value === null || (text(value, 64) && Number.isFinite(Date.parse(value)));
+  return value === null || isEvidenceTimestamp(value);
 }
 function count(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -73,8 +79,8 @@ export function isEvidenceSourceUrl(value: unknown): value is string {
 }
 
 function isSummary(value: unknown): value is EvidenceSummary {
-  return record(value) && isSnapshotId(value.snapshot_id) && timestamp(value.observed_at)
-    && sourceTimestamp(value.source_updated_at) && counts(value);
+  return record(value) && isSnapshotId(value.snapshot_id) && isEvidenceTimestamp(value.observed_at)
+    && optionalTimestamp(value.source_updated_at) && counts(value);
 }
 function summaries(value: unknown): value is EvidenceSummary[] {
   return Array.isArray(value) && value.length <= 20_000 && value.every(isSummary)
@@ -83,9 +89,9 @@ function summaries(value: unknown): value is EvidenceSummary[] {
 function isIndex(value: unknown): value is EvidenceIndex {
   if (!record(value) || value.version !== 1 || !contract(value) || !text(value.title)) return false;
   const attempt = value.last_attempt;
-  if (attempt !== null && (!record(attempt) || !timestamp(attempt.attempted_at) || !timestamp(attempt.finished_at)
+  if (attempt !== null && (!record(attempt) || !isEvidenceTimestamp(attempt.attempted_at) || !isEvidenceTimestamp(attempt.finished_at)
     || Date.parse(attempt.finished_at) < Date.parse(attempt.attempted_at)
-    || !['captured', 'unchanged', 'reused', 'failed'].includes(String(attempt.status))
+    || typeof attempt.status !== 'string' || !['captured', 'unchanged', 'reused', 'failed'].includes(attempt.status)
     || (attempt.error !== undefined && !text(attempt.error, 1000)))) return false;
   if (typeof value.stale_after_hours !== 'number' || !Number.isFinite(value.stale_after_hours)
     || value.stale_after_hours <= 0 || !optionalTimestamp(value.last_success_at)) return false;
@@ -109,9 +115,9 @@ export function parseEvidenceMonth(value: unknown, expected: string): EvidenceMo
 }
 function isManifest(value: unknown, id: string): value is EvidenceManifest {
   if (!record(value) || value.format_version !== 1 || value.series_id !== EVIDENCE_SERIES
-    || value.snapshot_id !== id || value.status !== 'complete' || !timestamp(value.created_at) || !counts(value)) return false;
+    || value.snapshot_id !== id || value.status !== 'complete' || !isEvidenceTimestamp(value.created_at) || !counts(value)) return false;
   const provenance = value.provenance;
-  if (!record(provenance) || !isEvidenceSourceUrl(provenance.request_url) || !timestamp(provenance.retrieved_at)
+  if (!record(provenance) || !isEvidenceSourceUrl(provenance.request_url) || !isEvidenceTimestamp(provenance.retrieved_at)
     || !isSha256(provenance.sha256) || provenance.http_status !== 200 || !record(value.artifacts)) return false;
   for (const filename of ['normalized.json', 'observations.csv', 'dictionary.json']) {
     const entry = value.artifacts[filename];
@@ -138,7 +144,7 @@ function isRow(value: unknown): value is EvidenceRow {
     && typeof value.status === 'string' && value.status.length <= 100 && /^[A-Za-z0-9 :;,_-]*$/.test(value.status);
 }
 function isNormalized(value: unknown): value is EvidenceNormalized {
-  return record(value) && value.format_version === 1 && contract(value) && sourceTimestamp(value.source_updated_at)
+  return record(value) && value.format_version === 1 && contract(value) && optionalTimestamp(value.source_updated_at)
     && Array.isArray(value.rows) && value.rows.length > 0 && value.rows.length <= 20_000 && value.rows.every(isRow)
     && new Set(value.rows.map(row => `${row.geo}/${row.period}`)).size === value.rows.length;
 }
@@ -177,7 +183,7 @@ export function parseEvidenceComparison(value: unknown, manifest: EvidenceManife
 }
 function isBinding(value: unknown): value is EvidenceBinding {
   return record(value) && value.version === 1 && value.source_id === 'eurostat' && value.dataset === 'une_rt_m'
-    && timestamp(value.observed_at) && isEvidenceSourceUrl(value.request_url)
+    && isEvidenceTimestamp(value.observed_at) && isEvidenceSourceUrl(value.request_url)
     && isSnapshotId(value.snapshot_id) && isSha256(value.raw_sha256);
 }
 export function parseEvidenceBinding(value: unknown): EvidenceBinding {
