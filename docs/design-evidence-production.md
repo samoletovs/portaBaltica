@@ -113,3 +113,36 @@ Retain the pilot's independent offline tests and verify real-source replay.
 Roll back by disabling `NEWSROOM_EVIDENCE_ENABLED`; keep published snapshots and
 links intact. Restore a prior application release only through the normal reviewed
 deployment workflow. Do not delete evidence as part of rollback.
+
+## Read-only deployment readiness, verified 2026-09-13
+
+- Function `portabaltica-func` in `portabaltica-rg`: Python 3.12, existing daily
+  `0 0 14 * * *` schedule, deployed revision `c351d70`.
+- Storage `stportabalticabpmff5so`: articles are blob-public, raw-feeds are private,
+  shared keys disabled; the existing Function identity can write both containers.
+- Only raw-feeds is lifecycle-tiered. The new articles/evidence prefix remains
+  online without a new account, container, role or lifecycle policy.
+- Browser CORS permits the branded origin. Verify the reader at
+  `https://portabaltica.naurolabs.com`; the SWA platform hostname is
+  `ambitious-water-07243ee03.2.azurestaticapps.net`, but it is not a permitted
+  Blob CORS origin. `/articles` on the branded site is not a proxy; use the
+  existing direct Blob base.
+- The budget API reports EUR 15.70067 spent against a configured EUR 100 budget
+  (EUR 84.30 headroom), with billing-cycle forecast EUR 51.76. This is budget
+  headroom, not measured remaining subscription credit. The legacy helper could
+  not invoke `az`; a Cost Management query was throttled. Neither failure is zero spend.
+- This remains a free research experiment. Commercial production billing/rights
+  eligibility is a separate gate, not implicitly approved by this deployment.
+
+Do not deploy the entire existing Bicep template as part of this change: it
+declares private articles/account public access off, unlike the working live
+configuration. This code-only rollout must preserve the existing delivery path.
+
+An exact raw capture for the existing article
+`latvia-s-unemployment-rate-rises-to-7-3-in-july-154f54` was recovered:
+`2026-09-08/eurostat/20260908T131545Z-c5bcf72f8d1f.raw`, original retrieval time
+`2026-09-08T13:15:45Z`, full hash
+`c5bcf72f8d1f9bd63a31446fa15726ff1b886cb37578620e334f4b04c1842ab4`.
+Its exact URL and timestamp match the article source. Seed the audited response
+and binding to verify the real reader journey without editing or manufacturing
+an article.

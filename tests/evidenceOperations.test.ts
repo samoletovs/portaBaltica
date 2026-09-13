@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { evidenceObservation } = require('../api/shared/evidenceHealth.js');
@@ -97,7 +98,7 @@ describe('evidence page metadata and routing', () => {
   });
 
   it('routes catalogue and snapshot deep links through the metadata shell', () => {
-    const config = JSON.parse(readFileSync(new URL('../public/staticwebapp.config.json', import.meta.url), 'utf8'));
+    const config = JSON.parse(readFileSync(resolve(__dirname, '..', 'public', 'staticwebapp.config.json'), 'utf8'));
     for (const route of ['/evidence', '/evidence/*']) {
       expect(config.routes).toContainEqual({ route, rewrite: '/api/page-shell' });
     }
