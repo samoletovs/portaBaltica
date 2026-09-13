@@ -123,6 +123,7 @@
               "dataset": { "type": "string" },
               "dataset_version": { "type": "string" },
               "retrieved_at": { "type": "string", "format": "date-time" },
+              "evidence_snapshot_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
               "url": { "type": "string", "format": "uri" }
             }
           }

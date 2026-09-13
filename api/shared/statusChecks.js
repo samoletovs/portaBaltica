@@ -405,6 +405,15 @@ const CHECKS = [
     maxLag: 26,
   },
   {
+    name: 'Evidence archive',
+    url: ARTICLES_BASE + '/evidence/v1/index.json',
+    type: 'evidence-archive',
+    required: true,
+    powers: 'Frozen article evidence and reproducible downloads',
+    cadence: 'H',
+    maxLag: 26,
+  },
+  {
     name: 'Riga Open Data',
     // Entity sets return HTTP 500 upstream; only the service document responds.
     url: 'https://opendata.riga.lv/odata/service/',

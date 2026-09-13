@@ -3,6 +3,7 @@ import type { Article, ContextFact, Provenance, ValidatorCheckName } from '../..
 import { analystLabel } from '../../news-types';
 import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
 import { FrozenEvidence } from './FrozenEvidence';
+import { EvidenceSourceLink } from './EvidenceSourceLink';
 
 /**
  * The passport.
@@ -208,6 +209,7 @@ export function ProvenanceBlock({ provenance, article }: { provenance: Provenanc
                         Open the dataset ↗<span className="sr-only"> (opens in a new tab)</span>
                       </a>
                     )}
+                    <EvidenceSourceLink source={source} />
                   </p>
                 </li>
               ))}

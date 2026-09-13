@@ -6,6 +6,7 @@ const cache = require('../shared/cache.js');
 const ckan = require('../shared/ckan.js');
 const ecb = require('../shared/ecb.js');
 const trade = require('../shared/tradeStats.js');
+const { evidenceObservation } = require('../shared/evidenceHealth.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 
@@ -432,6 +433,10 @@ async function probe(check) {
     const text = await es.httpText(check.url, httpOptions(check));
     if (!text || text.length === 0) throw new Error('Empty response');
     return null;
+  }
+
+  if (check.type === 'evidence-archive') {
+    return evidenceObservation(await es.httpJson(check.url, httpOptions(check)));
   }
 
   await es.httpJson(check.url, httpOptions(check));

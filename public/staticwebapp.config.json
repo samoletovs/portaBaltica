@@ -31,6 +31,8 @@
     { "route": "/data", "rewrite": "/api/page-shell" },
     { "route": "/data/*", "rewrite": "/api/page-shell" },
     { "route": "/explore", "rewrite": "/api/page-shell" },
+    { "route": "/evidence", "rewrite": "/api/page-shell" },
+    { "route": "/evidence/*", "rewrite": "/api/page-shell" },
     { "route": "/indicator/*", "rewrite": "/api/page-shell" },
     { "route": "/newsroom", "rewrite": "/api/page-shell" },
     { "route": "/newsroom/*", "rewrite": "/api/page-shell" },

@@ -45,6 +45,10 @@ const SITE_URL = 'https://portabaltica.naurolabs.com';
  * character is a failing parity test rather than a discrepancy nobody sees.
  */
 const STATIC_PAGES = {
+  '/evidence': {
+    title: 'Evidence archive | portaBaltica',
+    description: 'Inspect frozen Baltic unemployment observations, download their original evidence and compare what changed between source captures.',
+  },
   '/explore': {
     title: 'Data explorer | portaBaltica',
     description: 'Explore one Baltic indicator in depth: compare countries, inspect reporting periods, switch between charts and exact values, and download source-linked data.',
@@ -304,6 +308,15 @@ function metaFor(pathname) {
       };
     }
     return withCanonical(path, meta);
+  }
+
+  if (/^\/evidence\/[a-f0-9]{32}$/.test(path)) {
+    return {
+      title: 'Frozen evidence | portaBaltica',
+      description: 'A timestamped Baltic unemployment snapshot with original source data, missing-value flags and reproducible downloads.',
+      canonical: SITE_URL + path,
+      index: false,
+    };
   }
 
   const correspondent = /^\/newsroom\/([a-z0-9-]+)$/.exec(path);

@@ -422,6 +422,7 @@ def build_run_report(
         **_revision_stamp(),
         "schedule": config.SCHEDULE,
         "stale_after_hours": STALE_AFTER_HOURS,
+        "evidence": getattr(report, "evidence", None) or {"enabled": False, "status": "unavailable"},
         "summary": str(getattr(report, "summary", lambda: "")() or ""),
         "counts": {
             "signals_detected": count("signals"),

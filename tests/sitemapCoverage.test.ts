@@ -322,7 +322,7 @@ describe('a listed page has to claim to be a page', () => {
    * back.
    */
   const lazyImports = new Map(
-    [...mainSource.matchAll(/const\s+(\w+)\s*=\s*lazy\(\(\)\s*=>\s*import\('([^']+)'\)/g)]
+    [...mainSource.matchAll(/const\s+(\w+)\s*=\s*lazy\([^\n]*?import\('([^']+)'\)/g)]
       .map((m) => [m[1], m[2]] as const),
   );
   const staticImports = new Map(

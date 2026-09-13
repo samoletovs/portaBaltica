@@ -59,6 +59,7 @@ const LIVE_DIR = resolve('tests');
  * someone is deleting one.
  */
 const LIVE_CHECKS = new Map<string, string>([
+  ['evidenceArchive.live.test.ts', 'the published evidence index, source/CSV hashes, real article binding and capture health work on the deployed service'],
   ['api-contracts.live.test.ts', 'the deployed endpoints answer with the shape the client reads'],
   ['articleMeta.live.test.ts', 'what a social crawler actually receives from the deployed site'],
   [

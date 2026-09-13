@@ -27,6 +27,8 @@ const CorrectionsPage = lazy(() => import('./components/news/CorrectionsPage.tsx
 const FollowPage = lazy(() => import('./components/news/FollowPage.tsx'))
 const WeeklyPage = lazy(() => import('./components/news/WeeklyPage.tsx'))
 const BriefingsPage = lazy(() => import('./components/news/BriefingsPage.tsx'))
+const EvidenceCatalogue = lazy(async () => ({ default: (await import('./components/news/EvidenceCatalogue.tsx')).EvidenceCatalogue }))
+const EvidencePage = lazy(async () => ({ default: (await import('./components/news/EvidencePage.tsx')).EvidencePage }))
 
 const LEGACY_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS)
 
@@ -84,6 +86,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="/explore" element={<DataExplorerPage />} />
                     <Route path="/indicator/:id" element={<IndicatorPage />} />
                     <Route path="/api-docs" element={<ApiDocsPage />} />
+                    <Route path="/evidence" element={<EvidenceCatalogue />} />
+                    <Route path="/evidence/:snapshotId" element={<EvidencePage />} />
                     <Route path="/:section" element={<LegacySectionRedirect />} />
                   </Route>
                 </Routes>

@@ -12,6 +12,14 @@ discovery page; its enquiry form is disabled unless
 mail and branded replies before enabling it. Never record the private
 forwarding destination in this repository.
 
+The [evidence archive](docs/design-evidence-production.md) lives in
+`newsroom/pipeline/evidence/`. `NEWSROOM_EVIDENCE_ENABLED=true` activates the
+same-collector hook on the existing edition schedule. The private canonical
+archive and public checked serving packs are separate; never expose other raw feeds.
+Keep `.newsroom-evidence/` local artifacts out of git. Existing public history
+and exports stay free. Capture-only verification uses the authenticated
+`POST /api/evidence/collect`, never a paid full-edition run.
+
 ## Tech stack
 
 - **Frontend:** React 19, TypeScript 5.9, Tailwind CSS 4.2, Vite 8

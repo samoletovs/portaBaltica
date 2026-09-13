@@ -11,12 +11,14 @@ attribution that ends up in the article's provenance block.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
 from newsroom.pipeline.collect.httpclient import CollectorHttp
+from newsroom.pipeline.evidence.errors import EXPECTED_FAILURES
 from newsroom.pipeline.detect.series import (
     COLLECTED_GEOGRAPHIES,
     SUBJECT_GEOGRAPHIES,
@@ -29,6 +31,8 @@ from newsroom.pipeline.safety import registry
 
 log = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from newsroom.pipeline.evidence.production import EvidenceService
 #: The three states this wire reports on. Re-exported from the detection layer
 #: so the collector, the detectors and the context builder cannot disagree
 #: about who is a subject and who is a denominator.
@@ -1188,6 +1192,7 @@ def parse_jsonstat(
     *,
     retrieved_at: str,
     url: str,
+    evidence_snapshot_id: str | None = None,
 ) -> list[TimeSeries]:
     """Turn a JSON-stat 2.0 response into one series per geography.
 
@@ -1271,6 +1276,7 @@ def parse_jsonstat(
                     dataset=spec.dataset,
                     dataset_version=str(dataset_version) if dataset_version else None,
                     url=url,
+                    evidence_snapshot_id=evidence_snapshot_id,
                 ),
             )
         )
@@ -1282,6 +1288,7 @@ async def collect_eurostat(
     datasets: Iterable[EurostatDataset] = EUROSTAT_DATASETS,
     *,
     geographies: Sequence[str] = COLLECTED_GEOGRAPHIES,
+    evidence: EvidenceService | None = None,
 ) -> list[TimeSeries]:
     source = registry().get("eurostat")
     out: list[TimeSeries] = []
@@ -1291,23 +1298,40 @@ async def collect_eurostat(
         # geo=LV to a per-country maritime cube that has no geo dimension is an
         # HTTP 400, not an empty series.
         params = request_params(spec, geographies)
-        result = await http.fetch(
-            source_id="eurostat",
-            url=url,
-            cache_ttl_minutes=source.cache_ttl_minutes,
-            accept="application/json",
-            params=params,  # type: ignore[arg-type]
-        )
+        selected = evidence is not None and spec.dataset == "une_rt_m" and spec.metric == "unemployment_rate"
+        attempted_at = isoformat(utcnow())
+        try:
+            result = await http.fetch(
+                source_id="eurostat",
+                url=url,
+                cache_ttl_minutes=source.cache_ttl_minutes,
+                accept="application/json",
+                params=params,  # type: ignore[arg-type]
+            )
+        except EXPECTED_FAILURES:
+            if selected:
+                await asyncio.to_thread(evidence.record_failure, attempted_at=attempted_at)
+            raise
         if not result.ok or result.item is None:
+            if selected:
+                await asyncio.to_thread(evidence.record_failure, attempted_at=attempted_at)
             log.warning("eurostat/%s: %s", spec.dataset, result.skipped_reason)
             continue
+        evidence_snapshot_id = None
+        if selected:
+            outcome = await asyncio.to_thread(evidence.capture_item, result.item, attempted_at=attempted_at)
+            if outcome["status"] != "failed":
+                evidence_snapshot_id = outcome.get("snapshot_id")
         try:
             payload = json.loads(result.item.body)
         except json.JSONDecodeError:
             log.error("eurostat/%s: response was not JSON", spec.dataset)
             continue
         out.extend(
-            parse_jsonstat(payload, spec, retrieved_at=result.item.retrieved_at, url=result.item.url)
+            parse_jsonstat(
+                payload, spec, retrieved_at=result.item.retrieved_at, url=result.item.url,
+                evidence_snapshot_id=evidence_snapshot_id,
+            )
         )
     return out
 
@@ -1424,10 +1448,11 @@ async def collect_elering(http: CollectorHttp, *, days: int = 120) -> list[TimeS
     return parse_elering(payload, retrieved_at=result.item.retrieved_at, url=result.item.url)
 
 
-async def collect_open_data(http: CollectorHttp) -> list[TimeSeries]:
+async def collect_open_data(http: CollectorHttp, *, evidence: EvidenceService | None = None) -> list[TimeSeries]:
     """Every tier A collector. A failing source costs coverage, never accuracy."""
     series: list[TimeSeries] = []
-    for name, coroutine in (("elering", collect_elering(http)), ("eurostat", collect_eurostat(http))):
+    eurostat = collect_eurostat(http, evidence=evidence) if evidence is not None else collect_eurostat(http)
+    for name, coroutine in (("elering", collect_elering(http)), ("eurostat", eurostat)):
         try:
             series.extend(await coroutine)
         except Exception:  # noqa: BLE001 - one bad source must not sink the run
