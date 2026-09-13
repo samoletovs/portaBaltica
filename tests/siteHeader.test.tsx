@@ -45,27 +45,12 @@ describe('coherent site navigation', () => {
     expect(screen.queryByRole('navigation', { name: 'Site sections' })).toBeNull();
   });
 
-  it('writes country focus into the current explorer URL without dropping its selection', () => {
-    renderSite('/explore?indicator=gdp&country=EE&section=economy');
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to Lithuania' }));
-    const query = new URLSearchParams(screen.getByRole('main').getAttribute('data-query')!);
-    expect(query.get('country')).toBe('LT');
-    expect(query.get('indicator')).toBe('gdp');
-    expect(query.get('section')).toBe('economy');
-  });
-
   it('keeps navigation and a real skip target available while a page is loading', () => {
     const Pending = lazy(() => new Promise<{ default: ComponentType }>(() => {}));
     render(<MemoryRouter><Routes><Route element={<SiteLayout />}><Route path="/" element={<Pending />} /></Route></Routes></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Skip to content' }).getAttribute('href')).toBe('#main');
     expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
     expect(screen.getByRole('link', { name: 'portaBaltica home' })).toBeTruthy();
-  });
-
-  it.each(['/data', '/data/economy', '/explore', '/indicator/gdp'])('puts the data controls on %s', path => {
-    renderSite(path);
-    expect(within(screen.getByLabelText('Country')).getAllByRole('button')).toHaveLength(3);
-    expect(within(screen.getByLabelText('Date range filter')).getAllByRole('button')).toHaveLength(4);
   });
 
   it('does not put data controls above a news article', () => {

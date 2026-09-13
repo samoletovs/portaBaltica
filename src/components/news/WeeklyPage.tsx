@@ -12,6 +12,7 @@ import {
   type WeeklyAbsence,
 } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
+import { PageTitle } from '../PageIntro';
 import { ArticleCard, CorrectionBadge, CorrectionsUnavailable } from './NewsCard';
 
 /** The same long form the archive list uses, so one page speaks one way. */
@@ -212,9 +213,9 @@ export default function WeeklyPage() {
 
   return (
     <div className="mx-auto max-w-measure">
-      <h1 className="balance-text news-fg text-display font-semibold tracking-tight">
+      <PageTitle className="news-fg">
         The weekly review
-      </h1>
+      </PageTitle>
 
       <WhatItIs />
 

@@ -1,17 +1,26 @@
 import { useCountry, COUNTRY_INFO, type Country } from '../CountryContext';
-import { useFilter, YEAR_OPTIONS, STROKE_OPTIONS } from '../FilterContext';
-import { useSearchParams } from 'react-router-dom';
+import { useFilter, YEAR_OPTIONS, STROKE_OPTIONS, type YearRange } from '../FilterContext';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 /** Research controls belong with the data, not above every article. */
 export function DataControls() {
   const { country, setCountry } = useCountry();
   const { years, setYears, strokeStyle, setStrokeStyle } = useFilter();
   const [params, setParams] = useSearchParams();
+  const { pathname } = useLocation();
 
   function chooseCountry(code: Country) {
     setCountry(code);
     const next = new URLSearchParams(params);
     next.set('country', code);
+    setParams(next, { replace: true });
+  }
+
+  function chooseYears(year: YearRange) {
+    setYears(year);
+    if (pathname !== '/explore' && !pathname.startsWith('/indicator/')) return;
+    const next = new URLSearchParams(params);
+    next.set('years', String(year));
     setParams(next, { replace: true });
   }
 
@@ -29,7 +38,7 @@ export function DataControls() {
         </div>
         <div className="desk-segments desk-range-options flex shrink-0" role="group" aria-label="Date range filter">
           {YEAR_OPTIONS.map(year => (
-            <button key={year} type="button" className="text-ui" onClick={() => setYears(year)}
+            <button key={year} type="button" className="text-ui" onClick={() => chooseYears(year)}
               aria-label={`Show ${year} year${year > 1 ? 's' : ''} of data`} aria-pressed={years === year}>
               {year}Y
             </button>

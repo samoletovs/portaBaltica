@@ -164,8 +164,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = 
     return (
       <button
         onClick={restartTutorial}
-        className="text-caption px-3 py-2 rounded transition-colors shrink-0"
-        style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)', border: '1px solid var(--border-card)' }}
+        className="site-action text-ui shrink-0"
         aria-label="Restart guided tour"
       >
         Take a tour
@@ -202,8 +201,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = 
               minimum. */}
           <button
             onClick={closeTutorial}
-            className="text-caption px-2 py-1 rounded transition-colors shrink-0"
-            style={{ color: 'var(--text-tertiary)', background: 'var(--bg-card)' }}
+            className="site-action text-ui shrink-0"
           >
             Skip tour
           </button>
@@ -216,8 +214,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = 
           <div className="flex items-center gap-2">
             <button
               onClick={() => goToStep(Math.max(0, stepIndex - 1))}
-              className="text-caption px-3 py-2 rounded transition-colors disabled:opacity-40"
-              style={{ color: 'var(--text-secondary)', background: 'var(--bg-card)' }}
+              className="site-action text-ui"
               disabled={stepIndex === 0}
             >
               Back
@@ -230,7 +227,7 @@ export function OnboardingTutorial({ activeSection, onSectionChange, autoOpen = 
                 to action. */}
             <button
               onClick={() => (isLastStep ? closeTutorial() : goToStep(stepIndex + 1))}
-              className="news-accent-panel news-fg text-caption font-semibold px-3 py-2 rounded transition-colors"
+              className="site-action site-action-primary text-ui"
             >
               {isLastStep ? 'Finish' : 'Next'}
             </button>

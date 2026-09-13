@@ -1,20 +1,19 @@
 import { Link } from 'react-router-dom';
 import { ACCOUNTABLE_PUBLISHER } from '../../newsroom/editorial';
+import { PageIntro } from '../PageIntro';
 
 export function SignalDeskIntro() {
   return (
-    <header className="folio-edition-header">
-      <div className="folio-edition-title">
-        <h1 className="text-masthead md:text-banner">THE BALTIC{' '}<br /><span>JOURNAL.</span></h1>
-        <p className="text-lead">Three countries.<br />A wider perspective.</p>
-      </div>
-      <div className="folio-edition-context">
-        <p className="text-callout">The region behind the numbers. Original reporting and open evidence from Latvia, Estonia and Lithuania.</p>
-        <p className="text-caption">
+    <PageIntro
+      className="folio-edition-header"
+      title={<>The Baltic <span className="news-accent">journal</span></>}
+      lead="The region behind the numbers. Original reporting and open evidence from Latvia, Estonia and Lithuania."
+      aside={<p className="folio-edition-tagline text-prose news-subtle">Three countries.<br />A wider perspective.</p>}
+    >
+        <p className="text-caption news-subtle">
           Written by AI correspondents, reviewed by an AI editor. {ACCOUNTABLE_PUBLISHER} accountable.{' '}
           <Link to="/about/ai" className="news-link underline underline-offset-4">What that means</Link>
         </p>
-      </div>
-    </header>
+    </PageIntro>
   );
 }

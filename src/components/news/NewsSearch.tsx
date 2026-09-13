@@ -30,7 +30,7 @@ export function NewsSearch({ value, onChange }: NewsSearchProps) {
         placeholder="Search our reporting"
         aria-describedby="news-search-scope"
         aria-controls="news-results"
-        className="news-border news-panel news-fg w-full rounded-lg border py-2 pl-12 pr-12 text-ui [&::-webkit-search-cancel-button]:hidden"
+        className="site-input w-full py-2 pl-12 pr-12 text-ui [&::-webkit-search-cancel-button]:hidden"
         onChange={(event) => onChange(event.target.value)}
       />
       {value && (

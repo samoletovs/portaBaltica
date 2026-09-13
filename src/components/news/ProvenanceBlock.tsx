@@ -1,7 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import type { ContextFact, Provenance, ValidatorCheckName } from '../../news-types';
+import type { Article, ContextFact, Provenance, ValidatorCheckName } from '../../news-types';
 import { analystLabel } from '../../news-types';
 import { AI_EDITOR, publisherName } from '../../newsroom/editorial';
+import { FrozenEvidence } from './FrozenEvidence';
 
 /**
  * The passport.
@@ -83,7 +84,7 @@ const CONTEXT_KIND: Record<ContextFact['kind'], string> = {
   trajectory: 'the same point in an earlier year',
 };
 
-export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
+export function ProvenanceBlock({ provenance, article }: { provenance: Provenance; article?: Article }) {
   const record = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const details = record.current;
@@ -130,7 +131,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
 
   return (
     <section aria-labelledby="provenance-heading" className="mt-12">
-      <details ref={record} className="news-border news-accent-panel group/passport overflow-hidden rounded-xl border">
+      <details ref={record} className="site-panel group/passport overflow-hidden">
         <summary className="news-border flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-6 py-3 group-open/passport:border-b [&::-webkit-details-marker]:hidden">
           <span className="flex items-center gap-2">
             <span
@@ -139,7 +140,7 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
             >
               ›
             </span>
-            <h2 id="provenance-heading" className="news-fg text-callout font-semibold">
+            <h2 id="provenance-heading" className="site-section-title news-fg text-title font-semibold">
               Where this came from
             </h2>
           </span>
@@ -160,6 +161,8 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
             This record was written automatically as the article was produced. Open any dataset below
             and you can check the figures for yourself. That is what it is here for.
           </p>
+
+          {article && <FrozenEvidence article={article} />}
 
           <div>
             <h3 className="news-subtle mb-2 text-caption font-semibold uppercase tracking-widest">

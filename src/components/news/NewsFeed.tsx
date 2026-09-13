@@ -61,7 +61,7 @@ function SectionFilter({
           onClick={() => onChange(section)}
           aria-pressed={filter === section}
           className={[
-            'shrink-0 rounded-full border px-4 py-2 text-caption transition-colors',
+            'site-choice shrink-0 text-ui transition-colors',
             '',
             filter === section ? 'news-tab-active' : 'news-tab-inactive news-hover',
           ].join(' ')}
@@ -85,9 +85,9 @@ export default function NewsFeed() {
         <ReportingFeed />
       </section>
       <div className="folio-question-links">
-        <Link to="/data/labour"><h2 className="text-lead">The cost of hiring ↗</h2><p className="text-ui">Wages, labour costs and unemployment in their regional context.</p></Link>
-        <Link to="/data/energy"><h2 className="text-lead">The cost of energy ↗</h2><p className="text-ui">Electricity prices and the differences between Baltic markets.</p></Link>
-        <Link to="/briefings"><h2 className="text-lead">A better business briefing ↗</h2><p className="text-ui">Explore the discovery pilot. Public reporting, charts and exports remain free.</p></Link>
+        <Link to="/data/labour"><h2 className="site-section-title text-lead font-semibold">The cost of hiring ↗</h2><p className="text-ui">Wages, labour costs and unemployment in their regional context.</p></Link>
+        <Link to="/data/energy"><h2 className="site-section-title text-lead font-semibold">The cost of energy ↗</h2><p className="text-ui">Electricity prices and the differences between Baltic markets.</p></Link>
+        <Link to="/briefings"><h2 className="site-section-title text-lead font-semibold">A better business briefing ↗</h2><p className="text-ui">Explore the discovery pilot. Public reporting, charts and exports remain free.</p></Link>
       </div>
     </>
   );
@@ -241,7 +241,7 @@ function ReportingFeed() {
               key={label}
               type="button"
               disabled
-              className="news-skeleton shrink-0 animate-pulse rounded-full border px-4 py-2 text-caption text-transparent"
+              className="site-choice news-skeleton shrink-0 animate-pulse text-ui"
             >
               {label}
             </button>
@@ -320,7 +320,7 @@ function ReportingFeed() {
         <div id="news-results">
           {ours.length === 0 ? (
             <div className="news-border news-panel rounded-xl border px-6 py-12 text-center">
-              <h2 className="balance-text news-fg text-title font-semibold">
+              <h2 className="site-section-title balance-text news-fg text-title font-semibold">
                 {failed ? 'The front page could not be loaded' : search.trim() ? 'No matching articles' : 'Nothing to report yet today'}
               </h2>
               <p className="pretty-text news-muted mx-auto mt-3 max-w-md text-callout">
@@ -331,7 +331,7 @@ function ReportingFeed() {
                     : 'We publish when the data warrants it and not otherwise. A quiet day means fewer stories, never padded ones.'}
               </p>
               {search.trim() && (
-                <button type="button" className="news-link mt-4 px-3 py-2 text-ui underline underline-offset-4"
+                <button type="button" className="site-action mt-4 text-ui"
                   onClick={() => {
                     setSearch('');
                     setFilter('all');

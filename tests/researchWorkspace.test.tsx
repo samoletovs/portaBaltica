@@ -164,11 +164,12 @@ describe('the research workspace', () => {
     expect(announcement!.textContent).toBe('');
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy measure link' })); });
     expect(document.querySelector('.lab-permalink [role="status"]')).toBe(announcement);
-    expect(writeText).toHaveBeenCalledWith(new URL('/indicator/gdp?country=EE', window.location.origin).href);
+    const permalink = '/indicator/gdp?country=EE&years=5&view=chart&period=2026-Q1';
+    expect(writeText).toHaveBeenCalledWith(new URL(permalink, window.location.origin).href);
     if (copied) {
       expect(screen.getByText('Measure link copied.')).toBeTruthy();
     } else {
-      expect(screen.getByRole('link', { name: 'Open the permanent link' }).getAttribute('href')).toBe('/indicator/gdp?country=EE');
+      expect(screen.getByRole('link', { name: 'Open the permanent link' }).getAttribute('href')).toBe(permalink);
     }
     fireEvent.click(screen.getByRole('button', { name: 'Focus Lithuania' }));
     expect(screen.queryByText('Measure link copied.')).toBeNull();

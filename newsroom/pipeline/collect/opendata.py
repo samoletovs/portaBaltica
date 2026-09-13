@@ -986,8 +986,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="tour_occ_nim",
         metric="tourism",
-        metric_label="tourist arrivals",
-        unit="arrivals",
+        metric_label="overnight stays",
+        unit="nights",
         section="business",
         frequency="monthly",
         chart_ref="tourism",

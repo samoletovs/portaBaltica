@@ -302,7 +302,7 @@ describe('when the countries have not published a shared period', () => {
     await settle();
     const salary = sectionOf('Hourly labour cost');
     expect(salary.getByText(/does not contain readings for all three countries/)).toBeTruthy();
-    expect(salary.getByText('No reading available for Lithuania in the retrieved 3-year window.')).toBeTruthy();
+    expect(salary.getByText('No reading available for Lithuania in the retrieved window.')).toBeTruthy();
     expect(salary.queryByText(/different periods|Periods differ/)).toBeNull();
     expect(salary.queryByText(/ranged from/)).toBeNull();
     expect(salary.getByText('€10.2/h')).toBeTruthy();

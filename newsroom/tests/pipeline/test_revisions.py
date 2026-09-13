@@ -34,7 +34,7 @@ def series(pairs, *, metric="unemployment_rate", geography="EE", retrieved=LATER
         unit=unit,
         section="labour",
         observations=tuple(Observation(period=p, value=v) for p, v in pairs),
-        source=SourceRef(source_id="eurostat", retrieved_at=retrieved),
+        source=SourceRef(source_id="eurostat", retrieved_at=retrieved, dataset="une_rt_m"),
     )
 
 
@@ -52,6 +52,8 @@ def figure(value=6.6, *, period="2026-06", slug="estonia-unemployment", metric="
         observed_at=RETRIEVED,
         published_at="2026-08-24T12:00:00Z",
         signal_id="sig1",
+        source_id="eurostat",
+        dataset="une_rt_m",
     )
 
 

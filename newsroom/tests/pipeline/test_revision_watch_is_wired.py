@@ -47,7 +47,7 @@ def _series(value: float, *, retrieved="2026-09-24T10:00:00Z") -> TimeSeries:
         unit="%",
         section="labour",
         observations=(Observation(period="2026-06", value=value),),
-        source=SourceRef(source_id="eurostat", retrieved_at=retrieved),
+        source=SourceRef(source_id="eurostat", retrieved_at=retrieved, dataset="une_rt_m"),
     )
 
 
@@ -65,6 +65,8 @@ def _figure(value=6.6, slug="estonia-unemployment") -> PublishedFigure:
         observed_at="2026-08-24T10:00:00Z",
         published_at=PUBLISHED_AT,
         signal_id="sig1",
+        source_id="eurostat",
+        dataset="une_rt_m",
     )
 
 

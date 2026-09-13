@@ -31,7 +31,7 @@ export function TileHeader({
   return (
     <header className="mb-3">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-        <h2 className="balance-text text-title font-semibold" style={{ color: 'var(--text-primary)' }}>
+        <h2 className="site-section-title balance-text text-title font-semibold" style={{ color: 'var(--text-primary)' }}>
           {title}
         </h2>
         {meta && (

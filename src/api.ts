@@ -472,6 +472,12 @@ const comparisonQueue = new Map<number, ComparisonRequest[]>();
 let comparisonTimer: ReturnType<typeof setTimeout> | undefined;
 let activeComparisonBatches = 0;
 
+function comparisonDefinitionMatches(indicator: string, data: BalticCompareData): boolean {
+  // Reject both former arrivals and night counts carrying the old persons unit,
+  // including responses from an older worker during deployment.
+  return indicator !== 'tourism' || (data.dataset === 'tour_occ_nim' && data.unit === 'nights');
+}
+
 function finishComparison(entry: ComparisonRequest, data?: BalticCompareData, error?: Error) {
   if (comparisons.get(entry.key) === entry) comparisons.delete(entry.key);
   for (const reader of entry.readers) {
@@ -513,6 +519,7 @@ async function deliverComparisonBatch(entries: ComparisonRequest[], years: numbe
         finishComparison(entry, undefined, new Error(`${entry.indicator} API failed: ${item.status}: ${item.error}`));
       } else if (item.data?.indicator !== entry.indicator || item.data.years !== years ||
         !item.data.countries || typeof item.data.source !== 'string' ||
+        !comparisonDefinitionMatches(entry.indicator, item.data) ||
         !Number.isFinite(item.cache?.ageSeconds) || item.cache.ageSeconds < 0) {
         finishComparison(entry, undefined, new Error(`Invalid comparison: ${entry.indicator}`));
       } else {
@@ -559,7 +566,7 @@ export async function fetchBalticCompare(
   if (normalizedYears > COMPARISON_MAX_YEARS) throw new Error(`Comparison history is limited to ${COMPARISON_MAX_YEARS} years`);
   const key = `baltic_compare-${encodeURIComponent(indicator)}-${normalizedYears}`;
   const cached = readCache<BalticCompareData>(`${CACHE_PREFIX}${key}`, key);
-  if (cached !== null) return cached;
+  if (cached !== null && comparisonDefinitionMatches(indicator, cached)) return cached;
   let entry = comparisons.get(key);
   if (!entry) {
     entry = { indicator, years: normalizedYears, key, readers: new Set() };

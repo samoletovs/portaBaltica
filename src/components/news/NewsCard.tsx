@@ -182,7 +182,7 @@ export function ArticleCard({ summary, variant = 'standard', corrected = false }
       )}
       {summary.tier === 'A' && isLead && (
         <div className="folio-lead-links">
-          <Link to={`/article/${summary.slug}`} className="lab-link text-ui">Read the report ↗</Link>
+          <Link to={`/article/${summary.slug}`} className="site-action site-action-primary text-ui">Read the report ↗</Link>
           <Link to={dashboardHref} className="lab-link text-ui">Open the {section.toLowerCase()} dashboard ↗</Link>
         </div>
       )}

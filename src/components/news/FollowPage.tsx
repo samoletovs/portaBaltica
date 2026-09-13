@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
 import { fetchArticleIndex } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
+import { PageTitle } from '../PageIntro';
 
 /**
  * How a reader keeps up with a site that publishes irregularly.
@@ -182,9 +183,9 @@ export default function FollowPage() {
 
   return (
     <div className="mx-auto max-w-measure">
-      <h1 className="balance-text news-fg text-display font-semibold tracking-tight">
+      <PageTitle className="news-fg">
         Follow portaBaltica
-      </h1>
+      </PageTitle>
 
       <p className="pretty-text news-muted mt-4 text-prose">
         Everything we publish is available as a feed, and reading one requires no account and

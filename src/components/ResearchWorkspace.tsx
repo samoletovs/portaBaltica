@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchBalticCompare, type BalticCompareData } from '../api';
 import { COUNTRY_INFO, useCountry, type Country } from '../CountryContext';
-import { useFilter } from '../FilterContext';
+import { useFilter, type YearRange } from '../FilterContext';
 import { DASHBOARD_SECTIONS, type DashboardSection } from '../sections';
 import { useIndicatorRegistry, type IndicatorRegistryEntry } from '../hooks/useIndicatorRegistry';
 import { usePageMeta } from '../newsroom/usePageMeta';
@@ -17,6 +17,9 @@ import { DownloadMenu } from './DownloadMenu';
 import './ResearchWorkspace.css';
 import { useCountryFromQuery } from '../hooks/useCountryFromQuery';
 import { useAnalysisTransition } from '../motion/useScrollChoreography';
+import { researchPermalink, researchYears } from '../utils/researchView';
+import { PageIntro } from './PageIntro';
+import { DataControls } from './DataControls';
 
 const BalticCompareChart = lazy(() => import('./BalticCompareChart').then(module => ({ default: module.BalticCompareChart })));
 const NationalChart = lazy(() => import('./IndicatorCard').then(module => ({ default: module.IndicatorChart })));
@@ -43,17 +46,16 @@ function LoadingIndicator() {
   return <div className="lab-loading text-ui" role="status" aria-label="Loading the indicator" aria-busy="true">Loading the source series…</div>;
 }
 
-function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntry; nationalId?: string; focused: boolean }) {
+function Analysis({ entry, nationalId, focused, years }: { entry: IndicatorRegistryEntry; nationalId?: string; focused: boolean; years: YearRange }) {
   const root = useRef<HTMLElement>(null);
   const { country } = useCountry();
-  const { years } = useFilter();
-  const [mode, setMode] = useState<'chart' | 'table'>('chart');
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'chart' | 'table'>(() => params.get('view') === 'table' ? 'table' : 'chart');
   const [result, setResult] = useState<{ key: string; data: BalticCompareData | null } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [nationalOpen, setNationalOpen] = useState(false);
-  const [period, setPeriod] = useState('');
+  const [period, setPeriod] = useState(() => params.get('period') ?? '');
   const [copyResult, setCopyResult] = useState<{ url: string; copied: boolean } | null>(null);
-  const permalink = `/indicator/${entry.id}?country=${country}`;
   async function copyMeasureLink() {
     try {
       await navigator.clipboard.writeText(new URL(permalink, window.location.origin).href);
@@ -91,6 +93,8 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
     series(geo).some(point => point.period === label && point.value !== null && Number.isFinite(point.value)),
   ));
   const inspectPeriod = periods.includes(period) ? period : commonPeriod ?? periods[0];
+  const permalink = researchPermalink(entry.id, country, years, mode, inspectPeriod);
+  const unavailableSharedPeriod = period && period === params.get('period') && !periods.includes(period);
   const usable = COUNTRIES.some(geo => series(geo).some(point => point.value !== null && Number.isFinite(point.value)));
   const sourceUrl = `https://ec.europa.eu/eurostat/databrowser/view/${encodeURIComponent(entry.dataset)}/default/table?lang=en`;
   const exportData: SeriesExport | null = data && usable ? {
@@ -111,11 +115,11 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
     <section ref={root} className="lab-analysis" aria-label={`Analysis: ${entry.title}`}>
       <header className="lab-analysis-heading">
         <div>
-          <h2 className="text-title font-semibold" data-analysis-title="" tabIndex={-1}>{focused ? 'Baltic comparison' : entry.title}</h2>
+          <h2 className="site-section-title text-title font-semibold" data-analysis-title="" tabIndex={-1}>{focused ? 'Baltic comparison' : entry.title}</h2>
           <p className="text-ui lab-muted">{FREQUENCY_LABEL[entry.freq] ?? entry.freq} · {entry.unit} · {years}-year window</p>
         </div>
         <div className="lab-permalink">
-          <button type="button" className="lab-link text-ui" onClick={copyMeasureLink}>Copy measure link</button>
+          <button type="button" className="site-action text-ui" onClick={copyMeasureLink}>Copy measure link</button>
           <p className="text-caption" role="status" aria-atomic="true">
             {copyResult?.url === permalink && (copyResult.copied
               ? 'Measure link copied.'
@@ -135,7 +139,7 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
       {state === 'error' && (
         <div className="lab-empty text-ui" role="status">
           <p>The series could not be loaded. Your indicator selection is unchanged.</p>
-          <button type="button" className="lab-link" onClick={() => setAttempt(value => value + 1)}>Retry series</button>
+          <button type="button" className="site-action text-ui" onClick={() => setAttempt(value => value + 1)}>Retry series</button>
         </div>
       )}
       {state === 'ready' && !usable && <p className="lab-empty text-ui" role="status">No published observations in this window. Try a longer time range.</p>}
@@ -165,7 +169,7 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
             </Suspense>
           ) : (
             <div className="lab-table-scroll" role="region" aria-label="Indicator observations" tabIndex={0}>
-              <table className="lab-table text-ui">
+              <table className="site-table lab-table text-ui">
                 <caption className="text-caption lab-muted">Source values in {data.unit}. — means no published observation, not zero.</caption>
                 <thead><tr><th scope="col">Period</th>{COUNTRIES.map(geo => <th key={geo} scope="col">{COUNTRY_INFO[geo].label}</th>)}{data.reference && <th scope="col">{data.reference.label} average</th>}</tr></thead>
                 <tbody>{periods.map(label => (
@@ -184,10 +188,11 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
           <div className="lab-inspector">
             <div className="lab-inspector-heading">
               <label htmlFor="lab-period" className="text-ui font-semibold">Inspect one period</label>
-              <select id="lab-period" className="text-ui" value={inspectPeriod ?? ''} onChange={event => setPeriod(event.target.value)}>
+              <select id="lab-period" className="site-input text-ui" value={inspectPeriod ?? ''} onChange={event => setPeriod(event.target.value)}>
                 {periods.map(label => <option key={label} value={label}>{label}{label === commonPeriod ? ' · latest shared' : ''}</option>)}
               </select>
             </div>
+            {unavailableSharedPeriod && <p className="text-ui dash-warning" role="status">Shared period {period} is not available in this window. Showing {inspectPeriod} instead; choose another period or a longer history window.</p>}
             <p className="text-caption lab-muted">{commonPeriod ? `Latest period with a reading from all three: ${commonPeriod}.` : 'No shared period across all three countries in this window.'}</p>
             <dl className="lab-period-values text-ui">
               {COUNTRIES.map(geo => {
@@ -208,13 +213,16 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
           <div><dt>Retrieved by API</dt><dd>{data?.fetchedAt ? <time dateTime={data.fetchedAt}>{data.fetchedAt}</time> : 'Not reported'}</dd></div>
         </dl>
         <p className="text-caption lab-muted">Official statistics follow their own publication calendars. The retrieval time is not the observation period.</p>
+        {entry.id === 'tourism' && <p className="text-ui lab-muted">Guest nights in tourist accommodation, including domestic and foreign visitors. This counts nights stayed, not accommodation check-ins or unique people.</p>}
         {data?.assumptions && data.assumptions.length > 0 && <p className="text-ui dash-warning">Source selection includes assumptions: {data.assumptions.map(assumption => `${assumption.dimension}: ${assumption.chosen}`).join('; ')}.</p>}
         <a className="lab-link text-ui" href={`/api/baltic-compare?indicator=${encodeURIComponent(entry.id)}&years=${years}`} target="_blank" rel="noopener noreferrer">View the API response ↗</a>
       </details>
       {nationalId && (
         <details className="lab-definition" onToggle={event => setNationalOpen(event.currentTarget.open)}>
           <summary className="text-ui font-semibold">National source series</summary>
-          <p className="text-ui lab-muted">The existing national-data view, with its own source and definition. National and harmonised series may use different bases.</p>
+          <p className="text-ui lab-muted">{nationalId === 'tourist_arrivals'
+            ? 'This separate Latvian series counts accommodation arrivals, not nights. It is a different measure from the overnight-stays comparison above.'
+            : 'The existing national-data view, with its own source and definition. National and harmonised series may use different bases.'}</p>
           {nationalOpen && <Suspense fallback={<LoadingIndicator />}><NationalChart id={nationalId} /></Suspense>}
         </details>
       )}
@@ -225,9 +233,15 @@ function Analysis({ entry, nationalId, focused }: { entry: IndicatorRegistryEntr
 export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWorkspaceProps) {
   const { entries, error, retry } = useIndicatorRegistry();
   const { country } = useCountry();
+  const { years, setYears } = useFilter();
   useCountryFromQuery();
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const requestedYears = researchYears(params.get('years'));
+  const analysisYears = requestedYears ?? years;
+  useLayoutEffect(() => {
+    if (requestedYears !== undefined) setYears(requestedYears);
+  }, [requestedYears, setYears]);
   const [search, setSearch] = useState('');
   const [libraryOpen, setLibraryOpen] = useState(() => typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 900px)').matches : true);
   const analysisPlane = useRef<HTMLDivElement>(null);
@@ -285,22 +299,23 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
   return (
     <div className="lab-workspace">
       {indicatorId && <IndicatorMeta id={indicatorId} entry={selected} loading={!entries && !error} />}
-      <header className="lab-header">
-        <div>
-          {indicatorId && <Link className="lab-link text-ui" to={`/explore?indicator=${encodeURIComponent(selected?.id ?? indicatorId)}&country=${country}`}>← Data explorer</Link>}
-          <h1 className="text-display md:text-masthead font-semibold balance-text">{indicatorId ? selected?.title ?? 'Indicator' : 'Data explorer'}</h1>
-          <p className="text-prose lab-muted">{indicatorId ? 'One measure, in depth. Inspect its periods, definitions and source values.' : 'Choose a measure. Compare the Baltics. Follow the evidence.'}</p>
-        </div>
-      </header>
+      <PageIntro
+        className="lab-header"
+        title={indicatorId ? selected?.title ?? 'Indicator' : 'Data explorer'}
+        lead={indicatorId ? 'One measure, in depth. Inspect its periods, definitions and source values.' : 'Choose a measure. Compare the Baltics. Follow the evidence.'}
+        description={indicatorId === 'tourist_arrivals' ? 'This older tourism link opens the Baltic overnight-stays comparison. The separate Latvian arrivals series remains available under National source series.' : undefined}
+        backLink={indicatorId && <Link className="lab-link text-ui" to={`/explore?indicator=${encodeURIComponent(selected?.id ?? indicatorId)}&country=${country}`}>← Data explorer</Link>}
+      />
+      <DataControls />
       <div className="lab-workbench">
         <details className="lab-library" open={libraryOpen} onToggle={event => setLibraryOpen(event.currentTarget.open)}>
-          <summary><span className="text-title font-semibold">Indicator library</span><span className="text-caption lab-muted">{entries ? `${entries.length} measures` : 'Official data'}</span></summary>
+          <summary><span className="site-section-title text-title font-semibold">Indicator library</span><span className="text-caption lab-muted">{entries ? `${entries.length} measures` : 'Official data'}</span></summary>
           <div className="lab-library-content" hidden={!libraryOpen}>
             <label className="lab-field text-ui font-semibold" htmlFor="lab-search">Find a measure
-            <input id="lab-search" type="search" className="text-ui" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search title, unit or dataset" />
+            <input id="lab-search" type="search" className="site-input text-ui" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search title, unit or dataset" />
             </label>
             <label className="lab-field text-caption lab-muted" htmlFor="lab-domain">Sector
-            <select id="lab-domain" className="text-ui" value={section} onChange={event => {
+            <select id="lab-domain" className="site-input text-ui" value={section} onChange={event => {
               setSearch('');
               const next = new URLSearchParams({ country });
               if (event.target.value !== 'all') next.set('section', event.target.value);
@@ -310,7 +325,7 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
               {DASHBOARD_SECTIONS.map(domain => <option key={domain} value={domain}>{RESEARCH_SECTIONS[domain].title}</option>)}
             </select>
             </label>
-            {error ? <div role="status" className="text-ui"><p>The indicator catalogue is unavailable.</p><button className="lab-link" type="button" onClick={retry}>Retry catalogue</button></div> : !entries ? <p role="status" className="text-ui">Loading the catalogue…</p> : (
+            {error ? <div role="status" className="text-ui"><p>The indicator catalogue is unavailable.</p><button className="site-action text-ui" type="button" onClick={retry}>Retry catalogue</button></div> : !entries ? <p role="status" className="text-ui">Loading the catalogue…</p> : (
               <>
                 <p className="text-caption lab-muted" role="status">{visible.length} {needle ? 'search results across all sectors' : 'measures in this view'}</p>
                 <ul className="lab-indicator-list">
@@ -332,10 +347,10 @@ export function ResearchWorkspace({ section = 'all', indicatorId }: ResearchWork
           {!entries && !error && <LoadingIndicator />}
           {error && <div role="status" className="lab-empty text-ui">We could not verify the indicator catalogue. Retry the catalogue to continue; this is not an unknown-indicator result.</div>}
           {entries && !selected && <div className="lab-empty text-ui" role="status"><p>{requested !== null && requested !== undefined ? 'Unknown indicator.' : 'No indicators available in this domain.'}</p>{requested && <p>“{requested}” is not in the source catalogue.</p>}<p>Choose a measure from the library.</p></div>}
-          {selected && <Analysis key={selected.id} entry={selected} focused={Boolean(indicatorId)} nationalId={indicatorId && NATIONAL_INDICATORS.has(indicatorId) ? indicatorId : undefined} />}
+          {selected && <Analysis key={`${selected.id}:${params.get('view') ?? ''}:${params.get('period') ?? ''}`} entry={selected} years={analysisYears} focused={Boolean(indicatorId)} nationalId={indicatorId && NATIONAL_INDICATORS.has(indicatorId) ? indicatorId : undefined} />}
           {indicatorId && (
             <section className="lab-related">
-              <h2 className="text-title font-semibold">Continue researching</h2>
+              <h2 className="site-section-title text-title font-semibold">Continue researching</h2>
               <div className="lab-related-links text-ui">{related.map(entry => <Link key={entry.id} to={`/indicator/${entry.id}?country=${country}`}>{entry.title} ↗</Link>)}</div>
               <Link className="lab-link text-ui" to={`/data/${relatedSection ?? 'economy'}?country=${country}`}>View the sector dashboard ↗</Link>
             </section>

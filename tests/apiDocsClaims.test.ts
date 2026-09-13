@@ -249,8 +249,9 @@ describe('the API docs page states numbers that are true', () => {
   ];
   // This page explains reporting periods; it maps business questions, not observations.
   const PERIOD_EXPLANATIONS: string[] = [];
-  // A frozen country comparison or two recorded observations, explicitly not a full series.
-  const RECORDED_COMPARISONS = ['StoryEvidenceGraphic.tsx'];
+  // Publication evidence, explicitly not a full series. FrozenEvidence offers
+  // its own JSON record export rather than the current-series DownloadMenu.
+  const RECORDED_COMPARISONS = ['FrozenEvidence.tsx', 'StoryEvidenceGraphic.tsx'];
 
   it('backs "export on every series" with an export on every series', () => {
     // The Free tier sells "CSV and JSON export on every series". #187 shipped

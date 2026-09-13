@@ -283,6 +283,7 @@ def _revision_for(
                 brief=report.analysis.get(generated.signal.id),
                 panel=report.panels.get(generated.signal.id),
                 editor_notes=tuple(notes),
+                editor_draft=article,
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("revision failed for %s", article.id)

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Sequence
 
 from newsroom.pipeline.ids import new_ulid, slugify
 from newsroom.pipeline.analyst import AnalystBrief
@@ -165,6 +165,7 @@ def generate_article(
     panel: HypothesisPanel | None = None,
     max_attempts: int = MAX_ATTEMPTS,
     editor_notes: Sequence[str] = (),
+    editor_draft: Article | None = None,
 ) -> GenerationResult:
     """Generate, gate, and allow bounded copy-editing attempts. Check ``publishable``.
 
@@ -189,7 +190,13 @@ def generate_article(
     introduces no number either: ``hypothesis._admissible`` discards any claim
     carrying a quantity before this function ever sees it, so the numeric gates
     downstream have nothing new to catch.
+
+    A desk revision requires ``editor_draft``: notes without the copy they refer
+    to are not an editing task. The draft is fenced as input, never treated as
+    evidence, and every revised answer faces the unchanged publication gate.
     """
+    if editor_notes and editor_draft is None:
+        raise GenerationRefused("a desk revision requires the complete previous draft")
     created_at = now or isoformat(utcnow())
 
     # Licence gate, before a single token is spent.
@@ -210,12 +217,13 @@ def generate_article(
     # blank draft. Without this the desk's "revise" was a decision with no
     # consequence: the same prompt produced the same faults and the piece was
     # held on the second read.
-    if editor_notes:
-        user = build_editor_revision_prompt(user, editor_notes)
+    prompt = user
+    if editor_draft is not None:
+        prompt = build_editor_revision_prompt(user, editor_notes, editor_draft)
+        system = build_revision_system_prompt()
 
     result: GenerationResult | None = None
     best: GenerationResult | None = None
-    prompt = user
     # One bound, deliberately. An earlier draft of this loop had both a bounded
     # range and an explicit break on the same ceiling; each silently masked the
     # other, so neither could be shown to work and removing either would have
@@ -334,7 +342,9 @@ def generate_article(
             log.info(
                 "attempt %d rejected for signal %s, revising: %s", attempt, signal.id, faults
             )
-            prompt = build_revision_prompt(user, faults, result.article)
+            prompt = build_revision_prompt(
+                user, faults, result.article, editor_notes=editor_notes
+            )
             system = build_revision_system_prompt()
 
     assert result is not None  # the loop runs at least once

@@ -15,7 +15,7 @@ export function StoryEvidenceGraphic({ evidence, sourceHref }: { evidence: Story
   const span = evidence.maximum - evidence.minimum;
   const zero = -evidence.minimum / span * 100;
   return (
-    <figure ref={ref} className="story-evidence-graphic" aria-labelledby={titleId}>
+    <figure ref={ref} className="site-panel story-evidence-graphic" aria-labelledby={titleId}>
       <figcaption>
         <p id={titleId} className="text-lead font-semibold news-fg">{evidence.title}</p>
         <p className="text-ui news-subtle">

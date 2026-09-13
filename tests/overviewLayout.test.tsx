@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import App from '../src/App';
 import { SiteLayout } from '../src/components/SiteLayout';
 import { DataExplorerPage } from '../src/components/DataExplorerPage';
+import { IndicatorPage } from '../src/components/IndicatorPage';
 import { CountryProvider } from '../src/CountryContext';
 import { FilterProvider } from '../src/FilterContext';
 import { ThemeProvider } from '../src/ThemeContext';
@@ -46,6 +47,7 @@ async function renderDashboard(path = '/data') {
       <Routes><Route element={<SiteLayout />}>
         <Route path="/data/:section?" element={<App />} />
         <Route path="/explore" element={<DataExplorerPage />} />
+        <Route path="/indicator/:id" element={<IndicatorPage />} />
       </Route></Routes>
     </MemoryRouter></FilterProvider></CountryProvider></ThemeProvider>);
     await vi.dynamicImportSettled();
@@ -55,6 +57,26 @@ async function renderDashboard(path = '/data') {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 describe('dashboard and explorer are different jobs', () => {
+  it.each(['/data', '/data/economy', '/explore', '/indicator/gdp'])('puts one complete toolbar after the page opening on %s', async path => {
+    await renderDashboard(path);
+    expect(within(screen.getByLabelText('Country')).getAllByRole('button')).toHaveLength(3);
+    expect(within(screen.getByLabelText('Date range filter')).getAllByRole('button')).toHaveLength(4);
+    const intro = document.querySelector('.site-page-intro');
+    const toolbars = document.querySelectorAll('.desk-data-toolbar');
+    expect(intro).not.toBeNull();
+    expect(toolbars).toHaveLength(1);
+    expect(intro!.compareDocumentPosition(toolbars[0]) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it('writes country focus into the actual explorer URL without dropping its selection', async () => {
+    await renderDashboard('/explore?indicator=gdp&country=EE&section=economy');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Switch to Lithuania' })); });
+    const query = new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]);
+    expect(query.get('country')).toBe('LT');
+    expect(query.get('indicator')).toBe('gdp');
+    expect(query.get('section')).toBe('economy');
+  });
+
   it('shows every sector on the dashboard, with one sector navigator', async () => {
     await renderDashboard();
     expect(screen.getByRole('heading', { level: 1, name: 'The Baltic dashboard' })).toBeTruthy();
