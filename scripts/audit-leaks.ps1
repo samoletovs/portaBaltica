@@ -23,9 +23,20 @@
     Scan only files staged for commit (use from pre-commit hook).
 
 .PARAMETER PrePushRange
-    Scan the diff for an outgoing push. Provide "<local_sha>..<remote_sha>" or
+    Scan the diff for an outgoing push. Provide "<remote_sha>..<local_sha>" or
     let the pre-push hook supply it via stdin. When set, only changed files
     in the range are scanned.
+
+.PARAMETER PrePushTip
+    Audit a new remote branch at its exact outgoing commit. Check metadata and
+    introduced content in every commit not already reachable on PrePushRemote.
+    An empty remote requires auditing the complete pushed history, not other refs.
+
+.PARAMETER PrePushRemote
+    Actual push destination supplied by Git's pre-push hook (its second argument).
+    Required with PrePushTip. Remote branch/tag baselines are verified live and
+    must exist locally. Missing baselines or an unverifiable remote abort the audit.
+    The standalone -History audit still scans all refs before publication.
 
 .PARAMETER PatternsFile
     Explicit path to a pattern file (overrides default resolution).
@@ -71,6 +82,9 @@
 param(
     [switch]$Staged,
     [string]$PrePushRange,
+    [ValidatePattern('^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$')]
+    [string]$PrePushTip,
+    [string]$PrePushRemote,
     [string]$PatternsFile,
     [string]$LocalPatternsFile,
     [string[]]$ExtraPatterns = @(),
@@ -136,6 +150,80 @@ function Read-PatternFile([string]$path) {
 $repoRoot = Resolve-RepoRoot
 Push-Location $repoRoot
 try {
+    if ($PrePushTip) {
+        if ($Staged -or $PrePushRange -or $History) {
+            throw '-PrePushTip cannot be combined with -Staged, -PrePushRange or -History.'
+        }
+        $resolvedTip = & git rev-parse --verify "${PrePushTip}^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $resolvedTip) {
+            throw 'Cannot resolve the outgoing commit; push audit is incomplete.'
+        }
+        $PrePushTip = $resolvedTip.Trim()
+        if (-not $PrePushRemote) {
+            throw '-PrePushTip requires -PrePushRemote, the actual push destination.'
+        }
+        $shallow = & git rev-parse --is-shallow-repository 2>$null
+        if ($LASTEXITCODE -ne 0 -or $shallow -ne 'false') {
+            throw 'A complete local history is required. Fetch the full history before retrying the push audit.'
+        }
+
+        # Do not trust origin/HEAD or cached remote-tracking refs: the hook may
+        # target another URL, and a stale ref could hide an unpublished commit.
+        $advertised = @(& git ls-remote --symref -- $PrePushRemote 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot verify the target remote; push audit is incomplete.'
+        }
+        $remoteObjects = [System.Collections.Generic.HashSet[string]]::new()
+        $baselineObjects = [System.Collections.Generic.HashSet[string]]::new()
+        foreach ($line in $advertised) {
+            if ($line -match '^ref:\s+refs/\S+\s+(HEAD|refs/\S+)$') { continue }
+            if ($line -notmatch '^(?<oid>[0-9a-fA-F]{40}(?:[0-9a-fA-F]{24})?)\s+(?<ref>HEAD|refs/\S+)$') {
+                throw 'Cannot parse the target remote advertisement; push audit is incomplete.'
+            }
+            [void]$remoteObjects.Add($Matches.oid)
+            if ($Matches.ref -eq 'HEAD' -or $Matches.ref.StartsWith('refs/heads/') -or $Matches.ref.StartsWith('refs/tags/')) {
+                [void]$baselineObjects.Add($Matches.oid)
+            }
+        }
+        if ($advertised.Count -gt 0 -and $baselineObjects.Count -eq 0) {
+            throw 'Cannot determine the target remote baseline; push audit is incomplete.'
+        }
+        $remoteCommits = [System.Collections.Generic.HashSet[string]]::new()
+        if ($remoteObjects.Count -gt 0) {
+            $objectInfo = @($remoteObjects | ForEach-Object { "${_}^{}" } |
+                & git cat-file '--batch-check=%(objectname) %(objecttype)' 2>$null)
+            if ($LASTEXITCODE -ne 0 -or $objectInfo.Count -ne $remoteObjects.Count) {
+                throw 'Cannot inspect advertised remote baselines; push audit is incomplete.'
+            }
+            foreach ($line in $objectInfo) {
+                # Provider-only refs (e.g. refs/pull/*) need not be fetched to
+                # establish a branch/tag baseline. Exclude their history only
+                # when available locally; ignoring them can only add audit work.
+                if ($line -match '^(?<oid>[0-9a-f]{40,64})\^\{\} missing$' -and
+                    -not $baselineObjects.Contains($Matches.oid)) { continue }
+                if ($line -notmatch '^(?<oid>[0-9a-f]{40,64}) (?<type>commit|tree|blob)$') {
+                    throw 'Cannot read an advertised remote baseline locally. Fetch the target remote refs before retrying the push audit.'
+                }
+                if ($Matches.type -eq 'commit') {
+                    [void]$remoteCommits.Add($Matches.oid)
+                }
+            }
+        }
+        $pushRevisions = @($PrePushTip)
+        if ($remoteCommits.Count -gt 0) {
+            $pushRevisions += '--not'
+            $pushRevisions += @($remoteCommits)
+        }
+        $pushCommits = @(& git rev-list @pushRevisions -- 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot walk the outgoing history against the verified remote; push audit is incomplete.'
+        }
+        Write-Info "Verified target remote: auditing $($pushCommits.Count) new commit(s)."
+    }
+    elseif ($PrePushRemote) {
+        throw '-PrePushRemote requires -PrePushTip.'
+    }
+
     # ── Resolve pattern sources ──
     $basePath = $null
     if ($PatternsFile) {
@@ -172,15 +260,22 @@ try {
     Write-Info $srcMsg
 
     # ── Resolve files to scan ──
-    $files = $null
-    if ($PrePushRange) {
+    $files = @()
+    if ($PrePushTip) {
+        Write-Info 'Scanning content introduced by the outgoing commits.'
+    }
+    elseif ($PrePushRange) {
         $changed = git diff --name-only $PrePushRange --diff-filter=ACM 2>$null
-        if (-not $changed) {
-            Write-Info "Nothing changed in range '$PrePushRange'." 'Yellow'
-            exit 0
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot resolve the outgoing range; push audit is incomplete.'
         }
-        $files = $changed | ForEach-Object { Get-Item -LiteralPath (Join-Path $repoRoot $_) -ErrorAction SilentlyContinue } |
-                 Where-Object { $_ -and -not $_.PSIsContainer }
+        if (-not $changed) {
+            Write-Info "No file changes in range '$PrePushRange'; commit metadata will still be scanned." 'Yellow'
+        }
+        else {
+            $files = $changed | ForEach-Object { Get-Item -LiteralPath (Join-Path $repoRoot $_) -ErrorAction SilentlyContinue } |
+                     Where-Object { $_ -and -not $_.PSIsContainer }
+        }
     }
     elseif ($Staged) {
         $stagedFiles = git diff --cached --name-only --diff-filter=ACM 2>$null
@@ -221,11 +316,11 @@ try {
     $files = $files | Where-Object { -not (Test-IsBinary $_.FullName) }
 
     if (-not $files -or $files.Count -eq 0) {
-        Write-Info "No files to scan." 'Yellow'
-        exit 0
+        Write-Info "No working-tree files to scan." 'Yellow'
     }
-
-    Write-Info "Scanning $($files.Count) file(s) for $($allPatterns.Count) pattern(s)..."
+    else {
+        Write-Info "Scanning $($files.Count) file(s) for $($allPatterns.Count) pattern(s)..."
+    }
 
     # Split into substring vs regex patterns. Regex lines are prefixed with "re:".
     $literalPatterns = @()
@@ -260,6 +355,72 @@ try {
         $leaks += (Write-LeakHits "re:'$p'" $hits)
     }
 
+    if ($PrePushTip) {
+        # Read each blob introduced/changed by every outgoing commit, including
+        # removed history and merge resolutions. Raw object IDs avoid diff
+        # attributes/helpers hiding text; the checkout cannot conceal a leak.
+        $changes = @(& git -c core.quotePath=false log @pushRevisions --full-history --root -m `
+            --raw --no-abbrev --no-ext-diff --no-textconv --no-renames --no-color --format= -- `
+            ':(top,exclude)scripts/.leak-patterns.txt' `
+            ':(top,exclude)scripts/.leak-patterns.local.txt' 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot read outgoing committed content; push audit is incomplete.'
+        }
+        $blobPaths = @{}
+        foreach ($line in $changes) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -notmatch '^:[0-7]{6} (?<mode>[0-7]{6}) [0-9a-f]{40,64} (?<blob>[0-9a-f]{40,64}) [A-Z][0-9]*\t(?<path>.+)$') {
+                throw 'Cannot parse an outgoing content record; push audit is incomplete.'
+            }
+            # Deleted files have no new blob; submodule entries point at commits.
+            if ($Matches.mode -in @('000000', '160000')) { continue }
+            $blobPaths[$Matches.blob] = $Matches.path
+        }
+        $blobIds = @($blobPaths.Keys)
+        $entries = @(
+            # Bound command length on Windows while inspecting repeated blobs once.
+            for ($offset = 0; $offset -lt $blobIds.Count; $offset += 64) {
+                $batch = @($blobIds[$offset..([Math]::Min($offset + 63, $blobIds.Count - 1))])
+                $blobLines = @(& git grep -I -n -H --no-column --no-heading --no-break `
+                    --no-color --no-textconv --basic-regexp -e '^' @batch -- 2>$null)
+                if ($LASTEXITCODE -notin @(0, 1)) {
+                    throw 'Cannot read an outgoing blob; push audit is incomplete.'
+                }
+                foreach ($line in $blobLines) {
+                    if ($line -notmatch '^(?<blob>[0-9a-f]{40,64}):(?<number>[0-9]+):(?<content>.*)$') {
+                        throw 'Cannot parse committed content; push audit is incomplete.'
+                    }
+                    [pscustomobject]@{
+                        Path = $blobPaths[$Matches.blob]
+                        LineNumber = $Matches.number
+                        Content = $Matches.content
+                    }
+                }
+            }
+        )
+        foreach ($entry in $entries) {
+            $matched = $false
+            foreach ($p in $literalPatterns) {
+                if ($entry.Content.IndexOf($p, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    $matched = $true
+                    break
+                }
+            }
+            if (-not $matched) {
+                foreach ($p in $regexPatterns) {
+                    if ($entry.Content -match $p) {
+                        $matched = $true
+                        break
+                    }
+                }
+            }
+            if ($matched) {
+                Write-Host "[LEAK committed-content] $($entry.Path):$($entry.LineNumber) (content redacted)" -ForegroundColor Red
+                $leaks++
+            }
+        }
+    }
+
     # ── Commit metadata ──
     # Publishing a repository publishes its commit headers too, and nothing above reads
     # them: this script scans working-tree files, and `git grep` only ever reads blobs.
@@ -272,8 +433,13 @@ try {
     # refs/pull/*/head, which the repo owner cannot rewrite or delete. Catching an
     # identity here - before the push - is the only cheap moment.
     if (-not $Staged) {
-        $logArgs = if ($PrePushRange) { @('log', $PrePushRange) } else { @('log', '--all') }
+        $logArgs = if ($PrePushTip) { @('log') + $pushRevisions }
+                   elseif ($PrePushRange) { @('log', $PrePushRange) }
+                   else { @('log', '--all') }
         $metaLines = & git @logArgs --format='%h author %an <%ae>%n%h committer %cn <%ce>%n%h message %B' 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot read commit metadata; push audit is incomplete.'
+        }
 
         if ($metaLines) {
             $metaText = @($metaLines | Where-Object { $_ -and $_.Trim() })
@@ -292,7 +458,9 @@ try {
                 Write-Host ("  {0} commit(s) affected: {1}" -f $shas.Count,
                             (($shas | Select-Object -First 8) -join ', ')) -ForegroundColor Yellow
                 if ($shas.Count -gt 8) { Write-Host "  ..." -ForegroundColor Yellow }
-                return $shas.Count
+                # Continuation lines in %B (including co-author trailers) have
+                # no SHA prefix but must still block the push when they match.
+                return [Math]::Max(1, @($shas).Count)
             }
 
             foreach ($p in $literalPatterns) {
@@ -358,7 +526,6 @@ try {
         Write-Host "      Once pushed, GitHub pins those commits behind refs/pull/* that you cannot rewrite." -ForegroundColor Red
         Write-Host "      In history: the value is in an old commit. It stays readable after a visibility flip" -ForegroundColor Red
         Write-Host "      until the history is rewritten - and rewriting does not reach refs/pull/* either." -ForegroundColor Red
-        Write-Host "      To bypass once (NOT recommended): git push --no-verify" -ForegroundColor DarkGray
         exit 1
     }
     else {
