@@ -54,6 +54,7 @@ function indicatorIds() {
  * the same change.
  */
 const NOT_IN_SITEMAP = {
+  '/evidence/:snapshotId': 'Frozen versions are reachable through the monthly catalogue, not bulk-indexed',
   /**
    * A legacy redirect. The masthead used to live here; `main.tsx` sends both
    * forms to `/newsroom`, and the destination declares `/newsroom` as its
@@ -126,6 +127,7 @@ const handler = async function (context, req) {
     add('/', today, '1.0');
     add('/data', today, '0.8');
     add('/explore', today, '0.8');
+    add('/evidence', today, '0.7');
     // How to keep up, and the stable address for the latest weekly review.
     // `/weekly` is listed even when no review is currently published: the page
     // is a real page that answers the question either way, and de-listing it on

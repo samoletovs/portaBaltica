@@ -1,0 +1,115 @@
+# Production evidence archive
+
+Approved 2026-09-13 following the verified local unemployment pilot.
+
+## Reader value and scope
+
+Readers can open the exact source response behind an eligible article, download
+its frozen data and inspect revisions without confusing today's observations
+with what was available then. A browsable archive also stands on its own.
+
+Launch with the existing `baltic-unemployment-v1` contract (EE/LV/LT, `une_rt_m`,
+M/SA/TOTAL/T/PC_ACT, normalized window from January 2020). Raw source responses
+may include earlier observations and the EU aggregate; the page must distinguish
+the complete retrieved source from the normalized Baltic subset.
+
+No payment system, accounts, new source catalogue or additional cron. Existing
+free data and article behaviour remains available.
+
+## Capture and storage
+
+Capture the exact `RawItem` the existing Eurostat collector parsed, before article
+selection; do not independently refetch and label that as an article's evidence.
+Cache reuse retains the original retrieval timestamp. A TTL hit is not a fresh
+source observation. Every collection attempt records fresh/reused/failed status.
+
+The new capability is enabled by `NEWSROOM_EVIDENCE_ENABLED=true`, default off
+until deployment, online storage and seeded data are verified. No changes to the
+edition timer cadence.
+
+Private canonical snapshots retain the pilot's `raw-feeds/evidence/v1/` layout.
+Only checked Eurostat unemployment packs are published create-only beneath the
+existing public `articles/evidence/v1/` prefix. No other raw feeds, approval items
+or credentials are exposed. Public serving copies stay online outside the raw
+archive's 180-day offline-tier rule. No new resource is required.
+
+Snapshots are idempotent for an exact retrieval identity plus raw hash, so retries
+and cached reads do not create new vintages. Never overwrite a completed release.
+Publish all checked artifacts before the immutable public manifest, and index only
+completed public releases. Durable failures are visible, never local-only success.
+
+Mutable catalogue updates use conditional writes/retries or an equivalent storage
+lock: concurrent runs must not lose archive entries or move latest backwards.
+
+## Public static contract (version 1)
+
+Base: `${ARTICLES_BASE_URL}/evidence/v1` (frontend uses the existing
+`VITE_ARTICLES_BASE_URL`; no new origin or client credential).
+
+- `index.json`: `version`, `series_id`, `title`, `dataset`, `selection`,
+  `start_period`, `stale_after_hours`, `last_attempt`, `last_success_at`,
+  `latest_snapshot_id`, `months` (YYYY-MM newest first), `recent` (bounded list).
+- `last_attempt`: `attempted_at`, `finished_at`, `status`
+  (`captured`, `unchanged`, `reused`, `failed`), optional bounded public `error`.
+- `recent` and monthly `snapshots` entries: `snapshot_id`, `observed_at`,
+  `source_updated_at`, `row_count`, `missing_count`, `flagged_count`.
+- `months/YYYY-MM.json`: `version`, `month`, `snapshots`. No silent truncation:
+  all completed captures remain discoverable through their month.
+- `snapshots/<32hex-id>/manifest.json`: pilot manifest plus optional
+  `previous_snapshot_id` and `comparison` summary. The original provenance and
+  SHA-256 hashes remain present.
+- Same snapshot prefix: `source.json` (original bytes), `normalized.json`,
+  `observations.csv`, `dictionary.json`, and optional `comparison.json`.
+  Artifact URLs are constructed from the validated ID and known filenames, not
+  arbitrary URLs returned by metadata. Raw source download hash is
+  `manifest.provenance.sha256`; derived hashes are in `manifest.artifacts`.
+
+The UI exposes both observation period and retrieval time, missing/flagged counts,
+coverage limits, attribution/disclaimer, and source-revision differences separately
+from expanded request coverage or new periods. A failed or overdue archive must
+not wear a healthy/fresh badge.
+
+## Exact article binding
+
+`SourceRef` / article source schema / TypeScript source interface gain optional
+`evidence_snapshot_id` (32 lowercase hex). Only a successfully committed public
+pack may populate it. It propagates through the real detector/generator pipeline,
+not a fabricated article fixture in production.
+
+Existing articles are not rewritten. A small create-only lookup can establish an
+exact match to an audited older source without modifying its published prose:
+
+- `bindings/<64hex-key>.json`: `version`, `source_id`, `dataset`, `observed_at`,
+  `request_url`, `snapshot_id`, `raw_sha256`.
+- Key: SHA-256 of UTF-8
+  `source_id + "\\n" + dataset + "\\n" + retrieved_at + "\\n" + url`.
+  The separators are newline characters. Do not normalize or guess a missing URL.
+- The reader validates every returned identity field against the article source;
+  404 means no frozen match, not a match to the nearest date.
+
+UI routes: `/evidence` (catalogue and archive health) and
+`/evidence/:snapshotId` (frozen pack and optional revision comparison). Link
+eligible sources from their provenance panel. Older sources with no exact match
+must not claim a frozen record. Link the catalogue from the main data navigation.
+
+## Operations and verification
+
+Archive outcome is included in the newsroom run report and the existing system
+status surface. A missing, stale or failed archive report is distinguishable from
+unchanged data. If the collector fails before producing an item, record failure
+for the selected contract as well. Error details exposed publicly are sanitized.
+
+Before activation: check actual budget, online lifecycle and existing access;
+seed only the three already-audited source responses and one current capture.
+Activate the feature on the deployed host, exercise collection without running
+paid article generation where possible, and verify exact source bindings and
+downloads in a real browser. Do not manufacture or edit articles for the demo.
+
+Tests must cover the actual collector-to-provenance path, cache/failure semantics,
+retries/concurrency, immutable publication, monthly discovery, failed/stale health,
+untrusted IDs/metadata, missing/flagged rows, old article bindings and downloads.
+Retain the pilot's independent offline tests and verify real-source replay.
+
+Roll back by disabling `NEWSROOM_EVIDENCE_ENABLED`; keep published snapshots and
+links intact. Restore a prior application release only through the normal reviewed
+deployment workflow. Do not delete evidence as part of rollback.
