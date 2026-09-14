@@ -1,4 +1,5 @@
 const https = require('https');
+const { readResponseText } = require('../shared/responseText.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
@@ -201,11 +202,9 @@ function jsonGet(url) {
         res.resume();
         return reject(tagged(httpReason(res.statusCode), 'HTTP ' + res.statusCode + ' from ' + url));
       }
-      var data = '';
-      res.on('data', function (c) { data += c; });
-      res.on('end', function () {
+      readResponseText(res).then(function (data) {
         try { resolve(JSON.parse(data)); } catch (e) { reject(tagged(REASONS.MALFORMED, 'Parse failed')); }
-      });
+      }, reject);
     });
     // `destroy(err)` re-emits that same object on 'error', so the tag survives
     // to the handler below rather than being rebuilt from the message there.
@@ -263,9 +262,7 @@ function httpGetText(url) {
         res.resume();
         return reject(tagged(httpReason(res.statusCode), 'HTTP ' + res.statusCode + ' from ' + url));
       }
-      var data = '';
-      res.on('data', function (c) { data += c; });
-      res.on('end', function () { resolve(data); });
+      readResponseText(res).then(resolve, reject);
     });
     req.on('timeout', function () { req.destroy(tagged(REASONS.TIMEOUT, 'Timeout: ' + url)); });
     req.on('error', function (err) {

@@ -1,4 +1,5 @@
 const https = require('https');
+const { readResponseText } = require('../shared/responseText.js');
 const latvianSeries = require('../shared/latvianSeries.js');
 const es = require('../shared/eurostat.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
@@ -17,11 +18,9 @@ function httpsPost(url, body) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
       }
-      var data = '';
-      res.on('data', function (c) { data += c; });
-      res.on('end', function () {
+      readResponseText(res).then(function (data) {
         try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('Parse failed')); }
-      });
+      }, reject);
     });
     req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);

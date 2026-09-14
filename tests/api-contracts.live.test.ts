@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { assertSystemStatus } from './systemStatusContract';
 
 const BASE = 'https://portabaltica.naurolabs.com';
 
@@ -118,38 +119,6 @@ describe('API contracts (live)', () => {
     expect(r.ok).toBe(true);
     const d = await r.json();
 
-    expect(d).toHaveProperty('status');
-    expect(Array.isArray(d.dataSources?.checks)).toBe(true);
-    expect(d.dataSources.checks.length).toBeGreaterThan(0);
-
-    type Check = { name: string; status: string; required: boolean; freshness?: string };
-    const checks: Check[] = d.dataSources.checks;
-
-    // The server publishes its own tallies and the UI reads those, not the
-    // array. If the two disagree, one of them is lying to a reader.
-    expect(d.dataSources.total).toBe(checks.length);
-    expect(d.dataSources.healthy).toBe(checks.filter((c) => c.status === 'healthy').length);
-    expect(d.dataSources.stale).toBe(checks.filter((c) => c.freshness === 'stale').length);
-    expect(d.dataSources.requiredTotal).toBe(checks.filter((c) => c.required).length);
-    expect(d.dataSources.requiredHealthy).toBe(
-      checks.filter((c) => c.required && c.status === 'healthy').length
-    );
-
-    // `overallStatus` does not exist -- the verdict is `status`, and it is
-    // derived from the required checks alone, so an optional outage cannot
-    // colour the page. Asserting the derivation is what makes a silent change
-    // to it visible.
-    const requiredAllHealthy =
-      d.dataSources.requiredHealthy === d.dataSources.requiredTotal;
-    expect(['healthy', 'degraded', 'unhealthy']).toContain(d.status);
-    if (requiredAllHealthy) expect(d.status).toBe('healthy');
-
-    // Every check names what it powers, so a red one is actionable rather than
-    // a bare name a reader has to go and look up.
-    for (const c of checks) {
-      expect(typeof c.name).toBe('string');
-      expect(c.name.length).toBeGreaterThan(0);
-      expect(typeof c.required).toBe('boolean');
-    }
+    assertSystemStatus(d);
   });
 });
