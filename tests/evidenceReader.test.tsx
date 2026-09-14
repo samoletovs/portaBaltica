@@ -14,6 +14,7 @@ import { isEvidenceTimestamp, parseEvidenceIndex, parseEvidenceManifest, parseEv
 import type { ProvenanceSource } from '../src/news-types';
 import { EvidenceCatalogue } from '../src/components/news/EvidenceCatalogue';
 import { EvidencePage } from '../src/components/news/EvidencePage';
+import { EvidenceRevisions } from '../src/components/news/EvidenceRevisions';
 import { EvidenceSourceLink } from '../src/components/news/EvidenceSourceLink';
 import { ProvenanceBlock } from '../src/components/news/ProvenanceBlock';
 import { DashboardNav } from '../src/components/Header';
@@ -391,6 +392,114 @@ describe('archive reader behaviour', () => {
     expect(within(revisionTable).queryByRole('rowheader', { name: /2026-08/ })).toBeNull();
     expect(screen.getByRole('link', { name: 'Open previous capture' }).getAttribute('href')).toBe(`/evidence/${BEFORE}`);
     expect(screen.getByRole('link', { name: 'Download every comparison row' }).getAttribute('href')).toBe(path('comparison.json'));
+  });
+
+  it('lets a reader inspect every revision and isolate a country without downloading JSON', () => {
+    const changes: EvidenceComparison['changes'] = Array.from({ length: 27 }, (_, n) => {
+      const geo = n < 13 ? 'EE' : n < 26 ? 'LV' : 'LT';
+      const period = n === 12 || n === 25 ? '2026-01' : `2025-${String(n % 12 + 1).padStart(2, '0')}`;
+      const before = { geo, period, value: n, missing: false, status: '' } as const;
+      return { geo, period, kind: 'value_revision', before, after: { ...before, value: n + 0.125 } };
+    });
+    render(<MemoryRouter><EvidenceRevisions comparison={{
+      before: BEFORE, after: ID, unchanged: false, metadata_changed: false, value_revisions: changes.length, changes,
+    }} /></MemoryRouter>);
+    const table = screen.getByRole('table', { name: /Original and subsequent/ });
+    expect(within(table).getAllByRole('row')).toHaveLength(13);
+    const expand = screen.getByRole('button', { name: 'Show all 27 matching changes' });
+    expect(expand.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(expand);
+    expect(within(table).getAllByRole('row')).toHaveLength(28);
+    expect(expand.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.change(screen.getByLabelText('Revision country'), { target: { value: 'LV' } });
+    expect(within(table).getAllByRole('row')).toHaveLength(13);
+    expect(within(table).getAllByRole('rowheader').every(row => row.textContent?.includes('Latvia'))).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain('12 of 13 matching changes for Latvia');
+    expect(screen.getByRole('status').getAttribute('aria-atomic')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 13 matching changes' }));
+    expect(within(table).getByText('25.125')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Change category'), { target: { value: 'status_change' } });
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('0 of 0 matching changes for Latvia');
+    fireEvent.change(screen.getByLabelText('Change category'), { target: { value: 'value_revision' } });
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(13);
+    fireEvent.change(screen.getByLabelText('Revision country'), { target: { value: 'LT' } });
+    expect(within(screen.getByRole('table')).getByText('26.125')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Show all/ })).toBeNull();
+  });
+
+  it('prints the whole selected observation and revision view, then restores screen filters and disclosures', async () => {
+    const { manifest, comparison } = comparisonPack();
+    const normalized: EvidenceNormalized = JSON.parse(responses.get(path('normalized.json')) as string);
+    const before: EvidenceNormalized = JSON.parse(responses.get(path('normalized.json', BEFORE)) as string);
+    for (let n = 0; n < 24; n += 1) {
+      const row = { geo: 'LV', period: `${2023 + Math.floor(n / 12)}-${String(n % 12 + 1).padStart(2, '0')}`, value: 7, missing: false, status: '' } as const;
+      before.rows.push(row);
+      const after = { ...row, value: 7.25 };
+      normalized.rows.push(after);
+      comparison.changes.push({ geo: 'LV', period: row.period, kind: 'value_revision', before: row, after });
+    }
+    const prior: EvidenceManifest = JSON.parse(responses.get(path('manifest.json', BEFORE)) as string);
+    for (const [id, record, data] of [[BEFORE, prior, before], [ID, manifest, normalized]] as const) {
+      record.row_count = data.rows.length;
+      record.artifacts['normalized.json'] = { sha256: hash(JSON.stringify(data)) };
+      responses.set(path('normalized.json', id), JSON.stringify(data));
+      responses.set(path('manifest.json', id), JSON.stringify(record));
+    }
+    comparison.value_revisions += 24;
+    manifest.artifacts['comparison.json'] = { sha256: hash(JSON.stringify(comparison)) };
+    responses.set(path('manifest.json'), JSON.stringify(manifest));
+    responses.set(path('comparison.json'), JSON.stringify(comparison));
+    showPage();
+    await eventually(() => screen.getByLabelText('Change category'));
+    fireEvent.change(screen.getByLabelText('Change category'), { target: { value: 'value_revision' } });
+    const observations = screen.getByRole('table', { name: /Latvia/ });
+    const revisions = screen.getByRole('table', { name: /Original and subsequent/ });
+    expect(within(observations).getAllByRole('row')).toHaveLength(13);
+    expect(within(revisions).getAllByRole('row')).toHaveLength(13);
+    const disclosures = Array.from(document.querySelectorAll('details'));
+    expect(disclosures.length).toBeGreaterThan(1);
+    const nested = document.createElement('details');
+    nested.innerHTML = '<summary>Nested source context</summary><p>Recorded context</p>';
+    disclosures[0].appendChild(nested);
+    disclosures.push(nested);
+    disclosures[1].open = true;
+    const original = disclosures.map(details => details.open);
+    act(() => { window.dispatchEvent(new Event('beforeprint')); });
+    expect(disclosures.every(details => details.open)).toBe(true);
+    expect(within(observations).getAllByRole('row')).toHaveLength(28);
+    expect(within(revisions).getAllByRole('row')).toHaveLength(26);
+    expect(revisions.querySelector('caption')?.textContent).toContain('Revised reading');
+    act(() => { window.dispatchEvent(new Event('beforeprint')); });
+    act(() => { window.dispatchEvent(new Event('afterprint')); });
+    expect(disclosures.map(details => details.open)).toEqual(original);
+    expect(within(observations).getAllByRole('row')).toHaveLength(13);
+    expect(within(revisions).getAllByRole('row')).toHaveLength(13);
+    expect((screen.getByLabelText('Change category') as HTMLSelectElement).value).toBe('value_revision');
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 25 matching changes' }));
+    act(() => { window.dispatchEvent(new Event('beforeprint')); });
+    act(() => { window.dispatchEvent(new Event('afterprint')); });
+    expect(within(revisions).getAllByRole('row')).toHaveLength(26);
+  });
+
+  it('removes print listeners and restores disclosures when leaving a snapshot during print', async () => {
+    pack();
+    const added = vi.spyOn(window, 'addEventListener');
+    const removed = vi.spyOn(window, 'removeEventListener');
+    const view = showPage();
+    await eventually(() => screen.getByRole('heading', { name: 'Frozen observations' }));
+    const disclosures = Array.from(document.querySelectorAll('details'));
+    disclosures[1].open = true;
+    const original = disclosures.map(details => details.open);
+    const listeners = added.mock.calls.filter(([name]) => name === 'beforeprint' || name === 'afterprint');
+    expect(listeners.map(([name]) => name).sort()).toEqual(['afterprint', 'beforeprint']);
+    act(() => { window.dispatchEvent(new Event('beforeprint')); });
+    expect(disclosures.every(details => details.open)).toBe(true);
+    view.unmount();
+    expect(disclosures.map(details => details.open)).toEqual(original);
+    for (const [name, listener] of listeners) expect(removed).toHaveBeenCalledWith(name, listener);
+    act(() => { window.dispatchEvent(new Event('beforeprint')); });
+    expect(disclosures.map(details => details.open)).toEqual(original);
   });
 
   it('refuses a checksum-valid comparison that silently omits a changed observation', async () => {
