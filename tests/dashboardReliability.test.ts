@@ -321,11 +321,11 @@ describe('CKAN-backed handlers', () => {
   const projectId = 'bfcae357-328c-423f-9835-215e7fd3db4e';
   const amendmentId = '47276bfd-21bb-4ba7-85cc-7ab4c278e3ca';
 
-  it('counts the actual project list, aggregates all statuses and requests latest updates', async () => {
+  it.each([true, false, undefined])('counts the actual project list even with datastore_active=%s', async active => {
     respond = url => {
       const u = new URL(url);
       if (u.pathname.endsWith('package_show')) return { success: true, result: { resources: [
-        { id: projectId, name: 'AF projektu saraksts', datastore_active: true },
+        { id: projectId, name: 'AF projektu saraksts', datastore_active: active },
         { id: amendmentId, name: 'AF projektu līgumu grozījumi', datastore_active: true },
       ] } };
       if (u.pathname.endsWith('datastore_search_sql')) return { success: true, result: {
@@ -339,11 +339,49 @@ describe('CKAN-backed handlers', () => {
       } };
     };
     const result = await call<{ total: number; projects: { date: string; status: string }[]; statusSummary: { count: number }[] }>('eu-funds');
+    expect(result.status).toBe(200);
     expect(result.body.total).toBe(466);
     expect(result.body.statusSummary.reduce((n, s) => n + s.count, 0)).toBe(466);
     expect(result.body.projects[0]).toMatchObject({ date: '2026-09-04', status: 'Pabeigts' });
     const search = requests.find(u => u.includes('/datastore_search?'));
     expect(new URL(search!).searchParams.get('sort')).toMatch(/PedejasDatuAtjauninasanasDatums desc/);
+  });
+
+  it('does not substitute an active amendments table when the project list is missing', async () => {
+    respond = () => ({ success: true, result: { resources: [
+      { id: amendmentId, name: 'AF projektu līgumu grozījumi', datastore_active: true },
+    ] } });
+
+    const result = await call<{ error: string }>('eu-funds');
+
+    expect(result.status).toBe(502);
+    expect(result.body.error).toContain('project list unavailable');
+    expect(requests).toHaveLength(1);
+  });
+
+  it.each(['datastore_search', 'datastore_search_sql'])('preserves an actual %s failure despite resource metadata', async action => {
+    respond = url => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('package_show')) return { success: true, result: { resources: [
+        { id: projectId, name: 'AF projektu saraksts', datastore_active: false },
+      ] } };
+      if (path.endsWith('/' + action)) return { success: false, error: { message: 'Source query failed' } };
+      return { success: true, result: { records: [], total: 0 } };
+    };
+
+    const result = await call<{ error: string }>('eu-funds');
+
+    expect(result.status).toBe(502);
+    expect(result.body.error).toContain('CKAN ' + action + ' failed');
+  });
+
+  it('rejects an invalid project resource ID before querying the datastore', async () => {
+    respond = () => ({ success: true, result: { resources: [
+      { id: 'not-a-resource-id', name: 'AF projektu saraksts', datastore_active: false },
+    ] } });
+    const result = await call('eu-funds');
+    expect(result.status).toBe(502);
+    expect(requests).toHaveLength(1);
   });
 
   it.each(['business-search', 'address-search', 'eu-funds'])('does not report a CKAN action failure as no data: %s', async name => {

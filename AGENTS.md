@@ -51,6 +51,15 @@ detailed NACE codes** (`B`, `C`, `C10` …) are the ones rejected
 
 ## Architecture
 
+### EU-funds resource availability
+
+The `AF projektu saraksts` resource's `datastore_active` metadata can be false
+while both `datastore_search` and the full status aggregation succeed (verified
+2026-09-14, 466 projects). Select this exact project list by identity and validate
+the actual queries; do not replace it with the active amendments resource or
+return empty data on failure. This is a measured exception for EU funds, not a
+reason to change every CKAN resource selector.
+
 ```
 portaBaltica/
 ├── src/                    # React frontend
