@@ -15,9 +15,11 @@ from __future__ import annotations
 import re
 import statistics
 from dataclasses import dataclass
-from typing import Iterator, Sequence
+from typing import Iterator, Literal, Sequence
 
 from newsroom.pipeline.models import SourceRef
+
+LevelComparison = Literal["common_scale", "own_base_index"]
 
 #: The geographies this wire reports *on*. A detector may fire for these, and
 #: an article may be about one of them.
@@ -208,6 +210,10 @@ class TimeSeries:
     #: and has no cheap full history — and a consumer must then say nothing
     #: about the series rather than something false about it.
     origin: SeriesOrigin | None = None
+    #: A national time-base index measures change against that country's own
+    #: base, not absolute levels across countries. Spatial EU-base indices
+    #: remain comparable; the word "index" alone does not decide this.
+    level_comparison: LevelComparison = "common_scale"
 
     def __post_init__(self) -> None:
         periods = [o.period for o in self.observations]
@@ -310,6 +316,7 @@ class TimeSeries:
             source=self.source,
             frequency=self.frequency,
             chart_ref=self.chart_ref,
+            level_comparison=self.level_comparison,
         )
 
 

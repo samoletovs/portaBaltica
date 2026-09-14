@@ -201,3 +201,57 @@ The existing Barlow family, slate-blue/petrol-copper palette, source-backed
 graphics, two-tone wordmark, disclosures and data workflows are unchanged.
 The browser contract measures computed styles rather than accepting matching
 class names as proof; its original 696px case exposed 19 failing presentation assertions.
+
+## Evidence quality pass: 14 September 2026
+
+Baseline: `1296c7d7a2ec6e65ea0477215fcf588a96c80a84`, refreshed from
+`origin/master`. This implementation is prepared for review, not authorized
+for merge or deployment. Four isolated workstreams retained the approved
+visual identity, free public access and existing archive and feedback boundaries.
+
+| Problem | Evidence and selected change | User value | Effort / risk | Decision |
+| --- | --- | --- | --- | --- |
+| Revision inspection stops at the preview | A real capture has 64 numeric revisions; the first 12 are all Estonian. Add country/category filters, matching counts and explicit expansion. | Every matching change is reachable without external JSON processing. | Small; bounded initial display and original classifications retained. | Selected |
+| Paper evidence omits rows and closed sources | Six baseline viewport/theme contexts left disclosures closed and tables at 12 rows. Print the selected country's whole window and all matching changes; open and restore disclosures. | A complete, scoped paper record with source identity and checksums. | Medium; shared paper palette, wrapping, state restoration and rendered checks. | Selected |
+| Valid source text corrupts at byte boundaries | Real Node byte streams split Latvian letters and currency signs while JSON still parses. Use one incremental UTF-8 decoder in the eight affected readers. | Preserve labels, names and units independently of network chunking. | Small; deadlines, status handling and caches unchanged. | Selected |
+| Smoke assertion rejects legitimate stale status | Producer and client accept `stale`; the live assertion did not. Share a strict assertion with controlled outcomes, non-empty required checks and exact tally/derivation checks. | Correctly distinguish publication lag from an outage. | Small; health requirements are not relaxed. | Selected |
+| National-base indices become absolute country rankings | Three of three own-base-index opportunities in a purposive 12-original sample carry that framing. Declare comparability on eight definitions and withhold peer/EU level facts and both divergence paths. | Stop unsupported claims before the writer sees them. | Medium; retains own-history findings and genuinely comparable spatial indices, but withholds qualified index-growth comparisons too. | Selected |
+| Reported writer effort loses discarded calls | Three generation calls retaining the first draft report one attempt; initial plus desk revision reports one instead of two. Add a run-owned invocation ledger. | Distinguish work performed from the draft retained. | Medium; logical generation calls only, not transport retries, all model calls or billed usage. | Selected |
+| Briefing evidence links lose their comparison | All nine baseline country links omit the displayed period and history. Preserve those settings and expose separate own-latest/basis links. | Continue the same investigation in the explorer. | Small; links remain live views, not frozen records. | Selected |
+| Focus evidence requires manual filtering | Existing downloads contain the whole Baltic window. Add an exact two-period country basis and separate CSV/JSON, preserving real indicator identity and missing periods. | Reuse the actual discussion basis directly. | Medium; two additional rows per measure, no new data requests. | Selected |
+| More sources, frozen briefing packages or feedback workflows | Hotel occupancy and non-household gas are populated but narrower measures; briefing series have no approved archive bindings. Existing private feedback tests and browser retry controls pass. | Avoid unapproved scope and duplicate working mechanisms. | Additional rights, source and workflow obligations without demonstrated demand. | Deferred |
+| Another visual identity or speculative trade repair | Thirty baseline reader renders show no document overflow; the earlier trade failure does not reproduce in the bounded live read. | Preserve coherent working behaviour. | No measured defect justifying these changes. | Declined |
+
+The 12-original editorial sample spans seven sections and five detectors from
+83 originals in a 137-entry public index. It is purposive coverage, not a
+prevalence estimate. Historical errors remain correction proposals only:
+this change does not rewrite, republish or rebind existing articles.
+No stochastic generation, customer benefit, field-performance or award outcome
+is inferred from deterministic tests or browser fixtures.
+
+The source shortlist was remeasured on 14 September. Monthly
+`tour_occ_mnor` (`M`, `BEDPL`, `PC`, hotels and similar accommodation) returned
+67 coordinates per country from January 2021 through July 2026, with
+66/65/66 numeric readings for EE/LV/LT. June readings were 52/46.5/45.6%;
+July was missing everywhere and Latvia also lacked October 2023. This is
+capacity utilisation, not arrivals or overnight stays. Non-household gas
+`nrg_pc_203` (`S`, `G3000`, `GJ10000-99999`, `KWH`, `X_TAX`, `EUR`)
+returned ten populated half-years per country through 2025-S2, at
+0.0529/0.0501/0.0503 EUR/kWh respectively. It represents one consumption band,
+not a business's bill. Both returned no parser assumptions or observation
+flags in these reads. Larger history requests showed expanded coverage, not
+evidence of revisions between historical vintages.
+
+[Eurostat reuse conditions](https://ec.europa.eu/eurostat/help/copyright-notice),
+[tourism methodology](https://ec.europa.eu/eurostat/cache/metadata/en/tour_occ_esms.htm)
+and [gas-price methodology](https://ec.europa.eu/eurostat/cache/metadata/en/nrg_pc_202_sims.htm)
+were reviewed. Attribution, modification disclosure, disclaimers and exceptions
+still apply. These candidates do not outrank the selected integrity fixes and
+do not broaden the unemployment archive. Commercial rights, eligible hosting,
+contact readiness, payments and delivery remain separate owner decisions.
+
+The pass rechecked [W3C status-message guidance](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html)
+and [Web Vitals' lab/field distinction](https://web.dev/articles/vitals).
+Rendered controls and complete evidence journeys, including real parameterised
+snapshot routes, are the relevant local checks; they do not certify every
+assistive technology, physical printer or a field-wide percentile.

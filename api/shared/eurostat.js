@@ -27,6 +27,7 @@
  */
 
 const https = require('https');
+const { readResponseText } = require('./responseText.js');
 
 const EUROSTAT_BASE = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data';
 
@@ -68,10 +69,7 @@ function httpText(url, options) {
         if (res.statusCode === 429 || res.statusCode >= 500) err.transient = true;
         return finish(err);
       }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () { finish(null, data); });
-      res.on('error', finish);
+      readResponseText(res).then(function (text) { finish(null, text); }, finish);
     });
 
     req.on('timeout', function () {

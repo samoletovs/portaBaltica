@@ -28,6 +28,7 @@ type Reply = { status?: number; body: unknown };
 let routes: Array<{ match: RegExp; reply: Reply }> = [];
 let asked: string[] = [];
 let originalGet: typeof https.get;
+let byteChunks = false;
 
 function stubHttps() {
   originalGet = https.get;
@@ -41,7 +42,12 @@ function stubHttps() {
     setImmediate(() => {
       done(res);
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        res.emit('data', JSON.stringify(hit ? hit.reply.body : {}));
+        const text = JSON.stringify(hit ? hit.reply.body : {});
+        if (byteChunks) {
+          for (const byte of Buffer.from(text)) res.emit('data', Buffer.from([byte]));
+        } else {
+          res.emit('data', text);
+        }
       }
       res.emit('end');
     });
@@ -76,6 +82,7 @@ function groupRows(rows: Array<[string | null, number]>) {
 describe('/api/property-data reports the dataset, not the page', () => {
   beforeEach(() => {
     asked = [];
+    byteChunks = false;
     stubHttps();
     routes = [
       { match: /package_show\?id=bis_jlyakg7hgslonjnwyrwc6w/, reply: { body: pkg('res-construction') } },
@@ -116,6 +123,16 @@ describe('/api/property-data reports the dataset, not the page', () => {
     expect(body.energyCerts[0]).toEqual({ rating: 'Unknown', count: 21037 });
     const blank = body.constructionPermits.find((p: { municipality: string }) => p.municipality === 'Unknown');
     expect(blank).toEqual({ municipality: 'Unknown', count: 18198 });
+  });
+
+  it('retains Latvian authority names when UTF-8 characters straddle network chunks', async () => {
+    byteChunks = true;
+    const { status, body } = await callApi();
+    expect(status).toBe(200);
+    expect(body.constructionPermits[0]).toEqual({
+      municipality: 'RĪGAS VALSTSPILSĒTAS DEPARTAMENTS', count: 52033,
+    });
+    expect(body.energyCerts[1]).toEqual({ rating: 'Centralizētā apkure', count: 20143 });
   });
 
   it('omits the ranking when the datastore will not aggregate, rather than tallying a page', async () => {

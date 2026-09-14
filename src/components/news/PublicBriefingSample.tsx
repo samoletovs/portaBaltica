@@ -4,11 +4,12 @@ import { fetchBalticCompare, type BalticCompareData } from '../../api';
 import { finite } from '../../utils/payload';
 import { formatValue } from '../../utils/formatValue';
 import { type SeriesExport } from '../../utils/exportSeries';
+import { researchPermalink } from '../../utils/researchView';
 import { freshnessOf, formatPeriod, periodCoverage } from '../../dataFreshness';
 import { freshnessLabelColor } from '../freshnessStyle';
 import { FreshnessNotice } from '../FreshnessNotice';
 import { DownloadMenu } from '../DownloadMenu';
-import { briefingChange, briefingNextCheck } from './briefingPlanning';
+import { briefingBasis, briefingChange, briefingNextCheck } from './briefingPlanning';
 import './BriefingExperience.css';
 
 /**
@@ -237,6 +238,12 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
 
   const headingId = `public-briefing-${measure.id}`;
   const href = datasetHref(data?.dataset);
+  const basis = data && focusedReading ? briefingBasis(finiteReadings(data, country), focusedReading) : [];
+  const basisExport: SeriesExport | null = exportData && basis.length > 0 ? {
+    ...exportData,
+    title: `${title} - ${COUNTRY_NAMES[country]} planning basis`,
+    series: [{ label: COUNTRY_NAMES[country], observations: basis }],
+  } : null;
 
   return (
     <section id={`briefing-${measure.id}`} aria-labelledby={headingId} className="public-briefing-measure" tabIndex={-1}>
@@ -307,6 +314,51 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
 
         {phase === 'ready' && !empty && (
           <>
+            {basisExport && focusedReading && (
+              <div className="public-briefing-basis">
+                <h3 className="site-section-title text-lead font-semibold news-fg">
+                  {COUNTRY_NAMES[country]} planning basis
+                </h3>
+                <div className="overflow-x-auto mt-3" role="region" aria-label={`${title} planning evidence`} tabIndex={0}>
+                  <table className="site-table text-ui">
+                    <caption className="text-caption news-subtle text-left mb-2">
+                      {COUNTRY_NAMES[country]} planning basis for {title}{unit ? ` (${unit})` : ''}
+                    </caption>
+                    <thead>
+                      <tr><th scope="col">Basis</th><th scope="col">Period</th><th scope="col">Exact value</th></tr>
+                    </thead>
+                    <tbody>
+                      {basis.map(reading => (
+                        <tr key={reading.period}>
+                          <th scope="row" className="font-semibold">
+                            {reading.period === focusedReading.period ? 'Latest reading' : 'Previous period'}
+                          </th>
+                          <td>
+                            {reading.value !== null ? (
+                              <Link to={researchPermalink(measure.id, country, YEARS, 'table', reading.period)}
+                                className="news-link public-briefing-period"
+                                aria-label={`Inspect ${title} for ${COUNTRY_NAMES[country]}, ${formatPeriod(reading.period)} in Data explorer`}>
+                                {formatPeriod(reading.period)}
+                              </Link>
+                            ) : formatPeriod(reading.period)}
+                          </td>
+                          <td className="tabular-nums">
+                            {reading.value !== null ? String(reading.value) : 'No published reading'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-caption news-subtle mt-2">
+                  Values are unrounded. These downloads contain only this country and the periods above;
+                  a missing previous period stays empty in CSV and null in JSON.
+                </p>
+                <DownloadMenu key={country} data={basisExport}
+                  filenameBase={`portabaltica-${measure.id}-${country.toLowerCase()}-planning-basis-${basisExport.exportedAt.slice(0, 10)}`}
+                  className="public-briefing-download mt-3" />
+              </div>
+            )}
             <p className="public-briefing-summary text-callout news-fg mb-3">{summary}</p>
             {newerCountries.length > 0 && common && (
               <p className="text-ui news-subtle mb-3">
@@ -341,7 +393,7 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
                       <tr key={code} className="news-border border-b">
                         <th scope="row" className="text-left py-2 pr-2 font-semibold">
                           <Link
-                            to={`/indicator/${measure.id}?country=${code}`}
+                            to={researchPermalink(measure.id, code, YEARS, 'table', row?.period)}
                             aria-label={`View ${title} for ${COUNTRY_NAMES[code]} in Data explorer`}
                             className="public-briefing-country news-link inline-flex min-h-11 items-center gap-1 text-ui"
                           >
@@ -387,6 +439,10 @@ function MeasureSection({ measure, country }: { measure: Measure; country: Count
             </div>
             <p className="public-briefing-export-scope text-caption news-subtle mt-2">
               CSV and JSON include all three countries and the full retrieved window, not just the displayed readings.
+            </p>
+            <p className="text-caption news-subtle mt-2">
+              Period links open Data explorer with this history and period selected. Live views may be revised;
+              downloads keep the readings returned here, not an archived source response.
             </p>
             <p className="public-briefing-print-only text-caption">
               Source table: {href ?? 'Dataset URL not supplied by the API.'}

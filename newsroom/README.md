@@ -144,6 +144,22 @@ across every country available for the same period. It uses the observations
 before equal-valued facts are removed to avoid ambiguous figure declarations.
 A missing country or a stale peer never becomes evidence of a Baltic-wide lead.
 
+National-base indices measure change against each country's own base, not
+comparable absolute levels. The collector declares that property from the
+measurement definition; context and divergence detectors withhold cross-country
+level facts, rankings and spreads for those series, including the EU reference.
+Own-history findings remain available. This is not a ban on indices: a common
+spatial benchmark such as GDP per capita in PPS relative to the EU is comparable.
+Context records why a national-base peer comparison was omitted.
+
+Run reports count logical article-generation calls independently of the draft
+eventually retained. The invocation ledger includes discarded drafts, failed
+calls and desk revisions in daily and weekly runs; article provenance keeps its
+original draft-attempt meaning. `original_articles.attempts_basis` distinguishes
+`invocation_ledger` from legacy `retained_draft_ordinals`. These are
+`complete_json` invocations, not SDK transport retries, analyst/editor calls,
+tokens, or a billing estimate.
+
 The pipeline used to hand the writer **one series, alone**, and discard the
 other fifty it had just retrieved. On 2026-08-25 it published three separate
 articles reciting Latvian, Estonian and Lithuanian hourly labour costs while

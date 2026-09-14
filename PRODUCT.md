@@ -26,9 +26,15 @@ Data explorer is the focused workspace; indicator permalinks open the same tool.
 Business briefings include a complete automated public sample with source-linked
 prices, labour costs and retail observations. A country-focused planning note
 states the dated change, comparison basis, limits and next measurable check.
+Its focused CSV/JSON extracts retain the two comparison periods for one country,
+including an explicitly missing basis. Evidence links retain the displayed
+period and requested history rather than reopening an unrelated default view.
 Research links preserve the selected history, representation and inspected
 period; they are live views, not frozen snapshots. Articles expose their
 recorded publication observations and a JSON evidence download when available.
+The unemployment archive separates country and revision-type filters from its
+bounded preview; readers can inspect every matching change. Printing includes
+the selected evidence scope and restores the previous screen disclosures.
 Bespoke enquiries remain closed
 unless explicitly enabled; there is no established paid subscription.
 The commercial boundaries remain in docs/launch-and-revenue-plan.md.

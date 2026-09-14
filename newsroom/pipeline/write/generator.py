@@ -43,6 +43,7 @@ from newsroom.pipeline.safety import (
     validate,
 )
 from newsroom.pipeline.write.llm import LlmWriter
+from newsroom.pipeline.write.accounting import WriterAttempt, record_attempt
 from newsroom.pipeline.write.prompts import (
     PROMPT_VERSION,
     build_editor_revision_prompt,
@@ -166,6 +167,7 @@ def generate_article(
     max_attempts: int = MAX_ATTEMPTS,
     editor_notes: Sequence[str] = (),
     editor_draft: Article | None = None,
+    attempt_log: list[WriterAttempt] | None = None,
 ) -> GenerationResult:
     """Generate, gate, and allow bounded copy-editing attempts. Check ``publishable``.
 
@@ -194,6 +196,9 @@ def generate_article(
     A desk revision requires ``editor_draft``: notes without the copy they refer
     to are not an editing task. The draft is fenced as input, never treated as
     evidence, and every revised answer faces the unchanged publication gate.
+
+    ``attempt_log`` belongs to the run, not the retained draft. It records each
+    logical writer call, including failed calls and discarded desk revisions.
     """
     if editor_notes and editor_draft is None:
         raise GenerationRefused("a desk revision requires the complete previous draft")
@@ -230,9 +235,13 @@ def generate_article(
     # looked safe in review.
     attempts = max(1, max_attempts)
     for attempt in range(1, attempts + 1):
-        payload = writer.complete_json(
-            system=system, user=prompt, max_tokens=MAX_COMPLETION_TOKENS
-        )
+        with record_attempt(
+            attempt_log, signal_id=signal.id, draft=attempt,
+            desk_revision=editor_draft is not None,
+        ):
+            payload = writer.complete_json(
+                system=system, user=prompt, max_tokens=MAX_COMPLETION_TOKENS
+            )
         result = _article_from_payload(
             payload,
             signal=signal,
@@ -486,10 +495,9 @@ def _article_from_payload(
             # Written as one of two distinguishable keys rather than a value
             # with a fallback: see `_revision_record`.
             **_revision_record(),
-            # How many drafts this took. Recorded because a reader auditing the
-            # provenance is entitled to know the piece was rewritten once
-            # before it passed, and because a rising average is the signal that
-            # the prompt, not the model, needs work.
+            # This draft's ordinal within its generation pass, not the total
+            # work spent. A retained early draft or later desk pass cannot
+            # account for discarded work; the run's invocation ledger does.
             "attempts": attempts,
             "accountable_editor": personas().accountable_editor or "Andre Kõpu",
             **({"research": research.to_provenance()} if research is not None else {}),

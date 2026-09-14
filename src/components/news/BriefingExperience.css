@@ -118,6 +118,28 @@
   white-space: nowrap;
 }
 
+.public-briefing-basis {
+  margin-bottom: var(--space-lg);
+}
+
+.public-briefing-basis :is(th, td) {
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.public-briefing-basis :is(th, td):last-child {
+  text-align: right;
+}
+
+.public-briefing-period {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .public-briefing-loading {
   min-height: 17rem;
 }
@@ -169,6 +191,16 @@
   }
 
   .public-briefing-country {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .public-briefing-basis {
+    break-inside: avoid;
+  }
+
+  .public-briefing-period {
+    min-height: 0;
     color: inherit;
     text-decoration: none;
   }

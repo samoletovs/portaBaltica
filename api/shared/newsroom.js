@@ -5,6 +5,7 @@
 // and it happens on a timer elsewhere.
 
 const https = require('https');
+const { readResponseText } = require('./responseText.js');
 
 const SITE_URL = process.env.SITE_URL || 'https://portabaltica.naurolabs.com';
 
@@ -29,12 +30,10 @@ function jsonGet(url) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
       }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
+      readResponseText(res).then(function (data) {
         try { resolve(JSON.parse(data)); }
         catch (e) { reject(new Error('JSON parse failed')); }
-      });
+      }, reject);
     });
     req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);

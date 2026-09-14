@@ -1,4 +1,5 @@
 const https = require('https');
+const { readResponseText } = require('../shared/responseText.js');
 const businessRegistry = require('../shared/businessRegistry.js');
 const ecb = require('../shared/ecb.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
@@ -16,9 +17,7 @@ function httpGet(url) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
       }
-      let data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () { resolve(data); });
+      readResponseText(res).then(resolve, reject);
     });
     req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);
@@ -167,11 +166,9 @@ function httpsPost(url, body) {
         res.resume();
         return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
       }
-      var data = '';
-      res.on('data', function (chunk) { data += chunk; });
-      res.on('end', function () {
+      readResponseText(res).then(function (data) {
         try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('PxWeb parse failed')); }
-      });
+      }, reject);
     });
     req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
     req.on('error', reject);
