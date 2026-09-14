@@ -119,7 +119,7 @@ describe('a briefing used as a planning document', () => {
     )).toBeTruthy();
     expect(section('inflation').getByText(/In July 2026, the reading ranged/)).toBeTruthy();
     expect(section('inflation').getByText(/Newer own-country readings are available for Estonia/)).toBeTruthy();
-    const table = section('inflation').getByRole('table');
+    const table = section('inflation').getByRole('table', { name: /by country/ });
     expect(within(table).getByRole('row', { name: /Estonia/ }).textContent).toContain('2.0%');
     fireEvent.change(screen.getByLabelText('Planning focus'), { target: { value: 'LT' } });
     await settle();
