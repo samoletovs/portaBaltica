@@ -4,8 +4,10 @@ const { withCache } = require('../shared/responseCache.js');
 
 async function projectResource() {
   const pkg = await ckan.ckan('package_show', { id: 'eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti' });
+  // CKAN reports datastore_active=false for this resource while both project
+  // queries still succeed. Query results, not that metadata flag, prove access.
   const resource = (pkg.resources || []).find(function (r) {
-    return r.datastore_active && r.name === 'AF projektu saraksts';
+    return r.name === 'AF projektu saraksts';
   });
   if (!resource || !/^[0-9a-f-]{36}$/i.test(resource.id)) throw new Error('EU funds project list unavailable');
   return resource;
