@@ -58,6 +58,7 @@ from newsroom.pipeline.vintage import PublishedFigure, VintageStore, figures_fro
 from newsroom.pipeline.webresearch import deepen_all
 from newsroom.pipeline.write import AzureOpenAIWriter, LlmWriter, generate_article
 from newsroom.pipeline.write.generator import GenerationRefused, GenerationResult
+from newsroom.pipeline.write.accounting import WriterAttempt
 
 log = logging.getLogger(__name__)
 
@@ -92,6 +93,9 @@ class RunReport:
     suppressed: list[tuple[Signal, Materiality]] = field(default_factory=list)
     ranking: RankingReport | None = None
     generated: list[GenerationResult] = field(default_factory=list)
+    #: None means this report has no invocation ledger (e.g. a legacy replay).
+    #: An empty list means generation was instrumented and made no calls.
+    writer_attempts: list[WriterAttempt] | None = None
     syndicated: list[Article] = field(default_factory=list)
     edited: list[EditorOutcome] = field(default_factory=list)
     research: dict[str, ResearchContext] = field(default_factory=dict)
@@ -288,6 +292,7 @@ def _revision_for(
                 panel=report.panels.get(generated.signal.id),
                 editor_notes=tuple(notes),
                 editor_draft=article,
+                attempt_log=report.writer_attempts,
             )
         except Exception as exc:  # noqa: BLE001
             log.exception("revision failed for %s", article.id)
@@ -323,7 +328,7 @@ async def run_once(
     max_articles: int | None = None,
     evidence: EvidenceService | None = None,
 ) -> RunReport:
-    report = RunReport()
+    report = RunReport(writer_attempts=[])
     archive = archive or RawArchive()
     store = store or ArticleStore()
     writer = writer or AzureOpenAIWriter()
@@ -479,6 +484,7 @@ async def run_once(
                         pack=report.context.get(signal.id),
                         brief=report.analysis.get(signal.id),
                         panel=report.panels.get(signal.id),
+                        attempt_log=report.writer_attempts,
                     )
                 )
             except GenerationRefused as exc:

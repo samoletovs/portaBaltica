@@ -21,6 +21,7 @@ from newsroom.pipeline.collect.httpclient import CollectorHttp
 from newsroom.pipeline.evidence.errors import EXPECTED_FAILURES
 from newsroom.pipeline.detect.series import (
     COLLECTED_GEOGRAPHIES,
+    LevelComparison,
     SUBJECT_GEOGRAPHIES,
     Observation,
     TimeSeries,
@@ -59,6 +60,7 @@ class EurostatDataset:
         periods: int = 60,
         geo_dimension: str = "geo",
         geographies: Sequence[str] | None = None,
+        level_comparison: LevelComparison = "common_scale",
     ) -> None:
         self.dataset = dataset
         self.metric = metric
@@ -69,6 +71,7 @@ class EurostatDataset:
         self.frequency = frequency
         self.chart_ref = chart_ref
         self.periods = periods
+        self.level_comparison = level_comparison
         #: Which dimension carries the geography. Almost always ``geo`` — but
         #: the maritime cubes are one dataset per country and key their
         #: territorial axis on ``rep_mar`` (reporting port), where the country's
@@ -256,7 +259,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="sts_cobp_q",
         metric="building_permits",
-        metric_label="building permits",
+        metric_label="building permits index",
+        level_comparison="own_base_index",
         unit="index points",
         section="property",
         frequency="quarterly",
@@ -268,7 +272,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="sts_cobp_q",
         metric="building_permits_residential",
-        metric_label="residential building permits",
+        metric_label="residential building permits index",
+        level_comparison="own_base_index",
         unit="index points",
         section="property",
         frequency="quarterly",
@@ -280,7 +285,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="sts_cobp_q",
         metric="building_permits_non_residential",
-        metric_label="non-residential building permits",
+        metric_label="non-residential building permits index",
+        level_comparison="own_base_index",
         unit="index points",
         section="property",
         frequency="quarterly",
@@ -543,7 +549,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="sts_rb_q",
         metric="business_registrations",
-        metric_label="new business registrations",
+        metric_label="new business registrations index",
+        level_comparison="own_base_index",
         unit="index points",
         section="business",
         frequency="quarterly",
@@ -555,7 +562,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="sts_rb_q",
         metric="business_bankruptcies",
-        metric_label="business bankruptcy declarations",
+        metric_label="business bankruptcy declarations index",
+        level_comparison="own_base_index",
         unit="index points",
         section="business",
         frequency="quarterly",
@@ -764,7 +772,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="lc_lci_r2_q",
         metric="wages_mfg",
-        metric_label="manufacturing labour cost",
+        metric_label="manufacturing labour cost index",
+        level_comparison="own_base_index",
         unit="index",
         section="labour",
         frequency="quarterly",
@@ -775,7 +784,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="lc_lci_r2_q",
         metric="wages_it",
-        metric_label="IT sector labour cost",
+        metric_label="IT sector labour cost index",
+        level_comparison="own_base_index",
         unit="index",
         section="labour",
         frequency="quarterly",
@@ -1168,7 +1178,8 @@ EUROSTAT_DATASETS: tuple[EurostatDataset, ...] = (
     EurostatDataset(
         dataset="nama_10_lp_ulc",
         metric="labour_productivity",
-        metric_label="labour productivity per person",
+        metric_label="labour productivity per person index",
+        level_comparison="own_base_index",
         unit="index",
         section="labour",
         frequency="annual",
@@ -1270,6 +1281,7 @@ def parse_jsonstat(
                 frequency=spec.frequency,
                 chart_ref=spec.chart_ref,
                 origin=origin,
+                level_comparison=spec.level_comparison,
                 source=SourceRef(
                     source_id="eurostat",
                     retrieved_at=retrieved_at,
