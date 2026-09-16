@@ -13,7 +13,9 @@ describe('motion and reading controls in the rendered experience', () => {
       const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' });
       const response = await page.goto(`${BASE}/briefings`, { waitUntil: 'domcontentloaded' });
       requireLiveHtml(response, `${BASE}/briefings`);
-      await page.waitForFunction(() => document.querySelectorAll('.public-briefing-measure table').length === 3);
+      const comparisons = page.getByRole('region', { name: / by country$/ }).getByRole('table');
+      await comparisons.nth(2).waitFor();
+      expect(await comparisons.count()).toBe(3);
       await page.getByRole('navigation', { name: 'Briefing contents' }).getByRole('link', { name: /Retail activity/ }).click();
       await page.waitForFunction(() => document.activeElement?.id === 'briefing-retail');
       const target = await page.locator('#briefing-retail').evaluate(el => ({

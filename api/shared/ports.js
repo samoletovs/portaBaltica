@@ -104,7 +104,8 @@ function repMarParams(codes) {
  * enumerated in the response, which is how Estonia's country-only breakdown
  * is discovered rather than assumed. `vessels` reads the Europe-wide table,
  * which must pin `rep_mar` or Eurostat answers HTTP 413 and defers the request
- * to its asynchronous queue.
+ * to its asynchronous queue. Include the national code so loadPortSeries can
+ * use its labelled country-only fallback when named ports are not published.
  */
 function seriesUrls(country) {
   const cc = country.toLowerCase();
@@ -124,7 +125,7 @@ function seriesUrls(country) {
       'freq=Q&natvessr=TOTAL&direct=TOTAL&unit=THS&par_mar=TOTAL&sinceTimePeriod=' + since()),
 
     vessels: url('mar_tf_qm',
-      'freq=Q&tonnage=TOTAL&vessel=TOTAL&unit=NR&' + repMarParams(portCodes) +
+      'freq=Q&tonnage=TOTAL&vessel=TOTAL&unit=NR&' + repMarParams(portCodes.concat([country])) +
       '&sinceTimePeriod=' + since()),
 
     // Cargo mix is a single country-level slice: `cargo` is deliberately left

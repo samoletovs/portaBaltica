@@ -202,11 +202,11 @@ describe('the Eurostat probes ask the app for its query rather than restating it
     // Riga-only probe reports a healthy feed as dead — and is blind to the
     // three ports it does not ask about.
     const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat maritime');
-    const asked = (check.url.match(/rep_mar=/g) || []).length;
+    const asked = new URL(check.url).searchParams.getAll('rep_mar');
 
-    expect(asked, 'the probe must ask for every port the tile draws')
-      .toBe(ports.PORTS.LV.length);
-    expect(asked).toBeGreaterThan(1);
+    expect(asked.sort(), 'the probe must ask for every named port and the national fallback')
+      .toEqual([...ports.PORTS.LV.map((port: { code: string }) => port.code), 'LV'].sort());
+    expect(asked.length).toBeGreaterThan(1);
   });
 
   it('builds no Eurostat query by hand anywhere in the registry', () => {
