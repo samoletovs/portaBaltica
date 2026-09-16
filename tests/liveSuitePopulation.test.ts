@@ -60,6 +60,7 @@ const LIVE_DIR = resolve('tests');
  */
 const LIVE_CHECKS = new Map<string, string>([
   ['evidenceArchive.live.test.ts', 'the published evidence index, source/CSV hashes, real article binding and capture health work on the deployed service'],
+  ['evidencePrintLayout.live.test.ts', 'the rendered frozen-evidence route prints readable ink on paper in both screen themes, wraps tables without clipping, hides site chrome and restores screen styling; synthetic transport isolates the layout from upstream availability'],
   ['api-contracts.live.test.ts', 'the deployed endpoints answer with the shape the client reads'],
   ['articleMeta.live.test.ts', 'what a social crawler actually receives from the deployed site'],
   [

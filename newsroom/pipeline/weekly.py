@@ -60,7 +60,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -68,6 +68,7 @@ from newsroom import numeric_scan
 from newsroom.pipeline.desk import Finding, run_desk
 from newsroom.pipeline.models import Signal, SourceRef, isoformat, utcnow
 from newsroom.pipeline.vintage import PublishedFigure
+from newsroom.pipeline.write.accounting import WriterAttempt, summarize_attempts
 
 log = logging.getLogger(__name__)
 
@@ -650,6 +651,7 @@ class WeeklyOutcome:
     slug: str = ""
     cites: tuple[str, ...] = ()
     detail: str = ""
+    writer_attempts: tuple[WriterAttempt, ...] | None = None
 
     #: Ran, and the week did not earn a wrap. Not a fault.
     NOT_ENOUGH = "not_enough_findings"
@@ -670,10 +672,15 @@ class WeeklyOutcome:
         if self.slug:
             document["slug"] = self.slug
             document["cites"] = list(self.cites)
+        if self.writer_attempts is not None:
+            document["writer_calls"] = summarize_attempts(self.writer_attempts)
         return document
 
 
-def _wrap_revision(signal: Signal, writer: Any, corpus: WeeklyCorpus) -> Any:
+def _wrap_revision(
+    signal: Signal, writer: Any, corpus: WeeklyCorpus,
+    attempt_log: list[WriterAttempt] | None = None,
+) -> Any:
     """Turn the desk's notes back into a draft, and re-gate the result.
 
     Mirrors ``run._revision_for``. The rewrite goes through
@@ -691,6 +698,7 @@ def _wrap_revision(signal: Signal, writer: Any, corpus: WeeklyCorpus) -> Any:
             revised = generate_article(
                 signal, writer, paragraphs=5, editor_notes=tuple(notes),
                 editor_draft=article,
+                attempt_log=attempt_log,
             )
         except Exception:  # noqa: BLE001
             log.exception("weekly wrap: revision failed")
@@ -711,6 +719,30 @@ async def write_weekly(
     *,
     vintages: Any = None,
     now: datetime | None = None,
+) -> WeeklyOutcome:
+    """Keep invocation accounting even when generation or publication fails."""
+    attempts: list[WriterAttempt] = []
+    try:
+        outcome = await _write_weekly(
+            store, writer, vintages=vintages, now=now, attempt_log=attempts,
+        )
+    except Exception as exc:  # the trigger already reports these as error outcomes
+        log.exception("the weekly wrap failed")
+        start, end = week_bounds(now or utcnow())
+        outcome = WeeklyOutcome(
+            outcome="error", week_start=start, week_end=end, findings_available=0,
+            detail=str(exc),
+        )
+    return replace(outcome, writer_attempts=tuple(attempts))
+
+
+async def _write_weekly(
+    store: Any,
+    writer: Any,
+    *,
+    vintages: Any,
+    now: datetime | None,
+    attempt_log: list[WriterAttempt],
 ) -> WeeklyOutcome:
     """Write and publish one wrap, and report what happened either way.
 
@@ -753,7 +785,7 @@ async def write_weekly(
         )
 
     signal = corpus_signal(corpus)
-    result = generate_article(signal, writer, paragraphs=5)
+    result = generate_article(signal, writer, paragraphs=5, attempt_log=attempt_log)
     # The period gate, applied after generation and before anything is stored.
     # A wrap that attributes a figure to the wrong period is wrong in exactly
     # the way the five retracted trade articles were: real numbers, correctly
@@ -794,7 +826,7 @@ async def write_weekly(
     outcome = run_desk(
         result.article,
         writer,
-        revise=_wrap_revision(signal, writer, corpus),
+        revise=_wrap_revision(signal, writer, corpus, attempt_log),
         finding=Finding(
             detector=signal.detector,
             comparison_basis=signal.comparison_basis,

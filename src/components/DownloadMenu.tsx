@@ -50,11 +50,13 @@ interface DownloadMenuProps {
    * file.
    */
   data: SeriesExport | null;
+  /** Optional file stem for a focused extract; never changes the indicator metadata. */
+  filenameBase?: string;
   /** Placement only. The control's own styling is not the caller's business. */
   className?: string;
 }
 
-export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
+export function DownloadMenu({ data, filenameBase, className = '' }: DownloadMenuProps) {
   /**
    * What to announce, and nothing else about the control's state.
    *
@@ -82,7 +84,8 @@ export function DownloadMenu({ data, className = '' }: DownloadMenuProps) {
     const text =
       extension === 'csv' ? BOM + toCsv(data) : toJson(data);
     const type = extension === 'csv' ? CSV_TYPE : JSON_TYPE;
-    const ok = downloadText(exportFilename(data, extension), type, text);
+    const filename = filenameBase === undefined ? exportFilename(data, extension) : `${filenameBase}.${extension}`;
+    const ok = downloadText(filename, type, text);
     setStatus(
       ok
         ? { text: `${data.title} downloaded as ${extension.toUpperCase()}.`, failed: false }

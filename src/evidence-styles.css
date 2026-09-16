@@ -49,3 +49,12 @@
   .evidence-skeleton { animation: none; }
   .evidence-page :is(a, button, select, summary) { transition: none; }
 }
+@media print {
+  .evidence-page { width: auto; max-width: none; padding: 0; }
+  .evidence-page .evidence-screen-only, .evidence-page button { display: none; }
+  .evidence-scroll { overflow: visible; }
+  .evidence-table { table-layout: fixed; }
+  .evidence-table th, .evidence-table td { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+  .evidence-table thead { display: table-header-group; }
+  .evidence-table tr { break-inside: avoid; }
+}

@@ -144,6 +144,20 @@ Print includes the focus, source URLs and recorded retrieval instants, while
 shared links explicitly remain live views. No enquiry or payment activation
 is implied by the more useful public document.
 
+The focus comparison also exposes its exact two-period basis and a separate
+country-scoped download. Its filename distinguishes that extract from the full
+retrieved window without changing the indicator identity inside the file.
+Common-period table links and own-latest/basis links retain their respective
+periods and requested history.
+
+Frozen archive revisions start with a bounded preview, not a permanent cutoff.
+Country and change-type filters, explicit matching counts and expansion keep
+every recorded change reachable. Print includes all matching revisions and
+the selected country's observations, with the scope named. Sources and checksums
+open for print and return to their prior states afterward. Evidence and briefing
+printouts share the paper palette independently of the reader's screen theme;
+archive tables wrap within the page and repeat headings across page breaks.
+
 Loading is part of this design contract. The Dashboard's comparisons travel
 in bounded batches, with independent item errors and the same source payloads
 and per-indicator caches. A reader must not lose data because the overview

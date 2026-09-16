@@ -160,15 +160,17 @@ describe('a real-shaped fixture, fetched independently per measure', () => {
 
     for (const data of Object.values(REAL)) {
       const section = sectionOf(data.title);
-      expect(within(section.getByRole('table')).getAllByRole('columnheader').map(cell => cell.textContent))
+      const table = within(section.getByRole('table', { name: /by country/ }));
+      expect(table.getAllByRole('columnheader').map(cell => cell.textContent))
         .toEqual(['Country', 'Value', 'Period']);
       for (const [code, name] of [['LV', 'Latvia'], ['EE', 'Estonia'], ['LT', 'Lithuania']]) {
-        const row = section.getByRole('row', { name: new RegExp(name) });
+        const row = table.getByRole('row', { name: new RegExp(name) });
         const link = within(row).getByRole('link', {
           name: `View ${data.title} for ${name} in Data explorer`,
         });
         expect(link.closest('th')?.getAttribute('scope')).toBe('row');
-        expect(link.getAttribute('href')).toBe(`/indicator/${data.indicator}?country=${code}`);
+        const period = data.indicator === 'salary' ? '2025' : '2026-08';
+        expect(link.getAttribute('href')).toBe(`/indicator/${data.indicator}?country=${code}&years=3&view=table&period=${period}`);
       }
     }
   });
@@ -184,7 +186,7 @@ describe('a real-shaped fixture, fetched independently per measure', () => {
     });
     renderSample();
     await settle();
-    const table = sectionOf('HICP Inflation').getByRole('table');
+    const table = sectionOf('HICP Inflation').getByRole('table', { name: /each country's own/ });
     const latvia = within(table).getByRole('row', { name: /Latvia/ });
     expect(latvia.textContent).toContain('2.5%');
     expect(latvia.textContent).toContain('August 2026');
@@ -198,7 +200,7 @@ describe('a real-shaped fixture, fetched independently per measure', () => {
     expect(section.getByText('This measure could not be loaded right now.')).toBeTruthy();
     expect(section.queryByText(/No published reading is available/)).toBeNull();
     expect(section.getByRole('button', { name: 'Retry' })).toBeTruthy();
-    expect(sectionOf('Hourly labour cost').getByRole('table')).toBeTruthy();
+    expect(sectionOf('Hourly labour cost').getByRole('table', { name: /by country/ })).toBeTruthy();
   });
 
   it('renders all three measures with their common-period range, units, links, dataset and retrieval time', async () => {
@@ -239,8 +241,9 @@ describe('a real-shaped fixture, fetched independently per measure', () => {
       ['salary', 'LV'], ['salary', 'EE'], ['salary', 'LT'],
       ['retail', 'LV'], ['retail', 'EE'], ['retail', 'LT'],
     ] as const) {
+      const period = id === 'salary' ? '2025' : '2026-08';
       const link = [...container.querySelectorAll('a')].find(
-        (a) => a.getAttribute('href') === `/indicator/${id}?country=${code}`,
+        (a) => a.getAttribute('href') === `/indicator/${id}?country=${code}&years=3&view=table&period=${period}`,
       );
       expect(link, `/indicator/${id}?country=${code}`).toBeTruthy();
     }
@@ -330,11 +333,12 @@ describe('when the countries have not published a shared period', () => {
 
     // Each own reading, each with its own period, all shown.
     expect(salary.getByText('€9.0/h')).toBeTruthy();
-    expect(salary.getByText('2023')).toBeTruthy();
+    const table = within(salary.getByRole('table', { name: /each country's own/ }));
+    expect(table.getByText('2023')).toBeTruthy();
     expect(salary.getByText('€14.0/h')).toBeTruthy();
-    expect(salary.getByText('2025')).toBeTruthy();
+    expect(table.getByText('2025')).toBeTruthy();
     expect(salary.getByText('€8.0/h')).toBeTruthy();
-    expect(salary.getByText('2024')).toBeTruthy();
+    expect(table.getByText('2024')).toBeTruthy();
 
     // Untouched sibling measures still compute their common-period range.
     const inflation = sectionOf('HICP Inflation');
@@ -367,7 +371,7 @@ describe('one measure failing does not affect the others', () => {
     const salary = sectionOf('Hourly labour cost');
     expect(salary.getByText('This measure could not be loaded right now.')).toBeTruthy();
     expect(salary.queryByText(/No published reading is available/)).toBeNull();
-    expect(sectionOf('HICP Inflation').getByRole('table')).toBeTruthy();
+    expect(sectionOf('HICP Inflation').getByRole('table', { name: /by country/ })).toBeTruthy();
   });
 
   it('shows an explicit error and retry for the failed measure only', async () => {

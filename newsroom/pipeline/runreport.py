@@ -46,6 +46,13 @@ Thirty consecutive silent runs is a different thing, and telling them apart
 needs history. So the count is carried forward from the previous report rather
 than recomputed, and one fetch answers both "is it alive" and "is it working".
 
+``original_articles.attempts_basis`` identifies whether counts come from the
+run's invocation ledger or legacy retained-draft ordinals. The ledger includes
+discarded and failed writer calls in initial and desk-revision passes.
+``attempts_max`` remains the largest draft ordinal within any one bounded pass.
+``writer_calls`` states its scope: logical ``complete_json`` calls for writing,
+not analyst/editor calls, hidden SDK transport retries, tokens or billed usage.
+
 WHY A REJECTION SAYS WHY
 ------------------------
 The 14:00Z run of 2026-08-28 generated eight original articles across 21
@@ -115,6 +122,7 @@ from typing import Any, Mapping
 from newsroom.pipeline import config
 from newsroom.pipeline.models import isoformat, utcnow
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.write.accounting import summarize_attempts
 from newsroom.validator import states_a_panel_cause
 
 log = logging.getLogger(__name__)
@@ -402,6 +410,12 @@ def build_run_report(
         except (TypeError, ValueError):
             continue
     originals_published = sum(1 for g in generated if getattr(g, "publishable", False))
+    ledger = getattr(report, "writer_attempts", None)
+    writer_calls = summarize_attempts(ledger) if ledger is not None else None
+    attempts_total = writer_calls["total"] if writer_calls is not None else sum(attempts)
+    attempts_max = (
+        writer_calls["max_drafts_per_pass"] if writer_calls is not None else max(attempts, default=0)
+    )
 
     prior = previous if isinstance(previous, Mapping) else {}
     prior_rolling = prior.get("liveness") if isinstance(prior.get("liveness"), Mapping) else {}
@@ -441,8 +455,10 @@ def build_run_report(
             # published article.
             "generated": len(generated),
             "publishable": originals_published,
-            "attempts_total": sum(attempts),
-            "attempts_max": max(attempts, default=0),
+            "attempts_total": attempts_total,
+            "attempts_max": attempts_max,
+            "attempts_basis": "invocation_ledger" if writer_calls is not None else "retained_draft_ordinals",
+            **({"writer_calls": writer_calls} if writer_calls is not None else {}),
         },
         "liveness": {
             # What a probe needs to tell a quiet day from a dead pipeline.

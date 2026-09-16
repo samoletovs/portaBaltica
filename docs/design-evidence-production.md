@@ -69,6 +69,15 @@ coverage limits, attribution/disclaimer, and source-revision differences separat
 from expanded request coverage or new periods. A failed or overdue archive must
 not wear a healthy/fresh badge.
 
+The revision reader offers country and change-type filters with an explicit
+matching count and a 12-row initial preview. Expanding reveals every matching
+change; it does not change the capture or its comparison. Printing includes the
+selected country's complete observation window and all matching revisions,
+not just the screen preview. The selected scope remains named, source/checksum
+disclosures open for printing, and their previous states are restored afterward.
+Print uses readable paper colours in both screen themes and wraps table content
+within the page.
+
 ## Exact article binding
 
 `SourceRef` / article source schema / TypeScript source interface gain optional

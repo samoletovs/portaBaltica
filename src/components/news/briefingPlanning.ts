@@ -1,5 +1,6 @@
 import { formatPeriod } from '../../dataFreshness';
 import { formatValue } from '../../utils/formatValue';
+import type { ExportObservation } from '../../utils/exportSeries';
 
 interface Reading {
   period: string;
@@ -13,6 +14,15 @@ function precedingPeriod(period: string): string | null {
   if (!month) return null;
   const ordinal = Number(month[1]) * 12 + Number(month[2]) - 2;
   return `${Math.floor(ordinal / 12)}-${String(ordinal % 12 + 1).padStart(2, '0')}`;
+}
+
+export function briefingBasis(readings: Reading[], latest: Reading): ExportObservation[] {
+  const period = precedingPeriod(latest.period);
+  if (!period) return [latest];
+  return [
+    { period, value: readings.find(reading => reading.period === period)?.value ?? null },
+    latest,
+  ];
 }
 
 function changeLabel(change: number, unit: string): string | null {
@@ -30,15 +40,14 @@ function changeLabel(change: number, unit: string): string | null {
 
 export function briefingChange(readings: Reading[], latest: Reading, country: string, unit: string) {
   const opening = `${country}: ${formatValue(latest.value, unit)} in ${formatPeriod(latest.period)}`;
-  const period = precedingPeriod(latest.period);
   // Match the period, not the preceding non-null array entry: a missing
   // month/year cannot silently turn into a longer comparison.
-  const previous = period ? readings.find(reading => reading.period === period) : null;
-  if (!previous) {
+  const previous = briefingBasis(readings, latest).find(reading => reading.period !== latest.period);
+  if (!previous || previous.value === null) {
     return {
       statement: `${opening}.`,
-      missingBasis: period
-        ? `Change not calculated: ${formatPeriod(period)} has no published reading for ${country}.`
+      missingBasis: previous
+        ? `Change not calculated: ${formatPeriod(previous.period)} has no published reading for ${country}.`
         : 'Change not calculated: this period format has no supported comparison in the sample.',
     };
   }

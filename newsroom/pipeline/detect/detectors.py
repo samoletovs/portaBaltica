@@ -431,6 +431,8 @@ def detect_divergence(
     Stays silent when the countries move together, when they are habitually this
     far apart, or when the periods do not line up.
     """
+    if any(s.level_comparison == "own_base_index" for s in series_by_geography.values()):
+        return None
     usable = {geo: s for geo, s in series_by_geography.items() if len(s) >= min_history}
     if len(usable) < min_geographies:
         return None
@@ -577,6 +579,8 @@ def detect_structural_divergence(
     Stays silent on a one-off spike — that is ``detect_divergence``'s story —
     on a gap that is converging, and on one that is wide but flat.
     """
+    if any(s.level_comparison == "own_base_index" for s in series_by_geography.values()):
+        return None
     usable = {geo: s for geo, s in series_by_geography.items() if len(s) >= min_history}
     if len(usable) < min_geographies:
         return None

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { DownloadMenu } from '../src/components/DownloadMenu';
-import { toCsv, type SeriesExport } from '../src/utils/exportSeries';
+import { toCsv, toJson, type SeriesExport } from '../src/utils/exportSeries';
 
 /**
  * The download control.
@@ -171,6 +171,19 @@ describe('keyboard operation', () => {
 });
 
 describe('what it writes', () => {
+  it.each(['csv', 'json'] as const)('can name a focused %s file without changing its measurement identity', async extension => {
+    const data = example();
+    const filenameBase = 'portabaltica-gdp-lv-planning-basis-2026-08-28';
+    render(<DownloadMenu {...{ data, filenameBase }} />);
+
+    fireEvent.click(screen.getByRole('button', { name: `Download GDP growth rate as ${extension.toUpperCase()}` }));
+
+    expect(written).toHaveLength(1);
+    expect(written[0].filename).toBe(`${filenameBase}.${extension}`);
+    expect(await textOf(written[0].blob)).toBe(extension === 'csv' ? toCsv(data) : toJson(data));
+    expect(data.indicator).toBe('gdp');
+  });
+
   it('hands over the CSV the formatter produced, under a name that identifies it', async () => {
     render(<DownloadMenu data={example()} />);
 

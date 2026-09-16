@@ -400,7 +400,7 @@ class TestNoConfiguredProseCarriesANumeral:
             for name, value in vars(spec).items()
             if isinstance(value, str) and name not in {"dataset", "metric", "section",
                                                        "frequency", "chart_ref",
-                                                       "geo_dimension"}
+                                                       "geo_dimension", "level_comparison"}
         }
 
         assert prose_like == set(PROSE_FIELDS), (

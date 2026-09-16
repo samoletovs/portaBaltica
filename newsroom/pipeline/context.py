@@ -29,7 +29,9 @@ already retrieved and archived:
 
 ``peers``
     The same metric in the other Baltic states at the same period, plus where
-    this geography ranks among them.
+    this geography ranks among them. National time-base indices are excluded:
+    their levels do not compare absolute quantities between countries. The
+    omission is explained in observations; own-history context remains usable.
 
 ``companions``
     Related metrics for the *same* geography — labour cost against inflation and
@@ -250,8 +252,8 @@ class ContextPack:
     lowest hourly labour cost of the three Baltic states" — derived from the
     facts by code, not by a model. They carry no numerals, so the writer may
     use them verbatim without needing a declared figure, and they are the
-    single most useful thing in the pack: they are analysis that cannot be
-    wrong.
+    derived from the available same-period, comparable observations rather
+    than from a model's interpretation of the numbers.
     """
 
     facts: tuple[ContextFact, ...] = ()
@@ -499,7 +501,11 @@ def _denominator(
         ),
         None,
     )
-    if reference is None:
+    if (
+        reference is None
+        or own.level_comparison == "own_base_index"
+        or reference.level_comparison == "own_base_index"
+    ):
         return []
 
     previous = _previous_period(own, signal.period)
@@ -540,6 +546,8 @@ def _denominator(
 def _peers(signal: Signal, by_metric: Mapping[str, list[TimeSeries]]) -> list[ContextFact]:
     """The same metric in the other Baltic states, at the signal's period."""
     if signal.geography not in BALTIC_STATES:
+        return []
+    if any(s.level_comparison == "own_base_index" for s in by_metric.get(signal.metric, [])):
         return []
     facts: list[ContextFact] = []
     for series in by_metric.get(signal.metric, []):
@@ -956,6 +964,12 @@ def build_context(signal: Signal, series: Sequence[TimeSeries]) -> ContextPack:
         placement, notes, placement_record = _placement(signal, own)
         trajectory = _trajectory(signal, own)
         denominator = _denominator(signal, own, by_metric)
+        if own.level_comparison == "own_base_index":
+            notes.append(
+                f"{own.metric_label} measures change against each country's own base; "
+                "cross-country level comparisons are omitted because these readings "
+                "do not establish absolute levels between countries."
+            )
 
     current = own.at(signal.period) if own is not None else None
     observations = [*_peer_observations(signal, peers, current), *notes]

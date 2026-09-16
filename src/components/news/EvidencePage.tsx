@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, useParams } from 'react-router-dom';
 import { fetchEvidencePack } from '../../evidence-api';
 import { useEvidenceResource } from '../../evidence-hooks';
@@ -13,9 +14,39 @@ import { EvidenceFailure, EvidenceLoading, EvidenceTime } from './EvidenceState'
 import '../../evidence-styles.css';
 
 function PackContents({ pack }: { pack: EvidencePack }) {
+  const record = useRef<HTMLDivElement>(null);
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    let previousOpen: Map<HTMLDetailsElement, boolean> | undefined;
+    const restoreDisclosures = () => {
+      previousOpen?.forEach((open, disclosure) => { disclosure.open = open; });
+      previousOpen = undefined;
+    };
+    const beforePrint = () => {
+      if (!record.current) return;
+      previousOpen ??= new Map(
+        Array.from(record.current.querySelectorAll<HTMLDetailsElement>('details'))
+          .map(disclosure => [disclosure, disclosure.open]),
+      );
+      for (const disclosure of previousOpen.keys()) disclosure.open = true;
+      // The browser takes its print snapshot before a deferred React render.
+      flushSync(() => setPrinting(true));
+    };
+    const afterPrint = () => {
+      restoreDisclosures();
+      flushSync(() => setPrinting(false));
+    };
+    window.addEventListener('beforeprint', beforePrint);
+    window.addEventListener('afterprint', afterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', beforePrint);
+      window.removeEventListener('afterprint', afterPrint);
+      restoreDisclosures();
+    };
+  }, []);
   const { manifest, data, comparison } = pack;
   const periods = data.rows.map(row => row.period).sort();
-  return <>
+  return <div ref={record}>
     <section className="evidence-section" aria-labelledby="capture-basis-heading">
       <h2 id="capture-basis-heading" className="site-section-title text-title font-semibold news-fg">Observation and capture dates</h2>
       <dl className="evidence-facts text-callout">
@@ -31,6 +62,11 @@ function PackContents({ pack }: { pack: EvidencePack }) {
         total age and sex, percent of the active population (M / SA / TOTAL / T / PC_ACT).
         The complete raw response may include earlier periods and the EU aggregate. It is not limited to the table below.
       </p>
+      <p className="text-ui news-muted">
+        Printing includes every month for the observation country and all comparison rows matching
+        the revision filters, plus the source request and checksums.
+        Downloads retain all countries and periods regardless of these display filters.
+      </p>
       <details>
         <summary className="text-ui news-fg">Source request and archive identity</summary>
         <p className="text-ui news-muted">Snapshot <code>{manifest.snapshot_id}</code></p>
@@ -41,13 +77,13 @@ function PackContents({ pack }: { pack: EvidencePack }) {
         <p className="text-ui news-muted"><code>{manifest.provenance.request_url}</code></p>
       </details>
     </section>
-    <EvidenceObservations data={data} />
-    <EvidenceRevisions comparison={comparison} />
+    <EvidenceObservations data={data} printing={printing} />
+    <EvidenceRevisions comparison={comparison} printing={printing} />
     <EvidenceDownloads manifest={manifest} key={manifest.snapshot_id} />
     <footer className="evidence-section text-ui news-muted">
       <p>{manifest.attribution}</p><p>{manifest.modifications}</p><p>{manifest.disclaimer}</p>
     </footer>
-  </>;
+  </div>;
 }
 
 export function EvidencePage() {
