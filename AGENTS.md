@@ -381,7 +381,7 @@ make the `AZURE_OPENAI_KEY` repo secret redundant:
 - It is consumed by `.github/workflows/copilot-triage.yml` for AI issue triage.
   That runs on a GitHub Actions runner, which has no managed identity to use
   instead.
-- It targets a **different account** — `gpt-4.1-nano` on
+- It historically targeted a **different account** — `gpt-4.1-nano` on
   `oai-agents-s6vbks3oteo4y` (`rg-personal-agents`), not `foundrylab-aiservices`.
   It could not target foundryLab: `disableLocalAuth: true` blocks keys there.
 

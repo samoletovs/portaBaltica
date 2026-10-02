@@ -170,17 +170,18 @@ approved model setting separately. No persistent Foundry agent is involved.
 
 [copilot-triage.yml](.github/workflows/copilot-triage.yml) now defaults
 `TRIAGE_DEPLOYMENT` to `gpt-6-luna`, with a 300-completion-token cap and no
-reasoning. The repository variable can select `gpt-4.1-nano`, `gpt-4o-mini`
-or `gpt-4.1` for rollback, with legacy token parameters. A truncated or refused
+reasoning. The repository variable can select only `gpt-4o-mini`
+or `gpt-4.1` for rollback, with legacy token parameters; nano is rejected. A truncated or refused
 reply labels the issue `needs-review`, never `approved`.
 
 Its existing `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` **secrets remain
 unchanged**. They historically target `oai-agents-s6vbks3oteo4y`, not the
 MI-only foundryLab account. A deployment on foundryLab is therefore **not**
-proof triage can call Luna. Before promotion the parent must verify a
-key-compatible resource/deployment/actual-model triple, or separately approve
-an auth migration; this branch does neither. Keep triage on its supported
-rollback deployment until that distinct gate passes.
+proof triage can call Luna. Parent reports Luna provisioned on both accounts
+and the synthetic candidate gate passed (2026-10-02); activation must still
+use the verified key-compatible account. Clear any retired nano
+`TRIAGE_DEPLOYMENT` variable or set Luna before activation. This branch does
+not change secrets or authentication.
 
 ## License
 
