@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "npm run typecheck && vitest run",
+    "test": "npm run typecheck && node --test tests/copilotTriage.test.cjs && vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.test.json"

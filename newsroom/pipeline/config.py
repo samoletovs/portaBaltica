@@ -21,7 +21,7 @@ AZURE_OPENAI_ENDPOINT = os.environ.get(
     "https://foundrylab-aiservices.cognitiveservices.azure.com/",
 )
 AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
-AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+AZURE_OPENAI_DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-6-luna")
 
 # --- Storage ----------------------------------------------------------------
 # Raw items are archived here *before* anything parses them, so a validator

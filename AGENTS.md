@@ -381,7 +381,7 @@ make the `AZURE_OPENAI_KEY` repo secret redundant:
 - It is consumed by `.github/workflows/copilot-triage.yml` for AI issue triage.
   That runs on a GitHub Actions runner, which has no managed identity to use
   instead.
-- It targets a **different account** — `gpt-4.1-nano` on
+- It historically targeted a **different account** — `gpt-4.1-nano` on
   `oai-agents-s6vbks3oteo4y` (`rg-personal-agents`), not `foundrylab-aiservices`.
   It could not target foundryLab: `disableLocalAuth: true` blocks keys there.
 
@@ -392,6 +392,13 @@ first, and turning the soft-fail into a hard failure so a bad migration is
 visible.
 
 ## Conventions
+
+The 2026-10-02 selective model refresh is prepared, not promoted: the shared
+writer uses `gpt-6-luna` v2026-09-22 on `foundrylab-aiservices`, no premium
+newsroom tier. GPT-6 requests use bounded `max_completion_tokens` and
+`reasoning_effort=none`; every factual/publishing validator and schedule is
+unchanged. See [README.md](README.md#model-pilot) for the promotion gate,
+shadowing app settings, rollback and separate key-auth triage blocker.
 
 - Follow NauroLabs TypeScript + React conventions (see .github/instructions/)
 - Colour comes from the named classes and custom properties in `src/index.css`

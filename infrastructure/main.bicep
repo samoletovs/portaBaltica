@@ -49,8 +49,9 @@ param foundryAccountName string = 'foundrylab-aiservices'
 @description('Resource group holding the shared AI Services account.')
 param foundryResourceGroup string = 'foundrylab-rg'
 
-@description('Model deployment used by the newsroom writer step.')
-param openAiDeployment string = 'gpt-4o-mini'
+@description('Same-named actual model deployment; Luna is conditional on the parent pilot gate.')
+@allowed(['gpt-6-luna', 'gpt-4.1', 'gpt-4o-mini'])
+param openAiDeployment string = 'gpt-6-luna'
 
 @description('Azure OpenAI data-plane API version.')
 param openAiApiVersion string = '2024-10-21'
