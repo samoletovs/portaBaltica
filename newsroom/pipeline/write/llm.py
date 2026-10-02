@@ -1,6 +1,6 @@
 """The model client.
 
-``gpt-4o-mini`` on the shared ``foundrylab-aiservices`` account in
+``gpt-6-luna`` on the shared ``foundrylab-aiservices`` account in
 ``swedencentral``, reached with :class:`~azure.identity.DefaultAzureCredential`.
 There is no API key anywhere in this project and no app setting that could hold
 one — managed identity in the Function App, developer identity locally.
@@ -19,6 +19,7 @@ from typing import Any, Protocol, Sequence
 from newsroom.pipeline import config
 
 log = logging.getLogger(__name__)
+_SUPPORTED_MODELS = {"gpt-6-luna", "gpt-4.1", "gpt-4o-mini"}
 
 
 class LlmWriter(Protocol):
@@ -56,9 +57,18 @@ class AzureOpenAIWriter:
 
     def __init__(self, deployment: str | None = None) -> None:
         self.deployment = deployment or config.AZURE_OPENAI_DEPLOYMENT
+        if self.deployment not in _SUPPORTED_MODELS:
+            raise ValueError("Writer deployment must be a supported, same-named actual model")
         self.model_name = self.deployment
 
     def complete_json(self, *, system: str, user: str, max_tokens: int) -> dict[str, Any]:
+        if type(max_tokens) is not int or not 1 <= max_tokens <= 8192:
+            raise ValueError("Writer completion ceiling must be between 1 and 8192 tokens")
+        options = (
+            {"max_completion_tokens": max_tokens, "reasoning_effort": "none"}
+            if self.deployment == "gpt-6-luna"
+            else {"max_tokens": max_tokens, "temperature": 0.25}
+        )
         response = _client().chat.completions.create(
             model=self.deployment,
             messages=[
@@ -66,10 +76,12 @@ class AzureOpenAIWriter:
                 {"role": "user", "content": user},
             ],
             response_format={"type": "json_object"},
-            temperature=0.25,
-            max_tokens=max_tokens,
+            **options,
         )
-        self.model_name = f"{response.model}"
+        actual_model = str(response.model)
+        if actual_model != self.deployment and not actual_model.startswith(self.deployment + "-"):
+            raise ValueError("Writer response model does not match the configured deployment")
+        self.model_name = actual_model
         usage = getattr(response, "usage", None)
         if usage is not None:
             log.info(
@@ -77,8 +89,18 @@ class AzureOpenAIWriter:
                 usage.prompt_tokens,
                 usage.completion_tokens,
             )
-        content = response.choices[0].message.content or "{}"
-        return json.loads(content)
+        if not response.choices:
+            raise ValueError("Writer returned no completion")
+        choice = response.choices[0]
+        if choice.finish_reason != "stop" or choice.message.refusal:
+            raise ValueError("Writer returned incomplete or refused output")
+        content = choice.message.content
+        if not content or not content.strip():
+            raise ValueError("Writer returned empty output")
+        payload = json.loads(content)
+        if not isinstance(payload, dict):
+            raise TypeError("Writer output must be a JSON object")
+        return payload
 
 
 class StubWriter:

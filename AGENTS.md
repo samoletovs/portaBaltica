@@ -393,6 +393,13 @@ visible.
 
 ## Conventions
 
+The 2026-10-02 selective model refresh is prepared, not promoted: the shared
+writer uses `gpt-6-luna` v2026-09-22 on `foundrylab-aiservices`, no premium
+newsroom tier. GPT-6 requests use bounded `max_completion_tokens` and
+`reasoning_effort=none`; every factual/publishing validator and schedule is
+unchanged. See [README.md](README.md#model-pilot) for the promotion gate,
+shadowing app settings, rollback and separate key-auth triage blocker.
+
 - Follow NauroLabs TypeScript + React conventions (see .github/instructions/)
 - Colour comes from the named classes and custom properties in `src/index.css`
   — `dash-*` on the dashboard, `news-*` in the newsroom — and `DESIGN.md` is

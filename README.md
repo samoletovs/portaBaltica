@@ -133,6 +133,55 @@ See [production design and operation](docs/design-evidence-production.md),
 [the original pilot](docs/evidence-archive-pilot.md), and
 [verified historical findings](docs/evidence-archive-results-2026-09-13.md).
 
+## Model pilot
+
+**Prepared, not promoted.** The parent owns synthetic API/quality evaluation
+and the combined +$10/month pilot. Do not run a paid edition or change cloud
+settings to test this branch.
+
+The routine writer (including the analyst/editor/desk using the same client)
+targets `foundrylab-aiservices` in `foundrylab-rg`, deployment and actual model
+`gpt-6-luna`, version `2026-09-22`. Set these Function App settings together:
+
+- `AZURE_OPENAI_ENDPOINT=https://foundrylab-aiservices.cognitiveservices.azure.com/`
+- `AZURE_OPENAI_DEPLOYMENT=gpt-6-luna`
+- `AZURE_OPENAI_API_VERSION=2024-10-21`
+
+The deployment must serve the same-named model; unknown aliases and mismatched
+response models fail closed rather than mislabelling article provenance.
+GPT-6 uses `max_completion_tokens` with `reasoning_effort=none`. Each existing
+caller keeps its ceiling (article writer 2,000; desk 400). There is no Sol
+newsroom tier, new retry, changed cadence, or relaxed factual/publishing gate.
+The returned model/version continues into article provenance.
+
+Rollback changes only `AZURE_OPENAI_DEPLOYMENT` to `gpt-4o-mini` or `gpt-4.1`
+on the same resource. Those models use the original `max_tokens`/temperature
+parameters. Luna Global short-context USD/M rates are **0.10 input, 0.50
+output, 0.01 cached input**; forecast uncached input unless cache hits are
+measured, not assumed.
+
+Production code ships through [newsroom-ci.yml](.github/workflows/newsroom-ci.yml),
+job **Publish the pipeline to Azure**, to `portabaltica-func`
+(`portabaltica-rg`). That workflow does not apply Bicep or change the existing
+deployment setting, which shadows the code default. The parent must apply the
+approved model setting separately. No persistent Foundry agent is involved.
+
+### Issue triage is a separate promotion
+
+[copilot-triage.yml](.github/workflows/copilot-triage.yml) now defaults
+`TRIAGE_DEPLOYMENT` to `gpt-6-luna`, with a 300-completion-token cap and no
+reasoning. The repository variable can select `gpt-4.1-nano`, `gpt-4o-mini`
+or `gpt-4.1` for rollback, with legacy token parameters. A truncated or refused
+reply labels the issue `needs-review`, never `approved`.
+
+Its existing `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` **secrets remain
+unchanged**. They historically target `oai-agents-s6vbks3oteo4y`, not the
+MI-only foundryLab account. A deployment on foundryLab is therefore **not**
+proof triage can call Luna. Before promotion the parent must verify a
+key-compatible resource/deployment/actual-model triple, or separately approve
+an auth migration; this branch does neither. Keep triage on its supported
+rollback deployment until that distinct gate passes.
+
 ## License
 
 MIT
