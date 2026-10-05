@@ -393,6 +393,13 @@ visible.
 
 ## Conventions
 
+The [international context pilot](docs/international-context-pilot.md) is local
+and non-publishing. `newsroom.pipeline.international_context --collect` uses
+`collect/international.py` and the existing raw archive/HTTP cache. Do not wire
+its World Bank/OWID series into scheduled collection or enable rewriting as part
+of maintenance. Their distinct definitions, units and common-year comparisons
+must remain explicit; source promotion is separate approved work.
+
 The 2026-10-02 selective model refresh is prepared, not promoted: the shared
 writer uses `gpt-6-luna` v2026-09-22 on `foundrylab-aiservices`, no premium
 newsroom tier. GPT-6 requests use bounded `max_completion_tokens` and
