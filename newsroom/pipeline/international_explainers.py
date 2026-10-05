@@ -41,6 +41,7 @@ class Commission:
     signal: Signal
     context: ContextPack
     collected: ContextData
+    headline: str
 
 
 def commission(collected: ContextData, *, end_year: int) -> Commission:
@@ -59,6 +60,7 @@ def commission(collected: ContextData, *, end_year: int) -> Commission:
     fields["spread"] = values[high] - values[low]
     field_units: dict[str, str | None] = {}
     if metric == WORLD_BANK_METRIC:
+        headline = f"Comparing Baltic GDP per person after adjusting for prices in {period}"
         fields["price_base_year"] = 2021
         field_units["price_base_year"] = None
         scope = (
@@ -71,6 +73,7 @@ def commission(collected: ContextData, *, end_year: int) -> Commission:
             "original providers listed in the linked indicator metadata."
         )
     else:
+        headline = f"Comparing Baltic territorial CO2 emissions per person in {period}"
         scope = (
             "Territorial fossil-fuel and industrial CO2 per person, excluding land-use change. "
             "Not all greenhouse gases, not consumption-based emissions and not a person's full footprint. "
@@ -118,9 +121,10 @@ def commission(collected: ContextData, *, end_year: int) -> Commission:
             "geographies": ", ".join(COUNTRIES), "high_geo": high, "low_geo": low,
             "frequency": "annual", "measurement_scope": scope,
             "source_attribution": attribution, "commission": "annual comparison explainer",
+            "commissioned_headline": headline,
         },
     )
-    return Commission(signal, pack, collected)
+    return Commission(signal, pack, collected, headline)
 
 
 def evaluate_article(
@@ -129,6 +133,7 @@ def evaluate_article(
     signal, pack = selected.signal, selected.context
     generated = generate_article(
         signal, writer, pack=pack, paragraphs=5, live_chart=False, attempt_log=attempts,
+        headline_override=selected.headline,
     )
     if not generated.publishable:
         return generated.article
@@ -137,6 +142,7 @@ def evaluate_article(
         revised = generate_article(
             signal, writer, pack=pack, paragraphs=5, live_chart=False,
             editor_notes=notes, editor_draft=previous, attempt_log=attempts,
+            headline_override=selected.headline,
         )
         return revised.article if revised.publishable else None
 

@@ -166,6 +166,7 @@ def generate_article(
     panel: HypothesisPanel | None = None,
     max_attempts: int = MAX_ATTEMPTS,
     live_chart: bool = True,
+    headline_override: str | None = None,
     editor_notes: Sequence[str] = (),
     editor_draft: Article | None = None,
     attempt_log: list[WriterAttempt] | None = None,
@@ -255,6 +256,7 @@ def generate_article(
             panel=panel,
             attempts=attempt,
             live_chart=live_chart,
+            headline_override=headline_override,
         )
 
         # Copy-edit here rather than after the loop. See ``_style_faults``.
@@ -427,12 +429,13 @@ def _article_from_payload(
     research: ResearchContext | None,
     attempts: int,
     live_chart: bool = True,
+    headline_override: str | None = None,
     pack: ContextPack | None = None,
     brief: AnalystBrief | None = None,
     panel: HypothesisPanel | None = None,
 ) -> GenerationResult:
     """Build an article from one model response and run it through the gate."""
-    headline = str(payload.get("headline") or "").strip()
+    headline = headline_override.strip() if headline_override is not None else str(payload.get("headline") or "").strip()
     dek = str(payload.get("dek") or "").strip() or None
     blocks = _coerce_blocks(payload, signal, live_chart=live_chart)
 

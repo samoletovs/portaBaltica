@@ -117,6 +117,7 @@ def test_checked_article_has_frozen_raw_observations_and_no_unresolvable_live_ch
     attempts = []
     article = explainers.evaluate_article(chosen, writer, attempts=attempts)
     assert article.status == "published"
+    assert article.headline == "Comparing Baltic GDP per person after adjusting for prices in 2025"
     assert article.provenance["validator"]["passed"]
     assert article.provenance["editor"]["decision"] == "approve"
     assert article.provenance["editor"]["model"] == "stub-model"
@@ -130,6 +131,18 @@ def test_checked_article_has_frozen_raw_observations_and_no_unresolvable_live_ch
     assert sum(r["summary"] for r in readings) == 1
     assert "commissioned annual comparison" in writer.calls[-1]["user"]
     assert len(attempts) == 1
+
+
+def test_commissioned_headline_does_not_inherit_an_unsupported_record_claim() -> None:
+    chosen = emissions_commission()
+    draft = payload(chosen)
+    draft["headline"] = "Baltic emissions gap reaches its widest ever"
+    writer = StubWriter([draft, APPROVE])
+    article = explainers.evaluate_article(chosen, writer, attempts=[])
+    assert article.status == "published"
+    assert article.headline == "Comparing Baltic territorial CO2 emissions per person in 2024"
+    assert article.headline in writer.calls[-1]["user"]
+    assert "widest ever" not in writer.calls[-1]["user"]
 
 
 def test_an_editorial_rejection_cannot_publish_a_factually_valid_article() -> None:

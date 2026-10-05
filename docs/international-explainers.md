@@ -22,6 +22,11 @@ These are commissioned annual comparisons, not daily news signals. They carry
 observation years and the existing AI bylines. The editor is explicitly told
 that no daily ranking selected them.
 
+Commissioned headlines are fixed to the approved comparison question and its
+observation year before validation and editorial review. The model writes the
+body, not an unsupported record/breaking-news headline. The editor reviews the
+actual headline that will be published.
+
 ## Run
 
 From a clean, reviewed checkout with the existing newsroom dependencies:
