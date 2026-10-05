@@ -163,7 +163,7 @@ def evaluate_article(
 
 async def run(
     http: CollectorHttp, writer: LlmWriter, store: ArticleStore, vintages: VintageStore,
-    *, publish: bool,
+    *, publish: bool, archive: RawArchive,
 ) -> dict[str, Any]:
     end_year = utcnow().year - 1
     previous = await store.published_findings()
@@ -179,6 +179,10 @@ async def run(
             if key in previous:
                 results.append({"source_id": source_id, "status": "already_published", "finding": key})
                 continue
+            if publish:
+                for item in (collected.data, collected.metadata):
+                    if item.from_cache:
+                        await archive.store(item)
             article = evaluate_article(selected, writer, attempts=attempts)
             if not is_servable(article):
                 await store.put(article)
@@ -221,7 +225,7 @@ async def execute(directory: Path, *, publish: bool) -> dict[str, Any]:
     state = ConditionalState(directory / "conditional-state.json")
     writer = AzureOpenAIWriter()
     async with CollectorHttp(archive, state=state, max_retries=1) as http:
-        report = await run(http, writer, store, vintages, publish=publish)
+        report = await run(http, writer, store, vintages, publish=publish, archive=archive)
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "report.json").write_bytes(json_bytes(report))
     return report

@@ -18,7 +18,9 @@ from newsroom.pipeline.collect.international import parse_owid, parse_worldbank
 from newsroom.pipeline.desk import Finding
 from newsroom.pipeline.field_meanings import meaning_for_field, quantity_note
 from newsroom.pipeline.publish import ArticleStore
+from newsroom.pipeline.safety import persona_for_section
 from newsroom.pipeline.vintage import VintageStore
+from newsroom.pipeline.write.generator import _article_from_payload
 from newsroom.pipeline.write.llm import StubWriter
 from newsroom.tests.pipeline.test_international_context import (
     NOW, OWID_CSV, owid_metadata, raw, response_for, wb_data, wb_metadata,
@@ -159,9 +161,13 @@ def test_supplied_context_does_not_introduce_an_unverifiable_historical_claim() 
     chosen = bank_commission()
     draft = payload(chosen)
     draft["blocks"].append({"text": " ".join(chosen.context.observations), "figures": []})
-    article = explainers.evaluate_article(chosen, StubWriter([draft, APPROVE]), attempts=[])
-    assert article.status == "published"
-    verdict = article.provenance["validator"]
+    result = _article_from_payload(
+        draft, signal=chosen.signal, persona=persona_for_section(chosen.signal.section),
+        writer=StubWriter(draft), created_at=NOW.isoformat(), research=None,
+        attempts=1, pack=chosen.context, live_chart=False, headline_override=chosen.headline,
+    )
+    assert result.article.status == "published"
+    verdict = result.article.provenance["validator"]
     assert verdict["passed"]
     assert next(check for check in verdict["checks"] if check["name"] == "record_claim_holds")["passed"]
 
@@ -188,7 +194,7 @@ async def run_mock(
         async with CollectorHttp(
             archive, client=client, state=ConditionalState(tmp_path / "state.json"), max_retries=1,
         ) as http:
-            return await explainers.run(http, writer, articles, vintages, publish=publish)
+            return await explainers.run(http, writer, articles, vintages, publish=publish, archive=archive)
 
 
 async def test_publication_indexes_both_articles_and_repeat_uses_no_writer_calls(
@@ -245,6 +251,27 @@ async def test_publication_preserves_preexisting_index_entries(
     index = json.loads((tmp_path / "articles" / "index.json").read_bytes())
     assert index["count"] == 3
     assert old_article.slug in {entry["slug"] for entry in index["articles"]}
+
+
+async def test_publication_promotes_cached_preview_bytes_to_the_configured_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(explainers, "utcnow", lambda: NOW)
+    replies = [payload(bank_commission()), APPROVE, payload(emissions_commission()), APPROVE]
+    await run_mock(tmp_path, StubWriter(replies), publish=False)
+    stored = []
+    original = RawArchive.store
+
+    async def record_store(self: RawArchive, item: Any) -> str:
+        stored.append(item)
+        return await original(self, item)
+
+    monkeypatch.setattr(RawArchive, "store", record_store)
+    result = await run_mock(tmp_path, StubWriter(replies), publish=True)
+    assert result["status"] == "ok"
+    assert len(stored) == 4
+    assert all(item.from_cache for item in stored)
+    assert [item.source_id for item in stored] == ["worldbank", "worldbank", "owid", "owid"]
 
 
 async def test_rejected_articles_do_not_reach_the_index_or_ledger(

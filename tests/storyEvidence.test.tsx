@@ -54,6 +54,12 @@ describe('graphics from the published evidence, not current API values', () => {
       render(<MemoryRouter><StoryEvidenceGraphic evidence={evidence} sourceHref="#article-evidence" /></MemoryRouter>);
       expect(screen.getByText(new RegExp(`${period}.*${unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))).toBeTruthy();
       expect(screen.getByText(/Recorded with this article, not a live feed/)).toBeTruthy();
+      if (sourceId === 'worldbank') {
+        expect(screen.getByText(/International dollars are a comparison unit, not cash/)).toBeTruthy();
+        expect(screen.getByText(/purchasing power of US dollars in 2021/)).toBeTruthy();
+      } else {
+        expect(screen.queryByText(/International dollars are a comparison unit/)).toBeNull();
+      }
     });
 
   it('compares source observations at the finding period, not the derived gap or a newer period', () => {
@@ -118,6 +124,17 @@ describe('graphics from the published evidence, not current API values', () => {
     expect(screen.getByText('201.61')).toBeTruthy();
     expect(screen.getByText('78.26')).toBeTruthy();
     expect(screen.queryByText('202')).toBeNull();
+  });
+
+  it('keeps long fractional readings readable without changing the recorded evidence', () => {
+    const article = comparison();
+    article.provenance.published_observations![1].value = 38800.5425281872;
+    const evidence = storyEvidence(article)!;
+    render(<MemoryRouter><StoryEvidenceGraphic evidence={evidence} sourceHref="#article-evidence" /></MemoryRouter>);
+    expect(screen.getByText('38,800.5')).toBeTruthy();
+    expect(screen.getByTitle('Recorded value: 38800.5425281872 EUR/hour')).toBeTruthy();
+    expect(screen.getByText(/the source record keeps the exact readings/)).toBeTruthy();
+    expect(evidence.points[0].value).toBe(38800.5425281872);
   });
 
   it('loads just the promoted article and does not borrow another article’s record', async () => {

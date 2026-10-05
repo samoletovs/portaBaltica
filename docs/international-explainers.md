@@ -27,6 +27,14 @@ observation year before validation and editorial review. The model writes the
 body, not an unsupported record/breaking-news headline. The editor reviews the
 actual headline that will be published.
 
+The GDP chart explains international dollars in plain English:
+a statistical price-adjusted comparison unit, not cash, wages or an exchange-rate
+conversion. The chart identifies the US purchasing-power reference and the 2021
+price base separately from the observation year.
+The compact chart rounds labels to six significant digits so long floating-point
+readings do not wrap on phones. Its bars, hover values and source records retain
+the original values; the caption explicitly discloses display rounding.
+
 ## Run
 
 From a clean, reviewed checkout with the existing newsroom dependencies:
@@ -58,7 +66,9 @@ The command reuses:
 1. The pinned collectors and their source-definition, pagination, value,
    country and unit checks.
 2. The existing HTTP cache and raw archive, with a 45-second collection deadline
-   per provider and one attempt per request.
+   per provider and one attempt per request. Cached data and metadata from a
+   local preview are copied to the configured archive before publication, with
+   their original retrieval times and bytes unchanged.
 3. `generate_article`, with its unchanged factual checks and bounded attempts.
 4. `run_desk`, including at most one editorial rewrite and the final decision.
 5. `figures_from`, so every approved article carries the original, unrounded
