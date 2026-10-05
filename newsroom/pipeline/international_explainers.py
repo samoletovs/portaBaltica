@@ -60,7 +60,7 @@ def commission(collected: ContextData, *, end_year: int) -> Commission:
     fields["spread"] = values[high] - values[low]
     field_units: dict[str, str | None] = {}
     if metric == WORLD_BANK_METRIC:
-        headline = f"Comparing Baltic GDP per person after adjusting for prices in {period}"
+        headline = f"Baltic GDP per person in {period}: a price-adjusted comparison"
         fields["price_base_year"] = 2021
         field_units["price_base_year"] = None
         scope = (

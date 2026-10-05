@@ -119,7 +119,7 @@ def test_checked_article_has_frozen_raw_observations_and_no_unresolvable_live_ch
     attempts = []
     article = explainers.evaluate_article(chosen, writer, attempts=attempts)
     assert article.status == "published"
-    assert article.headline == "Comparing Baltic GDP per person after adjusting for prices in 2025"
+    assert article.headline == "Baltic GDP per person in 2025: a price-adjusted comparison"
     assert article.provenance["validator"]["passed"]
     assert article.provenance["editor"]["decision"] == "approve"
     assert article.provenance["editor"]["model"] == "stub-model"
