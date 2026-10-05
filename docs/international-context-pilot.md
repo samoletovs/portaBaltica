@@ -110,6 +110,34 @@ years, wrong indicators, non-finite/negative values, changed scope, malformed CS
 and oversized responses. They also check CLI opt-in and incomplete-result exit
 codes. Tests use mocked HTTP, not external services.
 
+## Verified pilot run: 2026-10-05
+
+The actual CLI completed with both providers, using four cold GET requests.
+An independent check of the saved cards against the archived JSON/CSV confirmed
+all six comparison values and all four data/metadata hashes. A second CLI run
+used the 24-hour cache for every response and retained the original retrieval
+timestamps. No article output or Azure storage write was created.
+
+| Measure | Shared observation year | Latvia | Estonia | Lithuania |
+|---|---:|---:|---:|---:|
+| GDP per person, constant 2021 international dollars (PPP) | 2025 | 38,800.54 | 41,604.32 | 48,839.54 |
+| Territorial fossil/industrial CO2, tonnes per person | 2024 | 3.4520962 | 6.105464 | 4.386505 |
+
+The GDP values above are rounded for readability; the report and raw archive
+retain the provider precision. Missing 2025 CO2 cells remain explicit nulls.
+These are dated observations, not a promise that a later run returns the same
+vintage or years.
+
+Local verification passed 3,172 newsroom tests, with one Linux-runner-only shell
+test skipped on Windows, plus ten checks of the live report. The full suite
+initially exposed a test-isolation issue: earlier tests disable global logging,
+so the new log assertion now explicitly sets its capture level. No existing
+test or production logging policy was changed.
+
+An independent code review found no significant issues. API schemas, provider
+access and the pinned OWID variable can change; later promotion still needs the
+checks below.
+
 ## Promotion is separate work
 
 Before using these values in articles or a public view, review live cards,

@@ -96,9 +96,15 @@ def _period(value: Any, end_year: int) -> str:
 def _number(value: Any) -> float | None:
     if value is None:
         return None
-    if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+    if type(value) not in (int, float) or value < 0:
         raise ValueError("observations must be finite, non-negative numbers or null")
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError("observations must be finite, non-negative numbers or null") from exc
+    if not math.isfinite(number):
+        raise ValueError("observations must be finite, non-negative numbers or null")
+    return number
 
 
 def _series(

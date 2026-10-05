@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -243,6 +244,8 @@ class TestAcceptance:
     async def test_08_source_failure_is_visible_without_discarding_the_other_source(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
     ) -> None:
+        caplog.set_level(logging.INFO)
+
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.host == "api.worldbank.org":
                 return httpx.Response(403)
@@ -309,7 +312,7 @@ class TestAcceptance:
         assert not list(tmp_path.rglob("articles"))
 
 
-@pytest.mark.parametrize("value", [True, "30", float("nan"), float("inf"), -1])
+@pytest.mark.parametrize("value", [True, "30", float("nan"), float("inf"), 10**400, -1])
 def test_worldbank_rejects_invalid_numeric_values(value: Any) -> None:
     payload = wb_data()
     payload[1][0]["value"] = value
