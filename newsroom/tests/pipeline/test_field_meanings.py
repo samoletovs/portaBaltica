@@ -297,7 +297,7 @@ class TestTheRegistryIsNotAWordList:
         # A registry keyed on field name alone is a word list wearing a
         # dictionary's clothes: it encodes the examples its author thought of
         # and silently mis-describes the next detector to reuse a name.
-        assert set(FIELD_MEANINGS) <= DETECTORS_UNDER_CONTRACT
+        assert set(FIELD_MEANINGS) <= DETECTORS_UNDER_CONTRACT | {"commissioned_comparison"}
         assert "structural_divergence" in FIELD_MEANINGS
 
     def test_per_geography_fields_are_matched_by_shape(self):

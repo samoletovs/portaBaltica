@@ -104,6 +104,10 @@ FIELD_MEANINGS: dict[str, dict[str, str]] = {
         "lowest_value": "{low_geo}'s own level in {period} — one country's reading, NOT a difference between countries",
         "periods_compared": "how many earlier readings the typical spread was measured over",
     },
+    "commissioned_comparison": {
+        "spread": "the DISTANCE BETWEEN {high_geo} and {low_geo} in {period}, not an aggregate Baltic level or a change over time",
+        "price_base_year": "the fixed purchasing-power price base, not the observation year or a monetary amount",
+    },
     "structural_divergence": {
         "latest_gap": "the DISTANCE BETWEEN {high_geo} and {low_geo} in {period} ALONE — a difference between two countries, NOT a reading of the indicator. It cannot rise or fall 'optimistically': both countries may be negative while this widens",
         "early_gap": "the AVERAGE of that same distance over the EARLIEST {period_word} of the series — the historical basis this is measured against, not a recent reading",
@@ -128,7 +132,7 @@ _PER_GEOGRAPHY_MEANING = (
 #: Detectors whose headline figure is a distance between two series rather than
 #: a reading of one. Stated once, here, so the analyst prompt and the writer
 #: prompt cannot disagree about which findings are spreads.
-SPREAD_DETECTORS: frozenset[str] = frozenset({"divergence", "structural_divergence"})
+SPREAD_DETECTORS: frozenset[str] = frozenset({"divergence", "structural_divergence", "commissioned_comparison"})
 
 
 def is_spread_finding(signal: Signal) -> bool:

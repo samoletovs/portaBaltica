@@ -82,10 +82,13 @@ on 2026-10-05. This is not a blanket licence for every OWID dataset.
 
 A different OWID variable identity or a changed World Bank price base is a
 failure requiring definition and rights review, not an automatic schema update.
-The pilot registers both sources with `rewrite_allowed: false` and
-`requires_human_approval: true`; `enabled: false` alone is not a tier A
-collection gate. The actual isolation is that the scheduled collector never
-calls these functions.
+The original pilot registered both sources with rewriting disabled. On
+2026-10-05 the owner separately approved the
+[bounded autonomous article path](international-explainers.md), so original
+writing from the pinned datasets is now permitted after factual and AI-editorial
+checks. The local `--collect` command still never writes articles.
+`enabled: false` alone is not a tier A collection gate; scheduled collection
+remains isolated because it never calls these functions.
 
 ## Ten fixed acceptance behaviors
 
@@ -101,7 +104,8 @@ checks:
 6. Provenance resolves to exact data and metadata bytes.
 7. A cached rerun makes no HTTP requests and preserves retrieval provenance.
 8. An upstream failure is visible without discarding the other source.
-9. Scheduled collection and prose-generation permissions remain unchanged.
+9. Scheduled collection stays unchanged after explicit source promotion;
+   unrelated restricted-source permissions remain closed.
 10. The actual capture command persists local, non-publishing evidence even when
     cloud settings exist.
 
@@ -138,10 +142,11 @@ An independent code review found no significant issues. API schemas, provider
 access and the pinned OWID variable can change; later promotion still needs the
 checks below.
 
-## Promotion is separate work
+## Promotion beyond the local pilot
 
-Before using these values in articles or a public view, review live cards,
-confirm rights and freshness policy, select the related newsroom topics, and
-wire the existing factual/provenance checks. A green local pilot does not enable
-publication or promise source availability. No health-check or production
-dashboard source has been added while the sources remain pilot-only.
+The owner approved evaluating and publishing the two
+[comparison explainers](international-explainers.md) without a human draft queue.
+That path reuses the verified definitions and existing factual/editorial gates.
+The local pilot command itself remains non-publishing. Routine collection,
+additional measures and public dashboard integration are not enabled by this
+approval.

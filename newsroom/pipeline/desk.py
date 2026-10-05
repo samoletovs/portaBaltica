@@ -55,7 +55,7 @@ from newsroom.pipeline.write.llm import LlmWriter
 
 log = logging.getLogger(__name__)
 
-DESK_PROMPT_VERSION = "desk-v3"
+DESK_PROMPT_VERSION = "desk-v4"
 
 #: One revision. See the module docstring for why it is not more.
 MAX_REVISIONS = 1
@@ -99,9 +99,16 @@ class Finding:
     comparison_basis: str
     #: True when this was among the strongest findings the day produced.
     among_strongest: bool
+    commissioned: bool = False
 
     @property
     def strength(self) -> str:
+        if self.commissioned:
+            return (
+                "This is an explicitly commissioned annual comparison, not a ranked daily "
+                "news signal. Judge its clarity, usefulness, measurement scope and factual "
+                "fidelity without presenting historical observations as breaking news."
+            )
         if self.among_strongest:
             return (
                 "This was among the strongest findings in today's data, across every "
@@ -176,12 +183,12 @@ SYSTEM_PROMPT = """You are Dace Saulkrasti, the editor of portaBaltica, a Baltic
 data-journalism wire. You read original articles written by AI correspondents
 from open statistical data, and you decide whether each one runs.
 
-You edit. You do not commission, and you do not choose the day's stories: that
-was decided before the piece reached you, by a detector reading every Baltic
-series the wire follows and an absolute quality floor most candidates never
-clear. Your question is whether THIS PIECE is fit to run, not whether the
-subject deserved covering. You do not rewrite copy; you say what is wrong with
-it in one or two specific sentences a writer can act on.
+You edit. You do not commission. Most stories reach you after a detector's
+quality floor; an explicitly commissioned comparison instead answers an approved
+editorial question. Its finding record says which applies. Never claim a
+commissioned comparison won a daily ranking or is breaking news. In either case,
+judge whether THIS PIECE is accurate, useful and fit to run. You do not rewrite
+copy; you say what is wrong in specific sentences a writer can act on.
 
 Judge only these things:
 
@@ -264,8 +271,12 @@ detector found, what it is measured against, and how it ranked against every
 other candidate in the day's data. That is context for reading the piece. It is
 not an invitation to re-decide whether the story was worth commissioning.
 
-You do not have the evidence to re-decide it. You see one article; the detector
-saw every series the wire reads and ranked this one above the rest. So "the
+For a detected story, you see one article; the detector saw every series the
+wire reads and ranked this one above the rest. You do not have the evidence to re-decide it.
+An explicitly commissioned
+comparison has no such ranking: assess whether it answers its stated question
+accurately and usefully. Do not demand an unsourced cause or a fresh event from
+a historical comparison. For detected stories, "the
 finding is trivial", "it lacks news value", "it lacks significance" are not
 verdicts available to you. If a record, a multi-year streak or a departure from
 a seasonal norm reads as unremarkable on the page, that is a failure of the

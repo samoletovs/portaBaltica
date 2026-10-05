@@ -179,27 +179,29 @@ sources:
     cache_ttl_minutes: 60
 
   - id: worldbank
-    name: "World Bank international-context pilot"
+    name: "World Bank international comparisons"
     publisher: "World Bank"
     tier: A
     endpoint: "https://api.worldbank.org/v2"
     path_prefixes:
-      - "/v2"
+      - "/v2/indicator/NY.GDP.PCAP.PP.KD"
+      - "/v2/country/LVA;EST;LTU/indicator/NY.GDP.PCAP.PP.KD"
     auth: none
     licence: "CC BY 4.0 plus World Bank data terms; NY.GDP.PCAP.PP.KD only, original providers credited"
     attribution: "Source: World Bank, World Development Indicators; International Comparison Program and cited original providers"
-    rewrite_allowed: false
-    requires_human_approval: true
+    rewrite_allowed: true
+    requires_human_approval: false
     enabled: false
     cache_ttl_minutes: 1440
     notes: >-
-      Non-publishing, explicit local pilot only. collect_open_data does not call
-      this source; enabled is not relied on as a tier A collection gate.
+      Approved for the explicit, bounded international-explainers command.
+      Original writing must pass factual validation and the AI editorial desk.
+      collect_open_data does not call this source; no scheduled activation.
       Constant 2021 international dollars per person, not the Eurostat EUR series.
       Terms: https://data.worldbank.org/summary-terms-of-use
 
   - id: owid
-    name: "Our World in Data international-context pilot"
+    name: "Our World in Data international comparisons"
     publisher: "Global Change Data Lab / Our World in Data"
     tier: A
     endpoint: "https://ourworldindata.org/grapher/co-emissions-per-capita"
@@ -210,12 +212,13 @@ sources:
     auth: none
     licence: "CC BY 4.0 for the pinned OWID, Global Carbon Budget and population data; not blanket permission for other OWID datasets"
     attribution: "Source: Global Carbon Budget and population sources, processed by Our World in Data"
-    rewrite_allowed: false
-    requires_human_approval: true
+    rewrite_allowed: true
+    requires_human_approval: false
     enabled: false
     cache_ttl_minutes: 1440
     notes: >-
-      Non-publishing, explicit local pilot only; not wired to scheduled collection.
+      Approved for the explicit, bounded international-explainers command after
+      factual validation and AI editorial review; not wired to scheduled collection.
       Indicator 1119914: territorial fossil-fuel and industrial CO2 per person,
       excluding land-use change. Not total greenhouse gases or consumption-based CO2.
       Original-source CC BY 4.0 declarations checked at

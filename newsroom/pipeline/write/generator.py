@@ -108,7 +108,7 @@ def _countries_for(signal: Signal) -> list[str]:
     return [mapped] if mapped else []
 
 
-def _coerce_blocks(payload: dict[str, Any], signal: Signal) -> list[Block]:
+def _coerce_blocks(payload: dict[str, Any], signal: Signal, *, live_chart: bool = True) -> list[Block]:
     blocks: list[Block] = []
     for raw in payload.get("blocks", []) or []:
         text = (raw.get("text") or "").strip()
@@ -147,7 +147,7 @@ def _coerce_blocks(payload: dict[str, Any], signal: Signal) -> list[Block]:
                 )
             )
         blocks.append(Block(type="paragraph", text=text, figures=figures))
-    if blocks and signal.metric:
+    if blocks and signal.metric and live_chart:
         chart = next((b for b in blocks if b.chart_ref), None)
         if chart is None:
             blocks.append(Block(type="chart", chart_ref=signal.chart_ref or signal.metric))
@@ -165,6 +165,7 @@ def generate_article(
     brief: AnalystBrief | None = None,
     panel: HypothesisPanel | None = None,
     max_attempts: int = MAX_ATTEMPTS,
+    live_chart: bool = True,
     editor_notes: Sequence[str] = (),
     editor_draft: Article | None = None,
     attempt_log: list[WriterAttempt] | None = None,
@@ -253,6 +254,7 @@ def generate_article(
             brief=brief,
             panel=panel,
             attempts=attempt,
+            live_chart=live_chart,
         )
 
         # Copy-edit here rather than after the loop. See ``_style_faults``.
@@ -424,6 +426,7 @@ def _article_from_payload(
     created_at: str,
     research: ResearchContext | None,
     attempts: int,
+    live_chart: bool = True,
     pack: ContextPack | None = None,
     brief: AnalystBrief | None = None,
     panel: HypothesisPanel | None = None,
@@ -431,7 +434,7 @@ def _article_from_payload(
     """Build an article from one model response and run it through the gate."""
     headline = str(payload.get("headline") or "").strip()
     dek = str(payload.get("dek") or "").strip() or None
-    blocks = _coerce_blocks(payload, signal)
+    blocks = _coerce_blocks(payload, signal, live_chart=live_chart)
 
     # The model reliably writes numbers it was given and then forgets to file
     # them in the block's figures array. Do that bookkeeping in code. It can
