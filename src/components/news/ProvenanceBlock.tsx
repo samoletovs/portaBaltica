@@ -36,6 +36,8 @@ const SOURCE_NAMES: Record<string, string> = {
   statee: 'Statistics Estonia',
   datagovlt: 'data.gov.lt',
   openmeteo: 'Open-Meteo',
+  worldbank: 'World Bank / World Development Indicators',
+  owid: 'Our World in Data / Global Carbon Budget and population sources',
   ec_presscorner: 'European Commission Press Corner',
   ep_news: 'European Parliament news',
 };

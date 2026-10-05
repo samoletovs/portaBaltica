@@ -259,7 +259,7 @@ class TestAcceptance:
         assert "worldbank context pilot failed" in caplog.text
         assert "HTTP 403" in caplog.text
 
-    async def test_09_scheduled_collection_and_prose_permissions_stay_closed(
+    async def test_09_scheduled_collection_stays_closed_after_explicit_promotion(
         self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         calls = []
@@ -275,9 +275,10 @@ class TestAcceptance:
         for source_id in ("worldbank", "owid"):
             source = registry().get(source_id)
             assert source.enabled is False
-            assert source.requires_human_approval is True
-            with pytest.raises(RewriteNotPermittedError):
-                assert_rewrite_allowed(source_id)
+            assert source.requires_human_approval is False
+            assert_rewrite_allowed(source_id)
+        with pytest.raises(RewriteNotPermittedError):
+            assert_rewrite_allowed("lsm_en")
         assert WORLD_BANK_METRIC not in {spec.metric for spec in opendata.EUROSTAT_DATASETS}
         assert OWID_METRIC not in {spec.metric for spec in opendata.EUROSTAT_DATASETS}
 

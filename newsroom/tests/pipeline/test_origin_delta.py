@@ -353,6 +353,7 @@ NOT_A_SPAN_CHANGE: dict[str, str] = {
     "baseline_years": "a count",
     "window_periods": "a count",
     "sustained_periods": "a count",
+    "price_base_year": "a fixed price-reference year, not a change or an observation",
     # ratios, which name no span
     "move_vs_typical": "a ratio",
     "spread_vs_typical": "a ratio",

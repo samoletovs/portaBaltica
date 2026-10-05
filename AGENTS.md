@@ -393,12 +393,14 @@ visible.
 
 ## Conventions
 
-The [international context pilot](docs/international-context-pilot.md) is local
-and non-publishing. `newsroom.pipeline.international_context --collect` uses
-`collect/international.py` and the existing raw archive/HTTP cache. Do not wire
-its World Bank/OWID series into scheduled collection or enable rewriting as part
-of maintenance. Their distinct definitions, units and common-year comparisons
-must remain explicit; source promotion is separate approved work.
+The [international context pilot](docs/international-context-pilot.md) command
+remains local and non-publishing. The owner separately approved
+[bounded autonomous explainers](docs/international-explainers.md):
+`newsroom.pipeline.international_explainers --publish` may evaluate and publish
+the two pinned comparisons after factual and AI-editorial checks. No per-draft
+human approval is needed. Do not add routine collection as maintenance. Keep
+definitions, units, common observation years and frozen-source charts explicit;
+do not present a commissioned annual comparison as a ranked breaking-news signal.
 
 The 2026-10-02 selective model refresh is prepared, not promoted: the shared
 writer uses `gpt-6-luna` v2026-09-22 on `foundrylab-aiservices`, no premium

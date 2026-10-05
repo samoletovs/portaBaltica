@@ -14,6 +14,8 @@ export function StoryEvidenceGraphic({ evidence, sourceHref }: { evidence: Story
   useEvidenceReveal(ref, evidence.points.map(point => `${point.geography}:${point.period}:${point.value}`).join('|'));
   const span = evidence.maximum - evidence.minimum;
   const zero = -evidence.minimum / span * 100;
+  const isWorldBankPpp = evidence.unit === 'constant 2021 international dollars per person'
+    && evidence.points.every(point => point.source_id === 'worldbank' && point.dataset === 'NY.GDP.PCAP.PP.KD');
   return (
     <figure ref={ref} className="site-panel story-evidence-graphic" aria-labelledby={titleId}>
       <figcaption>
@@ -22,6 +24,13 @@ export function StoryEvidenceGraphic({ evidence, sourceHref }: { evidence: Story
           {evidence.kind === 'countries' ? formatPeriod(evidence.points[0].period) : COUNTRIES[evidence.points[0].geography]}
           {' · '}{evidence.unit}
         </p>
+        {isWorldBankPpp && (
+          <p className="text-ui news-muted mt-3">
+            International dollars are a comparison unit, not cash. They adjust for countries’ different
+            prices, using the purchasing power of US dollars in 2021 as the reference.
+            This measures output per person, not wages or household income.
+          </p>
+        )}
       </figcaption>
       <dl className="story-evidence-readings">
         {evidence.points.map(point => {
@@ -31,7 +40,7 @@ export function StoryEvidenceGraphic({ evidence, sourceHref }: { evidence: Story
               <dt className="text-ui">{evidence.kind === 'countries' ? COUNTRIES[point.geography] : formatPeriod(point.period)}</dt>
               <dd className="text-title font-semibold tabular-nums" title={`Recorded value: ${point.value} ${point.unit}`}>
                 <span>
-                  {point.value.toLocaleString('en-GB', { maximumFractionDigits: 20 }).replace(/^-/, '\u2212')}
+                  {point.value.toLocaleString('en-GB', { maximumSignificantDigits: 6 }).replace(/^-/, '\u2212')}
                 </span>
                 <div className="story-evidence-track" aria-hidden="true">
                 <span className="story-evidence-zero" style={{ left: `${zero}%` }} />
@@ -47,7 +56,7 @@ export function StoryEvidenceGraphic({ evidence, sourceHref }: { evidence: Story
         })}
       </dl>
       <p className="text-caption news-subtle">
-        Recorded with this article, not a live feed. {evidence.kind === 'periods' && 'Two recorded observations, not a complete time series. '}
+        Recorded with this article, not a live feed. Values are rounded for readability; the source record keeps the exact readings. {evidence.kind === 'periods' && 'Two recorded observations, not a complete time series. '}
         Source: {evidence.points[0].dataset ?? evidence.points[0].source_id}.
       </p>
       <Link to={sourceHref} className="lab-link text-ui">Inspect the source record ↗</Link>

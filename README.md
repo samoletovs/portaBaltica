@@ -144,9 +144,19 @@ attribution, archived bytes and explicit missing observations:
 python -m newsroom.pipeline.international_context --collect
 ```
 
-This is **non-publishing**: no new schedule, model call, dashboard route or
-article-generation source is enabled. See
+This command is **non-publishing**: no new schedule, model call or dashboard route
+is enabled. See
 [the pilot contract and acceptance checks](docs/international-context-pilot.md).
+
+The separately approved, bounded
+[international explainers](docs/international-explainers.md) command can evaluate
+and publish two original comparison articles through the existing factual and
+AI-editorial gates. It skips already indexed findings, uses frozen source-bound
+charts and does not activate routine collection:
+
+```powershell
+python -m newsroom.pipeline.international_explainers --publish
+```
 
 ## Model pilot
 

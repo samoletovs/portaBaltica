@@ -32,6 +32,36 @@ function comparison() {
 }
 
 describe('graphics from the published evidence, not current API values', () => {
+  it.each([
+    ['worldbank', 'worldbank_gdp_per_capita_ppp_2021', 'NY.GDP.PCAP.PP.KD', '2025', 'constant 2021 international dollars per person', [38800.5425281872, 41604.3226612806, 48839.5436452948]],
+    ['owid', 'owid_fossil_co2_per_capita', 'co-emissions-per-capita', '2024', 'tonnes CO2 per person', [3.4520962, 6.105464, 4.386505]],
+  ] as const)('renders the frozen %s comparison without fetching a live Eurostat substitute',
+    (sourceId, metric, dataset, period, unit, values) => {
+      const article = comparison();
+      article.provenance.sources = [{
+        source_id: sourceId, dataset, retrieved_at: '2026-10-05T09:00:00Z',
+        url: sourceId === 'worldbank' ? 'https://api.worldbank.org/v2/' : 'https://ourworldindata.org/grapher/co-emissions-per-capita',
+      }];
+      article.provenance.published_observations = [
+        point(article, { metric, metric_label: 'Annual comparison', period, unit, geography: 'Baltic', raw_source: false, summary: true, value: Math.max(...values) - Math.min(...values) }),
+        ...(['LV', 'EE', 'LT'] as const).map((geography, index) => point(article, {
+          metric, metric_label: 'Annual comparison', period, unit, geography, value: values[index],
+        })),
+      ];
+      const evidence = storyEvidence(article)!;
+      expect(evidence.points.map(point => point.value)).toEqual([...values]);
+      expect(evidence.points.every(point => point.period === period && point.source_id === sourceId)).toBe(true);
+      render(<MemoryRouter><StoryEvidenceGraphic evidence={evidence} sourceHref="#article-evidence" /></MemoryRouter>);
+      expect(screen.getByText(new RegExp(`${period}.*${unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))).toBeTruthy();
+      expect(screen.getByText(/Recorded with this article, not a live feed/)).toBeTruthy();
+      if (sourceId === 'worldbank') {
+        expect(screen.getByText(/International dollars are a comparison unit, not cash/)).toBeTruthy();
+        expect(screen.getByText(/purchasing power of US dollars in 2021/)).toBeTruthy();
+      } else {
+        expect(screen.queryByText(/International dollars are a comparison unit/)).toBeNull();
+      }
+    });
+
   it('compares source observations at the finding period, not the derived gap or a newer period', () => {
     const article = comparison();
     article.provenance.published_observations!.push(point(article, { period: '2026', value: 99 }));
@@ -94,6 +124,17 @@ describe('graphics from the published evidence, not current API values', () => {
     expect(screen.getByText('201.61')).toBeTruthy();
     expect(screen.getByText('78.26')).toBeTruthy();
     expect(screen.queryByText('202')).toBeNull();
+  });
+
+  it('keeps long fractional readings readable without changing the recorded evidence', () => {
+    const article = comparison();
+    article.provenance.published_observations![1].value = 38800.5425281872;
+    const evidence = storyEvidence(article)!;
+    render(<MemoryRouter><StoryEvidenceGraphic evidence={evidence} sourceHref="#article-evidence" /></MemoryRouter>);
+    expect(screen.getByText('38,800.5')).toBeTruthy();
+    expect(screen.getByTitle('Recorded value: 38800.5425281872 EUR/hour')).toBeTruthy();
+    expect(screen.getByText(/the source record keeps the exact readings/)).toBeTruthy();
+    expect(evidence.points[0].value).toBe(38800.5425281872);
   });
 
   it('loads just the promoted article and does not borrow another article’s record', async () => {

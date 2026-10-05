@@ -256,7 +256,9 @@ class TestTheQuantityNote:
     def test_the_spread_detectors_are_stated_as_an_equality(self):
         # Not a filter: adding a third spread detector without listing it here
         # goes red, rather than silently getting no note.
-        assert field_meanings.SPREAD_DETECTORS == {"divergence", "structural_divergence"}
+        assert field_meanings.SPREAD_DETECTORS == {
+            "divergence", "structural_divergence", "commissioned_comparison",
+        }
 
     def test_both_spread_detectors_really_produce_a_note(self):
         # The registry above is only worth anything if the detectors named in
