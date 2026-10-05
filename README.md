@@ -133,6 +133,21 @@ See [production design and operation](docs/design-evidence-production.md),
 [the original pilot](docs/evidence-archive-pilot.md), and
 [verified historical findings](docs/evidence-archive-results-2026-09-13.md).
 
+## International context pilot
+
+An explicit local command collects World Bank purchasing-power-adjusted GDP per
+person and Our World in Data territorial CO2 per person for Latvia, Estonia and
+Lithuania. It produces same-year evidence cards with source metadata, original
+attribution, archived bytes and explicit missing observations:
+
+```powershell
+python -m newsroom.pipeline.international_context --collect
+```
+
+This is **non-publishing**: no new schedule, model call, dashboard route or
+article-generation source is enabled. See
+[the pilot contract and acceptance checks](docs/international-context-pilot.md).
+
 ## Model pilot
 
 **Prepared, not promoted.** The parent owns synthetic API/quality evaluation

@@ -178,6 +178,50 @@ sources:
     requires_human_approval: false
     cache_ttl_minutes: 60
 
+  - id: worldbank
+    name: "World Bank international-context pilot"
+    publisher: "World Bank"
+    tier: A
+    endpoint: "https://api.worldbank.org/v2"
+    path_prefixes:
+      - "/v2"
+    auth: none
+    licence: "CC BY 4.0 plus World Bank data terms; NY.GDP.PCAP.PP.KD only, original providers credited"
+    attribution: "Source: World Bank, World Development Indicators; International Comparison Program and cited original providers"
+    rewrite_allowed: false
+    requires_human_approval: true
+    enabled: false
+    cache_ttl_minutes: 1440
+    notes: >-
+      Non-publishing, explicit local pilot only. collect_open_data does not call
+      this source; enabled is not relied on as a tier A collection gate.
+      Constant 2021 international dollars per person, not the Eurostat EUR series.
+      Terms: https://data.worldbank.org/summary-terms-of-use
+
+  - id: owid
+    name: "Our World in Data international-context pilot"
+    publisher: "Global Change Data Lab / Our World in Data"
+    tier: A
+    endpoint: "https://ourworldindata.org/grapher/co-emissions-per-capita"
+    path_prefixes:
+      - "/grapher/co-emissions-per-capita"
+      - "/grapher/co-emissions-per-capita.csv"
+      - "/grapher/co-emissions-per-capita.metadata.json"
+    auth: none
+    licence: "CC BY 4.0 for the pinned OWID, Global Carbon Budget and population data; not blanket permission for other OWID datasets"
+    attribution: "Source: Global Carbon Budget and population sources, processed by Our World in Data"
+    rewrite_allowed: false
+    requires_human_approval: true
+    enabled: false
+    cache_ttl_minutes: 1440
+    notes: >-
+      Non-publishing, explicit local pilot only; not wired to scheduled collection.
+      Indicator 1119914: territorial fossil-fuel and industrial CO2 per person,
+      excluding land-use change. Not total greenhouse gases or consumption-based CO2.
+      Original-source CC BY 4.0 declarations checked at
+      https://api.ourworldindata.org/v1/indicators/1119914.metadata.json on 2026-10-05.
+      A different indicator identity or unit requires definition and rights review.
+
   # ─────────────────────────────────────────────────────────────────────
   # TIER B — official press material we may reproduce verbatim.
   # Reproduced whole, attributed, never rewritten.
