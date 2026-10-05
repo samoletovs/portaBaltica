@@ -142,6 +142,17 @@ def test_an_editorial_rejection_cannot_publish_a_factually_valid_article() -> No
     assert "published_observations" not in article.provenance
 
 
+def test_supplied_context_does_not_introduce_an_unverifiable_historical_claim() -> None:
+    chosen = bank_commission()
+    draft = payload(chosen)
+    draft["blocks"].append({"text": " ".join(chosen.context.observations), "figures": []})
+    article = explainers.evaluate_article(chosen, StubWriter([draft, APPROVE]), attempts=[])
+    assert article.status == "published"
+    verdict = article.provenance["validator"]
+    assert verdict["passed"]
+    assert next(check for check in verdict["checks"] if check["name"] == "record_claim_holds")["passed"]
+
+
 def test_an_invented_number_never_reaches_the_editor() -> None:
     chosen = bank_commission()
     invalid = copy.deepcopy(payload(chosen))

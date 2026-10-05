@@ -92,7 +92,7 @@ def commission(collected: ContextData, *, end_year: int) -> Commission:
     pack = ContextPack(
         facts=facts, period_labels=(period,), series_considered=len(series),
         observations=(
-            "This is a commissioned comparison of annual levels, not breaking news or an all-time record.",
+            "Annual levels are compared on the same definition and observation year.",
             scope,
             "The comparison establishes differences, not why they exist or what policy caused them.",
             "Required source attribution: " + attribution,
