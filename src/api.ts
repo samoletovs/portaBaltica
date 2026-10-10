@@ -678,6 +678,36 @@ export interface LiveGridData {
   fetchedAt: string;
 }
 
+export type ArticleFeedbackSummary =
+  | { available: true; count: number; average: number }
+  | { available: false; count: null; average: null };
+
+export async function fetchArticleFeedbackSummary(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<ArticleFeedbackSummary> {
+  const response = await fetch(`/api/article-feedback?slug=${encodeURIComponent(slug)}`, {
+    method: 'GET',
+    signal,
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`Article feedback summary failed: ${response.status}`);
+  const value: unknown = await response.json();
+  if (!value || typeof value !== 'object' || !('available' in value)
+    || !('count' in value) || !('average' in value)
+    || Object.keys(value).length !== 3) throw new Error('Invalid article feedback summary.');
+  if (value.available === true && typeof value.count === 'number'
+    && Number.isInteger(value.count) && value.count >= 5
+    && typeof value.average === 'number' && Number.isFinite(value.average)
+    && value.average >= 1 && value.average <= 5) {
+    return value as ArticleFeedbackSummary;
+  }
+  if (value.available === false && value.count === null && value.average === null) {
+    return value as ArticleFeedbackSummary;
+  }
+  throw new Error('Invalid article feedback summary.');
+}
+
 export async function fetchLiveGrid(): Promise<LiveGridData> {
   return cachedFetch<LiveGridData>('live-grid', '/api/live-grid');
 }

@@ -49,7 +49,7 @@ log = logging.getLogger(__name__)
 app = func.FunctionApp()
 
 @app.function_name(name="article_feedback")
-@app.route(route="article-feedback", auth_level=func.AuthLevel.ANONYMOUS, methods=["POST"])
+@app.route(route="article-feedback", auth_level=func.AuthLevel.ANONYMOUS, methods=["GET", "POST"])
 async def article_feedback(req: func.HttpRequest) -> func.HttpResponse:
     from newsroom.feedback import handle_feedback
 
