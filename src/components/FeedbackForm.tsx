@@ -48,7 +48,6 @@ function FeedbackFields({ slug }: { slug: string }) {
 
   useEffect(() => {
     const request = new AbortController();
-    setSummaryState({ kind: 'loading' });
     void fetchArticleFeedbackSummary(slug, request.signal).then(summary => {
       if (!request.signal.aborted) setSummaryState({ kind: 'ready', summary });
     }).catch(() => {

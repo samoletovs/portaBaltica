@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 import azure.functions as func
@@ -230,9 +231,10 @@ def response(body: dict, status: int, retry_after: int | None = None) -> func.Ht
 
 async def handle_feedback(req: func.HttpRequest) -> func.HttpResponse:
     if req.method == "GET":
-        slug = req.params.get("slug")
-        if not isinstance(slug, str):
+        slugs = parse_qs(urlsplit(req.url).query, keep_blank_values=True).get("slug", [])
+        if len(slugs) != 1:
             return response({"error": "A valid article slug is required."}, 400)
+        slug = slugs[0]
         try:
             result = await asyncio.to_thread(FeedbackStore(blob_service()).summary, slug)
         except FeedbackProblem as problem:

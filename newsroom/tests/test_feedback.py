@@ -20,7 +20,7 @@ class Blob:
             raise ResourceNotFoundError("missing")
         item = self.container.items[self.name]
         return SimpleNamespace(
-            metadata=dict(item["metadata"]), etag=item["etag"], last_modified=item["last_modified"],
+            metadata=dict(item["metadata"]), etag=item["etag"], last_modified=item.get("last_modified"),
         )
 
     def upload_blob(self, data, *, overwrite, metadata, **kwargs):
@@ -246,9 +246,9 @@ async def test_summary_route_returns_only_the_reader_facing_aggregate(monkeypatc
     for rating in (1, 2, 3, 4, 5):
         store.submit(payload(rating=rating), now=now)
     monkeypatch.setattr(feedback, "blob_service", lambda: service)
-    result = await feedback.handle_feedback(request(
-        b"", method="GET", url="https://example.test/api/article-feedback?slug=test-article",
-    ))
+    result = await feedback.handle_feedback(
+        request(b"", method="GET", url="https://example.test/api/article-feedback?slug=test-article")
+    )
     assert result.status_code == 200
     assert json.loads(result.get_body()) == {"available": True, "count": 5, "average": 3.0}
     assert result.headers["Cache-Control"] == "no-store"
