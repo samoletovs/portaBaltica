@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
 import azure.functions as func
@@ -54,9 +55,12 @@ def validate(payload: object) -> dict:
     kind = payload.get("kind")
     if kind not in ("comment", "issue"):
         raise FeedbackProblem("Feedback type must be comment or issue.")
+    rating = payload.get("rating")
+    if isinstance(rating, bool) or not isinstance(rating, int) or not 1 <= rating <= 5:
+        raise FeedbackProblem("Usefulness rating must be an integer from 1 to 5.")
     message = payload.get("message")
-    if not isinstance(message, str) or not 5 <= len(message.strip()) <= 2000:
-        raise FeedbackProblem("Feedback must be 5 to 2000 characters.")
+    if not isinstance(message, str) or (message.strip() and not 5 <= len(message.strip()) <= 2000):
+        raise FeedbackProblem("Feedback must be empty or 5 to 2000 characters.")
     contact = payload.get("contact")
     if contact is not None and (not isinstance(contact, str) or len(contact.strip()) > 200):
         raise FeedbackProblem("Contact must be at most 200 characters.")
@@ -67,7 +71,7 @@ def validate(payload: object) -> dict:
     except UnicodeEncodeError:
         raise FeedbackProblem("Feedback must contain valid Unicode text.") from None
     return {
-        "id": receipt, "slug": slug, "kind": kind, "message": message.strip(),
+        "id": receipt, "slug": slug, "kind": kind, "rating": rating, "message": message.strip(),
         "contact": contact.strip() or None if contact is not None else None,
     }
 
@@ -122,6 +126,52 @@ class FeedbackStore:
                 continue
         raise FeedbackProblem("Feedback is busy. Please retry shortly.", 429, 5)
 
+    def _reader_facing_article(self, slug: str) -> dict:
+        try:
+            article = json.loads(
+                self.service.get_container_client(config.ARTICLES_CONTAINER)
+                .download_blob(f"{slug}.json").readall()
+            )
+        except ResourceNotFoundError:
+            raise FeedbackProblem("This article is not available for feedback.", 404) from None
+        if (
+            not isinstance(article, dict) or article.get("slug") != slug
+            or article.get("status") not in ("published", "corrected", "retracted")
+            or article.get("tier") not in ("A", "B", "C")
+            or article.get("status") == "published"
+            and not article.get("provenance", {}).get("validator", {}).get("passed")
+        ):
+            raise FeedbackProblem("This article is not available for feedback.", 404)
+        return article
+
+    def summary(self, slug: str, *, now: datetime | None = None) -> dict:
+        if slug_problem(slug) or len(slug) > 250:
+            raise FeedbackProblem("A valid article slug is required.")
+        now = now or datetime.now(timezone.utc)
+        if now.utcoffset() is None:
+            raise ValueError("Feedback time must include a time zone.")
+        now = now.astimezone(timezone.utc)
+        if self.container.get_container_properties()["public_access"] is not None:
+            raise RuntimeError("Feedback container must be private.")
+        self._reader_facing_article(slug)
+        cutoff = now - timedelta(days=RETENTION_DAYS)
+        ratings = []
+        for blob in self.container.list_blobs(
+            name_starts_with="submissions/", include=["metadata"],
+        ):
+            metadata = blob.metadata or {}
+            rating = metadata.get("rating")
+            modified = blob.last_modified
+            if (
+                metadata.get("slug") == slug
+                and isinstance(rating, str) and rating in {"1", "2", "3", "4", "5"}
+                and modified is not None and modified.tzinfo is not None and modified >= cutoff
+            ):
+                ratings.append(int(rating))
+        if len(ratings) < 5:
+            return {"available": False, "count": None, "average": None}
+        return {"available": True, "count": len(ratings), "average": round(sum(ratings) / len(ratings), 1)}
+
     def submit(self, payload: dict, *, now: datetime | None = None) -> str:
         payload = validate(payload)
         now = now or datetime.now(timezone.utc)
@@ -144,21 +194,7 @@ class FeedbackStore:
                 raise FeedbackProblem("This submission reference was already used.", 409)
             return payload["id"]
 
-        try:
-            article = json.loads(
-                self.service.get_container_client(config.ARTICLES_CONTAINER)
-                .download_blob(f"{payload['slug']}.json").readall()
-            )
-        except ResourceNotFoundError:
-            raise FeedbackProblem("This article is not available for feedback.", 404) from None
-        if (
-            not isinstance(article, dict) or article.get("slug") != payload["slug"]
-            or article.get("status") not in ("published", "corrected", "retracted")
-            or article.get("tier") not in ("A", "B", "C")
-            or article.get("status") == "published"
-            and not article.get("provenance", {}).get("validator", {}).get("passed")
-        ):
-            raise FeedbackProblem("This article is not available for feedback.", 404)
+        self._reader_facing_article(payload["slug"])
 
         record = {
             **payload, "created_at": isoformat(now),
@@ -168,7 +204,10 @@ class FeedbackStore:
             # Immutable receipts make retries idempotent and do not reset retention.
             acknowledgement = blob.upload_blob(
                 json.dumps(record, ensure_ascii=False).encode("utf-8"), overwrite=False,
-                metadata={"request_hash": fingerprint},
+                metadata={
+                    "request_hash": fingerprint, "slug": payload["slug"],
+                    "rating": str(payload["rating"]),
+                },
                 content_settings=ContentSettings(
                     content_type="application/json; charset=utf-8", cache_control="no-store",
                 ),
@@ -191,9 +230,22 @@ def response(body: dict, status: int, retry_after: int | None = None) -> func.Ht
 
 
 async def handle_feedback(req: func.HttpRequest) -> func.HttpResponse:
+    if req.method == "GET":
+        slugs = parse_qs(urlsplit(req.url).query, keep_blank_values=True).get("slug", [])
+        if len(slugs) != 1:
+            return response({"error": "A valid article slug is required."}, 400)
+        slug = slugs[0]
+        try:
+            result = await asyncio.to_thread(FeedbackStore(blob_service()).summary, slug)
+        except FeedbackProblem as problem:
+            return response({"error": str(problem)}, problem.status)
+        except Exception:
+            log.exception("Feedback summary could not be read")
+            return response({"error": "Could not load the feedback summary."}, 503)
+        return response(result, 200)
     if req.method != "POST":
         result = response({"error": "Method not allowed."}, 405)
-        result.headers["Allow"] = "POST"
+        result.headers["Allow"] = "GET, POST"
         return result
     if req.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
         return response({"error": "Content-Type must be application/json."}, 415)
@@ -213,4 +265,9 @@ async def handle_feedback(req: func.HttpRequest) -> func.HttpResponse:
     except Exception:
         log.exception("Feedback storage failed; receipt not confirmed")
         return response({"error": "Could not confirm feedback was saved. Please retry."}, 503)
-    return response({"ok": True, "id": receipt}, 202)
+    try:
+        summary = await asyncio.to_thread(FeedbackStore(blob_service()).summary, payload["slug"])
+    except Exception:
+        log.exception("Feedback summary could not be read after submission")
+        summary = None
+    return response({"ok": True, "id": receipt, "rating": payload["rating"], "summary": summary}, 202)
