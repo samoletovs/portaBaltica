@@ -94,3 +94,9 @@ scratch-*
 # can be eyeballed against production data, which is a desk convenience rather
 # than a repository artefact.
 vite.preview-check.ts
+
+# Added by autopilot
+node_modules/
+dist/
+*.png
+screenshots/
