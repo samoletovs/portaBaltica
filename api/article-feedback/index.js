@@ -6,7 +6,16 @@ const rateLimit = require('../shared/rateLimit.js');
 const SERVICE_URL = 'https://portabaltica-func.azurewebsites.net/api/article-feedback';
 const MAX_RELAY_BYTES = 16384;
 const DEADLINE_MS = 20000;
-const FIELDS = ['id', 'slug', 'kind', 'message', 'contact'];
+const FIELDS = ['id', 'slug', 'kind', 'rating', 'message', 'contact'];
+
+function validSummary(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)
+    || Object.keys(body).length !== 3 || typeof body.available !== 'boolean') return false;
+  if (!body.available) return body.count === null && body.average === null;
+  return Number.isInteger(body.count) && body.count >= 5
+    && typeof body.average === 'number' && Number.isFinite(body.average)
+    && body.average >= 1 && body.average <= 5;
+}
 
 function reply(context, status, body, headers) {
   context.res = {
@@ -23,8 +32,39 @@ const handler = async function (context, req) {
     context.res.headers = Object.assign({}, limited.headers, { 'Cache-Control': 'no-store' });
     return;
   }
-  if (req.method !== 'POST') {
-    reply(context, 405, { error: 'Method not allowed.' }, { Allow: 'POST' });
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    reply(context, 405, { error: 'Method not allowed.' }, { Allow: 'GET, POST' });
+    return;
+  }
+  if (req.method === 'GET') {
+    const slug = req.query && req.query.slug;
+    if (typeof slug !== 'string' || !slug || slug.length > 250) {
+      reply(context, 400, { error: 'A valid article slug is required.' });
+      return;
+    }
+    try {
+      const upstream = await fetch(`${SERVICE_URL}?slug=${encodeURIComponent(slug)}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(DEADLINE_MS),
+        redirect: 'error',
+      });
+      if (![200, 400, 404, 503].includes(upstream.status)) {
+        throw new Error(`Feedback service returned HTTP ${upstream.status}`);
+      }
+      const body = await upstream.json();
+      if (upstream.status === 200) {
+        if (!validSummary(body)) throw new Error('Invalid feedback summary.');
+        reply(context, 200, body);
+        return;
+      }
+      if (typeof body?.error !== 'string' || body.error.length > 250) {
+        throw new Error('Invalid feedback error response.');
+      }
+      reply(context, upstream.status, { error: body.error });
+    } catch (error) {
+      if (context.log && context.log.error) context.log.error('Feedback summary not confirmed', error);
+      reply(context, 503, { error: 'Could not load the feedback summary.' });
+    }
     return;
   }
   const type = req.headers && (req.headers['content-type'] || req.headers['Content-Type']);
@@ -62,10 +102,12 @@ const handler = async function (context, req) {
     }
     const body = await upstream.json();
     if (upstream.status === 202) {
-      if (body?.ok !== true || typeof body.id !== 'string' || body.id !== clean.id) {
+      if (body?.ok !== true || typeof body.id !== 'string' || body.id !== clean.id
+        || body.rating !== clean.rating
+        || (body.summary !== undefined && body.summary !== null && !validSummary(body.summary))) {
         throw new Error('Feedback service did not confirm this submission.');
       }
-      reply(context, 202, { ok: true, id: body.id });
+      reply(context, 200, { ok: true, id: body.id, summary: body.summary || null });
       return;
     }
     if (typeof body?.error !== 'string' || body.error.length > 250) {
