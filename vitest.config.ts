@@ -18,6 +18,15 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    coverage: {
+      enabled: true,
+      provider: 'v8',
+      include: ['src/api.ts'],
+      reporter: ['text'],
+      thresholds: {
+        lines: 80,
+      },
+    },
     // No unit test may open a socket to the internet. Two files believed they
     // had stubbed the network and had not: both stubbed `https.get`, while
     // `api/economy-data` and `api/historical-data` reach CSP PxWeb through

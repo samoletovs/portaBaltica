@@ -10,7 +10,10 @@ import { fetchBalticCompare, type BalticCompareData } from '../src/api';
 import type { Article, PublishedObservation } from '../src/news-types';
 import { tierAArticle } from './fixtures/articles';
 
-vi.mock('../src/api', () => ({ fetchBalticCompare: vi.fn() }));
+vi.mock('../src/api', () => ({
+  fetchBalticCompare: vi.fn(),
+  fetchArticleFeedbackSummary: vi.fn().mockResolvedValue({ available: false, count: null, average: null }),
+}));
 vi.mock('../src/components/BalticCompareChart', () => ({
   BalticCompareChart: () => <div>Current comparison chart</div>,
 }));

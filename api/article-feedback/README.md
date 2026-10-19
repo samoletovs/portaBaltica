@@ -2,28 +2,37 @@
 
 `POST /api/article-feedback` relays a bounded JSON request to the existing
 `portabaltica-func` Function App. The SWA has no managed identity, so it must
-not write feedback to a local file or hold a storage key.
+not write feedback to a local file or hold a storage key. The same route's
+`GET ?slug=<article>` returns only an aggregate rating once at least five
+submissions exist; it never returns comments or contact details.
 
 The Python `article_feedback` function uses managed identity in Azure and
 stores immutable records in the private `feedback` container. It verifies the
 container's access level and that the target article is reader-facing. Only a
 durably acknowledged write, or an existing receipt with the same request hash,
-returns `202 { "ok": true, "id": "<uuid>" }`. There is no local fallback.
-The browser checks that receipt, retains its draft after an uncertain failure,
-and reuses its reference on retry. It never interprets an arbitrary HTTP 200
-as confirmation. Different content cannot overwrite an existing reference.
+returns `202 { "ok": true, "id": "<uuid>", "rating": 1, "summary": ... }`. The SWA relay
+returns public `200` only after validating that durable receipt. The browser
+checks its matching reference and aggregate, retains its draft after an
+uncertain failure, and reuses its reference on retry. It never interprets an
+arbitrary HTTP 200 as confirmation. Different content cannot overwrite an
+existing reference.
 
-Records contain only reference, article slug, feedback type, message, optional
-unverified contact, creation time and expiry time. IP addresses and user agents
-are not forwarded to this store. Existing platform operational logs are separate.
-Nothing publishes the feedback, invokes a model, sends email or subscribes a
-reader to anything. A receipt confirms storage, not that a human has reviewed it.
+Records contain only reference, article slug, feedback type, 1–5 usefulness
+rating, optional message, optional unverified contact, creation time and expiry
+time. IP addresses and user agents are not forwarded to this store. Existing
+platform operational logs are separate. The public aggregate exposes only a
+count and rounded average after five ratings; individual submissions remain
+private. Nothing publishes comments, invokes a model, sends email or subscribes
+a reader to anything. A receipt confirms storage, not that a human has reviewed it.
 
 The proxy retains the site's existing per-client request limit and has a
-20-second POST deadline with redirects refused. The Function App additionally
+20-second request deadline with redirects refused. Deploy the Function App
+before the SWA so an older backend cannot acknowledge a rating it does not store.
+The Function App additionally
 enforces 1,000 validated submission attempts per UTC day across instances, using
 conditional blob metadata updates. Retries count as attempts. Message/contact
-limits are 2,000/200 characters; invalid requests cannot create feedback records.
+limits are 2,000/200 characters; ratings-only submissions are allowed and
+comments, when present, must be 5–2,000 characters. Invalid requests cannot create feedback records.
 The POST relay uses native `fetch` because the shared Eurostat JSON helper is
 GET-only and does not expose the response status needed for receipt validation.
 
