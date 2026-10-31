@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ArticleSummary } from '../../news-types';
-import { correctedSlugs, fetchArticleIndex, fetchCorrections } from '../../news-api';
+import { correctedSlugs, fetchArticleIndex, fetchCorrections, searchArticles } from '../../news-api';
 import type { CorrectionState } from '../../news-api';
 import { usePageMeta } from '../../newsroom/usePageMeta';
 import { ArticleCard, CorrectionsUnavailable, FeedItem } from './NewsCard';
@@ -160,14 +160,12 @@ function ReportingFeed() {
 
   const ours = useMemo(
     () =>
-      (articles ?? [])
-        .filter((article) => article.tier !== 'C')
-        .filter((article) => filter === 'all' || article.section === filter)
-        .filter((article) => {
-          const text = `${article.headline} ${article.dek ?? ''}`.toLowerCase();
-          return search.trim().toLowerCase().split(/\s+/).every((word) => text.includes(word));
-        })
-        .sort(byNewestFirst),
+      searchArticles(
+        (articles ?? [])
+          .filter((article) => article.tier !== 'C')
+          .filter((article) => filter === 'all' || article.section === filter),
+        search,
+      ).sort(byNewestFirst),
     [articles, filter, search],
   );
 
