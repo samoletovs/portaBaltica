@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchAllWeather, fetchPortData, fetchTradePartners } from '../src/api';
+import { fetchArticleIndex } from '../src/news-api';
 
 function jsonResponse(data: unknown, status = 200): Response {
   return {
@@ -44,6 +45,12 @@ describe('API data fetchers', () => {
 
       await expect(fetchAllWeather()).rejects.toThrow('sea-state API failed: 503');
     });
+
+    it('propagates a network failure', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+      await expect(fetchAllWeather()).rejects.toThrow('offline');
+    });
   });
 
   describe('fetchPortData', () => {
@@ -79,6 +86,67 @@ describe('API data fetchers', () => {
 
       await expect(fetchPortData('a&b')).rejects.toThrow('port_data_A&B API failed: 502');
       expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/port-data?country=A%26B');
+    });
+
+    it('propagates a network failure', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+      await expect(fetchPortData()).rejects.toThrow('offline');
+    });
+  });
+
+  describe('fetchArticleIndex', () => {
+    it('returns normalized articles from the index', async () => {
+      const articles = [{
+        slug: 'test-story',
+        headline: 'Test story',
+        tier: 'B',
+        section: 'economy',
+        syndicated: {
+          attribution: 'Example source',
+          original_url: 'https://example.test/story',
+        },
+      }];
+      const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+        generated_at: '2026-10-11T12:00:00Z',
+        count: 99,
+        articles,
+      }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(fetchArticleIndex()).resolves.toEqual({
+        generated_at: '2026-10-11T12:00:00Z',
+        count: 1,
+        articles,
+      });
+      expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
+        '/articles/index.json',
+        { signal: undefined, credentials: 'omit' },
+      );
+    });
+
+    it('returns an empty index when the endpoint is not found', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 404)));
+
+      await expect(fetchArticleIndex()).resolves.toEqual({
+        generated_at: '',
+        count: 0,
+        articles: [],
+      });
+    });
+
+    it('rejects when the endpoint returns a non-404 HTTP error', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 503)));
+
+      await expect(fetchArticleIndex()).rejects.toThrow(
+        'HTTP 503 from /articles/index.json',
+      );
+    });
+
+    it('propagates a network failure', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+      await expect(fetchArticleIndex()).rejects.toThrow('offline');
     });
   });
 
