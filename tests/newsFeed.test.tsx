@@ -32,7 +32,7 @@ describe('News feed', () => {
     stubIndex([lead]);
     const { container } = renderFeed();
     const headline = await screen.findByText(lead.headline);
-    const search = screen.getByRole('searchbox', { name: 'Search headlines and summaries' });
+    const search = screen.getByRole('searchbox', { name: 'Search reporting by keyword, topic or date' });
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('The Baltic journal');
     expect(headline.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole('img', { name: /Geographic illustration/ })).toBeNull();

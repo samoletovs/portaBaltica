@@ -11,7 +11,7 @@ export function NewsSearch({ value, onChange }: NewsSearchProps) {
   return (
     <div className="relative min-w-0 flex-1 basis-80">
       <label htmlFor="news-search" className="sr-only">
-        Search headlines and summaries
+        Search reporting by keyword, topic or date
       </label>
       <svg
         aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -50,7 +50,7 @@ export function NewsSearch({ value, onChange }: NewsSearchProps) {
         </button>
       )}
       <p id="news-search-scope" className="sr-only">
-        Searches headlines and summaries in the current published index, not article bodies or other outlets.
+        Searches headlines, summaries, sections, countries and publication dates in the current published index, not article bodies or other outlets.
       </p>
     </div>
   );

@@ -41,6 +41,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * so the entry is forward-looking rather than load-bearing today.
  */
 const SHOWABLE_STATUSES: readonly string[] = ['published', 'corrected'];
+const COUNTRY_NAMES: Record<string, string> = {
+  LV: 'Latvia',
+  EE: 'Estonia',
+  LT: 'Lithuania',
+  Baltic: 'Baltic',
+  EU: 'European Union',
+};
 
 /**
  * Feed-level fail-closed check.
@@ -111,6 +118,29 @@ export async function fetchArticleIndex(signal?: AbortSignal): Promise<ArticleIn
     count: articles.length,
     articles,
   };
+}
+
+export function searchArticles(
+  articles: readonly ArticleSummary[],
+  query: string,
+): ArticleSummary[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return [...articles];
+
+  return articles.filter((article) => {
+    const searchableText = [
+      article.headline,
+      article.dek,
+      article.section,
+      ...(article.countries ?? []).flatMap((country) => [country, COUNTRY_NAMES[country] ?? '']),
+      article.published_at,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return terms.every((term) => searchableText.includes(term));
+  });
 }
 
 /**
