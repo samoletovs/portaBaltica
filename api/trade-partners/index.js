@@ -224,9 +224,9 @@ const handler = async function (context, req) {
     };
   } catch (error) {
     context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message }),
+      status: 200,
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ unavailable: true, error: error.message }),
     };
   }
 };

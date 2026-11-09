@@ -91,6 +91,30 @@ afterAll(async () => {
 });
 
 describe('the deployed site loads without throwing at the reader', () => {
+  it('/data discloses unavailable upstream data without console errors', async () => {
+    if (!browser) return;
+    await waitForLiveRateWindow();
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const seen = watch(page);
+    try {
+      await page.route(/\/api\/(?:eu-funds|trade-partners)(?:\?|$)/, (route: any) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'Cache-Control': 'no-store' },
+          body: JSON.stringify({ unavailable: true, error: 'Upstream unavailable' }),
+        }));
+      const response = await page.goto(`${BASE}/data`, { waitUntil: 'networkidle', timeout: 60_000 });
+      requireLiveHtml(response, `${BASE}/data`);
+      await page.getByText('No EU fund data available.', { exact: true }).waitFor();
+      await page.getByText('Trade partner data unavailable', { exact: true }).waitFor();
+      expect(seen.errors).toEqual([]);
+      expect(seen.failed).toEqual([]);
+    } finally {
+      await page.close();
+    }
+  }, 155_000);
+
   it('the probe can see an error at all', async () => {
     if (!browser) return;
     await waitForLiveRateWindow();

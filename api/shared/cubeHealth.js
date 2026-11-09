@@ -46,6 +46,7 @@ function newestPeriod(body, keyDim, wanted) {
 
   let newest = null;
   let newestIdx = -Infinity;
+  let newestWeek = -Infinity;
 
   keys.forEach(function (key) {
     const points = parsed.series[key].series || [];
@@ -53,8 +54,11 @@ function newestPeriod(body, keyDim, wanted) {
       const p = points[i];
       if (!p || p.value === null || p.value === undefined) continue;
       const idx = es.periodToMonthIndex(p.period);
-      if (idx === null || idx <= newestIdx) continue;
+      const week = es.periodToWeekIndex(p.period);
+      if (idx === null || idx < newestIdx ||
+          (idx === newestIdx && (week === null || week <= newestWeek))) continue;
       newestIdx = idx;
+      newestWeek = week === null ? -Infinity : week;
       newest = p.period;
     }
   });

@@ -112,6 +112,13 @@ npm test
 npm run build
 ```
 
+Deployment verification runs `npm run test:deploy`: live route, security,
+rendering and graceful-degradation checks. `npm run test:live` also includes
+direct upstream dataset diagnostics (indicators, historical data, ports and
+CN-8 trade). Upstream availability and staleness belong to the separate
+Data source alert workflow, including the weekly-deaths probe, rather than
+turning a successfully verified deployment red.
+
 ## Status
 
 **Active experiment.** The dashboard and its cross-country data surfaces are

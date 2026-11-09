@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchAllWeather, fetchPortData, fetchTradePartners } from '../src/api';
+import { fetchAllWeather, fetchPortData, fetchTradePartners, fetchEUFunds } from '../src/api';
 import { fetchArticleIndex } from '../src/news-api';
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -13,6 +13,20 @@ function jsonResponse(data: unknown, status = 200): Response {
 describe('API data fetchers', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ['eu-funds', fetchEUFunds],
+    ['trade-partners', fetchTradePartners],
+  ] as const)('does not cache an unavailable %s envelope as data', async (key, load) => {
+    const data = { total: 466, country: 'LV' };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ unavailable: true, error: 'Upstream HTTP 400' }))
+      .mockResolvedValueOnce(jsonResponse(data));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(load()).rejects.toThrow(`${key} data unavailable`);
+    await expect(load()).resolves.toEqual(data);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 
   describe('fetchAllWeather', () => {
     it('returns the ports from the sea-state response', async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { createRequire } from 'node:module';
 import { launchForLiveCheck } from './liveBrowser';
 import { DASHBOARD_SECTIONS } from '../src/sections';
+import { freshnessOf } from '../src/dataFreshness';
 
 const require = createRequire(import.meta.url);
 
@@ -29,58 +30,59 @@ const require = createRequire(import.meta.url);
  * can see — the API stops sending `freshness`, a build drops the component, a
  * style hides it. All three render as a page that looks fine.
  *
- * ## It is derived, not hardcoded
- *
- * Which indicators are late changes as feeds publish. So the expectation comes
- * from `/api/baltic-compare` — the same judgement the component reads — rather
- * than from a list here that would rot into a lie. Asking the application is
- * also what keeps this honest when the thresholds move.
- *
- * ## And it refuses to pass vacuously
- *
- * If nothing anywhere is late, every assertion below is trivially satisfiable
- * and the suite would report success while checking nothing. That is the
- * absence-resolving-to-success trap, so the first test fails in that case
- * rather than passing.
+ * The transport now supplies controlled late and frozen series at a fixed
+ * clock. Catching up upstream must not fail a deployment, and a frozen weekly
+ * series must exercise the stale branch, not merely the late-only notice.
  */
 const BASE = process.env.PB_BASE_URL ?? 'https://portabaltica.naurolabs.com';
 
 /** The wording `FreshnessNotice` renders. Shared with the jsdom suite. */
 const NOTICE = /is later than usual: nothing newer than/;
 
-type Freshness = { period: string; monthsBehind: number; late: boolean; stale: boolean };
-type Compare = { countries: Record<string, { freshness?: Freshness }> };
-
-/** Indicator ids that are late in at least one country, from the API itself. */
-async function lateIndicators(ids: string[]): Promise<Map<string, number>> {
-  const late = new Map<string, number>();
-  for (const id of ids) {
-    const r = await fetch(`${BASE}/api/baltic-compare?indicator=${id}&years=2`);
-    if (!r.ok) continue;
-    const d = (await r.json()) as Compare;
-    let worst = 0;
-    for (const cc of Object.keys(d.countries ?? {})) {
-      const f = d.countries[cc]?.freshness;
-      if (f?.late) worst = Math.max(worst, f.monthsBehind);
-    }
-    if (worst > 0) late.set(id, worst);
-  }
-  return late;
-}
+const NOW = new Date('2026-11-09T00:00:00Z');
+const registry = require('../api/shared/indicators.js');
+const points = (id: string) => id === 'weekly_deaths'
+  ? [{ period: '2026-W27', value: 300 }, { period: '2026-W28', value: 310 }]
+  : [{ period: '2025-Q3', value: 300 }, { period: '2025-Q4', value: 310 }];
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let browser: any = null;
-let lateIds: Map<string, number> = new Map();
+const lateIds = new Map(Object.keys(registry).flatMap(id => {
+  const f = freshnessOf(points(id).at(-1)!.period, undefined, NOW.getTime());
+  return f?.late ? [[id, f.monthsBehind] as const] : [];
+}));
+
+async function disclosurePage() {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1400 } });
+  await page.clock.setFixedTime(NOW);
+  await page.route('**/api/**', (route: any) => route.fulfill({
+    status: 200, json: { unavailable: true }, headers: { 'Cache-Control': 'no-store' },
+  }));
+  await page.route(/\/api\/baltic-compare(?:-batch)?\?/, (route: any) => {
+    const url = new URL(route.request().url());
+    const years = Number(url.searchParams.get('years'));
+    const data = (id: string) => ({
+      indicator: id, years, title: registry[id].title, unit: registry[id].unit,
+      dataset: registry[id].dataset, source: 'Controlled disclosure fixture',
+      countries: Object.fromEntries(['LV', 'EE', 'LT'].map(cc => [
+        cc, { label: cc, series: points(id) },
+      ])),
+      reference: null, assumptions: [],
+    });
+    const ids = url.searchParams.get('indicators');
+    return route.fulfill({ json: ids === null
+      ? data(url.searchParams.get('indicator')!)
+      : { results: ids.split(',').map(id => ({
+        indicator: id, years, status: 200, data: data(id),
+        cache: { ageSeconds: 0, state: 'miss' },
+      })) },
+    });
+  });
+  return page;
+}
 
 beforeAll(async () => {
   browser = await launchForLiveCheck();
-
-  // `require`, not `await import()`: the latter trips TS7016 on an untyped JS
-  // module, and adding this file to the typecheck exclusion list would be a
-  // number quietly going up in a list built so that cannot happen.
-  const registry = require('../api/shared/indicators.js') as Record<string, unknown>;
-  const reg = (registry.INDICATORS ?? registry.indicators ?? registry) as Record<string, unknown>;
-  lateIds = await lateIndicators(Object.keys(reg));
 }, 300_000);
 
 afterAll(async () => {
@@ -88,16 +90,16 @@ afterAll(async () => {
 });
 
 describe('a series months behind says so on the deployed site', () => {
-  it('some series is late, so the checks below can discriminate', () => {
-    // The vacuity guard. With nothing late, a page showing no notice is correct
-    // and this file would pass while proving nothing — which is the reading a
-    // broken probe also produces.
+  it('the controlled series exercise both late and stale disclosure', () => {
+    // Validate the fixtures against the same judgement the renderer uses.
     expect(
       lateIds.size,
-      'no indicator is late in production, so this suite cannot tell a working ' +
+      'no controlled indicator is late, so this suite cannot tell a working ' +
         'notice from a missing one. That is a good day for the data and a bad ' +
         'one for this check: read it as unverified rather than as a pass.',
     ).toBeGreaterThan(0);
+    expect(freshnessOf(points('weekly_deaths').at(-1)!.period, undefined, NOW.getTime())?.stale).toBe(true);
+    expect(freshnessOf(points('unemployment').at(-1)!.period, undefined, NOW.getTime())?.stale).toBe(false);
   });
 
   it('at least one dashboard section renders the notice', async () => {
@@ -108,7 +110,7 @@ describe('a series months behind says so on the deployed site', () => {
     let charted = 0;
 
     for (const section of DASHBOARD_SECTIONS) {
-      const page = await browser.newPage({ viewport: { width: 1440, height: 1400 } });
+      const page = await disclosurePage();
       await page.goto(`${BASE}/data/${section}`, {
         waitUntil: 'networkidle',
         timeout: 60_000,
@@ -133,7 +135,7 @@ describe('a series months behind says so on the deployed site', () => {
 
     expect(
       found,
-      `${lateIds.size} indicators are late in production — ` +
+      `${lateIds.size} controlled indicators are late — ` +
         `${[...lateIds.entries()]
           .sort((a, b) => b[1] - a[1])
           .slice(0, 4)
@@ -148,7 +150,7 @@ describe('a series months behind says so on the deployed site', () => {
     // A notice saying only "later than usual" is a mood. The period is what
     // lets a reader decide whether nine months matters for their question, and
     // it is the part a refactor is most likely to drop.
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1400 } });
+    const page = await disclosurePage();
     let sentence: string | null = null;
 
     for (const section of DASHBOARD_SECTIONS) {
@@ -173,4 +175,16 @@ describe('a series months behind says so on the deployed site', () => {
       `the notice named "${sentence}", which does not identify a period`,
     ).toMatch(/\d{4}|Q[1-4]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/);
   }, 300_000);
+
+  it('discloses the frozen weekly-deaths series rather than treating it as current', async () => {
+    if (!browser) return;
+    const page = await disclosurePage();
+    try {
+      await page.goto(`${BASE}/data/environment`, { waitUntil: 'networkidle', timeout: 60_000 });
+      await page.getByText(/has published nothing newer than/).first().waitFor();
+      expect(await page.textContent('body')).toContain('2026');
+    } finally {
+      await page.close();
+    }
+  });
 });

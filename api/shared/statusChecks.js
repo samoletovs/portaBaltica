@@ -108,6 +108,16 @@ const CHECKS = [
     maxLag: 3,
   },
   {
+    name: 'Eurostat weekly deaths',
+    get url() { return es.buildUrl(INDICATORS.weekly_deaths, 2, ['LV']); },
+    type: 'eurostat-cube',
+    cubeKey: 'geo',
+    required: true,
+    powers: 'Weekly deaths comparison',
+    cadence: 'W',
+    maxLag: es.maxAgeMonths(INDICATORS.weekly_deaths) * 365.25 / 12 / 7,
+  },
+  {
     name: 'Eurostat maritime',
     // The same call `/api/port-data` makes, from the same builder.
     //

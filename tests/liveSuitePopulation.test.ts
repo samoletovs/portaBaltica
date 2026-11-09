@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import deployment, { upstreamChecks } from '../vitest.deploy.config';
 
 /**
  * The live suite is a population, and nothing was checking its size.
@@ -43,7 +44,7 @@ import { resolve } from 'node:path';
  * WHAT IS NOT DUPLICATED HERE
  * ---------------------------
  * `tests/deployWorkflow.test.ts` already asserts that `deploy.yml` runs
- * `npm run test:live` and installs a browser first. This picks up the chain
+ * `npm run test:deploy` and installs a browser first. This picks up the chain
  * where that stops: the script, the config, the files, and the skips. Between
  * them every link from the workflow to an individual assertion is held by
  * something.
@@ -52,7 +53,7 @@ import { resolve } from 'node:path';
 const LIVE_DIR = resolve('tests');
 
 /**
- * Every live check the deploy is expected to run, and what each one proves.
+ * Every diagnostic live check, including the deployment subset, and what each proves.
  *
  * The description is the point. A filename tells the next reader nothing about
  * what is lost by deleting it, and this list exists precisely for the moment
@@ -208,12 +209,30 @@ describe('the live suite is the suite that was declared', () => {
 });
 
 describe('the chain from the workflow down to a live file', () => {
+  it('keeps only direct upstream-data suites out of deploy verification', () => {
+    expect(upstreamChecks).toEqual([
+      'tests/indicators.live.test.ts',
+      'tests/historicalData.live.test.ts',
+      'tests/portData.live.test.ts',
+      'tests/tradePartners.live.test.ts',
+    ]);
+    expect(deployment.test?.exclude).toEqual(upstreamChecks);
+    expect(deployment.test?.include).toEqual(['tests/**/*.live.test.{ts,tsx}']);
+    const blocking = liveFiles().filter(file => !upstreamChecks.includes(`tests/${file}`));
+    expect(blocking).toContain('functionSecurityHeaders.live.test.ts');
+    expect(blocking).toContain('consoleClean.live.test.ts');
+    expect(blocking).toContain('api-contracts.live.test.ts');
+    expect(blocking).toContain('freshnessDisclosure.live.test.ts');
+    const scripts = JSON.parse(readFileSync(resolve('package.json'), 'utf8')).scripts;
+    expect(scripts['test:deploy']).toBe('vitest run --config vitest.deploy.config.ts');
+  });
+
   // `deployWorkflow.test.ts` holds the top link: deploy.yml runs
-  // `npm run test:live`, after installing chromium. These are the links below
+  // `npm run test:deploy`, after installing chromium. These are the links below
   // it, each of which could be cut without that assertion noticing.
 
   it('points npm run test:live at the live config', () => {
-    // The gap this closes: `deploy.yml` invoking `npm run test:live` proves
+    // The gap this closes: invoking `npm run test:live` proves
     // nothing about what that script does. Redefine it as `echo ok` and the
     // workflow assertion still passes, the step still goes green, and no live
     // check runs at all.

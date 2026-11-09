@@ -183,7 +183,7 @@ jobs:
         id: smoke
         if: github.event_name == 'push'
         continue-on-error: true
-        run: npm run test:live
+        run: npm run test:deploy
 
       - name: Report smoke result
         if: always() && github.event_name == 'push' && steps.deploy.outcome == 'success'

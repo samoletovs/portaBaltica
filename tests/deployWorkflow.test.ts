@@ -193,7 +193,7 @@ describe('the live smoke step', () => {
    */
   it('installs a browser before running the live suite', () => {
     const install = workflow.indexOf('playwright install');
-    const smoke = workflow.indexOf('npm run test:live');
+    const smoke = workflow.indexOf('npm run test:deploy');
 
     expect(install, 'no step installs a browser, so the browser-based live checks cannot run').toBeGreaterThan(-1);
     expect(smoke, 'no step runs the live suite').toBeGreaterThan(-1);

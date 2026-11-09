@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
-// Live smoke tests, run against the DEPLOYED site after a release — never in
-// the PR gate.
+// Full live diagnostics — never in the PR gate. vitest.deploy.config.ts
+// selects the deployment checks while retaining upstream diagnostics here.
 //
 // These make real HTTP requests to portabaltica.naurolabs.com. That makes them
 // the only tests that can answer "is the thing we just shipped actually

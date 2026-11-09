@@ -392,6 +392,9 @@ async function cachedFetch<T>(key: string, endpoint: string, signal?: AbortSigna
     .then(async (res) => {
       if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
       const data = await res.json() as T;
+      if (data && typeof data === 'object' && 'unavailable' in data && data.unavailable === true) {
+        throw new Error(`${key} data unavailable`);
+      }
       writeCache(cacheKey, data);
       return data;
     })
