@@ -46,7 +46,11 @@ describe('finding useful published reporting', () => {
       published_at: '2025-01-01T00:00:00Z',
     })]);
     expect(screen.queryByText('Hiring in Estonia')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Search headlines and summaries'), { target: { value: '  ESTONIA costs ' } });
+    const search = screen.getByLabelText('Search reporting by keyword, topic or date');
+    fireEvent.change(search, { target: { value: '  ESTONIA costs ' } });
+    expect(screen.getByText('Hiring in Estonia')).toBeTruthy();
+    expect(screen.getByText('Showing 1 of 1 matching articles')).toBeTruthy();
+    fireEvent.change(search, { target: { value: '2025-01-01' } });
     expect(screen.getByText('Hiring in Estonia')).toBeTruthy();
     expect(screen.getByText('Showing 1 of 1 matching articles')).toBeTruthy();
   });
@@ -57,7 +61,7 @@ describe('finding useful published reporting', () => {
       tierASummary({ id: 'economy', slug: 'economy', section: 'economy', headline: 'Latvia inflation update' }),
     ]);
     fireEvent.click(screen.getByRole('button', { name: 'Economy' }));
-    fireEvent.change(screen.getByLabelText('Search headlines and summaries'), { target: { value: 'hiring' } });
+    fireEvent.change(screen.getByLabelText('Search reporting by keyword, topic or date'), { target: { value: 'hiring' } });
     expect(screen.getByRole('heading', { name: 'No matching articles' })).toBeTruthy();
     expect(screen.queryByText('Nothing to report yet today')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
@@ -67,17 +71,17 @@ describe('finding useful published reporting', () => {
 
   it('keeps third-party reporting separate and provides a visible route to the pilot', async () => {
     await renderFeed([tierASummary(), tierCSummary()]);
-    fireEvent.change(screen.getByLabelText('Search headlines and summaries'), { target: { value: 'no-such-report' } });
+    fireEvent.change(screen.getByLabelText('Search reporting by keyword, topic or date'), { target: { value: 'no-such-report' } });
     expect(screen.getByRole('heading', { name: 'Elsewhere in the Baltics' })).toBeTruthy();
     expect(screen.getByRole('link', { name: /Read the public business briefing/ }).getAttribute('href')).toBe('/briefings');
   });
 
   it('keeps the compact search named and its reporting scope accessible', async () => {
     await renderFeed([tierASummary()]);
-    const search = screen.getByRole('searchbox', { name: 'Search headlines and summaries' });
+    const search = screen.getByRole('searchbox', { name: 'Search reporting by keyword, topic or date' });
     expect(search.getAttribute('placeholder')).toBe('Search our reporting');
     expect(document.getElementById(search.getAttribute('aria-describedby')!)?.textContent)
-      .toContain('not article bodies or other outlets');
+      .toContain('publication dates');
     expect(document.getElementById(search.getAttribute('aria-controls')!)).not.toBeNull();
   });
 
