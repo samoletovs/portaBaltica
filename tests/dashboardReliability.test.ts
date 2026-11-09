@@ -426,6 +426,24 @@ describe('CKAN-backed handlers', () => {
     expect(requests).toHaveLength(1);
   });
 
+  // The deploy gate only sees `status < 500` for these routes, so a bug in our
+  // own handler must stay a 5xx rather than read as an upstream outage.
+  it.each([
+    ['eu-funds', () => vi.spyOn(require('../api/shared/ckan.js'), 'scanFields')],
+    ['trade-partners', () => vi.spyOn(require('../api/shared/tradeStats.js'), 'selectNewestByData')],
+  ])('answers a bug in the %s handler with a 5xx, not an unavailable envelope', async (name, spy) => {
+    respond = () => ({ success: true, result: { resources: [{ id: projectId, name: 'AF projektu saraksts' }] } });
+    spy().mockImplementation(() => { throw new TypeError("Cannot read properties of undefined (reading 'records')"); });
+
+    const result = await call<{ error: string }>(name);
+
+    expect(result.status).toBe(500);
+    expect(result.body).not.toHaveProperty('unavailable');
+    expect(result.body.error).toBe('Internal error');
+    expect(result.headers['Cache-Control']).toBe('no-store');
+    expect(result.headers['X-Content-Type-Options']).toBe('nosniff');
+  });
+
   it.each(['business-search', 'address-search'])('does not report a CKAN action failure as no data: %s', async name => {
     respond = () => ({ success: false, error: { message: 'Action failed' } });
     const result = await call(name, { q: 'Example' });

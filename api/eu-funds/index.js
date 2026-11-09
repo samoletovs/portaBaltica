@@ -1,6 +1,7 @@
 const ckan = require('../shared/ckan.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
+const { failureResponse } = require('../shared/handlerFailure.js');
 
 async function projectResource() {
   const pkg = await ckan.ckan('package_show', { id: 'eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti' });
@@ -65,11 +66,7 @@ const handler = async function (context, req) {
       }),
     };
   } catch (error) {
-    context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      body: JSON.stringify({ unavailable: true, error: error.message }),
-    };
+    context.res = failureResponse(context, error);
   }
 };
 
