@@ -122,6 +122,32 @@ function deferredResponse() {
   return { promise, resolve };
 }
 
+describe('dashboard API failure feedback', () => {
+  it('names failed sections rather than silently leaving empty panels', async () => {
+    fetchMock.mockResolvedValue(Response.json({}, { status: 503 }));
+    const view = await mountSurfaces();
+    const dashboard = view.getByTestId('economy');
+    for (const label of ['Economy data', 'Property data', 'Environment data', 'EU funds', 'Marine weather', 'Port statistics']) {
+      expect(dashboard.textContent).toContain(`${label} could not be loaded. Please try again later.`);
+    }
+    expect(dashboard.querySelectorAll('[role="alert"]').length).toBe(5);
+  });
+
+  it('keeps successful maritime data when only port statistics fail', async () => {
+    fetchMock.mockImplementation(async input => {
+      const url = String(input);
+      if (url.includes('port-data')) return Response.json({}, { status: 503 });
+      if (url.includes('sea-state')) return Response.json({ ports: [] });
+      return Response.json(url.includes('economy-data') ? schedule().economy : schedule().power);
+    });
+    const view = await mountSurfaces();
+    const dashboard = view.getByTestId('economy');
+    expect(dashboard.textContent).toContain('Port statistics could not be loaded');
+    expect(dashboard.textContent).not.toContain('Marine weather could not be loaded');
+    expect(dashboard.textContent).not.toContain('Economy data could not be loaded');
+  });
+});
+
 describe('browser caches containing current electricity prices', () => {
   it('still recovers from quota exhaustion without evicting another app data', async () => {
     localStorage.setItem('other-app', 'keep');
@@ -148,7 +174,7 @@ describe('browser caches containing current electricity prices', () => {
       throw new DOMException('Storage denied', 'SecurityError');
     });
     fetchMock.mockImplementation(async () => new Response('{invalid', { status: 200 }));
-    await expect(fetchEconomyData()).rejects.toMatchObject({ name: 'SyntaxError' });
+    await expect(fetchEconomyData()).rejects.toMatchObject({ cause: { name: 'SyntaxError' } });
   });
 
   it.each(['economy', 'power'])('expires %s at the delivery boundary, not a relative TTL', async kind => {

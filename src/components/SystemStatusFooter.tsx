@@ -57,10 +57,19 @@ function freshnessLabel(ageMs: number): string {
 export function SystemStatusFooter() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetchSystemStatus().then(setStatus).catch(() => {});
+    let cancelled = false;
+    fetchSystemStatus()
+      .then(data => { if (!cancelled) setStatus(data); })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
   }, []);
+
+  if (error) {
+    return <p role="alert" className="mt-6 text-caption dash-muted">System status could not be loaded. Please try again later.</p>;
+  }
 
   // `!status` guarded a rejected fetch but not a *resolved* one carrying the
   // wrong shape, and `status.dataSources.healthy` then threw. This footer sits
