@@ -29,7 +29,7 @@ describe('the dashboard as a page a reader can move through', () => {
       'property', 'environment', 'business', 'maritime',
     ];
     for (const id of sections) {
-      expect(app, `no anchor for ${id}`).toContain(`<Section id="${id}">`);
+      expect(app, `no anchor for ${id}`).toMatch(new RegExp(`<Section id="${id}"(?:\\s[^>]*)?>`));
     }
   });
 

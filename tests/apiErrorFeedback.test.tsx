@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
   fetchPropertyData, fetchEconomyData, fetchSystemStatus, searchAddress,
   searchBusinessOwners, fetchArticleFeedbackSummary,
@@ -58,18 +58,18 @@ describe('API failures reach the reader', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<BusinessTile euFunds={null} euLoading={false} />);
     fireEvent.change(screen.getByLabelText(inputLabel), { target: { value: 'Riga' } });
-    fireEvent.click(screen.getByRole('button', { name: buttonLabel }));
-    expect((await screen.findByRole('alert')).textContent).toContain('Please try again');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: buttonLabel })); });
+    expect(screen.getByRole('alert').textContent).toContain('Please try again');
     expect(screen.getByRole('alert').textContent).not.toContain('private');
-    fireEvent.click(screen.getByRole('button', { name: buttonLabel }));
-    await screen.findByText(/0 (?:total )?matches/);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: buttonLabel })); });
+    expect(screen.getByText(/0 (?:total )?matches/)).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('shows a status-read failure rather than silently removing the footer', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('private network detail')));
-    render(<SystemStatusFooter />);
-    expect((await screen.findByRole('alert')).textContent).toContain('System status could not be loaded');
+    await act(async () => { render(<SystemStatusFooter />); });
+    expect(screen.getByRole('alert').textContent).toContain('System status could not be loaded');
     expect(screen.getByRole('alert').textContent).toContain('Please try again');
   });
 });
