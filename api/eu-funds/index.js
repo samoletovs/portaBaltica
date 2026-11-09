@@ -1,6 +1,7 @@
 const ckan = require('../shared/ckan.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
+const { failureResponse } = require('../shared/handlerFailure.js');
 
 async function projectResource() {
   const pkg = await ckan.ckan('package_show', { id: 'eiropas-savienibas-atveselosanas-fonda-lidzfinansetie-projekti' });
@@ -22,31 +23,27 @@ async function projectResource() {
 const handler = async function (context, req) {
   try {
     var resource = await projectResource();
-    var results = await Promise.all([
-      ckan.ckan('datastore_search', {
-        resource_id: resource.id,
-        limit: 20,
-        sort: 'PedejasDatuAtjauninasanasDatums desc,ProjektaNumurs asc',
-        fields: 'ProjektaNumurs,ProjektaStatuss,PedejasDatuAtjauninasanasDatums',
-      }),
-      ckan.ckan('datastore_search_sql', {
-        sql: 'SELECT "ProjektaStatuss" AS status, COUNT(*) AS count FROM "' + resource.id + '" GROUP BY "ProjektaStatuss"',
-      }),
+    // The small project list needs no SQL service. Scan every page before
+    // counting statuses, so the summary and total describe the same population.
+    var records = await ckan.scanFields(resource.id, [
+      'ProjektaNumurs', 'ProjektaStatuss', 'PedejasDatuAtjauninasanasDatums',
     ]);
-    var records = results[0].records;
-    var total = results[0].total;
-    if (!Array.isArray(records) || !Number.isFinite(total) || !Array.isArray(results[1].records)) {
-      throw new Error('EU funds returned an incomplete project list');
-    }
-    var statusSummary = results[1].records
-      .map(function (r) {
-        var count = Number(r.count);
-        if (!Number.isFinite(count) || count < 0) throw new Error('EU funds returned an invalid status count');
-        return { status: r.status || 'Unknown', count: count };
-      })
+    var total = records.length;
+    var counts = new Map();
+    records.forEach(function (r) {
+      var status = r.ProjektaStatuss || 'Unknown';
+      counts.set(status, (counts.get(status) || 0) + 1);
+    });
+    var statusSummary = Array.from(counts, function (entry) {
+      return { status: entry[0], count: entry[1] };
+    })
       .sort(function (a, b) { return b.count - a.count; });
 
-    // The datastore sorts by project update, not by amendment version.
+    // Sort by project update, not by amendment version.
+    records.sort(function (a, b) {
+      return String(b.PedejasDatuAtjauninasanasDatums || '').localeCompare(String(a.PedejasDatuAtjauninasanasDatums || '')) ||
+        String(a.ProjektaNumurs || '').localeCompare(String(b.ProjektaNumurs || ''));
+    });
     var projects = records.slice(0, 20).map(function (rec) {
       return {
         number: rec['ProjektaNumurs'] || '',
@@ -69,11 +66,7 @@ const handler = async function (context, req) {
       }),
     };
   } catch (error) {
-    context.res = {
-      status: 502,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message }),
-    };
+    context.res = failureResponse(context, error);
   }
 };
 

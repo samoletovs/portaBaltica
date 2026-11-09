@@ -44,6 +44,7 @@ const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
 const ckan = require('../shared/ckan.js');
 const trade = require('../shared/tradeStats.js');
+const { failureResponse } = require('../shared/handlerFailure.js');
 
 /** Deadline for every upstream call. Measured: aggregates answer in 250-450ms. */
 const DEADLINE_MS = 20000;
@@ -223,11 +224,7 @@ const handler = async function (context, req) {
       }),
     };
   } catch (error) {
-    context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message }),
-    };
+    context.res = failureResponse(context, error);
   }
 };
 

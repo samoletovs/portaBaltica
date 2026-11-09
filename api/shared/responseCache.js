@@ -19,11 +19,11 @@
  *
  * WHAT IS AND IS NOT CACHED
  * -------------------------
- * Only `200`. A `400` is an answer about the request and costs nothing to
+ * Only `200` without `no-store`. A `400` is an answer about the request and costs nothing to
  * repeat; a `502` is an upstream failure and caching it would turn a blip into
  * a fixed outage for the length of the TTL.
  *
- * A non-200 is signalled by throwing, which hands the decision to `cache.memo`
+ * A non-cacheable response is signalled by throwing, which hands the decision to `cache.memo`
  * and gives this a property the endpoints did not have before: when upstream
  * fails and a good answer is still within its grace, the reader gets the last
  * good data instead of a 502. That is not hiding the failure. The body carries
@@ -134,7 +134,9 @@ function withCache(handler, options) {
         scratch.res = undefined;
         await handler(scratch, req);
         const res = scratch.res;
-        if (!res || res.status !== 200) throw new NotCacheable(res);
+        if (!res || res.status !== 200 || /\bno-store\b/i.test((res.headers || {})['Cache-Control'] || '')) {
+          throw new NotCacheable(res);
+        }
         return res;
       }, {
         staleWhileRevalidate: !!opts.staleWhileRevalidate,

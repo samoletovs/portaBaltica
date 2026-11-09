@@ -192,6 +192,25 @@ describe('the Eurostat probes ask the app for its query rather than restating it
     expect(check.url).toBe(eurostat.buildUrl(indicators.unemployment, 2, ['LV']));
   });
 
+  it('routes frozen weekly deaths to the source-alert health verdict', () => {
+    const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat weekly deaths');
+    expect(check).toMatchObject({ required: true, cadence: 'W', type: 'eurostat-cube' });
+    expect(check.url).toBe(eurostat.buildUrl(indicators.weekly_deaths, 2, ['LV']));
+    const freshness = require('../api/shared/freshness.js');
+    const health = require('../api/shared/cubeHealth.js');
+    const observation = health.newestObservation({
+      id: ['geo', 'time'], size: [1, 3],
+      dimension: {
+        geo: { category: { index: { LV: 0 } } },
+        time: { category: { index: { '2026-W27': 0, '2026-W28': 1, '2026-W29': 2 } } },
+      },
+      value: [300, 310, null],
+    }, check.cubeKey);
+    expect(observation).toEqual({ period: '2026-W28' });
+    expect(freshness.judge(check, observation, Date.parse('2026-11-09T00:00:00Z')).state).toBe('stale');
+    expect(freshness.judge(check, observation, Date.parse('2026-08-01T00:00:00Z')).state).toBe('fresh');
+  });
+
   it('probes the maritime tile with the maritime tile\u2019s own URL', () => {
     const check = registry.CHECKS.find((c: { name: string }) => c.name === 'Eurostat maritime');
     expect(check.url).toBe(ports.seriesUrls('LV').vessels);
@@ -216,6 +235,7 @@ describe('the Eurostat probes ask the app for its query rather than restating it
       .filter((c: { url?: string; name: string }) =>
         (c.url || '').startsWith(eurostat.EUROSTAT_BASE) &&
         c.url !== eurostat.buildUrl(indicators.unemployment, 2, ['LV']) &&
+        c.url !== eurostat.buildUrl(indicators.weekly_deaths, 2, ['LV']) &&
         c.url !== ports.seriesUrls('LV').vessels)
       .map((c: { name: string }) => c.name);
 

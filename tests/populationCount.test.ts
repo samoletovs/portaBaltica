@@ -79,15 +79,13 @@ function sites(): string[] {
  * edit above does not invalidate the list.
  */
 const COUNTING_ITS_OWN_POPULATION = [
+  // scanFields refuses partial scans; records contains the complete project list.
+  'eu-funds/index.js:total:records',
   // The whole fetched series, not a page of it: `summarise` is handed the
   // series and reports how many of its points are non-null.
   'historical-data/index.js:count:valid',
   // A static array declared three lines above.
   'shared/airQuality.js:BAND_COUNT:EAQI_BANDS',
-  // The correct pattern, and the one both defects should have called: the
-  // datastore's own `total` when it gives one, the rows in hand only when it
-  // does not.
-  'shared/ckan.js:total:rows',
   // The codes present in the cube dimension this parsed.
   'shared/eurostat.js:optionCount:codes',
   // The checks this run actually performed, in every case.

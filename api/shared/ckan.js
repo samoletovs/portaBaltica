@@ -123,8 +123,11 @@ async function scanFields(resourceId, fields, filters, options) {
       filters: filters ? JSON.stringify(filters) : undefined,
     }, options);
 
-    total = typeof result.total === 'number' ? result.total : rows.length;
-    const records = result.records || [];
+    if (!Number.isInteger(result.total) || result.total < 0 || !Array.isArray(result.records)) {
+      throw new Error('CKAN scan returned an incomplete page for ' + resourceId);
+    }
+    total = result.total;
+    const records = result.records;
     if (records.length === 0) break;
 
     for (let i = 0; i < records.length; i++) rows.push(records[i]);

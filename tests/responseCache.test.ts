@@ -49,6 +49,23 @@ const call = async (wrapped: WrappedHandler, query = {}, headers = {}) => {
 };
 
 describe('the response cache', () => {
+  it('does not store a no-store 200, and retries until data recovers', async () => {
+    let runs = 0;
+    const wrapped = withCache(async (context: { res?: unknown }) => {
+      runs++;
+      context.res = {
+        status: 200,
+        headers: { 'Cache-Control': runs < 3 ? 'no-store' : 'public, max-age=60' },
+        body: JSON.stringify(runs < 3 ? { unavailable: true } : { total: 466 }),
+      };
+    }, { name: 'unavailable', keyOn: [], ttlMs: 60_000 });
+    expect(JSON.parse((await call(wrapped)).body)).toEqual({ unavailable: true });
+    expect(JSON.parse((await call(wrapped)).body)).toEqual({ unavailable: true });
+    expect(JSON.parse((await call(wrapped)).body)).toEqual({ total: 466 });
+    expect(JSON.parse((await call(wrapped)).body)).toEqual({ total: 466 });
+    expect(runs).toBe(3);
+  });
+
   it('runs the handler once and serves the rest from memory', async () => {
     const { handler, state } = countingHandler(() => JSON.stringify({ v: 1 }));
     const wrapped = withCache(handler, { name: 't', keyOn: [], ttlMs: 60_000 });
@@ -128,7 +145,7 @@ describe('the response cache', () => {
     expect(JSON.parse(res.body).error).toBe('Unknown indicator');
   });
 
-  it('serves the last good answer when upstream fails inside the grace', async () => {
+  it.each([502, 200])('serves the last good answer when upstream fails with %i inside the grace', async (status) => {
     // Elering was measured returning five consecutive HTTP 503 in one burst and
     // then twelve clean calls. Handing the reader a 502 for that is worse than
     // handing them data whose own `fetchedAt` says how old it is.
@@ -136,7 +153,7 @@ describe('the response cache', () => {
     const flaky = async (context: { res?: unknown }) => {
       context.res = mode === 'ok'
         ? { status: 200, headers: {}, body: JSON.stringify({ price: 42 }) }
-        : { status: 502, headers: {}, body: JSON.stringify({ error: 'down' }) };
+        : { status, headers: { 'Cache-Control': 'no-store' }, body: JSON.stringify({ unavailable: true, error: 'down' }) };
     };
     const wrapped = withCache(flaky, { name: 'flaky', keyOn: [], ttlMs: 0, graceMs: 60_000 });
 
