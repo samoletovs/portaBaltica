@@ -76,8 +76,9 @@ MAX_COMPLETION_TOKENS = 2000
 # there but because it was stopped one draft short.
 #
 # Cost is not the constraint. ~2,600 prompt + ~490 completion tokens per article
-# on gpt-4o-mini is about $0.0007. A third attempt on every article of an
-# eight-article day is roughly $0.20 a month.
+# on Luna (USD 0.10/M input, 0.50/M output) is about $0.00051. A third attempt
+# on every article of an eight-article day is roughly $0.12 per 30-day month
+# at those illustrative token counts, not a measured monthly bill.
 #
 # This does not weaken anything: the validator gates every attempt identically,
 # and a draft that never passes is still never published.

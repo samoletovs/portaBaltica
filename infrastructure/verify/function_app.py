@@ -34,10 +34,12 @@ def _credential() -> DefaultAzureCredential:
 
 
 def _check_foundry() -> dict:
-    """Make a real gpt-4o-mini call over Entra ID and return what it said."""
+    """Make a real Luna call over Entra ID and return what it said."""
     endpoint = os.environ["AZURE_OPENAI_ENDPOINT"]
     deployment = os.environ["AZURE_OPENAI_DEPLOYMENT"]
     api_version = os.environ["AZURE_OPENAI_API_VERSION"]
+    if deployment != "gpt-6-luna":
+        raise ValueError("Identity check deployment must be gpt-6-luna")
 
     token_provider = get_bearer_token_provider(_credential(), COGNITIVE_SERVICES_SCOPE)
     client = AzureOpenAI(
@@ -61,8 +63,9 @@ def _check_foundry() -> dict:
                 ),
             },
         ],
-        max_tokens=80,
+        max_completion_tokens=80,
         temperature=0,
+        reasoning_effort="none",
     )
 
     return {

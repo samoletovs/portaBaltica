@@ -19,7 +19,7 @@ from typing import Any, Protocol, Sequence
 from newsroom.pipeline import config
 
 log = logging.getLogger(__name__)
-_SUPPORTED_MODELS = {"gpt-6-luna", "gpt-4.1", "gpt-4o-mini"}
+_SUPPORTED_MODELS = {"gpt-6-luna"}
 
 
 class LlmWriter(Protocol):
@@ -64,11 +64,6 @@ class AzureOpenAIWriter:
     def complete_json(self, *, system: str, user: str, max_tokens: int) -> dict[str, Any]:
         if type(max_tokens) is not int or not 1 <= max_tokens <= 8192:
             raise ValueError("Writer completion ceiling must be between 1 and 8192 tokens")
-        options = (
-            {"max_completion_tokens": max_tokens, "reasoning_effort": "none"}
-            if self.deployment == "gpt-6-luna"
-            else {"max_tokens": max_tokens, "temperature": 0.25}
-        )
         response = _client().chat.completions.create(
             model=self.deployment,
             messages=[
@@ -76,7 +71,9 @@ class AzureOpenAIWriter:
                 {"role": "user", "content": user},
             ],
             response_format={"type": "json_object"},
-            **options,
+            max_completion_tokens=max_tokens,
+            temperature=0.25,
+            reasoning_effort="none",
         )
         actual_model = str(response.model)
         if actual_model != self.deployment and not actual_model.startswith(self.deployment + "-"):
