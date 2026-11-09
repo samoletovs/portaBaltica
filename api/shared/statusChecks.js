@@ -286,11 +286,11 @@ const CHECKS = [
      * disagree — and when it does, it reports health while the app fails.
      *
      * So the resource is selected exactly as the handler selects it, and the
-     * statement comes from `tradeStats.newestPeriodSql`. There is no string
+     * query comes from `tradeStats.newestPeriodParams`. There is no string
      * here that could fall out of step, because there is no string here.
      *
      * Two steps, both cheap: `package_show` on a ten-resource package, then one
-     * `MAX()` aggregate, measured together at well under a second. The portal's
+     * sorted, projected row per candidate. The portal's
      * liveness is a separate, cheaper question and the `data.gov.lv CKAN` check
      * above already answers it — this one exists to answer whether the action
      * and the dataset the app depends on are still there.
@@ -300,7 +300,7 @@ const CHECKS = [
     // `tradeStats.selectNewestByData` — the same function the endpoint uses —
     // rather than restating a prefix that could drift from it.
     direction: 'exports',
-    type: 'ckan-trade-sql',
+    type: 'ckan-trade',
     // Required, and the reason is a measurement rather than a preference. The
     // two data.gov.lv checks above are already required because the portal is
     // reliably reachable from this egress address — unlike Open-Meteo, whose

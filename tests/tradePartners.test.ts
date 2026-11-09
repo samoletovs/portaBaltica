@@ -9,11 +9,10 @@
  *      `maksatnespejas-procesi` reports 15,660 rows, 23 fields and a newest
  *      proceeding of **2020-10-28** — six years frozen behind current-looking
  *      metadata, which is the maritime failure repeating. So the period is read
- *      from `MAX("Gads" * 100 + "Menesis")` over the rows, and these tests pin
+ *      from rows sorted by year AND month, and these tests pin
  *      that it is the rows and not the file.
  *
- *   2. THE CHAPTER. `Preces_KN_kods` is numeric, and the portal refuses
- *      `substring()` with HTTP 403, so the HS2 chapter comes from division.
+ *   2. THE CHAPTER. `Preces_KN_kods` is numeric, so the HS2 chapter comes from division.
  *      `round` and `floor` both produce a well-formed chapter number and only
  *      one is right: measured on 2026-06 exports, `round` pulls the 84.5-and-up
  *      codes into chapter 85 and reports 221.1m EUR where the truth is 191.3m.
@@ -36,18 +35,15 @@ const { selectNewestByData } = trade;
 /**
  * A runner that answers with a period per resource id.
  *
- * Passed in through `selectNewestByData`'s `runner` parameter — the same seam
- * `/api/system-status` uses to supply its own transport. Monkey-patching
- * `trade.runSql` would not work and should not: the function calls its
- * module-local binding, so an export swap cannot reach it. That is the correct
- * shape, and it means a test drives the injection rather than defeating it.
+ * Passed in through `selectNewestByData`'s `runner` parameter, using the CKAN
+ * action contract rather than interpreting SQL.
  */
 function periodRunner(periods: Record<string, number | null>) {
-  return async (statement: string) => {
-    const id = /FROM "([0-9a-fA-F-]{36})"/.exec(statement)?.[1] ?? '';
+  return async (_action: string, params: { resource_id: string }) => {
+    const id = params.resource_id;
     if (!(id in periods)) throw new Error(`unreadable resource ${id}`);
     const key = periods[id];
-    return key === null ? [] : [{ period_key: String(key) }];
+    return { records: key === null ? [] : [{ Gads: Math.floor(key / 100), Menesis: key % 100 }] };
   };
 }
 
@@ -71,13 +67,9 @@ const REAL_PACKAGE = pkg([
 
 describe('the period comes from the rows, not from the metadata', () => {
   it('asks for the newest year AND month together, never either alone', () => {
-    const sql = trade.newestPeriodSql(EXPORTS_2026);
-
-    // `MAX("Gads")` finds 2026 and `MAX("Menesis")` finds 12, and December 2026
-    // does not exist. Combining them is what makes the comparison mean what it
-    // says, so the combination is what is asserted — not the presence of MAX.
-    expect(sql).toContain('"Gads" * 100 + "Menesis"');
-    expect(sql).toMatch(/MAX\(\s*"Gads" \* 100 \+ "Menesis"\s*\)/);
+    expect(trade.newestPeriodParams(EXPORTS_2026)).toEqual({
+      resource_id: EXPORTS_2026, fields: 'Gads,Menesis', sort: 'Gads desc, Menesis desc', limit: 1,
+    });
   });
 
   it('reads a period key back into the month it names', () => {
@@ -110,20 +102,14 @@ describe('the period comes from the rows, not from the metadata', () => {
 
 describe('the HS chapter is floored, because rounding is well-formed and wrong', () => {
   it('divides and floors, and does not round', () => {
-    const expr = trade.chapterExpr();
-    expect(expr).toBe('floor("Preces_KN_kods" / 1000000)');
-    // Pinned by name. `round` on this expression is a legal SQL function that
-    // returns a legal chapter number, and reports 221.1m EUR for chapter 85
-    // where the truth is 191.3m — measured on live 2026-06 exports.
-    expect(expr).not.toContain('round');
+    expect(trade.chapterOf(84719000)).toBe(84);
+    expect(trade.chapterOf('85000000')).toBe(85);
   });
 
-  it('does not use substring, which this portal refuses with HTTP 403', () => {
-    // The obvious way to take the first two digits. Measured: forbidden.
-    // 403 is "forbidden" and 409 is "your SQL is wrong" — a distinction that
-    // matters, because reading one as the other is how `ckan.js` came to record
-    // the whole SQL action as disabled when it is not.
-    expect(trade.chaptersSql(EXPORTS_2026, 202606)).not.toContain('substring');
+  it('handles leading-zero chapters and absent codes without inventing one', () => {
+    expect(trade.chapterOf(3049000)).toBe(3);
+    expect(trade.chapterOf(null)).toBeNull();
+    expect(trade.chapterOf('')).toBeNull();
   });
 
   it('names a chapter a reader can hold, or admits it cannot', () => {
@@ -249,7 +235,14 @@ describe('resource selection asks the data, because no metadata field is right',
   });
 
   it('reports a direction with no readable month as absent, not as the other one', async () => {
-    expect(await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({}))).toBeNull();
+    expect(await selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({
+      [EXPORTS_2026]: null, [EXPORTS_2025]: null,
+    }))).toBeNull();
+  });
+
+  it('surfaces the last candidate error when every probe fails', async () => {
+    await expect(selectNewestByData(REAL_PACKAGE, 'exports', {}, periodRunner({})))
+      .rejects.toThrow(`unreadable resource ${EXPORTS_2025}`);
   });
 
   it('ignores a resource the datastore will not serve', async () => {
@@ -374,48 +367,23 @@ describe('ranking a month, including the rows that are not there', () => {
   });
 });
 
-describe('the statements are built, not concatenated from anything a caller sends', () => {
+describe('datastore queries address the intended resource and month', () => {
   it('refuses a resource id that is not a UUID', () => {
-    // These identifiers come from `package_show` rather than from a reader, so
-    // this is a programming error rather than an injection vector — but a stray
-    // quote would change the shape of the statement, so it is refused instead
-    // of escaped.
+    // Resource identifiers come from package_show, not from reader input.
     for (const bad of ['" OR 1=1 --', 'not-a-uuid', '', null]) {
-      expect(() => trade.newestPeriodSql(bad)).toThrow(/non-UUID/);
-      expect(() => trade.partnersSql(bad, 202606)).toThrow(/non-UUID/);
+      expect(() => trade.newestPeriodParams(bad)).toThrow(/non-UUID/);
     }
   });
 
   it('refuses a period that is not a period, rather than emitting NaN', () => {
-    // `Number('202606; DROP TABLE x')` is NaN, and NaN interpolates into the
-    // statement as the literal text `NaN`. The injection is gone either way —
-    // but what replaces it is a MALFORMED QUERY, which the portal answers with
-    // HTTP 409, and this codebase has already misread a 409 once as "the action
-    // is disabled". Refusing here fails at the mistake, with the value that
-    // caused it, instead of at an upstream that can only say the SQL was bad.
-    for (const bad of ['202606; DROP TABLE x', 'abc', null, undefined, 202606.5, 13]) {
-      expect(() => trade.partnersSql(EXPORTS_2026, bad)).toThrow(/non-period key/);
-      expect(() => trade.chaptersSql(EXPORTS_2026, bad)).toThrow(/non-period key/);
-      expect(() => trade.totalSql(EXPORTS_2026, bad)).toThrow(/non-period key/);
+    // Refuse malformed filters here rather than sending an unreadable query upstream.
+    for (const bad of ['202606; DROP TABLE x', 'abc', null, undefined, 202606.5, 13, 202613]) {
+      expect(() => trade.monthFilters(bad)).toThrow(/non-period key/);
     }
   });
 
-  it('emits a real period as a bare integer', () => {
-    const sql = trade.partnersSql(EXPORTS_2026, 202606);
-    expect(sql).toContain('= 202606');
-    expect(sql).not.toContain('NaN');
-  });
-
-  it('bounds every ranking', () => {
-    expect(trade.partnersSql(EXPORTS_2026, 202606)).toContain(`LIMIT ${trade.TOP_PARTNERS}`);
-    expect(trade.chaptersSql(EXPORTS_2026, 202606)).toContain(`LIMIT ${trade.TOP_CHAPTERS}`);
-  });
-
-  it('builds its URL through the CKAN client rather than assembling one', () => {
-    const url = trade.sqlUrl('SELECT 1');
-    expect(url).toContain('/datastore_search_sql?sql=');
-    // Encoded, so a statement containing & or = cannot truncate the query.
-    expect(url).toContain('SELECT%201');
+  it('filters both year and month with equality, not a range or a computed expression', () => {
+    expect(trade.monthFilters(202606)).toEqual({ Gads: 2026, Menesis: 6 });
   });
 });
 

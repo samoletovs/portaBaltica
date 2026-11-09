@@ -56,7 +56,6 @@ function httpText(url, options) {
       headers: Object.assign({ 'User-Agent': 'portaBaltica/1.0 (+https://portabaltica.naurolabs.com)' }, opts.headers || {}),
     }, function (res) {
       if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
         const err = new Error('HTTP ' + res.statusCode + ' from ' + url);
         err.status = res.statusCode;
         // A 5xx or a 429 is the server saying "not now", which is the textbook
@@ -67,6 +66,19 @@ function httpText(url, options) {
         // source dead. Every other 4xx is an answer about the request itself
         // and asking again only spends another second to hear it repeated.
         if (res.statusCode === 429 || res.statusCode >= 500) err.transient = true;
+        if (opts.includeErrorBody) {
+          readResponseText(res).then(function (text) {
+            let detail = text;
+            try {
+              const body = JSON.parse(text);
+              detail = body.error && (body.error.message || body.error.__type) || text;
+            } catch (_) { /* A non-JSON upstream refusal still carries a cause. */ }
+            err.message += ': ' + String(detail).slice(0, 500);
+            finish(err);
+          }, function () { finish(err); });
+          return;
+        }
+        res.resume();
         return finish(err);
       }
       readResponseText(res).then(function (text) { finish(null, text); }, finish);

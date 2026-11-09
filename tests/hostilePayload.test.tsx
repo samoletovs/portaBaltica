@@ -91,6 +91,22 @@ describe('a tile handed a payload of the wrong shape', () => {
     expect(container.textContent, 'and never as a fabricated zero').not.toMatch(/\b0\b\s*Construction/);
     vi.unstubAllGlobals();
   });
+
+  it('states each unavailable property breakdown and its reason while keeping the totals', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const { container } = mount(<PropertyTile loading={false} data={{
+      constructionPermits: [], totalPermits: 324119,
+      energyCerts: [], totalCerts: 48269, fetchedAt: '2026-11-09T12:00:00Z',
+      constructionPermitsUnavailable: { unavailable: true, error: 'Permit scan incomplete' },
+      energyCertsUnavailable: { unavailable: true, error: 'Energy scan refused' },
+    }} />);
+    expect(container.textContent).toContain('Permit breakdown unavailable: Permit scan incomplete');
+    expect(container.textContent).toContain('Energy breakdown unavailable: Energy scan refused');
+    expect(container.textContent).toContain((324119).toLocaleString());
+    expect(container.textContent).toContain((48269).toLocaleString());
+    expect(container.textContent).not.toContain('Awaiting energy data');
+    vi.unstubAllGlobals();
+  });
 });
 
 /**
