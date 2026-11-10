@@ -46,9 +46,11 @@ beforeEach(() => {
     queueMicrotask(() => {
       let code = 200;
       let body: unknown;
+      let raw: string | undefined;
       if (url.pathname.endsWith('datastore_search_sql')) {
+        // Byte-for-byte the live portal's refusal: a bare JSON string with \u escapes.
         code = 400;
-        body = { success: false, error: { message: 'Action name not known: datastore_search_sql' } };
+        raw = '"Neder\\u012bgs piepras\\u012bjums - Action name not known: datastore_search_sql"';
       } else if (url.pathname.endsWith('package_show')) {
         const id = url.searchParams.get('id');
         body = { success: true, result: id === trade.DATASET ? TRADE_PACKAGE : {
@@ -87,7 +89,7 @@ beforeEach(() => {
       }
       const res = Object.assign(new EventEmitter(), { statusCode: code, resume() {} });
       callback(res);
-      res.emit('data', JSON.stringify(body));
+      res.emit('data', raw ?? JSON.stringify(body));
       res.emit('end');
     });
     return req;
@@ -98,7 +100,7 @@ afterEach(() => { vi.restoreAllMocks(); cache.clear(); rateLimit.reset(); });
 describe('CKAN without the SQL action', () => {
   it('serves both endpoints from complete, projected datastore pages when SQL returns 400', async () => {
     await expect(ckan.ckan('datastore_search_sql', { sql: 'SELECT 1' }))
-      .rejects.toThrow('HTTP 400');
+      .rejects.toThrow(/HTTP 400 from \S+: Nederīgs pieprasījums - Action name not known: datastore_search_sql$/);
     asked = [];
     const result = await call('trade-partners');
     expect(result.status).toBe(200);
@@ -127,7 +129,7 @@ describe('CKAN without the SQL action', () => {
     expect(pages.every(u => u.searchParams.get('sort') === '_id asc')).toBe(true);
     const newest = asked.filter(u => u.searchParams.get('fields') === 'Gads,Menesis');
     expect(newest.length).toBeGreaterThan(0);
-    expect(newest.every(u => u.searchParams.get('sort') === 'Gads desc, Menesis desc' &&
+    expect(newest.every(u => u.searchParams.get('sort') === 'Gads desc nulls last, Menesis desc nulls last' &&
       u.searchParams.get('limit') === '1')).toBe(true);
     expect(pages.find(u => u.searchParams.get('resource_id') === EXPORTS)?.searchParams.get('filters'))
       .toBe('{"Gads":2026,"Menesis":9}');

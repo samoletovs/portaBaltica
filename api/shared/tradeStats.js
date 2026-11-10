@@ -112,7 +112,8 @@ function monthFilters(key) {
 /** The newest period actually present in the data, not in the metadata. */
 function newestPeriodParams(resourceId) {
   checkResourceId(resourceId);
-  return { resource_id: resourceId, fields: 'Gads,Menesis', sort: 'Gads desc, Menesis desc', limit: 1 };
+  // Postgres sorts NULLs first in a descending sort; one blank row must not hide the newest month.
+  return { resource_id: resourceId, fields: 'Gads,Menesis', sort: 'Gads desc nulls last, Menesis desc nulls last', limit: 1 };
 }
 
 async function newestPeriod(resourceId, options, runner) {

@@ -68,7 +68,7 @@ const REAL_PACKAGE = pkg([
 describe('the period comes from the rows, not from the metadata', () => {
   it('asks for the newest year AND month together, never either alone', () => {
     expect(trade.newestPeriodParams(EXPORTS_2026)).toEqual({
-      resource_id: EXPORTS_2026, fields: 'Gads,Menesis', sort: 'Gads desc, Menesis desc', limit: 1,
+      resource_id: EXPORTS_2026, fields: 'Gads,Menesis', sort: 'Gads desc nulls last, Menesis desc nulls last', limit: 1,
     });
   });
 

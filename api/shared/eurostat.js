@@ -71,7 +71,9 @@ function httpText(url, options) {
             let detail = text;
             try {
               const body = JSON.parse(text);
-              detail = body.error && (body.error.message || body.error.__type) || text;
+              // data.gov.lv answers a bad action with a bare JSON string, not {error:{message}}.
+              detail = typeof body === 'string' ? body
+                : body && body.error && (body.error.message || body.error.__type) || text;
             } catch (_) { /* A non-JSON upstream refusal still carries a cause. */ }
             err.message += ': ' + String(detail).slice(0, 500);
             finish(err);
