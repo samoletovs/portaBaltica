@@ -82,7 +82,10 @@ describe('tourism browser-cache definition migration', () => {
   it('reports a failed migration rather than falling back to a different statistic', async () => {
     cache(comparison('tourism', 'tour_occ_arm'));
     fetchMock.mockRejectedValue(new Error('Source unavailable'));
-    await expect(api.fetchBalticCompare('tourism')).rejects.toThrow('Source unavailable');
+    await expect(api.fetchBalticCompare('tourism')).rejects.toMatchObject({
+      message: 'Comparison data could not be loaded. Check your connection. Please try again.',
+      cause: { message: 'Source unavailable' },
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

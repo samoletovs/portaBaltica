@@ -21,11 +21,13 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
   const [addrQuery, setAddrQuery] = useState('');
   const [addrResult, setAddrResult] = useState<AddressSearchResult | null>(null);
   const [addrSearching, setAddrSearching] = useState(false);
+  const [addrError, setAddrError] = useState<string | null>(null);
 
   async function handleSearch() {
     if (query.length < 3) return;
     setSearching(true);
     setSearchError(null);
+    setSearchResult(null);
     try {
       const result = await searchBusinessOwners(query);
       setSearchResult(result);
@@ -39,10 +41,14 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
   async function handleAddrSearch() {
     if (addrQuery.length < 3) return;
     setAddrSearching(true);
+    setAddrError(null);
+    setAddrResult(null);
     try {
       const result = await searchAddress(addrQuery);
       setAddrResult(result);
-    } catch { /* ignore */ } finally {
+    } catch (error) {
+      setAddrError(error instanceof Error ? error.message : 'Address search could not be completed. Please try again.');
+    } finally {
       setAddrSearching(false);
     }
   }
@@ -95,7 +101,7 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
           </div>
 
           {searchError && (
-            <p className="text-caption dash-negative mb-2">{searchError}</p>
+            <p role="alert" className="text-caption dash-negative mb-2">{searchError}</p>
           )}
 
           {searchResult && (
@@ -242,6 +248,8 @@ export function BusinessTile({ euFunds, euLoading }: BusinessTileProps) {
               {addrSearching ? '...' : '📍'}
             </button>
           </div>
+
+          {addrError && <p role="alert" className="text-caption dash-negative mb-2">{addrError}</p>}
 
           {addrResult && (
             <div className="space-y-2 max-h-52 overflow-y-auto">

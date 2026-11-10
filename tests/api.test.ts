@@ -17,13 +17,13 @@ describe('API data fetchers', () => {
   it.each([
     ['eu-funds', fetchEUFunds],
     ['trade-partners', fetchTradePartners],
-  ] as const)('does not cache an unavailable %s envelope as data', async (key, load) => {
+  ] as const)('does not cache an unavailable %s envelope as data', async (_key, load) => {
     const data = { total: 466, country: 'LV' };
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ unavailable: true, error: 'Upstream HTTP 400' }))
       .mockResolvedValueOnce(jsonResponse(data));
     vi.stubGlobal('fetch', fetchMock);
-    await expect(load()).rejects.toThrow(`${key} data unavailable`);
+    await expect(load()).rejects.toThrow('Data is temporarily unavailable. Please try again later.');
     await expect(load()).resolves.toEqual(data);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -57,13 +57,13 @@ describe('API data fetchers', () => {
     it('rejects when the endpoint returns an HTTP error', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 503)));
 
-      await expect(fetchAllWeather()).rejects.toThrow('sea-state API failed: 503');
+      await expect(fetchAllWeather()).rejects.toThrow('Data could not be loaded. Please try again later.');
     });
 
     it('propagates a network failure', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
 
-      await expect(fetchAllWeather()).rejects.toThrow('offline');
+      await expect(fetchAllWeather()).rejects.toThrow('Check your connection. Please try again.');
     });
   });
 
@@ -98,14 +98,14 @@ describe('API data fetchers', () => {
       const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}, 502));
       vi.stubGlobal('fetch', fetchMock);
 
-      await expect(fetchPortData('a&b')).rejects.toThrow('port_data_A&B API failed: 502');
+      await expect(fetchPortData('a&b')).rejects.toThrow('Data could not be loaded. Please try again later.');
       expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/port-data?country=A%26B');
     });
 
     it('propagates a network failure', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
 
-      await expect(fetchPortData()).rejects.toThrow('offline');
+      await expect(fetchPortData()).rejects.toThrow('Check your connection. Please try again.');
     });
   });
 
@@ -178,7 +178,7 @@ describe('API data fetchers', () => {
     it('rejects when the endpoint returns an HTTP error', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
 
-      await expect(fetchTradePartners()).rejects.toThrow('trade-partners API failed: 500');
+      await expect(fetchTradePartners()).rejects.toThrow('Data could not be loaded. Please try again later.');
     });
   });
 });

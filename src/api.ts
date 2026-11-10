@@ -292,6 +292,32 @@ function readCache<T>(cacheKey: string, key: string): T | null {
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
+async function requestJson<T>(endpoint: string, label = 'Data', options?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await (options ? fetch(endpoint, options) : fetch(endpoint));
+  } catch (error) {
+    if ((error instanceof Error || error instanceof DOMException) && error.name === 'AbortError') throw error;
+    throw new Error(`${label} could not be loaded. Check your connection. Please try again.`, { cause: error });
+  }
+  if (!response.ok) {
+    throw new Error(response.status === 429
+      ? 'Too many requests. Please wait a moment and try again.'
+      : `${label} could not be loaded. Please try again later.`);
+  }
+  let data: T;
+  try {
+    data = await response.json() as T;
+  } catch (error) {
+    if ((error instanceof Error || error instanceof DOMException) && error.name === 'AbortError') throw error;
+    throw new Error(`${label} could not be read. Please try again later.`, { cause: error });
+  }
+  if (data && typeof data === 'object' && 'unavailable' in data && data.unavailable === true) {
+    throw new Error(`${label} is temporarily unavailable. Please try again later.`);
+  }
+  return data;
+}
+
 function isPricingKey(key: string): boolean {
   return key.startsWith('economy-') || key === 'power-prices';
 }
@@ -349,9 +375,7 @@ async function cachedPriceFetch<T>(key: string, endpoint: string, signal?: Abort
     };
     entry.promise = (async () => {
       try {
-        const response = await fetch(endpoint, { signal: entry.controller.signal, cache: 'no-cache' });
-        if (!response.ok) throw new Error(`${key} API failed: ${response.status}`);
-        const data: unknown = await response.json();
+        const data = await requestJson<T>(endpoint, 'Data', { signal: entry.controller.signal, cache: 'no-cache' });
         if (entry.controller.signal.aborted) throw new DOMException('Request cancelled', 'AbortError');
         // A response begun in the old interval must not become a new cache hit.
         if (priceInterval(startedAt) === priceInterval()) writeCache(cacheKey, data, startedAt);
@@ -388,13 +412,8 @@ async function cachedFetch<T>(key: string, endpoint: string, signal?: AbortSigna
   const existing = inFlightRequests.get(cacheKey);
   if (existing) return existing as Promise<T>;
 
-  const request = fetch(endpoint)
-    .then(async (res) => {
-      if (!res.ok) throw new Error(`${key} API failed: ${res.status}`);
-      const data = await res.json() as T;
-      if (data && typeof data === 'object' && 'unavailable' in data && data.unavailable === true) {
-        throw new Error(`${key} data unavailable`);
-      }
+  const request = requestJson<T>(endpoint)
+    .then((data) => {
       writeCache(cacheKey, data);
       return data;
     })
@@ -428,9 +447,7 @@ export async function fetchEnvironmentData(country = 'lv'): Promise<EnvironmentD
 // ─── Phase 2: Business Intelligence ───
 
 export async function searchBusinessOwners(query: string): Promise<BusinessSearchResult> {
-  const res = await fetch(`/api/business-search?q=${encodeURIComponent(query)}`);
-  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
-  return res.json();
+  return requestJson(`/api/business-search?q=${encodeURIComponent(query)}`, 'Business search results');
 }
 
 export async function fetchEUFunds(): Promise<EUFundsData> {
@@ -440,15 +457,11 @@ export async function fetchEUFunds(): Promise<EUFundsData> {
 // ─── Phase 3: Geospatial + System ───
 
 export async function searchAddress(query: string): Promise<AddressSearchResult> {
-  const res = await fetch(`/api/address-search?q=${encodeURIComponent(query)}`);
-  if (!res.ok) throw new Error(`Address search failed: ${res.status}`);
-  return res.json();
+  return requestJson(`/api/address-search?q=${encodeURIComponent(query)}`, 'Address search results');
 }
 
 export async function fetchSystemStatus(): Promise<SystemStatus> {
-  const res = await fetch('/api/system-status');
-  if (!res.ok) throw new Error(`Status failed: ${res.status}`);
-  return res.json();
+  return requestJson('/api/system-status', 'System status');
 }
 
 // Match the bounded server contract; the transport test checks the two limits.
@@ -503,12 +516,11 @@ async function deliverComparisonBatch(entries: ComparisonRequest[], years: numbe
   }, COMPARISON_TIMEOUT_MS);
   try {
     const ids = entries.map(entry => entry.indicator).join(',');
-    const response = await fetch(
+    const body = await requestJson<BalticCompareBatchResponse>(
       `/api/baltic-compare-batch?indicators=${encodeURIComponent(ids)}&years=${years}`,
+      'Comparison data',
       { signal: controller.signal, cache: 'no-store' },
     );
-    if (!response.ok) throw new Error(`Comparison batch API failed: ${response.status}`);
-    const body: BalticCompareBatchResponse = await response.json();
     if (!Array.isArray(body?.results)) throw new Error('Invalid comparison batch response');
     for (const entry of entries) {
       if (entry.readers.size === 0) continue;
@@ -519,7 +531,7 @@ async function deliverComparisonBatch(entries: ComparisonRequest[], years: numbe
       if (!item) {
         finishComparison(entry, undefined, new Error(`Missing comparison: ${entry.indicator}`));
       } else if (item.status !== 200) {
-        finishComparison(entry, undefined, new Error(`${entry.indicator} API failed: ${item.status}: ${item.error}`));
+        finishComparison(entry, undefined, new Error('Comparison data could not be loaded. Please try again later.'));
       } else if (item.data?.indicator !== entry.indicator || item.data.years !== years ||
         !item.data.countries || typeof item.data.source !== 'string' ||
         !comparisonDefinitionMatches(entry.indicator, item.data) ||
@@ -689,13 +701,11 @@ export async function fetchArticleFeedbackSummary(
   slug: string,
   signal?: AbortSignal,
 ): Promise<ArticleFeedbackSummary> {
-  const response = await fetch(`/api/article-feedback?slug=${encodeURIComponent(slug)}`, {
+  const value = await requestJson<unknown>(`/api/article-feedback?slug=${encodeURIComponent(slug)}`, 'Article feedback', {
     method: 'GET',
     signal,
     cache: 'no-store',
   });
-  if (!response.ok) throw new Error(`Article feedback summary failed: ${response.status}`);
-  const value: unknown = await response.json();
   if (!value || typeof value !== 'object' || !('available' in value)
     || !('count' in value) || !('average' in value)
     || Object.keys(value).length !== 3) throw new Error('Invalid article feedback summary.');

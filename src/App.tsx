@@ -52,10 +52,11 @@ const VALID_SECTIONS: ReadonlySet<string> = new Set(DASHBOARD_SECTIONS);
  * a malformed response did exactly that. A section that fails now says so in
  * its own place, and the other eight keep their data.
  */
-function Section({ id, children }: { id: string; children: ReactNode }) {
+function Section({ id, children, error }: { id: string; children: ReactNode; error?: string }) {
   return (
     <div id={id} className="dash-section">
       <div className="dashboard-sector-rule" data-scroll-rule="" aria-hidden="true" />
+      {error && <p role="alert" className="mb-3 text-ui dash-negative">{error}</p>}
       <ErrorBoundary
         fallback={() => (
           <div
@@ -207,6 +208,7 @@ export default function App() {
 function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all' }) {
   const { country } = useCountry();
   const [marketOpen, setMarketOpen] = useState(true);
+  const [errors, setErrors] = useState<Partial<Record<DashboardSection, string>>>({});
   // Maritime data (existing)
   const [portData, setPortData] = useState<PortWeatherData[]>([]);
   const [portStats, setPortStats] = useState<PortDataResponse | null>(null);
@@ -231,10 +233,15 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
     try {
       const data = await fetchEconomyData(country.toLowerCase(), signal);
       if (!signal.aborted) {
+        setErrors(previous => ({ ...previous, economy: undefined }));
         // This tile has no last-good badge; do not label a fallback price as fresh.
         setEconomyData(data?.priceSchedule?.stale ? { ...data, electricityCurrent: null } : data);
       }
-    } catch { /* Keep the current price absent; retain dated series and other indicators. */ }
+    } catch {
+      if (!signal.aborted) setErrors(previous => ({
+        ...previous, economy: 'Economy data could not be loaded. Please try again later.',
+      }));
+    }
     finally { if (!signal.aborted) setEconomyLoading(false); }
   }, [country, activeSection]);
   usePriceRefresh(refreshEconomy);
@@ -242,18 +249,30 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
   // Load all data in parallel
   useEffect(() => {
     let cancelled = false;
+    function reportError(section: DashboardSection, message?: string) {
+      if (!cancelled) setErrors(previous => ({ ...previous, [section]: message }));
+    }
 
     // Maritime (existing flow)
     async function loadMaritime() {
       setMaritimeLoading(true);
+      reportError('maritime');
       try {
+        const failures: string[] = [];
         const [weather, stats] = await Promise.all([
-          fetchAllWeather().catch(() => []),
-          fetchPortData(country).catch(() => null),
+          fetchAllWeather().catch(() => {
+            failures.push('Marine weather could not be loaded. Please try again later.');
+            return [];
+          }),
+          fetchPortData(country).catch(() => {
+            failures.push('Port statistics could not be loaded. Please try again later.');
+            return null;
+          }),
         ]);
         if (cancelled) return;
         setPortData(weather);
         setPortStats(stats);
+        reportError('maritime', failures.join(' ') || undefined);
       } catch { /* non-critical */ } finally {
         if (!cancelled) setMaritimeLoading(false);
       }
@@ -262,10 +281,14 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
     // Property
     async function loadProperty() {
       setPropertyLoading(true);
+      reportError('property');
       try {
         const data = await fetchPropertyData();
         if (!cancelled) setPropertyData(data);
-      } catch { /* non-critical */ } finally {
+      } catch {
+        if (!cancelled) setPropertyData(null);
+        reportError('property', 'Property data could not be loaded. Please try again later.');
+      } finally {
         if (!cancelled) setPropertyLoading(false);
       }
     }
@@ -273,10 +296,14 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
     // Environment
     async function loadEnvironment() {
       setEnvironmentLoading(true);
+      reportError('environment');
+      setEnvironmentData(null);
       try {
         const data = await fetchEnvironmentData(country.toLowerCase());
         if (!cancelled) setEnvironmentData(data);
-      } catch { /* non-critical */ } finally {
+      } catch {
+        reportError('environment', 'Environment data could not be loaded. Please try again later.');
+      } finally {
         if (!cancelled) setEnvironmentLoading(false);
       }
     }
@@ -284,10 +311,14 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
     // Phase 2: EU Funds
     async function loadEUFunds() {
       setEuLoading(true);
+      reportError('business');
       try {
         const data = await fetchEUFunds();
         if (!cancelled) setEuFunds(data);
-      } catch { /* non-critical */ } finally {
+      } catch {
+        if (!cancelled) setEuFunds(null);
+        reportError('business', 'EU funds could not be loaded. Please try again later.');
+      } finally {
         if (!cancelled) setEuLoading(false);
       }
     }
@@ -324,7 +355,7 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
             one continuous block rather than as distinct subjects. */}
         <div className="space-y-12">
           {show('economy') && (
-            <Section id="economy">
+            <Section id="economy" error={errors.economy}>
               <EconomyTile data={economyData} loading={economyLoading} />
             </Section>
           )}
@@ -354,25 +385,25 @@ function SectorTools({ activeSection }: { activeSection: DashboardSection | 'all
           )}
 
           {show('property') && (
-            <Section id="property">
+            <Section id="property" error={errors.property}>
               <PropertyTile data={propertyData} loading={propertyLoading} />
             </Section>
           )}
 
           {show('environment') && (
-            <Section id="environment">
+            <Section id="environment" error={errors.environment}>
               <EnvironmentTile data={environmentData} loading={environmentLoading} />
             </Section>
           )}
 
           {show('business') && (
-            <Section id="business">
+            <Section id="business" error={errors.business}>
               <BusinessTile euFunds={euFunds} euLoading={euLoading} />
             </Section>
           )}
 
           {show('maritime') && (
-            <Section id="maritime">
+            <Section id="maritime" error={errors.maritime}>
               <MaritimeTile
                 portData={portData}
                 stats={portStats}
