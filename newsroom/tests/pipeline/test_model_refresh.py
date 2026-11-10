@@ -1,5 +1,7 @@
 """The writer transport must not admit truncated JSON or buy a premium tier."""
 
+import re
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -17,29 +19,113 @@ def reply(
     )])
 
 
-@pytest.mark.parametrize(("model", "token_key", "extra_key", "extra_value"), [
-    ("gpt-6-luna", "max_completion_tokens", "reasoning_effort", "none"),
-    ("gpt-4.1", "max_tokens", "temperature", 0.25),
-    ("gpt-4o-mini", "max_tokens", "temperature", 0.25),
-])
 def test_writer_sends_the_exact_existing_ceiling_with_compatible_parameters(
-    monkeypatch: pytest.MonkeyPatch, model: str, token_key: str,
-    extra_key: str, extra_value: str | float,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = Mock()
-    client.chat.completions.create.return_value = reply(model=model)
+    client.chat.completions.create.return_value = reply()
     monkeypatch.setattr(llm, "_client", lambda: client)
-    writer = llm.AzureOpenAIWriter(model)
+    writer = llm.AzureOpenAIWriter("gpt-6-luna")
     assert writer.complete_json(system="JSON only", user="Synthetic", max_tokens=400) == {
         "headline": "Synthetic",
     }
-    options = client.chat.completions.create.call_args.kwargs
-    assert options["model"] == model
-    assert options[token_key] == 400
-    assert options[extra_key] == extra_value
-    assert ("max_tokens" in options) != ("max_completion_tokens" in options)
-    assert ("temperature" in options) != ("reasoning_effort" in options)
-    assert options["response_format"] == {"type": "json_object"}
+    client.chat.completions.create.assert_called_once_with(
+        model="gpt-6-luna",
+        messages=[
+            {"role": "system", "content": "JSON only"},
+            {"role": "user", "content": "Synthetic"},
+        ],
+        response_format={"type": "json_object"},
+        max_completion_tokens=400,
+        temperature=0.25,
+        reasoning_effort="none",
+    )
+    assert writer.model_name == "gpt-6-luna-2026-09-22"
+
+
+def test_retiring_writer_deployments_fail_before_contacting_azure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = Mock()
+    monkeypatch.setattr(llm, "_client", client)
+    for deployment in (
+        "gpt-4.1", "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1-nano",
+        "o3", "o3-mini", "o4-mini",
+    ):
+        with pytest.raises(ValueError) as error:
+            llm.AzureOpenAIWriter(deployment)
+        assert str(error.value) == "Writer deployment must be a supported, same-named actual model"
+    client.assert_not_called()
+
+
+def test_infrastructure_admits_only_the_live_luna_deployment() -> None:
+    template = (Path(__file__).resolve().parents[3] / "infrastructure" / "main.bicep").read_text(
+        encoding="utf-8",
+    )
+    code = re.sub(r"//[^\n]*", "", template)
+    match = re.search(
+        r"@allowed\(\[([^\]]*)\]\)\s*param openAiDeployment string = '([^']+)'",
+        code,
+    )
+    assert match is not None
+    assert re.findall(r"'([^']+)'", match[1]) == ["gpt-6-luna"]
+    assert match[2] == "gpt-6-luna"
+
+
+def test_identity_probe_sends_the_luna_request_with_its_existing_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from infrastructure.verify import function_app as probe
+
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://synthetic.invalid/")
+    monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "gpt-6-luna")
+    monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    monkeypatch.setattr(probe, "_credential", Mock())
+    monkeypatch.setattr(probe, "get_bearer_token_provider", Mock())
+    client = Mock()
+    response = reply(content="Estonia, Latvia and Lithuania.")
+    response.usage = SimpleNamespace(prompt_tokens=20, completion_tokens=8)
+    client.chat.completions.create.return_value = response
+    factory = Mock(return_value=client)
+    monkeypatch.setattr(probe, "AzureOpenAI", factory)
+
+    result = probe._check_foundry()
+
+    client.chat.completions.create.assert_called_once_with(
+        model="gpt-6-luna",
+        messages=[
+            {"role": "system", "content": "You are a deployment smoke test. Answer in one short sentence."},
+            {"role": "user", "content": (
+                "Name the three Baltic states and confirm you were reached "
+                "using a managed identity rather than an API key."
+            )},
+        ],
+        max_completion_tokens=80,
+        temperature=0,
+        reasoning_effort="none",
+    )
+    assert factory.call_args.kwargs["api_version"] == "2024-10-21"
+    assert factory.call_args.kwargs["azure_endpoint"] == "https://synthetic.invalid/"
+    assert result["status"] == "PASS"
+    assert result["deployment"] == "gpt-6-luna"
+    assert result["usage"] == {"prompt_tokens": 20, "completion_tokens": 8}
+
+
+def test_identity_probe_refuses_retiring_deployments_before_authentication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from infrastructure.verify import function_app as probe
+
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://synthetic.invalid/")
+    monkeypatch.setenv("AZURE_OPENAI_API_VERSION", "2024-10-21")
+    credential = Mock(side_effect=AssertionError("Must not authenticate"))
+    monkeypatch.setattr(probe, "_credential", credential)
+    for deployment in ("gpt-4.1", "gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1-nano", "o3", "o4-mini"):
+        monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", deployment)
+        with pytest.raises(ValueError) as error:
+            probe._check_foundry()
+        assert str(error.value) == "Identity check deployment must be gpt-6-luna"
+    credential.assert_not_called()
 
 
 @pytest.mark.parametrize("response", [

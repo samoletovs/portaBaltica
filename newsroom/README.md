@@ -102,7 +102,7 @@ convention.
    │                  carrying no quantity — a claim with a number in it is
    │                  deleted in code. See "The causal panel" below.
    │
-   ├─ 7. WRITE        gpt-4o-mini via managed identity → foundrylab-aiservices.
+   ├─ 7. WRITE        gpt-6-luna via managed identity → foundrylab-aiservices.
    │                  Receives the enriched signal, the context pack, the
    │                  analyst's brief, fenced research and a persona voice card.
    │                  It is never asked to recall or supply a figure.
@@ -347,10 +347,11 @@ routes to a demographer and a political economist rather than to a climate
 analyst. A section-shaped default is exactly what made the birth-rate article
 shallow.
 
-**Cost was never the constraint here, measured rather than assumed.** At the
-ranking ceiling of eight articles a day on gpt-4o-mini list price the whole
-stage is about **$0.27/month at two analysts and $0.41 at three** — so the
-€3–5/mo target is about Flex Consumption and storage, not about this.
+**Budget illustration, not measured spending.** Luna costs USD 0.10 per
+million input tokens and 0.50 per million output tokens. With the existing
+650-token cap per analyst, eight articles a day over 30 days cost at most
+**$0.156 in output at two analysts or $0.234 at three**, plus input tokens.
+This is not a forecast of the whole pipeline or its hosting costs.
 `NEWSROOM_PANEL_SIZE` is the dial and the default is three: the third lens
 breaks a tie on beats where the first two disagree, and it makes a corroboration
 mean more, because two of three agreeing is evidence in a way two of two, who

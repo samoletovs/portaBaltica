@@ -114,10 +114,10 @@ MAX_PER_ANALYST = 2
 
 #: How many of the panel are consulted per article. Each is one model call.
 #:
-#: Three, not two. Measured at the ranking ceiling of eight articles a day on
-#: gpt-4o-mini list price, the whole stage costs about $0.27/month at two and
-#: $0.41 at three — so the panel was never the cost driver the €3–5 target is
-#: about, and the third lens buys two things the second cannot. It is the
+#: Three, not two. At Luna's USD 0.10/M input and 0.50/M output rates, the
+#: 650-token cap costs at most $0.156 in output at two analysts or $0.234 at
+#: three over 30 eight-article days, plus input. This is a budget illustration,
+#: not measured spending. The third lens buys two things the second cannot. It is the
 #: tie-breaker on beats where the first two disagree, and it makes a
 #: corroboration mean more: two analysts of three agreeing is evidence in a way
 #: two of two, who had no third opinion to differ from, is not.

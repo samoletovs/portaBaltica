@@ -299,7 +299,7 @@ async function probe(check) {
     return freshness.extract.ckanResources(packages);
   }
 
-  if (check.type === 'ckan-trade-sql') {
+  if (check.type === 'ckan-trade') {
     // Two steps, both of them the ones `/api/trade-partners` takes, using the
     // endpoint's own builder rather than a URL restated in the registry.
     const pkgBody = await es.httpJson(
@@ -316,18 +316,6 @@ async function probe(check) {
       pkgBody.result,
       check.direction,
       httpOptions(check),
-      // The probe's own transport, so it keeps this registry's deadline and
-      // retry policy while sharing the endpoint's selection. Two selections
-      // would be two enumerations, and those drift — which is the whole reason
-      // this check calls a builder instead of restating a URL.
-      async function (statement, options) {
-        const body = await es.httpJson(trade.sqlUrl(statement), options);
-        if (!body || body.success !== true) {
-          throw new Error('CKAN datastore_search_sql unavailable: ' +
-            JSON.stringify((body && (body.error || body)) || 'no body').slice(0, 120));
-        }
-        return (body.result && body.result.records) || [];
-      },
     );
 
     // No candidate answered with a readable month. That is a fault — the

@@ -95,8 +95,10 @@ export interface EnergyCertDistribution {
 
 export interface PropertyData {
   constructionPermits: ConstructionPermit[];
+  constructionPermitsUnavailable?: { unavailable: true; error: string };
   totalPermits: number | null;
   energyCerts: EnergyCertDistribution[];
+  energyCertsUnavailable?: { unavailable: true; error: string };
   totalCerts: number | null;
   fetchedAt: string;
 }

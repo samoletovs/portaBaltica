@@ -62,8 +62,7 @@ function monthsBehind(period: string): number {
 }
 
 async function newestOf(resourceId: string) {
-  const rows = await trade.runSql(trade.newestPeriodSql(resourceId), OPTIONS);
-  const key = trade.num(rows[0] && rows[0].period_key);
+  const key = await trade.newestPeriod(resourceId, OPTIONS);
   return { key, period: key === null ? null : trade.periodLabel(key) };
 }
 
@@ -79,23 +78,11 @@ describe('the CN-8 trade dataset is alive', () => {
     }
   });
 
-  it('answers SQL aggregates, which ckan.js\'s docstring once denied', async () => {
-    // `api/shared/ckan.js` used to record "The portal's `datastore_search_sql`
-    // action is disabled (it answers HTTP 409)". Measured 2026-09-01, it is not —
-    // a 409 is what the portal returns for a *bad query*, and reading that as a
-    // disabled action is two states collapsed into one artefact. The docstring
-    // was corrected, along with a second copy of the same false claim in
-    // `api/shared/businessRegistry.js` that nobody had noticed.
-    //
-    // This endpoint depends on the aggregate, so the fact is pinned here rather
-    // than left to prose. If the portal ever genuinely disables it, this fails
-    // and names the reason.
+  it('answers the sorted datastore read used by the endpoint', async () => {
     const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, OPTIONS);
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
 
-    const rows = await trade.runSql(trade.newestPeriodSql(resource.id), OPTIONS);
-    expect(rows.length, 'the SQL action returned no rows').toBeGreaterThan(0);
-    expect(trade.num(rows[0].period_key)).not.toBeNull();
+    expect(await trade.newestPeriod(resource.id, OPTIONS), 'the datastore returned no month').not.toBeNull();
   });
 
   it('has a newest month inside living memory, read from the rows', async () => {
@@ -126,8 +113,7 @@ describe('the figures mean what the endpoint says they mean', () => {
     for (const direction of Object.keys(trade.DIRECTIONS) as ('exports' | 'imports')[]) {
       const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS[direction].namePrefix, 1)[0];
       const { key } = await newestOf(resource.id);
-      const rows = await trade.runSql(trade.totalSql(resource.id, key), OPTIONS);
-      const total = trade.num(rows[0] && rows[0].value_eur);
+      const { totalEur: total } = await trade.readMonth(resource.id, key, OPTIONS);
 
       expect(total, `${direction} total is absent`).not.toBeNull();
       const band = BANDS[direction];
@@ -142,11 +128,7 @@ describe('the figures mean what the endpoint says they mean', () => {
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
     const { key } = await newestOf(resource.id);
 
-    const [totalRows, partnerRows] = await Promise.all([
-      trade.runSql(trade.totalSql(resource.id, key), OPTIONS),
-      trade.runSql(trade.partnersSql(resource.id, key), OPTIONS),
-    ]);
-    const total = trade.num(totalRows[0].value_eur);
+    const { totalEur: total, partners: partnerRows } = await trade.readMonth(resource.id, key, OPTIONS);
     const values = partnerRows.map((r: { value_eur: unknown }) => trade.num(r.value_eur));
 
     expect(values.length).toBeGreaterThan(3);
@@ -163,7 +145,7 @@ describe('the figures mean what the endpoint says they mean', () => {
     const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, OPTIONS);
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
     const { key } = await newestOf(resource.id);
-    const rows = await trade.runSql(trade.partnersSql(resource.id, key), OPTIONS);
+    const { partners: rows } = await trade.readMonth(resource.id, key, OPTIONS);
 
     const unnamed = rows
       .map((r: { partner: string }) => r.partner)
@@ -180,7 +162,7 @@ describe('the figures mean what the endpoint says they mean', () => {
     const pkg = await ckan.ckan('package_show', { id: trade.DATASET }, OPTIONS);
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.imports.namePrefix, 1)[0];
     const { key } = await newestOf(resource.id);
-    const rows = await trade.runSql(trade.chaptersSql(resource.id, key), OPTIONS);
+    const { chapters: rows } = await trade.readMonth(resource.id, key, OPTIONS);
 
     const unnamed = rows
       .map((r: { chapter: unknown }) => trade.num(r.chapter))
@@ -204,17 +186,16 @@ describe('the figures mean what the endpoint says they mean', () => {
     const resource = ckan.pickLatestActive(pkg, trade.DIRECTIONS.exports.namePrefix, 1)[0];
     const { key } = await newestOf(resource.id);
 
-    const rows = await trade.runSql(
-      `SELECT DISTINCT "Preces_KN_kods" AS k FROM "${resource.id}"` +
-      ` WHERE ${trade.periodKeyExpr()} = ${key} LIMIT 2000`,
-      OPTIONS,
-    );
-    const codes = rows.map((r: { k: unknown }) => trade.num(r.k)).filter((n: number | null) => n !== null);
+    const result = await ckan.ckan('datastore_search', {
+      resource_id: resource.id, fields: 'Preces_KN_kods', filters: trade.monthFilters(key), limit: 2000,
+    }, OPTIONS);
+    const codes = result.records.map((r: { Preces_KN_kods: unknown }) => trade.num(r.Preces_KN_kods))
+      .filter((n: number | null) => n !== null);
     expect(codes.length, 'no CN codes came back — the comparison would prove nothing').toBeGreaterThan(100);
 
     const leadingTwo = (code: number) => Number(String(code).padStart(8, '0').slice(0, 2));
 
-    const wrong = codes.filter((code: number) => Math.floor(code / 1000000) !== leadingTwo(code));
+    const wrong = codes.filter((code: number) => trade.chapterOf(code) !== leadingTwo(code));
     expect(wrong.slice(0, 5), 'floor disagrees with the leading two digits').toEqual([]);
 
     // The control: `round` must actually get some of these wrong, or the choice
@@ -269,8 +250,7 @@ describe('the status probe reads what the endpoint reads', () => {
       .toBeGreaterThan(1);
 
     for (const candidate of candidates) {
-      const rows = await trade.runSql(trade.newestPeriodSql(candidate.id), OPTIONS);
-      const key = trade.num(rows[0] && rows[0].period_key);
+      const key = await trade.newestPeriod(candidate.id, OPTIONS);
       if (key === null) continue;
       expect(chosen.key, `${candidate.name} holds a newer month than the chosen resource`)
         .toBeGreaterThanOrEqual(key);

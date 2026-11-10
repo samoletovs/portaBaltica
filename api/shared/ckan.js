@@ -24,18 +24,8 @@
  * The portal's `filters` only does equality, so anything needing a range
  * comparison has to be counted here — see `scanColumn`.
  *
- * ⚠️ This docstring used to add "and `datastore_search_sql` is disabled (it
- * answers HTTP 409)". **That was false**, and it retired a working action for
- * months. 409 means *your SQL is wrong*; 403 is the *forbidden* one. Measured
- * against the live portal on 2026-09-01, with both controls on the same
- * resource:
- *
- *     SELECT COUNT(*) FROM "5c5e712f-…"   -> 200, 185,205 rows, 237-256ms
- *     SELECT nosuchcolumn FROM "5c5e712f-…" -> 409   <- same code, bad SQL
- *
- * `api/shared/tradeStats.js` holds the full measurement and depends on it; do
- * not restate it here, because two copies of a fact drift and these two already
- * had.
+ * The SQL action was removed in November 2026. Aggregations use projected,
+ * paged datastore reads and must refuse an incomplete scan.
  */
 
 const eurostat = require('./eurostat.js');
@@ -46,7 +36,7 @@ const CKAN_BASE = 'https://data.gov.lv/dati/api/3/action';
 const PAGE_SIZE = 32000;
 
 /** Guard against an unbounded loop if the portal ever reports a bogus total. */
-const MAX_PAGES = 10;
+const MAX_PAGES = 100;
 
 function buildUrl(action, params) {
   const query = Object.keys(params || {})
@@ -69,7 +59,11 @@ function buildUrl(action, params) {
 async function ckan(action, params, options) {
   const opts = options || {};
   const url = buildUrl(action, params);
-  const body = await eurostat.httpJson(url, { deadlineMs: opts.deadlineMs || 15000 });
+  const body = await eurostat.httpJson(url, {
+    deadlineMs: opts.deadlineMs || 15000,
+    retries: opts.retries,
+    includeErrorBody: true,
+  });
   if (!body || body.success !== true) {
     const detail = body && body.error && (body.error.message || body.error.__type);
     throw new Error('CKAN ' + action + ' failed' + (detail ? ': ' + detail : '') + ' (' + url + ')');
@@ -121,6 +115,7 @@ async function scanFields(resourceId, fields, filters, options) {
       offset: String(offset),
       fields: fields.join(','),
       filters: filters ? JSON.stringify(filters) : undefined,
+      sort: '_id asc',
     }, options);
 
     if (!Number.isInteger(result.total) || result.total < 0 || !Array.isArray(result.records)) {

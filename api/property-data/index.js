@@ -1,36 +1,12 @@
-const https = require('https');
-const { readResponseText } = require('../shared/responseText.js');
+const ckan = require('../shared/ckan.js');
 const { withSecurity } = require('../shared/securityHeaders.js');
 const { withCache } = require('../shared/responseCache.js');
-
-function jsonGet(url) {
-  return new Promise(function (resolve, reject) {
-    var req = https.get(url, { timeout: 15000 }, function (res) {
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        res.resume();
-        return reject(new Error('HTTP ' + res.statusCode + ' from ' + url));
-      }
-      readResponseText(res).then(function (data) {
-        try { resolve(JSON.parse(data)); }
-        catch (e) { reject(new Error('JSON parse failed')); }
-      }, reject);
-    });
-    req.on('timeout', function () { req.destroy(new Error('Timeout: ' + url)); });
-    req.on('error', reject);
-  });
-}
-
-const CKAN_API = 'https://data.gov.lv/dati/api/3/action';
+const { isCodeFault, failureResponse } = require('../shared/handlerFailure.js');
 
 async function getLatestActiveResource(datasetId) {
-  try {
-    const pkg = await jsonGet(CKAN_API + '/package_show?id=' + datasetId);
-    const resources = (pkg.result && pkg.result.resources) || [];
-    const active = resources.filter(function (r) { return r.datastore_active; });
-    return active.length > 0 ? active[active.length - 1] : null;
-  } catch (e) {
-    return null;
-  }
+  const resources = await ckan.latestActiveResources(datasetId);
+  if (!resources.length) throw new Error('No active resource for ' + datasetId);
+  return resources[0];
 }
 
 /**
@@ -46,10 +22,9 @@ async function getLatestActiveResource(datasetId) {
  */
 async function datastoreTotal(resourceId) {
   try {
-    const data = await jsonGet(CKAN_API + '/datastore_search?resource_id=' + resourceId + '&limit=1');
-    const total = data.result && data.result.total;
-    return typeof total === 'number' ? total : null;
+    return await ckan.countRows(resourceId);
   } catch (e) {
+    if (isCodeFault(e)) throw e;
     return null;
   }
 }
@@ -68,39 +43,47 @@ async function datastoreTotal(resourceId) {
  * 324,119 the leader is Rīga with 52,033 — four times the next authority — and
  * Rīga does not appear in the published list at all, while Ādaži is eighth.
  *
- * Returns null rather than a guess when the datastore will not aggregate, so
- * the caller can omit the ranking instead of falling back to the block-of-500
- * tally this exists to replace. CKAN answers HTTP 200 with `success: false` for
- * an action it does not have, so `success` is checked rather than the status
- * code — and its SQL endpoint refuses casts and `FILTER` with 403/500, so this
- * stays to a plain `GROUP BY`.
+ * Read only the grouping column, and refuse an incomplete scan rather than
+ * presenting a partial ranking. The SQL action is no longer available.
  */
 async function countByColumn(resourceId, column, limit) {
-  const sql = 'SELECT "' + column + '" AS k, COUNT(*) AS n FROM "' + resourceId
-    + '" GROUP BY k ORDER BY n DESC LIMIT ' + (limit || 20);
+  const rows = await ckan.scanFields(resourceId, [column]);
+  const counts = new Map();
+  for (const row of rows) {
+    if (!Object.prototype.hasOwnProperty.call(row, column)) {
+      throw new Error('CKAN returned no ' + column + ' field');
+    }
+    const key = row[column] === null || String(row[column]).trim() === ''
+      ? 'Unknown' : String(row[column]).trim();
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts, function (entry) { return { key: entry[0], count: entry[1] }; })
+    .sort(function (a, b) { return b.count - a.count; }).slice(0, limit || 20);
+}
+
+async function breakdown(datasetId, column, limit) {
+  let total = null;
   try {
-    const data = await jsonGet(CKAN_API + '/datastore_search_sql?sql=' + encodeURIComponent(sql));
-    if (!data || data.success !== true) return null;
-    const rows = (data.result && data.result.records) || [];
-    return rows.map(function (r) {
-      const key = r.k === null || r.k === undefined || String(r.k).trim() === ''
-        ? 'Unknown' : String(r.k).trim();
-      return { key: key, count: Number(r.n) };
-    });
-  } catch (e) {
-    return null;
+    const resource = await getLatestActiveResource(datasetId);
+    const results = await Promise.all([
+      countByColumn(resource.id, column, limit).then(
+        function (groups) { return { groups: groups }; },
+        function (error) { return { error: error }; },
+      ),
+      datastoreTotal(resource.id),
+    ]);
+    total = results[1];
+    if (results[0].error) throw results[0].error;
+    return { groups: results[0].groups, total: total };
+  } catch (error) {
+    if (isCodeFault(error)) throw error;
+    return { groups: [], total: total, unavailable: { unavailable: true, error: error.message } };
   }
 }
 
 async function fetchConstructionPermits() {
-  const resource = await getLatestActiveResource('bis_jlyakg7hgslonjnwyrwc6w');
-  if (!resource) return { permits: [], total: null };
-  const [grouped, total] = await Promise.all([
-    countByColumn(resource.id, 'Atbildigas_iestades_nosaukums', 20),
-    datastoreTotal(resource.id),
-  ]);
-  if (!grouped) return { permits: [], total: total };
-  var permits = grouped
+  const result = await breakdown('bis_jlyakg7hgslonjnwyrwc6w', 'Atbildigas_iestades_nosaukums', 20);
+  var permits = result.groups
     .map(function (g) {
       // Shorten the authority's name for a label, without merging two of them:
       // only the trailing office word goes.
@@ -108,27 +91,21 @@ async function fetchConstructionPermits() {
       return { municipality: name || 'Unknown', count: g.count };
     })
     .slice(0, 15);
-  return { permits: permits, total: total };
+  return { permits: permits, total: result.total, unavailable: result.unavailable };
 }
 
 async function fetchEnergyCerts() {
   // Building energy certificates, grouped by the energy carrier recorded
   // against each one — Latvia's building energy profile.
-  const resource = await getLatestActiveResource('bis_yjv2q8uzi-oidtg81mkifg');
-  if (!resource) return { certs: [], total: null };
-  const [grouped, total] = await Promise.all([
-    countByColumn(resource.id, 'Energonesejs', 12),
-    datastoreTotal(resource.id),
-  ]);
-  if (!grouped) return { certs: [], total: total };
+  const result = await breakdown('bis_yjv2q8uzi-oidtg81mkifg', 'Energonesejs', 12);
   // `Unknown` is kept rather than dropped: 21,037 of 48,269 certificates record
   // no carrier, so removing it would show a profile of the 57% that do and
   // imply it was the whole. It was invisible before only because the oldest 500
   // rows happen to carry a carrier.
-  var certs = grouped
+  var certs = result.groups
     .map(function (g) { return { rating: g.key, count: g.count }; })
     .slice(0, 8);
-  return { certs: certs, total: total };
+  return { certs: certs, total: result.total, unavailable: result.unavailable };
 }
 
 const handler = async function (context, req) {
@@ -144,14 +121,20 @@ const handler = async function (context, req) {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': available ? 'public, max-age=3600' : 'no-store' },
       body: JSON.stringify({
         constructionPermits: construction.permits,
+        constructionPermitsUnavailable: construction.unavailable,
         totalPermits: construction.total,
         energyCerts: energy.certs,
+        energyCertsUnavailable: energy.unavailable,
         totalCerts: energy.total,
         ...(available ? {} : { error: 'Property data sources unavailable' }),
         fetchedAt: new Date().toISOString(),
       }),
     };
   } catch (error) {
+    if (isCodeFault(error)) {
+      context.res = failureResponse(context, error);
+      return;
+    }
     context.res = {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
