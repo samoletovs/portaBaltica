@@ -18,30 +18,9 @@
  * collector's default moved underneath it. So the builder lives here, the
  * handler calls it, the probe calls it, and the two cannot disagree.
  *
- * WHY SQL, WHEN `ckan.js` ONCE SAID THE ACTION WAS DISABLED
- * ---------------------------------------------------------
- * `ckan.js`'s docstring used to state that `datastore_search_sql` "is disabled
- * (it answers HTTP 409)"; `a843ad7` retired that claim on the strength of what
- * follows, and this heading is kept because a reader arriving from the old
- * comment needs to find the measurement that overturned it. Measured against
- * the live portal on 2026-09-01, the action is not disabled:
- *
- *     SELECT "Gads","Menesis",COUNT(*),SUM(...) GROUP BY   -> 200 in 446ms
- *     four aggregates in parallel                          -> 356ms total
- *     SELECT * FROM "zz-no-such-resource"                  -> 409 UndefinedTable
- *     DROP TABLE x                                         -> 403
- *     substring(...)                                       -> 403
- *
- * **409 is "your SQL is wrong". 403 is "forbidden."** Reading the first as the
- * second is how the whole action came to be recorded as unavailable — two
- * states collapsed into one artefact, which is the failure this codebase keeps
- * paying for. The distinction is load-bearing rather than pedantic: without
- * aggregation a single month costs a 41,315-row scan over two paged requests,
- * per direction, and the portal will do it for us in a third of a second.
- *
- * The allow-list is real, though, and `substring` is on the wrong side of it —
- * which is why the chapter is derived by division below rather than by taking
- * the first two characters, the obvious way.
+ * The SQL action was removed in November 2026. Read the newest row by year
+ * AND month, then scan just that month's projected fields once for all three
+ * aggregates. A partial scan must never become a plausible-looking total.
  */
 
 'use strict';
@@ -79,22 +58,10 @@ function resourceNameFor(direction, year) {
 const TOP_PARTNERS = 12;
 const TOP_CHAPTERS = 10;
 
-/**
- * A period as the cube stores it: year and month in one comparable integer.
- *
- * `Gads` and `Menesis` are separate columns, so "the newest month" is not a
- * `MAX` over either one of them — `MAX("Gads")` finds 2026 and `MAX("Menesis")`
- * finds 12, and December 2026 does not exist. Combining them is what makes the
- * comparison mean what it says.
- */
-function periodKeyExpr() {
-  return '"Gads" * 100 + "Menesis"';
-}
-
 /** `202606` to `2026-06`. Returns null rather than guessing at anything else. */
 function periodLabel(key) {
   const n = Number(key);
-  if (!Number.isFinite(n) || n < 190001 || n > 999912) return null;
+  if (!Number.isInteger(n) || n < 190001 || n > 999912) return null;
   const year = Math.floor(n / 100);
   const month = n % 100;
   if (month < 1 || month > 12) return null;
@@ -113,8 +80,7 @@ function periodKey(label) {
 /**
  * The HS2 chapter of an eight-digit CN code, by division rather than by text.
  *
- * `substring()` is refused by the portal with HTTP 403, and `Preces_KN_kods` is
- * stored as a number, so `22042142` divided by a million is `22.042142` and the
+ * `Preces_KN_kods` is stored as a number, so `22042142` divided by a million is `22.042142` and the
  * chapter is the integer part. **`floor`, never `round`** — measured on
  * 2026-06 exports, `round` pulls the 84.5-and-above codes into chapter 85 and
  * reports 221.1m EUR where the truth is 191.3m. Both answers are well-formed
@@ -124,88 +90,70 @@ function periodKey(label) {
  * Chapters 1–9 are seven-digit numbers rather than eight, and the arithmetic
  * handles them without a special case: `3049000 / 1e6` floors to 3.
  */
-function chapterExpr() {
-  return 'floor("Preces_KN_kods" / 1000000)';
+function chapterOf(code) {
+  const n = num(code);
+  return n === null ? null : Math.floor(n / 1000000);
 }
 
-function quoteTable(resourceId) {
-  // Resource ids are CKAN UUIDs. Anything else is a programming error here
-  // rather than user input, but a stray quote would still change the shape of
-  // the statement, so it is refused rather than escaped.
+function checkResourceId(resourceId) {
   if (!/^[0-9a-fA-F-]{36}$/.test(String(resourceId || ''))) {
-    throw new Error('Refusing to build SQL for a non-UUID resource id: ' + resourceId);
+    throw new Error('Refusing a non-UUID resource id: ' + resourceId);
   }
-  return '"' + resourceId + '"';
 }
 
-/**
- * A period key, as an integer, or a refusal.
- *
- * `Number(...)` alone is not enough and the difference matters. Coercing
- * `'202606; DROP TABLE x'` gives `NaN`, which interpolates into the statement
- * as the literal text `NaN` — the injection is gone, and what replaces it is a
- * *malformed query* rather than an error. The portal answers that with HTTP
- * 409, which this codebase has already misread once as "the action is
- * disabled". A refusal here fails where the mistake was made, with the value
- * that caused it, instead of at an upstream that can only say the SQL was bad.
- */
-function periodOperand(key) {
+function monthFilters(key) {
   const n = Number(key);
-  if (!Number.isInteger(n) || n < 190001 || n > 999912) {
-    throw new Error('Refusing to build SQL for a non-period key: ' + key);
+  if (periodLabel(n) === null) {
+    throw new Error('Refusing a non-period key: ' + key);
   }
-  return String(n);
+  return { Gads: Math.floor(n / 100), Menesis: n % 100 };
 }
 
 /** The newest period actually present in the data, not in the metadata. */
-function newestPeriodSql(resourceId) {
-  return 'SELECT MAX(' + periodKeyExpr() + ') AS period_key FROM ' + quoteTable(resourceId);
+function newestPeriodParams(resourceId) {
+  checkResourceId(resourceId);
+  // Postgres sorts NULLs first in a descending sort; one blank row must not hide the newest month.
+  return { resource_id: resourceId, fields: 'Gads,Menesis', sort: 'Gads desc nulls last, Menesis desc nulls last', limit: 1 };
 }
 
-/**
- * Trade value by partner country, for one month.
- *
- * `Statistiska_vertiba_EUR` is the statistical value in whole euros.
- */
-function partnersSql(resourceId, key) {
-  return 'SELECT "Partnervalsts" AS partner,' +
-    ' SUM("Statistiska_vertiba_EUR") AS value_eur' +
-    ' FROM ' + quoteTable(resourceId) +
-    ' WHERE ' + periodKeyExpr() + ' = ' + periodOperand(key) +
-    ' GROUP BY 1 ORDER BY value_eur DESC LIMIT ' + TOP_PARTNERS;
+async function newestPeriod(resourceId, options, runner) {
+  const result = await (runner || ckan.ckan)('datastore_search', newestPeriodParams(resourceId), options);
+  if (!result || !Array.isArray(result.records)) throw new Error('CKAN returned no trade records');
+  const row = result.records[0];
+  if (!row || !Number.isInteger(num(row.Gads)) || !Number.isInteger(num(row.Menesis))) return null;
+  const key = Number(row.Gads) * 100 + Number(row.Menesis);
+  return periodLabel(key) === null ? null : key;
 }
 
-/** Trade value by HS2 commodity chapter, for one month. */
-function chaptersSql(resourceId, key) {
-  return 'SELECT ' + chapterExpr() + ' AS chapter,' +
-    ' SUM("Statistiska_vertiba_EUR") AS value_eur' +
-    ' FROM ' + quoteTable(resourceId) +
-    ' WHERE ' + periodKeyExpr() + ' = ' + periodOperand(key) +
-    ' GROUP BY 1 ORDER BY value_eur DESC LIMIT ' + TOP_CHAPTERS;
+function ranked(groups, field, limit) {
+  return Array.from(groups, function (entry) {
+    return { [field]: entry[0], value_eur: entry[1] };
+  }).sort(function (a, b) { return b.value_eur - a.value_eur; }).slice(0, limit);
 }
 
-/** Total trade value for one month, for the headline and the comparison. */
-function totalSql(resourceId, key) {
-  return 'SELECT SUM("Statistiska_vertiba_EUR") AS value_eur, COUNT(*) AS lines' +
-    ' FROM ' + quoteTable(resourceId) +
-    ' WHERE ' + periodKeyExpr() + ' = ' + periodOperand(key);
-}
-
-/** The URL for a statement, so a caller never assembles the query string itself. */
-function sqlUrl(statement) {
-  return ckan.buildUrl('datastore_search_sql', { sql: statement });
-}
-
-/**
- * Run one statement and return its records.
- *
- * `success` is checked rather than the status code, because this portal answers
- * HTTP 200 with `success: false` for an unknown action — `ckan.ckan` already
- * enforces that and this goes through it.
- */
-async function runSql(statement, options) {
-  const result = await ckan.ckan('datastore_search_sql', { sql: statement }, options);
-  return (result && result.records) || [];
+/** Statistical value in whole euros, grouped only after every page is read. */
+async function readMonth(resourceId, key, options) {
+  checkResourceId(resourceId);
+  const rows = await ckan.scanFields(resourceId,
+    ['Partnervalsts', 'Preces_KN_kods', 'Statistiska_vertiba_EUR'], monthFilters(key), options);
+  const partners = new Map();
+  const chapters = new Map();
+  let total = null;
+  for (const row of rows) {
+    const value = num(row.Statistiska_vertiba_EUR);
+    if (value === null) continue;
+    total = (total === null ? 0 : total) + value;
+    const partner = String(row.Partnervalsts || '').trim().toUpperCase();
+    partners.set(partner, (partners.get(partner) || 0) + value);
+    const chapter = chapterOf(row.Preces_KN_kods);
+    if (chapter !== null) chapters.set(chapter, (chapters.get(chapter) || 0) + value);
+  }
+  return {
+    totalEur: total,
+    lines: rows.length,
+    partners: ranked(partners, 'partner', TOP_PARTNERS),
+    chapters: ranked(chapters, 'chapter', TOP_CHAPTERS),
+  };
 }
 
 /**
@@ -253,33 +201,32 @@ const MAX_CANDIDATES = 3;
  *
  * So "which resource is current?" has no metadata answer that holds in both
  * directions, and choosing either field means being wrong about some package.
- * The data has no such problem: `MAX("Gads" * 100 + "Menesis")` over each
+ * The data has no such problem: sorting by year and then month in each
  * candidate orders them 202606 / 202512 / 202412, and the answer cannot
  * disagree with the period the caller then reports, because it IS that period.
  *
- * `runner` exists so the status probe can supply its own transport — with its
- * own deadline and retry policy — while sharing this one implementation. Two
- * selections would be two enumerations, and this file exists because those
- * drift.
+ * Both callers pass their own deadlines and retry policy to the shared client.
+ * `runner` is the action-level test seam.
  */
 async function selectNewestByData(pkg, direction, options, runner) {
   const spec = DIRECTIONS[direction];
   if (!spec) throw new Error('Unknown trade direction: ' + direction);
-  const run = runner || runSql;
 
   const candidates = ckan.pickLatestActive(pkg, spec.namePrefix, MAX_CANDIDATES);
   if (candidates.length === 0) return null;
 
   const probed = await Promise.all(candidates.map(async function (resource) {
     try {
-      const rows = await run(newestPeriodSql(resource.id), options);
-      return { resource: resource, key: num(rows[0] && rows[0].period_key) };
+      return { resource: resource, key: await newestPeriod(resource.id, options, runner) };
     } catch (err) {
       // One unreadable resource must not take the direction down with it — an
       // abandoned twin that no longer answers is the case this exists for.
-      return { resource: resource, key: null };
+      return { resource: resource, key: null, error: err };
     }
   }));
+  if (probed.every(function (p) { return p.error; })) {
+    throw probed[probed.length - 1].error;
+  }
 
   const usable = probed.filter(function (p) {
     return p.key !== null && periodLabel(p.key) !== null;
@@ -417,10 +364,9 @@ function chapterCode(chapter) {
 }
 
 /**
- * A number from a SQL aggregate, or null.
+ * A number from the datastore, or null.
  *
- * The portal returns `SUM(...)` as a **string** for numeric columns, and an
- * empty group as `null`. Both have to become a number or an honest absence
+ * Numeric fields can arrive as strings or null. Both have to become a number or an honest absence
  * here, because a `null` reaching arithmetic downstream becomes `NaN`, and
  * `NaN` compares false against everything — which is how a missing wave height
  * once rendered as "Very Rough" in this codebase.
@@ -440,16 +386,13 @@ module.exports = {
   COUNTRY_NAMES: COUNTRY_NAMES,
   CHAPTER_NAMES: CHAPTER_NAMES,
   resourceNameFor: resourceNameFor,
-  periodKeyExpr: periodKeyExpr,
   periodLabel: periodLabel,
   periodKey: periodKey,
-  chapterExpr: chapterExpr,
-  newestPeriodSql: newestPeriodSql,
-  partnersSql: partnersSql,
-  chaptersSql: chaptersSql,
-  totalSql: totalSql,
-  sqlUrl: sqlUrl,
-  runSql: runSql,
+  chapterOf: chapterOf,
+  monthFilters: monthFilters,
+  newestPeriodParams: newestPeriodParams,
+  newestPeriod: newestPeriod,
+  readMonth: readMonth,
   selectNewestByData: selectNewestByData,
   MAX_CANDIDATES: MAX_CANDIDATES,
   partnerName: partnerName,

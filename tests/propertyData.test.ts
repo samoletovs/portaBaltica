@@ -41,10 +41,13 @@ function stubHttps() {
     res.resume = () => {};
     setImmediate(() => {
       done(res);
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        const text = JSON.stringify(hit ? hit.reply.body : {});
+      {
+        const text = JSON.stringify(hit
+          ? typeof hit.reply.body === 'function' ? hit.reply.body(url) : hit.reply.body
+          : {});
         if (byteChunks) {
-          for (const byte of Buffer.from(text)) res.emit('data', Buffer.from([byte]));
+          const bytes = Buffer.from(text);
+          for (let i = 0; i < bytes.length; i += 127) res.emit('data', bytes.subarray(i, i + 127));
         } else {
           res.emit('data', text);
         }
@@ -72,11 +75,14 @@ function pkg(id: string) {
   return { success: true, result: { resources: [{ id, datastore_active: true }] } };
 }
 /** `datastore_search` reports the whole table's `total` however few rows it returns. */
-function search(total: number) {
-  return { success: true, result: { total, records: [{ _id: 1 }] } };
-}
-function groupRows(rows: Array<[string | null, number]>) {
-  return { success: true, result: { records: rows.map(([k, n]) => ({ k, n })) } };
+function searchRows(column: string, rows: Array<[string | null, number]>) {
+  const records = rows.flatMap(([value, n]) => Array.from({ length: n }, () => ({ [column]: value })));
+  return (url: string) => {
+    const params = new URL(url).searchParams;
+    const offset = Number(params.get('offset') || 0);
+    const limit = Number(params.get('limit'));
+    return { success: true, result: { total: records.length, records: records.slice(offset, offset + limit) } };
+  };
 }
 
 describe('/api/property-data reports the dataset, not the page', () => {
@@ -87,12 +93,14 @@ describe('/api/property-data reports the dataset, not the page', () => {
     routes = [
       { match: /package_show\?id=bis_jlyakg7hgslonjnwyrwc6w/, reply: { body: pkg('res-construction') } },
       { match: /package_show\?id=bis_yjv2q8uzi-oidtg81mkifg/, reply: { body: pkg('res-certs') } },
-      { match: /datastore_search\?resource_id=res-construction/, reply: { body: search(324119) } },
-      { match: /datastore_search\?resource_id=res-certs/, reply: { body: search(48269) } },
-      { match: /datastore_search_sql.*res-construction/, reply: {
-        body: groupRows([['RĪGAS VALSTSPILSĒTAS DEPARTAMENTS', 52033], ['', 18198], ['Ogres novada būvvalde', 12361]]) } },
-      { match: /datastore_search_sql.*res-certs/, reply: {
-        body: groupRows([[null, 21037], ['Centralizētā apkure', 20143]]) } },
+      { match: /datastore_search\?resource_id=res-construction/, reply: {
+        body: searchRows('Atbildigas_iestades_nosaukums', [
+          ['RĪGAS VALSTSPILSĒTAS DEPARTAMENTS', 52033], ['', 18198], ['Ogres novada būvvalde', 12361],
+          ...Array.from({ length: 24 }, (_, i): [string, number] => [`Authority ${i}`, 10000]),
+          ['Last authority', 1527],
+        ]) } },
+      { match: /datastore_search\?resource_id=res-certs/, reply: {
+        body: searchRows('Energonesejs', [[null, 21037], ['Centralizētā apkure', 20143], ['Other', 7089]]) } },
     ];
   });
   afterEach(() => { https.get = originalGet; });
@@ -135,34 +143,45 @@ describe('/api/property-data reports the dataset, not the page', () => {
     expect(body.energyCerts[1]).toEqual({ rating: 'Centralizētā apkure', count: 20143 });
   });
 
-  it('omits the ranking when the datastore will not aggregate, rather than tallying a page', async () => {
-    // The fallback must not be the behaviour this replaced. An empty list is an
-    // honest empty state in the tile; a block-of-500 tally is a wrong ranking.
-    routes = routes.filter((r) => !/search_sql/.test(String(r.match)));
+  it('marks failed breakdowns unavailable while retaining independently readable totals', async () => {
+    routes.unshift({ match: /datastore_search.*fields=/, reply: {
+      status: 400, body: { success: false, error: { message: 'Breakdown refused' } },
+    } });
     const { body } = await callApi();
     expect(body.constructionPermits).toEqual([]);
     expect(body.energyCerts).toEqual([]);
     // The totals come from a different call and survive.
     expect(body.totalPermits).toBe(324119);
     expect(body.totalCerts).toBe(48269);
+    expect(body.constructionPermitsUnavailable).toMatchObject({
+      unavailable: true, error: expect.stringContaining('Breakdown refused'),
+    });
+    expect(body.energyCertsUnavailable).toMatchObject({
+      unavailable: true, error: expect.stringContaining('Breakdown refused'),
+    });
   });
 
   it('treats CKAN\u2019s HTTP 200 with success:false as a failure', async () => {
     // The portal answers 200 for an action it does not have, so a status check
     // alone would read the refusal as an aggregation result.
-    routes = routes.map((r) => (/search_sql/.test(String(r.match))
-      ? { match: r.match, reply: { status: 200, body: { success: false, error: { message: 'no such action' } } } }
-      : r));
+    routes.unshift({ match: /datastore_search.*fields=/, reply: {
+      status: 200, body: { success: false, error: { message: 'no such action' } },
+    } });
     const { body } = await callApi();
     expect(body.constructionPermits).toEqual([]);
     expect(body.totalPermits).toBe(324119);
+    expect(body.constructionPermitsUnavailable.error).toContain('no such action');
   });
 
-  it('asks the datastore to aggregate rather than downloading rows to count', async () => {
+  it('projects only grouping fields and reads past ten pages rather than sampling', async () => {
     await callApi();
     const sqlCalls = asked.filter((u) => u.includes('datastore_search_sql'));
-    expect(sqlCalls.length).toBe(2);
-    expect(sqlCalls.every((u) => /GROUP\+BY|GROUP%20BY/.test(u))).toBe(true);
+    expect(sqlCalls.length).toBe(0);
+    const scans = asked.map(u => new URL(u)).filter(u => u.searchParams.has('fields'));
+    const construction = scans.filter(u => u.searchParams.get('resource_id') === 'res-construction');
+    expect(construction.length).toBe(11);
+    expect(construction.at(-1)?.searchParams.get('offset')).toBe('320000');
+    expect(construction.every(u => u.searchParams.get('fields') === 'Atbildigas_iestades_nosaukums')).toBe(true);
     // No 500-row page is fetched any more.
     expect(asked.some((u) => /datastore_search\?[^&]*&limit=500/.test(u))).toBe(false);
   });

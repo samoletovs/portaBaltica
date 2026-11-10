@@ -309,6 +309,9 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
             <p className="text-caption dash-muted">Construction Permits</p>
             <p className="text-lead font-semibold dash-fg font-mono">{totalPermits === null ? '—' : totalPermits.toLocaleString()}</p>
           </div>
+          {data.constructionPermitsUnavailable?.unavailable && (
+            <p className="text-ui dash-subtle">Permit breakdown is temporarily unavailable.</p>
+          )}
           <div className="space-y-2">
             {permits.slice(0, 8).map((p) => (
               <div key={p.municipality}>
@@ -336,7 +339,9 @@ export function PropertyTile({ data, loading }: PropertyTileProps) {
             <p className="text-caption dash-muted">Building Energy Profile</p>
             <p className="text-lead font-semibold dash-fg font-mono">{totalCerts === null ? '—' : totalCerts.toLocaleString()}</p>
           </div>
-          {certs.length > 0 ? (
+          {data.energyCertsUnavailable?.unavailable ? (
+            <p className="text-ui dash-subtle">Energy breakdown is temporarily unavailable.</p>
+          ) : certs.length > 0 ? (
             <div className="space-y-2">
               {certs.map((cert) => (
                 <div key={cert.rating}>

@@ -329,7 +329,7 @@ describe('CKAN-backed handlers', () => {
         { id: projectId, name: 'ATS_eksports_KN8_2026', datastore_active: true },
         { id: amendmentId, name: 'ATS_imports_KN8_2026', datastore_active: true },
       ] } };
-      throw new Error('HTTP 400: SQL unavailable');
+      throw new Error('HTTP 400: datastore unavailable');
     };
     const result = await call<{ unavailable: boolean; error: string }>('trade-partners');
     expect(result.status).toBe(200);
@@ -339,7 +339,7 @@ describe('CKAN-backed handlers', () => {
     expect(result.headers['X-Content-Type-Options']).toBe('nosniff');
     await call('trade-partners');
     expect(requests.filter(url => url.includes('/package_show'))).toHaveLength(2);
-    await expect(status.probe(check)).rejects.toThrow(/readable month/);
+    await expect(status.probe(check)).rejects.toThrow(/HTTP 400: datastore unavailable/);
   });
 
   it('refuses to publish a partial project scan as a complete total', async () => {
@@ -507,15 +507,16 @@ it('does not subtract imports from another month to invent a trade balance', asy
   const ckan = require('../api/shared/ckan.js');
   const trade: {
     selectNewestByData: (pkg: unknown, direction: string) => Promise<unknown>;
-    runSql: (sql: string) => Promise<unknown>;
+    readMonth: (resourceId: string) => Promise<unknown>;
   } = require('../api/shared/tradeStats.js');
   vi.spyOn(ckan, 'ckan').mockResolvedValue({ resources: [] });
   vi.spyOn(trade, 'selectNewestByData').mockImplementation(async (_pkg: unknown, direction: string) => ({
     resource: { id: direction === 'exports' ? '10000000-0000-0000-0000-000000000000' : '20000000-0000-0000-0000-000000000000', name: direction },
     key: direction === 'exports' ? 202607 : 202606,
   }));
-  vi.spyOn(trade, 'runSql').mockImplementation(async (sql: string) => sql.includes('COUNT(*)')
-    ? [{ value_eur: sql.includes('10000000-') ? 100 : 80, lines: 10 }] : []);
+  vi.spyOn(trade, 'readMonth').mockImplementation(async (id: string) => ({
+    totalEur: id.startsWith('10000000-') ? 100 : 80, lines: 10, partners: [], chapters: [],
+  }));
   const result = await call<{ balanceEur: number | null; periodsDiffer: boolean }>('trade-partners');
   expect(result.body.periodsDiffer).toBe(true);
   expect(result.body.balanceEur).toBeNull();

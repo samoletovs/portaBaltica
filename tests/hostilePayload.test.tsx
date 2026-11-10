@@ -91,6 +91,27 @@ describe('a tile handed a payload of the wrong shape', () => {
     expect(container.textContent, 'and never as a fabricated zero').not.toMatch(/\b0\b\s*Construction/);
     vi.unstubAllGlobals();
   });
+
+  it('states each unavailable property breakdown without echoing the upstream reason, keeping the totals', () => {
+    // The reason stays in the API payload for operators; readers get a fixed sentence,
+    // never a portal URL or an escaped upstream error body.
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const { container } = mount(<PropertyTile loading={false} data={{
+      constructionPermits: [], totalPermits: 324119,
+      energyCerts: [], totalCerts: 48269, fetchedAt: '2026-11-09T12:00:00Z',
+      constructionPermitsUnavailable: { unavailable: true, error: 'HTTP 400 from https://data.gov.lv/dati/api/3/action/datastore_search' },
+      energyCertsUnavailable: { unavailable: true, error: 'Energy scan refused' },
+    }} />);
+    expect(container.textContent).toContain('Permit breakdown is temporarily unavailable.');
+    expect(container.textContent).toContain('Energy breakdown is temporarily unavailable.');
+    expect(container.textContent).not.toContain('HTTP 400');
+    expect(container.textContent).not.toContain('/api/3/action/');
+    expect(container.textContent).not.toContain('Energy scan refused');
+    expect(container.textContent).toContain((324119).toLocaleString());
+    expect(container.textContent).toContain((48269).toLocaleString());
+    expect(container.textContent).not.toContain('Awaiting energy data');
+    vi.unstubAllGlobals();
+  });
 });
 
 /**

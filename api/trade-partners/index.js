@@ -12,7 +12,7 @@
  *
  * WHERE THE PERIOD COMES FROM, AND WHY THAT IS THE WHOLE DESIGN
  * -------------------------------------------------------------
- * From `MAX("Gads" * 100 + "Menesis")` over the data — never from the
+ * From the newest row sorted by year and month — never from the
  * resource's `created`, never from the package's `metadata_modified`, never
  * from `datastore_active`.
  *
@@ -46,7 +46,7 @@ const ckan = require('../shared/ckan.js');
 const trade = require('../shared/tradeStats.js');
 const { failureResponse } = require('../shared/handlerFailure.js');
 
-/** Deadline for every upstream call. Measured: aggregates answer in 250-450ms. */
+/** Deadline for every upstream call, including each page of a month scan. */
 const DEADLINE_MS = 20000;
 
 /** The same-name resource for the previous year, or null if it was never published. */
@@ -109,17 +109,9 @@ async function readDirection(pkg, direction, selection) {
     throw new Error('No period in ' + resource.name + ': the resource carries no readable month');
   }
 
-  const results = await Promise.all([
-    trade.runSql(trade.totalSql(resource.id, key), options),
-    trade.runSql(trade.partnersSql(resource.id, key), options),
-    trade.runSql(trade.chaptersSql(resource.id, key), options),
-  ]);
-  const totalRows = results[0];
-  const partnerRows = results[1];
-  const chapterRows = results[2];
-
-  const totalEur = trade.num(totalRows[0] && totalRows[0].value_eur);
-  const lines = trade.num(totalRows[0] && totalRows[0].lines);
+  const month = await trade.readMonth(resource.id, key, options);
+  const totalEur = month.totalEur;
+  const lines = month.lines;
 
   // Same month, previous year, from the previous year's own resource. Omitted
   // rather than approximated when that resource does not exist.
@@ -128,8 +120,8 @@ async function readDirection(pkg, direction, selection) {
   const prior = priorYearResource(pkg, direction, year);
   if (prior) {
     const priorKey = key - 100;
-    const priorRows = await trade.runSql(trade.totalSql(prior.id, priorKey), options);
-    const priorEur = trade.num(priorRows[0] && priorRows[0].value_eur);
+    const priorMonth = await trade.readMonth(prior.id, priorKey, options);
+    const priorEur = priorMonth.totalEur;
     if (priorEur !== null && priorEur !== 0) {
       previous = {
         period: trade.periodLabel(priorKey),
@@ -139,8 +131,8 @@ async function readDirection(pkg, direction, selection) {
     }
   }
 
-  const partners = rankPartners(partnerRows, totalEur);
-  const chapters = rankChapters(chapterRows, totalEur);
+  const partners = rankPartners(month.partners, totalEur);
+  const chapters = rankChapters(month.chapters, totalEur);
 
   return {
     label: trade.DIRECTIONS[direction].label,
