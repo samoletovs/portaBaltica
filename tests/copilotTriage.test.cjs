@@ -41,26 +41,31 @@ async function triage(deployment, finish = 'stop') {
   return { requests, labels };
 }
 
-test('Luna triage keeps the 300-token ceiling without legacy parameters', async () => {
-  const { requests, labels } = await triage('gpt-6-luna');
-  assert.equal(requests.length, 1);
-  assert.match(requests[0].url, /deployments\/gpt-6-luna\/chat\/completions/);
-  assert.equal(requests[0].body.max_completion_tokens, 300);
-  assert.equal(requests[0].body.reasoning_effort, 'none');
-  assert.equal(requests[0].body.max_tokens, undefined);
-  assert.equal(requests[0].body.temperature, undefined);
-  assert.deepEqual(labels, ['needs-info']);
+test('Luna triage keeps its sampling and 300-token ceiling for explicit and default settings', async () => {
+  for (const deployment of ['gpt-6-luna', undefined, '']) {
+    const { requests, labels } = await triage(deployment);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url,
+      'https://synthetic.invalid/openai/deployments/gpt-6-luna/chat/completions?api-version=2025-01-01-preview');
+    assert.deepEqual(Object.keys(requests[0].body).sort(),
+      ['max_completion_tokens', 'messages', 'reasoning_effort', 'temperature']);
+    assert.equal(requests[0].body.max_completion_tokens, 300);
+    assert.equal(requests[0].body.reasoning_effort, 'none');
+    assert.equal(requests[0].body.temperature, 0.1);
+    assert.equal(requests[0].body.messages.length, 1);
+    assert.equal(requests[0].body.messages[0].role, 'user');
+    assert.deepEqual(labels, ['needs-info']);
+  }
 });
 
-for (const model of ['gpt-4.1', 'gpt-4o-mini']) {
-  test(`${model} rollback retains compatible parameters`, async () => {
-    const { requests } = await triage(model);
-    assert.equal(requests[0].body.max_tokens, 300);
-    assert.equal(requests[0].body.temperature, 0.1);
-    assert.equal(requests[0].body.max_completion_tokens, undefined);
-    assert.equal(requests[0].body.reasoning_effort, undefined);
-  });
-}
+test('retiring triage deployments cannot be selected as a rollback', async () => {
+  for (const model of ['gpt-4.1', 'gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1-nano',
+    'o3', 'o3-mini', 'o4-mini']) {
+    await assert.rejects(triage(model), {
+      name: 'Error', message: 'TRIAGE_DEPLOYMENT must name a supported actual model',
+    });
+  }
+});
 
 test('a truncated but parseable approval cannot assign paid work', async () => {
   assert.deepEqual((await triage('gpt-6-luna', 'length')).labels, ['needs-review']);

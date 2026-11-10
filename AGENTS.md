@@ -223,7 +223,7 @@ which is exactly how the first attempt at this template failed.
 ### Verifying the identity actually works
 
 `infrastructure/verify/` is a managed-identity smoke test that calls
-`gpt-4o-mini` on `foundrylab-aiservices` and round-trips a blob, both via
+`gpt-6-luna` on `foundrylab-aiservices` and round-trips a blob, both via
 `DefaultAzureCredential`, from inside the deployed app. Run it after any change
 to the identity or the role assignments:
 
@@ -402,12 +402,15 @@ human approval is needed. Do not add routine collection as maintenance. Keep
 definitions, units, common observation years and frozen-source charts explicit;
 do not present a commissioned annual comparison as a ranked breaking-news signal.
 
-The 2026-10-02 selective model refresh is prepared, not promoted: the shared
+The live deployment was verified on 2026-11-09: the shared
 writer uses `gpt-6-luna` v2026-09-22 on `foundrylab-aiservices`, no premium
 newsroom tier. GPT-6 requests use bounded `max_completion_tokens` and
-`reasoning_effort=none`; every factual/publishing validator and schedule is
-unchanged. See [README.md](README.md#model-pilot) for the promotion gate,
-shadowing app settings, rollback and separate key-auth triage blocker.
+`reasoning_effort=none`, retaining `temperature=0.25`; every factual/publishing
+validator and schedule is unchanged. The writer, infrastructure and separate
+key-auth triage workflow admit Luna only. See
+[README.md](README.md#model-configuration) for shadowing app settings,
+code rollback and deployment verification. Historical provenance is data,
+not a deployment option.
 
 - Follow NauroLabs TypeScript + React conventions (see .github/instructions/)
 - Colour comes from the named classes and custom properties in `src/index.css`

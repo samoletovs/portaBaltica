@@ -165,55 +165,60 @@ charts and does not activate routine collection:
 python -m newsroom.pipeline.international_explainers --publish
 ```
 
-## Model pilot
-
-**Prepared, not promoted.** The parent owns synthetic API/quality evaluation
-and the combined +$10/month pilot. Do not run a paid edition or change cloud
-settings to test this branch.
+## Model configuration
 
 The routine writer (including the analyst/editor/desk using the same client)
 targets `foundrylab-aiservices` in `foundrylab-rg`, deployment and actual model
-`gpt-6-luna`, version `2026-09-22`. Set these Function App settings together:
+`gpt-6-luna`, version `2026-09-22`. The live Function App was read on
+2026-11-09 and already uses Luna with these settings:
 
-- `AZURE_OPENAI_ENDPOINT=https://foundrylab-aiservices.cognitiveservices.azure.com/`
+- `AZURE_OPENAI_ENDPOINT=https://foundrylab-aiservices.openai.azure.com/`
 - `AZURE_OPENAI_DEPLOYMENT=gpt-6-luna`
 - `AZURE_OPENAI_API_VERSION=2024-10-21`
 
 The deployment must serve the same-named model; unknown aliases and mismatched
 response models fail closed rather than mislabelling article provenance.
-GPT-6 uses `max_completion_tokens` with `reasoning_effort=none`. Each existing
+Luna uses `max_completion_tokens`, `temperature=0.25` and `reasoning_effort=none`. Each existing
 caller keeps its ceiling (article writer 2,000; desk 400). There is no Sol
 newsroom tier, new retry, changed cadence, or relaxed factual/publishing gate.
 The returned model/version continues into article provenance.
 
-Rollback changes only `AZURE_OPENAI_DEPLOYMENT` to `gpt-4o-mini` or `gpt-4.1`
-on the same resource. Those models use the original `max_tokens`/temperature
-parameters. Luna Global short-context USD/M rates are **0.10 input, 0.50
+The writer and infrastructure accept only `gpt-6-luna`; retiring deployments
+are not rollback targets. Roll back application code if necessary while
+keeping the live Luna deployment. Historical article provenance remains
+unchanged: a past model name is evidence, not a call configuration.
+Luna Global short-context USD/M rates are **0.10 input, 0.50
 output, 0.01 cached input**; forecast uncached input unless cache hits are
 measured, not assumed.
 
 Production code ships through [newsroom-ci.yml](.github/workflows/newsroom-ci.yml),
-job **Publish the pipeline to Azure**, to `portabaltica-func`
-(`portabaltica-rg`). That workflow does not apply Bicep or change the existing
-deployment setting, which shadows the code default. The parent must apply the
-approved model setting separately. No persistent Foundry agent is involved.
+job **Publish the pipeline to Azure**, on a push to master touching the
+newsroom paths, after both Python safety jobs pass. It publishes to
+`portabaltica-func` (`portabaltica-rg`) and stamps `NEWSROOM_REVISION`.
+That workflow does not apply Bicep or change `AZURE_OPENAI_*` settings, which
+shadow code defaults. A manual deployment of `infrastructure/main.bicep`
+does reapply those settings; its endpoint, deployment and API-version defaults
+match the live values above. Check the deployed revision and the next
+scheduled article's `provenance.revision` after release; do not trigger a paid
+edition merely to verify this change. No persistent Foundry agent is involved.
 
-### Issue triage is a separate promotion
+### Issue triage uses a separate account
 
-[copilot-triage.yml](.github/workflows/copilot-triage.yml) now defaults
+[copilot-triage.yml](.github/workflows/copilot-triage.yml) defaults
 `TRIAGE_DEPLOYMENT` to `gpt-6-luna`, with a 300-completion-token cap and no
-reasoning. The repository variable can select only `gpt-4o-mini`
-or `gpt-4.1` for rollback, with legacy token parameters; nano is rejected. A truncated or refused
-reply labels the issue `needs-review`, never `approved`.
+reasoning, retaining `temperature=0.1`. The repository variable already names
+Luna (read 2026-11-09), and no other deployment is admitted. Missing, truncated,
+refused or empty output labels the issue `needs-review`, never `approved`.
+The workflow runs on newly opened issues after it reaches the default branch;
+there is no separate application deployment or variable write.
 
 Its existing `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_KEY` **secrets remain
 unchanged**. They historically target `oai-agents-s6vbks3oteo4y`, not the
 MI-only foundryLab account. A deployment on foundryLab is therefore **not**
-proof triage can call Luna. Parent reports Luna provisioned on both accounts
-and the synthetic candidate gate passed (2026-10-02); activation must still
-use the verified key-compatible account. Clear any retired nano
-`TRIAGE_DEPLOYMENT` variable or set Luna before activation. This branch does
-not change secrets or authentication.
+proof triage can call Luna. Repository secret values cannot be read back
+through GitHub; an account-level smoke does not prove which endpoint a
+workflow secret contains. This change does not change secrets, endpoints,
+API versions or authentication. Neither live deployment setting needs a flip.
 
 ## License
 
