@@ -42,6 +42,33 @@ describe('searchArticles', () => {
       .toEqual(['estonian-labour-costs', 'other-outlet-story']);
   });
 
+  it('matches a body-only term in indexed text', () => {
+    const article = tierASummary({
+      slug: 'body-only-finding',
+      headline: 'A separate headline',
+      dek: '',
+      searchable_text: 'The distinctive body-only finding names a transmission bottleneck.',
+    });
+
+    expect(searchArticles([article], 'transmission bottleneck').map(({ slug }) => slug))
+      .toEqual(['body-only-finding']);
+  });
+
+  it('never searches Tier C snippets, URLs, or an accidental indexed-text field', () => {
+    const external = tierCSummary({
+      searchable_text: 'restricted-body-term',
+      syndicated: {
+        attribution: 'ERR News',
+        original_url: 'https://news.err.ee/url-only-term',
+        snippet: 'snippet-only-term',
+      },
+    });
+
+    for (const term of ['restricted-body-term', 'url-only-term', 'snippet-only-term']) {
+      expect(searchArticles([external], term)).toEqual([]);
+    }
+  });
+
   it('returns all provided articles for an empty query', () => {
     expect(searchArticles(articles, '  ')).toEqual(articles);
   });

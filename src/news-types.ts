@@ -403,6 +403,8 @@ export interface ArticleSummary {
   format?: ArticleFormat;
   headline: string;
   dek?: string;
+  /** Bounded index text from Tier A body or licensed Tier B full text; never Tier C. */
+  searchable_text?: string;
   persona?: Pick<Persona, 'id' | 'name' | 'byline'>;
   syndicated?: Pick<Syndicated, 'attribution' | 'original_url' | 'snippet'>;
   published_at?: string;
