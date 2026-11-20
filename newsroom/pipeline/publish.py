@@ -35,6 +35,36 @@ log = logging.getLogger(__name__)
 #: that is rare and the index links it), so they can be cached longer.
 _INDEX_CACHE_CONTROL = "public, max-age=60, must-revalidate"
 _ARTICLE_CACHE_CONTROL = "public, max-age=300"
+_INDEX_SEARCHABLE_TEXT_MAX_CHARS = 4_000
+
+
+def _searchable_text(article: Any) -> str | None:
+    """Bounded text from content we may reproduce, never a tier C link-out."""
+    tier = article.get("tier") if isinstance(article, dict) else getattr(article, "tier", None)
+    if tier == "A":
+        body = article.get("body", []) if isinstance(article, dict) else article.body
+        blocks = body if isinstance(body, list) else []
+        fragments = []
+        for block in blocks:
+            text = block.get("text") if isinstance(block, dict) else getattr(block, "text", None)
+            if isinstance(text, str):
+                fragments.append(text)
+    elif tier == "B":
+        syndicated = (
+            article.get("syndicated")
+            if isinstance(article, dict)
+            else article.syndicated
+        )
+        full_text = (
+            syndicated.get("full_text")
+            if isinstance(syndicated, dict)
+            else None
+        )
+        fragments = [full_text] if isinstance(full_text, str) else []
+    else:
+        return None
+
+    return " ".join(" ".join(fragments).split())[:_INDEX_SEARCHABLE_TEXT_MAX_CHARS].rstrip()
 
 
 def _content_settings(cache_control: str) -> Any:
@@ -518,6 +548,11 @@ class ArticleStore:
                 # suppressed, which fails towards publishing rather than
                 # towards silence.
                 "signal_finding": (a.provenance or {}).get("signal_finding"),
+                **(
+                    {"searchable_text": searchable_text}
+                    if (searchable_text := _searchable_text(a)) is not None
+                    else {}
+                ),
             }
             for a in articles
             if is_servable(a)
@@ -534,6 +569,29 @@ class ArticleStore:
                 by_slug[slug] = entry
         for entry in fresh:  # this run wins on a slug collision
             by_slug[entry["slug"]] = entry
+
+        # Existing index entries predate body search. Backfill their text from
+        # the published article once, while keeping tier C strictly link-out.
+        for entry in by_slug.values():
+            if entry.get("tier") == "C":
+                entry.pop("searchable_text", None)
+                continue
+            if entry.get("tier") not in ("A", "B") or isinstance(
+                entry.get("searchable_text"), str
+            ):
+                continue
+            slug = entry.get("slug")
+            if not isinstance(slug, str) or not slug:
+                continue
+            try:
+                article = await asyncio.to_thread(self._read_published, slug)
+            except Exception:
+                log.warning("could not backfill searchable text for %s", slug, exc_info=True)
+                continue
+            if article is not None and article.get("tier") == entry.get("tier"):
+                searchable_text = _searchable_text(article)
+                if searchable_text is not None:
+                    entry["searchable_text"] = searchable_text
 
         entries = sorted(
             by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True

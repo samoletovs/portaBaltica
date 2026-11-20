@@ -50,7 +50,7 @@ export function NewsSearch({ value, onChange }: NewsSearchProps) {
         </button>
       )}
       <p id="news-search-scope" className="sr-only">
-        Searches headlines, summaries, sections, countries and publication dates in the current published index, not article bodies or other outlets.
+        Searches headlines, summaries, sections, countries, publication dates and indexed Tier A/B article text. Tier C snippets and links are not searched.
       </p>
     </div>
   );

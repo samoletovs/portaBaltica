@@ -269,6 +269,83 @@ class TestTheIndexCarriesTheStatusItsGuardsReadOn:
         )
         assert entry["status"] == "published"
 
+    def test_tier_a_search_text_is_bounded_body_text(self, tmp_path):
+        article = self._published(
+            body=[{"type": "paragraph", "text": "A unique finding appears only in the article body."}]
+        )
+        payload = self._index(tmp_path, [article])
+
+        assert payload["articles"][0]["searchable_text"] == (
+            "A unique finding appears only in the article body."
+        )
+
+    def test_tier_b_search_text_uses_licensed_full_text_only(self, tmp_path):
+        article = self._published(
+            tier="B",
+            persona=None,
+            body=[{"type": "paragraph", "text": "Do not use this instead."}],
+            syndicated={
+                "attribution": "European Commission",
+                "original_url": "https://commission.europa.eu/example",
+                "full_text": "The licensed press release body.",
+                "snippet_is_verbatim": True,
+            },
+        )
+        payload = self._index(tmp_path, [article])
+
+        assert payload["articles"][0]["searchable_text"] == "The licensed press release body."
+
+    def test_tier_c_search_text_is_omitted_and_tier_a_text_is_capped(self, tmp_path):
+        tier_c = self._published(
+            slug="tier-c-search-card",
+            tier="C",
+            persona=None,
+            syndicated={
+                "attribution": "ERR News",
+                "original_url": "https://news.err.ee/private-path-term",
+                "snippet": "A snippet-only search term.",
+                "full_text": "A full-text-only search term.",
+                "snippet_is_verbatim": True,
+            },
+        )
+        tier_a = self._published(
+            slug="tier-a-large-body",
+            body=[{"type": "paragraph", "text": "x" * 5_000}],
+        )
+
+        payload = self._index(tmp_path, [tier_c, tier_a])
+        entries = {entry["tier"]: entry for entry in payload["articles"]}
+
+        assert "searchable_text" not in entries["C"]
+        assert len(entries["A"]["searchable_text"]) == 4_000
+
+    def test_existing_index_entries_are_backfilled_from_their_published_article(self, tmp_path):
+        from newsroom.pipeline.models import Block
+        from newsroom.pipeline.publish import ArticleStore
+
+        article = self._published(
+            body=[Block(type="paragraph", text="A searchable historical finding.")]
+        )
+        store = ArticleStore(local_dir=tmp_path, account_url="")
+        asyncio.run(store.put(article))
+        (tmp_path / "index.json").write_text(
+            json.dumps({
+                "generated_at": article.created_at,
+                "count": 1,
+                "articles": [{
+                    "slug": article.slug,
+                    "tier": "A",
+                    "published_at": article.published_at,
+                }],
+            }),
+            encoding="utf-8",
+        )
+
+        asyncio.run(store.write_index([]))
+
+        payload = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+        assert payload["articles"][0]["searchable_text"] == "A searchable historical finding."
+
     def test_the_status_is_one_the_guards_recognise(self, tmp_path):
         """Both consumers use an allow list, so a status they have never heard
         of fails closed and the article silently disappears. Emitting one is a

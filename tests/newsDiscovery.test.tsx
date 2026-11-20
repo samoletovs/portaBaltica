@@ -55,6 +55,24 @@ describe('finding useful published reporting', () => {
     expect(screen.getByText('Showing 1 of 1 matching articles')).toBeTruthy();
   });
 
+  it('finds an article using a term present only in its indexed body text', async () => {
+    const article = tierASummary({
+      id: 'body-search',
+      slug: 'body-search',
+      headline: 'An unrelated headline',
+      dek: '',
+      searchable_text: 'Analysts found a distinctive transmission bottleneck in the body.',
+    });
+    await renderFeed([article]);
+
+    fireEvent.change(screen.getByLabelText('Search reporting by keyword, topic or date'), {
+      target: { value: 'transmission bottleneck' },
+    });
+
+    expect(screen.getByText('An unrelated headline')).toBeTruthy();
+    expect(screen.getByText('Showing 1 of 1 matching articles')).toBeTruthy();
+  });
+
   it('combines section and text filters and offers recovery from no matches', async () => {
     await renderFeed([
       tierASummary({ id: 'labour', slug: 'labour', section: 'labour', headline: 'Estonia hiring update' }),
@@ -81,7 +99,7 @@ describe('finding useful published reporting', () => {
     const search = screen.getByRole('searchbox', { name: 'Search reporting by keyword, topic or date' });
     expect(search.getAttribute('placeholder')).toBe('Search our reporting');
     expect(document.getElementById(search.getAttribute('aria-describedby')!)?.textContent)
-      .toContain('publication dates');
+      .toContain('article text');
     expect(document.getElementById(search.getAttribute('aria-controls')!)).not.toBeNull();
   });
 
