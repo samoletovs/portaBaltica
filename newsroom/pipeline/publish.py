@@ -570,28 +570,44 @@ class ArticleStore:
         for entry in fresh:  # this run wins on a slug collision
             by_slug[entry["slug"]] = entry
 
-        # Existing index entries predate body search. Backfill their text from
-        # the published article once, while keeping tier C strictly link-out.
+        # Rebuild searchable text from the current published article on every
+        # index write. Existing index text is untrusted: the article may have
+        # changed, and an older or malformed value may exceed the current cap.
+        fresh_searchable_by_slug = {
+            entry["slug"]: entry.get("searchable_text") for entry in fresh
+        }
         for entry in by_slug.values():
             if entry.get("tier") == "C":
                 entry.pop("searchable_text", None)
                 continue
-            if entry.get("tier") not in ("A", "B") or isinstance(
-                entry.get("searchable_text"), str
-            ):
+            if entry.get("tier") not in ("A", "B"):
+                entry.pop("searchable_text", None)
                 continue
             slug = entry.get("slug")
             if not isinstance(slug, str) or not slug:
+                entry.pop("searchable_text", None)
+                continue
+            if slug in fresh_searchable_by_slug:
+                searchable_text = fresh_searchable_by_slug[slug]
+                if isinstance(searchable_text, str):
+                    entry["searchable_text"] = searchable_text
+                else:
+                    entry.pop("searchable_text", None)
                 continue
             try:
                 article = await asyncio.to_thread(self._read_published, slug)
             except Exception:
                 log.warning("could not backfill searchable text for %s", slug, exc_info=True)
+                entry.pop("searchable_text", None)
                 continue
             if article is not None and article.get("tier") == entry.get("tier"):
                 searchable_text = _searchable_text(article)
                 if searchable_text is not None:
                     entry["searchable_text"] = searchable_text
+                else:
+                    entry.pop("searchable_text", None)
+            else:
+                entry.pop("searchable_text", None)
 
         entries = sorted(
             by_slug.values(), key=lambda e: str(e.get("published_at") or ""), reverse=True
