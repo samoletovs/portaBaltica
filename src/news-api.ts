@@ -131,6 +131,7 @@ export function searchArticles(
     const searchableText = [
       article.headline,
       article.dek,
+      article.tier === 'C' ? '' : article.searchable_text,
       article.section,
       ...(article.countries ?? []).flatMap((country) => [country, COUNTRY_NAMES[country] ?? '']),
       article.published_at,
