@@ -14,10 +14,21 @@ describe('CI workflow', () => {
 
   it('installs locked dependencies before testing and building', () => {
     const commands = [...code.matchAll(/^\s*run:\s*(.+)$/gm)].map((match) => match[1]);
-    expect(commands).toEqual(['npm ci', 'npm test', 'npm run build']);
+    expect(commands).toEqual([
+      'npm ci',
+      'npm test',
+      'npm run build',
+      'python -m pip install -r newsroom/requirements-dev.txt',
+      'pytest -q',
+    ]);
     expect(code).toMatch(/uses: actions\/checkout@/);
     expect(code).toMatch(/uses: actions\/setup-node@/);
     expect(code).toMatch(/node-version: '22'/);
+    expect(code).toMatch(/uses: actions\/setup-python@v6\s*\n\s+with:\s*\n\s+python-version: '3\.12'/);
+    expect(code.indexOf('uses: actions/setup-python@v6')).toBeLessThan(
+      code.indexOf('run: python -m pip install -r newsroom/requirements-dev.txt'),
+    );
+    expect(code).not.toMatch(/^\s*(?:continue-on-error|working-directory):/m);
   });
 
   it('needs no write permissions, secrets, or deployment action', () => {
